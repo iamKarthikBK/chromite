@@ -4,3 +4,6 @@
 [submodule "src/common_bsv"]
 	path = src/common_bsv
 	url = https://gitlab.com/incoresemi/common_bsv.git
+[submodule "src/devices"]
+	path = src/devices
+	url = https://gitlab.com/incoresemi/uncore/devices.git
