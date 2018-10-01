@@ -1,0 +1,274 @@
+/* 
+Copyright (c) 2013, IIT Madras All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted
+provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this list of conditions
+  and the following disclaimer.  
+* Redistributions in binary form must reproduce the above copyright notice, this list of 
+  conditions and the following disclaimer in the documentation and/or other materials provided 
+  with the distribution.  
+* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
+  promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+--------------------------------------------------------------------------------------------------
+
+Module name: Riscv_arithmetic_unit.  
+author name: Neel Gala, Aditya Mathur 
+Email id: neelgala@gmail.com
+
+This module is the arithmetic execution unit for the RISCV ISA. 
+It is a 64 bit implementation which is named as RV64.  The instruction with a "W" are RV64 
+instructions which ignore the upper 32 bits and operate on the lower 32 bits.  
+The arithmetic unit is implemented as a single case statement where the instruction bits define 
+the various operations to be executed.
+
+This module contains single cycle MUL instruction execution.
+
+*/
+
+package alu;
+
+  `define multicycle (`muldiv||`spfpu )
+  `define muldivfpu_both (`muldiv && `spfpu )
+  `define only_muldiv (`muldiv && !(`spfpu) )
+  `define only_spfpu (!(`muldiv) && `spfpu )
+  `ifdef muldiv_fpga 
+    import muldiv_fpga::*; 
+  `else
+    import muldiv_asic::*;
+  `endif
+  `ifdef spfpu
+    import fpu::*;
+  `endif
+  import common_types::*;
+  `include "common_params.bsv"
+
+	(*noinline*)
+	function ALU_OUT fn_alu ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
+        Bit#(VADDR) imm_value, Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
+        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif );
+
+	  /*========= Perform all the arithmetic ===== */
+	  // ADD* ADDI* SUB* 
+    Bit#(XLEN) inv = signExtend(fn[3]);
+	  let inv_op2=op2^inv;
+	  let op1_xor_op2=op1^inv_op2;
+    let op1_add=op1;
+    let op2_add=inv_op2;
+    let adder_output=op1+ inv_op2+ zeroExtend(fn[3]);
+	  // SLT SLTU
+	  Bit#(1) compare_out=fn[0]^(
+						(fn[3]==0)?pack(op1_xor_op2==0):
+						(op1[valueOf(XLEN)-1]==op2[valueOf(XLEN)-1])?adder_output[valueOf(XLEN)-1]:
+						(fn[1]==1)?op2[valueOf(XLEN)-1]:op1[valueOf(XLEN)-1]);
+	  // SLL SRL SRA
+    //word32 is bool, shift_amt is used to describe the amount of shift
+	  Bit#(6) shift_amt={((!word32)?op2[5]:0), op2[4:0]};
+
+	  `ifdef RV64
+	  	Bit#(TDiv#(XLEN, 2)) upper_bits=word32?signExtend(fn[3]&op1[31]):op1[63:32];
+	  	Bit#(XLEN) shift_inright={upper_bits, op1[31:0]};//size of 64 bit
+	  `else
+	  	Bit#(XLEN) shift_inright=zeroExtend(op1[31:0]);//size of 32bit
+	  `endif
+
+	  let shin = (fn==`FNSR || fn==`FNSRA)?shift_inright:reverseBits(shift_inright);
+	  Int#(TAdd#(XLEN, 1)) t=unpack({(fn[3]&shin[valueOf(XLEN)-1]), shin});
+	  Int#(XLEN) shift_r=unpack(pack(t>>shift_amt)[valueOf(XLEN)-1:0]);//shift right by shift_amt
+	  let shift_l=reverseBits(pack(shift_r));//shift left
+	  Bit#(XLEN) shift_output=((fn==`FNSR || fn==`FNSRA)?pack(shift_r):0) | 
+                            ((fn==`FNSL)?pack(shift_l):0); 
+
+	  // AND OR XOR
+	  let logic_output=	((fn==`FNXOR || fn==`FNOR)?op1_xor_op2:0) |
+	  						((fn==`FNOR || fn==`FNAND)?op1&op2:0);
+	  let shift_logic=zeroExtend(pack(fn==`FNSEQ || fn==`FNSNE || fn >= `FNSLT)&compare_out) |
+	  					 logic_output|shift_output;
+
+		Bit#(XLEN) final_output=(fn==`FNADD || fn==`FNSUB)?adder_output:shift_logic;
+    `ifdef RV64
+  		if(word32)
+	  		 final_output=signExtend(final_output[31:0]);
+    `endif
+
+		// Generate flush if prediction was wrong
+    // in case branch prediction enabled: 
+    //    For JAL and JALR we need to check if the RAS has popped the next pc correctly or not.
+    //    In case of Branches,  if there is a misprediction we need to flush the entire pipe
+    //    But if the prediction is right such that it is a taken branch we need to check if the
+    //    target pc generated by the target buffer is correct since there can be conflicts.
+    //    If however,  the branch is evaluated not taken and the prediction is also not-taken then
+    //    nothing needs to be don.
+    // In absence of branch prediction:
+    //    The npc by default is PC+ 4. so we have to check only when there is a diversion in pc
+    //    which can happen either due to JALR/JAL or due to a taken branch. There is no notion of
+    //    misprediction here.
+		Flush_type flush=None;
+    `ifdef bpu
+      if(inst_type==JAL || inst_type==JALR) 
+        flush=CheckRPC;
+      else if(inst_type==BRANCH)begin
+        if(final_output[0]==1) // actually taken then check the NPC for target address.
+          flush=CheckRPC;
+        else if(final_output[0]==0) // actuall not-taken but predicted taken.
+          flush=CheckNPC;
+      end
+      else if(inst_type==MEMORY && (memaccess==FenceI))
+        flush=Fence;
+    `else
+  		if((inst_type==BRANCH && final_output[0]==1) || inst_type==JALR || inst_type==JAL )begin
+	  		flush=CheckNPC;
+		  end
+      else if(inst_type==MEMORY && (memaccess==FenceI))
+        flush=Fence;
+    `endif
+		
+    // generate the effective address to jump to 
+		Bit#(VADDR) effective_address=op3+ truncate(imm_value);
+    if(inst_type==JALR)
+      effective_address[0]=0;
+
+	  Trap_type exception=tagged None;
+	  if(((inst_type==JALR||inst_type==JAL) && effective_address[1]!=0) || (inst_type==BRANCH && final_output[0]==1 &&
+                                                             effective_address[1:0]!=0)) begin
+	  	exception=tagged Exception Inst_addr_misaligned;
+    end
+    else if(inst_type==MEMORY && ((funct3[1:0]==1 && effective_address[0]!=0) || 
+                                  (funct3[1:0]==2 && effective_address[1:0]!=0) || 
+                      `ifdef RV64 (funct3[1:0]==3 && effective_address[2:0]!=0) `endif ))begin
+      exception = memaccess==Load? tagged Exception Load_addr_misaligned: 
+                                                          tagged Exception Store_addr_misaligned;
+    end
+
+    if(exception matches tagged None)begin
+    end
+    else begin
+      final_output=signExtend(effective_address);
+    end
+      
+    
+    Commit_type committype = REGULAR;
+    if(inst_type==MEMORY)
+      committype = MEMORY;
+    else if(inst_type == SYSTEM_INSTR)
+      committype = SYSTEM_INSTR;
+	
+	  Bit#(VADDR) effaddr_csrdata = (inst_type==SYSTEM_INSTR)? 
+                                            zeroExtend({funct3, imm_value[16:0]}): 
+                                            effective_address;
+
+	  return tuple5(committype, final_output, effaddr_csrdata, exception, flush);
+	endfunction
+
+`ifdef multicycle
+  interface Ifc_alu;
+	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
+        `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
+        Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
+        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif );
+		method ActionValue#(ALU_OUT) delayed_output;
+  endinterface:Ifc_alu
+
+  `ifdef muldiv
+    `ifdef spfpu
+      typedef enum {None, WaitMulDiv, WaitFPU} WaitState deriving (Bits,Eq,FShow);
+    `endif
+  `endif
+
+  (*synthesize*)
+  module mkalu(Ifc_alu);
+    let verbosity = `VERBOSITY ;
+    `ifdef muldiv
+      Ifc_muldiv muldiv <- mkmuldiv;
+    `endif
+    `ifdef spfpu
+      Ifc_fpu fpu <- mkfpu();
+    `endif
+    `ifdef muldiv
+      `ifdef spfpu
+        Reg#(WaitState) rg_wait <- mkReg(None);
+        Wire#(ALU_OUT) wr_delayed_output <- mkWire();
+        rule capture_delayed_fpuoutput(rg_wait==WaitFPU);
+          if(verbosity>1)
+            $display($time,"\tALU: Sending delayed output from FPU");
+          let fpu_result<-fpu.get_result;
+          wr_delayed_output<= tuple5(REGULAR, fpu_result.final_result, zeroExtend(fpu_result.fflags), 
+              tagged None, None);
+          rg_wait<=None;
+        endrule
+        rule capture_delayed_muldivputput(rg_wait==WaitMulDiv);
+          if(verbosity>1)
+            $display($time,"\tALU: Sending delayed output from MULDIV");
+          let res<-muldiv.delayed_output;
+          wr_delayed_output<=res;
+          rg_wait<=None;
+        endrule
+      `endif
+    `endif
+
+	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
+        `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
+        Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
+        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif );
+      `ifdef muldiv
+        if(inst_type==MULDIV)begin
+          let product <- muldiv.get_inputs(op1, op2, funct3, word32);
+          `ifdef muldiv
+            `ifdef spfpu
+              if(!tpl_1(product))
+                rg_wait<=WaitMulDiv;
+            `endif
+          `endif
+          return product;
+        end
+        else
+      `endif
+      `ifdef spfpu
+        if(inst_type==FLOAT)begin
+          fpu._start(op1, op2, imm_value, fn, imm_value[11:5], funct3, imm_value[1:0],0, word32);
+          `ifdef muldiv
+            `ifdef spfpu
+                rg_wait<=WaitFPU;
+            `endif
+          `endif
+          return tuple2(False, tuple5(REGULAR, '1, 0, tagged None, None));
+        end
+        else
+      `endif
+          return tuple2(True, fn_alu(fn, op1, op2, op3, truncate(imm_value), inst_type, funct3, 
+                                            pc, memaccess, word32 `ifdef bpu , prediction `endif ));
+    endmethod
+    `ifdef muldiv
+      `ifndef spfpu
+      	method delayed_output=muldiv.delayed_output;
+      `endif
+    `endif
+    `ifdef only_spfpu
+      `ifndef muldiv
+        method ActionValue#(ALU_OUT) delayed_output;
+          let fpu_result<-fpu.get_result;
+          return tuple5(REGULAR, fpu_result.final_result, zeroExtend(fpu_result.fflags), 
+              tagged None, None);
+        endmethod
+      `endif
+    `endif
+    `ifdef muldiv
+      `ifdef spfpu
+        method ActionValue#(ALU_OUT) delayed_output;
+          return wr_delayed_output;
+        endmethod
+      `endif
+    `endif
+  endmodule
+`endif
+endpackage:alu

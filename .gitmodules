@@ -1,0 +1,6 @@
+[submodule "src/fabrics"]
+	path = src/fabrics
+	url = https://gitlab.com/incoresemi/uncore/fabrics.git
+[submodule "src/common_bsv"]
+	path = src/common_bsv
+	url = https://gitlab.com/incoresemi/common_bsv.git
