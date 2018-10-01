@@ -7,3 +7,6 @@
 [submodule "src/devices"]
 	path = src/devices
 	url = https://gitlab.com/incoresemi/uncore/devices.git
+[submodule "verification"]
+	path = verification
+	url = https://gitlab.com/shaktiproject/verification_environment/verification.git
