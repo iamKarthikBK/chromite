@@ -74,7 +74,7 @@ package csr;
     Ifc_csrfile csrfile <- mkcsrfile();
     `ifdef supervisor
       Wire#(Bool) wr_sfence_command <- mkDWire(False);
-    
+    `endif 
 	  method ActionValue#(Tuple3#(Bool, Bit#(VADDR), Bit#(XLEN))) system_instruction(
             Bit#(12) csr_address, Bit#(5) rs1_addr, Bit#(XLEN) op1, Bit#(3) funct3
             `ifdef supervisor ,Bit#(VADDR) pc `endif );

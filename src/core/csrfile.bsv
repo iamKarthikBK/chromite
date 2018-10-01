@@ -775,7 +775,7 @@ package csrfile;
 			      rg_uie <= 0;
 			      rg_upie <= rg_uie;
 			      rg_prv <= User;
-            if(rg_umode==1 && casue[5]==1)
+            if(rg_umode==1 && cause[5]==1)
               return ({(rg_utvec+ zeroExtend(cause[4:0])),2'b0}); // pc jumps to base+(4*cause)
             else
               return {rg_utvec, 2'b0}; // pc jumps to base

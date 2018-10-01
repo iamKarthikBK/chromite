@@ -127,7 +127,7 @@ package alu;
         flush=Fence;
     `else
   		if((inst_type==BRANCH && final_output[0]==1) || inst_type==JALR || inst_type==JAL )begin
-	  		flush=CheckNPC;
+	  		flush=CheckRPC;
 		  end
       else if(inst_type==MEMORY && (memaccess==FenceI))
         flush=Fence;

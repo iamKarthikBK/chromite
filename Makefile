@@ -7,9 +7,9 @@ include soc_config.inc
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
-TOP_MODULE:=mkTbSoC
-TOP_FILE:=TbSoC.bsv
-TOP_DIR:=./src/testbench
+TOP_MODULE:=mkriscv
+TOP_FILE:=riscv.bsv
+TOP_DIR:=./src/core
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))
@@ -30,8 +30,31 @@ endif
 ifneq (,$(findstring A,$(ISA)))
   define_macros += -D atomic=True
 endif
-ifneq (,$(findstring C,$(ISA)))
-  define_macros += -D compressed=True
+ifneq (,$(findstring F,$(ISA)))
+  define_macros += -D spfpu=True
+  FLOAT=--float
+endif
+ifneq (,$(findstring D,$(ISA)))
+  define_macros += -D dpfpu=True
+  FLOAT=--float
+endif
+ifeq ($(BPU),enable)
+  define_macros += -D bpu=True
+endif
+ifeq ($(MMU),enable)
+  define_macros += -D MMU=True
+endif
+ifeq ($(PERF),enable)
+  define_macros	+= -D perf=True
+endif
+ifeq ($(PREFETCH),enable)
+  define_macros	+= -D prefetch=True
+endif
+ifeq ($(JTAG),enable)
+  define_macros	+= -D JTAG=True
+endif
+ifeq ($(DEBUG),enable)
+  define_macros += -D Debug=True
 endif
 ifeq ($(SYNTH),SIM)
   define_macros += -D simulate=True
@@ -42,9 +65,9 @@ endif
 ifeq ($(COREFABRIC), AXI4Lite)
   define_macros += -D CORE_AXI4Lite=True
 endif
-define_macros += -D VERBOSITY=$(VERBOSITY) -D USERTRAPS=$(USERTRAPS) -D CORE_$(COREFABRIC)=True\
+define_macros += -D VERBOSITY=$(VERBOSITY) -D user=$(USER) -D supervisor=$(SUPERVISOR) -D USERTRAPS=$(USERTRAPS) -D CORE_$(COREFABRIC)=True\
 -D MULSTAGES=$(MULSTAGES) -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True
-CORE:=./src/core/
+CORE:=./src/core/:./src/core/fpu/
 M_EXT:=./src/core/m_ext/
 FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
 UNCORE:=./src/uncore
