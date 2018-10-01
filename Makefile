@@ -46,12 +46,12 @@ define_macros += -D VERBOSITY=$(VERBOSITY) -D USERTRAPS=$(USERTRAPS) -D CORE_$(C
 -D MULSTAGES=$(MULSTAGES) -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True
 CORE:=./src/core/
 M_EXT:=./src/core/m_ext/
-FABRIC:=./src/fabric/axi4:./src/fabric/axi4lite:./src/fabric/tilelink_lite
+FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
 UNCORE:=./src/uncore
 TESTBENCH:=./src/testbench/
-PERIPHERALS:=./src/peripherals/bootrom:./src/peripherals/pwm
+PERIPHERALS:=./src/devices/bootrom
 WRAPPERS:=./src/wrappers/
-LIB:=./src/lib/
+LIB:=./src/common_bsv
 VERILATOR_FLAGS = --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast --noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(LIB):$(FABRIC):$(UNCORE):$(TESTBENCH):$(PERIPHERALS):$(WRAPPERS):$(M_EXT)
 default: compile_bluesim link_bluesim generate_boot_files
