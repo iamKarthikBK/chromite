@@ -76,12 +76,9 @@ package SoC;
       Bit#(TLog#(`Num_Slaves)) slave_num = 0;
       if(addr >= `MemoryBase && addr<= `MemoryEnd)
         slave_num = `Memory_slave_num;
+      else if(addr>= `BootRomBase && addr<= `BootRomEnd)
+        slave_num =  `BootRom_slave_num;
       else
-      `ifdef BOOTROM
-        if(addr>= `BootRomBase && addr<= `BootRomEnd)
-          slave_num =  `BootRom_slave_num;
-        else
-      `endif
         slave_exist = False;
         
       return tuple2(slave_exist, slave_num);
@@ -110,15 +107,8 @@ package SoC;
    	mkConnection(cclass.master_d,	fabric.v_from_masters[`Mem_master_num]);
    	mkConnection(cclass.master_i, fabric.v_from_masters[`Fetch_master_num]);
 
-    `ifdef EXTERNAL
-  		mkConnection(fabric.v_to_slaves[`Memory_slave_num],external_memory.slave);
-    `endif
-    `ifdef BRAM
-  		mkConnection(fabric.v_to_slaves[`Memory_slave_num],main_memory.slave);
-    `endif
-		`ifdef BOOTROM
-			mkConnection (fabric.v_to_slaves [`BootRom_slave_num],bootrom.slave);
-		`endif
+  	mkConnection(fabric.v_to_slaves[`Memory_slave_num ],main_memory.slave);
+		mkConnection (fabric.v_to_slaves [`BootRom_slave_num ],bootrom.slave);
 
     `ifdef simulate
       interface io_dump= cclass.io_dump;
