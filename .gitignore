@@ -2,3 +2,7 @@
 bsv_build/
 
 verilog/
+
+obj_dir/
+
+bin/
