@@ -35,6 +35,8 @@ package TbSoC;
 	import Semi_FIFOF:: *;
 	import AXI4_Types:: *;
 	import AXI4_Fabric:: *;
+	`include "common_params.bsv"
+	import common_types::*;
   module mkTbSoC(Empty);
 
     let def_clk <- exposeCurrentClock;
@@ -60,12 +62,22 @@ package TbSoC;
 
     `ifdef simulate
       rule write_dump_file(rg_cnt!=0);
-        let {prv, pc, instruction, rd, data}<- soc.io_dump.get;
+        `ifdef spfpu
+          let {prv, pc, instruction, rd, data, rdtype}<- soc.io_dump.get;
+        `else
+          let {prv, pc, instruction, rd, data}<- soc.io_dump.get;
+        `endif
+        $display("TB pc:%h inst:%h rd:%d rdata:%h",pc,instruction,rd,data);
         if(instruction=='h00006f||instruction =='h00a001)
           $finish(0);
         else begin
   		  	$fwrite(dump, prv, " 0x%16h", pc, " (0x%8h", instruction, ")"); 
-	  	  	$fwrite(dump, " x%d", rd, " 0x%16h", data, "\n"); 
+        `ifdef spfpu
+          if(rdtype==FRF)
+  		  	  $fwrite(dump, " f%d", rd, " 0x%16h", data, "\n"); 
+          else
+        `endif
+  			  $fwrite(dump, " x%d", rd, " 0x%16h", data, "\n"); 
         end
       endrule
     `endif
