@@ -17,7 +17,6 @@ import FIFO::*;
 import SpecialFIFOs::*;
 import GetPut::*;
 import ConfigReg::*;
-import MemoryMap:: *;
 
 `include "common_params.bsv"
 

@@ -7,8 +7,8 @@ include soc_config.inc
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
-TOP_MODULE:=mkriscv
-TOP_FILE:=riscv.bsv
+TOP_MODULE:=mkcore_AXI4
+TOP_FILE:=core.bsv
 TOP_DIR:=./src/core
 WORKING_DIR := $(shell pwd)
 

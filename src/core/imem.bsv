@@ -23,7 +23,6 @@ package imem;
 	import TxRx	::*;
 	import icache	::*;
 	import common_types::*;
-	import MemoryMap::*;
 	`ifdef bpu
 		import branchpredictor::*;
 	`endif

@@ -20,7 +20,6 @@ import GetPut				 :: *;
 import ConfigReg		 :: *;
 import FIFOF				 :: *;
 import SpecialFIFOs	 :: *;
-import MemoryMap		 :: *;
 import DReg::*;
 import ConfigReg::*;
 `include "common_params.bsv"
