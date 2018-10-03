@@ -13,28 +13,16 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 */
 package MemoryMap;
 	/*=== Project imports ==== */
-	`include "common_params.bsv"
+	`include "SoC.defines"
   import common_types::*;
 	/*========================= */
 
-function Bool is_IO_Addr(Bit#(PADDR) addr); // TODO Shuold be PADDR
-//		if(addr>=`DebugBase && addr<=`DebugEnd)
-//			return (True);
-//		else if(addr>=`SDRAMMemBase && addr<=`SDRAMMemEnd)
-//        `ifdef FlexBus
-//	    		return (True);
-//        `else
-//	     	return (False);
-//		`endif
-//		`ifdef BOOTROM
-//			else if(addr>=`BootRomBase && addr<=`BootRomEnd)
-//				return (False);
-//		`endif
-//		`ifdef TCMemory
-//			else if(addr>=`TCMBase && addr<=`TCMEnd)
-//				return (False);
-//		`endif
-//		else
+function Bool is_IO_Addr(Bit#(PADDR) addr);
+		if(addr>=`MemoryBase && addr<=`MemoryEnd)
+	    		return (False);
+		else if(addr>=`BootRomBase && addr<=`BootRomEnd )
+				return (False);
+		else
 			return True;
 endfunction
 
