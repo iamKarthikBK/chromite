@@ -211,15 +211,11 @@ package stage4;
           `ifdef simulate 
             if(rdaddr==0)
               dest=0;
-            if(!drain `ifdef supervisor 
-                  || (drain && csrfield[19:17]!=0 && csrfield[11:0]=='h180) `endif )begin
-
-              `ifdef spfpu
-                dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, dest, rdtype));
-              `else
-                dump_ff.enq(tuple5(prv, signExtend(pc), inst, rdaddr, dest));
-              `endif
-            end
+            `ifdef spfpu
+              dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, dest, rdtype));
+            `else
+              dump_ff.enq(tuple5(prv, signExtend(pc), inst, rdaddr, dest));
+            `endif
           `endif
           rx.u.deq;
         end
