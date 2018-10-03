@@ -56,6 +56,9 @@ package icache;
 	(*preempts="read_data_fromcache,read_from_lbdata_into_hold_reg"*)
 	module mkicache(Ifc_icache);
 		/* VAddr = [tag_bits|set_bits|word_bits|byte_bits] */
+
+    let verbosity=`VERBOSITY;
+
 		let byte_bits=valueOf(TLog#(ICACHE_WORD_SIZE));	// number of bits to select a byte within a word. = 2
 		let word_bits=valueOf(TLog#(ICACHE_BLOCK_SIZE));	// number of bits to select a word within a block. = 4
 		let set_bits=valueOf(TLog#(ICACHE_SETS));			// number of bits to select a set from the cache. = 
@@ -107,17 +110,21 @@ package icache;
 
 
 		rule display_state;
-			`ifdef verbose $display($time,"\tICACHE: State: ",fshow(rg_state[2])); `endif
-			`ifdef verbose $display($time,"\tICACHE: translation done %h tlbexception: ", rg_trnslte_done[1], fshow(rg_tlb_exception[1])); `endif
+      if (verbosity>1) begin
+	  		$display($time,"\tICACHE: State: ",fshow(rg_state[2])); 
+  			$display($time,"\tICACHE: translation done %h tlbexception: ", rg_trnslte_done[1], fshow(rg_tlb_exception[1]));
+      end
 		endrule
 
 		/*====== Invalidate all the entries in the cache on startup or during Fence ==== */
 		rule fencing_the_cache(rg_state[0]==Fence && !memoperation.notEmpty);
 				rg_we<=0;
-			`ifdef verbose $display($time,"\tFencing icache of index %d", rg_index); `endif
+			if (verbosity>1) 
+        $display($time,"\tFencing icache of index %d", rg_index); 
 			if(rg_index==fromInteger(icache_sets)) begin
 				if(!rg_stall_fetch) begin
-			`ifdef verbose $display($time,"\tFencing icache of is over"); `endif
+			if(verbosity>1)
+        $display($time,"\tFencing icache of is over");
 					rg_state[0]<=Idle;
 					rg_index<=0;
 					random_line.seed('d3);
@@ -170,7 +177,7 @@ package icache;
 							hit=True;	
 							linenum=fromInteger(i);
 							dataline=data[i].read_response;
-							`ifdef verbose $display($time,"ICACHE: DATALINE: %h",dataline); `endif
+							if (verbosity>1) $display($time,"ICACHE: DATALINE: %h",dataline); 
 						end
 					end
 					//wr_tag_read_index <= tagged Valid setindex;
@@ -183,7 +190,7 @@ package icache;
 					Bit#(TLog#(ICACHE_SETS)) lbset=lb_vaddress[set_bits+word_bits+byte_bits-1:word_bits+byte_bits];
 					if(memoperation.notEmpty && lbset==setindex && lbtag==cpu_tag)begin
 						dataline_lb=linebuffer;
-						`ifdef verbose $display($time,"\tICACHE: LB BUFFER HIT: data %h",dataline_lb); `endif
+						if (verbosity>1) $display($time,"\tICACHE: LB BUFFER HIT: data %h",dataline_lb);
 						lbhit=True;
 						hit=False;
 					end 
@@ -191,7 +198,7 @@ package icache;
 					
 					Bit#(TMul#(ICACHE_WORD_SIZE,ICACHE_BLOCK_SIZE)) requested_word=('hF<<({2'd0,byteoffset}*4));
 					Bool polling_required= (line_bytes_written & requested_word) != requested_word;
-					`ifdef verbose $display($time,"\tICACHE: DATAVALUE: %h DATAVALUELB: %h requested_word: %h line_bytes_written: %h",data_value,data_value_lb,requested_word, line_bytes_written); `endif
+					if (verbosity>1) $display($time,"\tICACHE: DATAVALUE: %h DATAVALUELB: %h requested_word: %h line_bytes_written: %h",data_value,data_value_lb,requested_word, line_bytes_written);
 					/*====================================================== */
 					/*=========== Respond to Core ============================ */
 					if(rg_vaddress[1:0]!=0)begin // miss-aligned error.
@@ -205,7 +212,7 @@ package icache;
 					else if(hit || (lbhit&&!polling_required))begin // if there has been a hit.
 						if(lbhit ) 
 							data_value = data_value_lb;
-						`ifdef verbose $display($time,"\tICACHE: Hit for address : %h data: %h offset: %h line: %d hit: %b lbhit: %b, polling_required: %b",rg_vaddress,data_value,byteoffset,linenum,hit,lbhit, polling_required); `endif
+						if( verbosity>1) $display($time,"\tICACHE: Hit for address : %h data: %h offset: %h line: %d hit: %b lbhit: %b, polling_required: %b",rg_vaddress,data_value,byteoffset,linenum,hit,lbhit, polling_required);
 						`ifdef prefetch
 							rg_prefetchpc<=tagged Invalid;
 							if(!prefetchmode)begin
@@ -250,24 +257,26 @@ package icache;
 							random_line.next;
 							`ifdef prefetch
 								if(prefetchmode)begin
-									`ifdef verbose $display($time,"\tICACHE: Prefetch Miss of address: %h Replacing line: %d valid: %b",rg_vaddress,random_line.value[1:0],valid_values); `endif
-									perf_monitor[`ICACHE_PREFETCHMISS]=1;
+									if (verbosity>1) $display($time,"\tICACHE: Prefetch Miss of address: %h Replacing line: %d valid: %b",rg_vaddress,random_line.value[1:0],valid_values);
+									perf_monitor[`ICACHE_PREFETCHMISS ]=1;
 								end
+                else
 							`endif
-							`ifdef verbose else
-								$display($time,"\tICACHE: Miss of address: %h Replacing line: %d valid: %b",rg_vaddress,random_line.value[1:0],valid_values); `endif
+							  if(verbosity>1)
+  								$display($time,"\tICACHE: Miss of address: %h Replacing line: %d valid: %b",rg_vaddress,random_line.value[1:0],valid_values);
 						end
 						else begin // find the line which is not valid and fill it
 							let x=countZerosLSB(valid_values)-1;
 							replaceblock=pack(truncate(x));
 							`ifdef prefetch
 								if(prefetchmode)begin
-									`ifdef verbose $display($time,"\tICACHE: Prefetch Miss of address: %h Filling line: %d",rg_vaddress,x); `endif
-									perf_monitor[`ICACHE_PREFETCHMISS]=1;
+									if (verbosity>1) $display($time,"\tICACHE: Prefetch Miss of address: %h Filling line: %d",rg_vaddress,x);
+									perf_monitor[`ICACHE_PREFETCHMISS ]=1;
 								end
+                else
 							`endif
-							`ifdef verbose else
-							$display($time,"\tICACHE: Miss of address: %h Filling line: %d",rg_vaddress,x); `endif
+							if( verbosity>1)
+  							$display($time,"\tICACHE: Miss of address: %h Filling line: %d",rg_vaddress,x);
 						end
 						`ifdef MMU
 							ff_request_to_memory.enq(To_Memory
@@ -280,14 +289,16 @@ package icache;
 						Bit#(TMul#(ICACHE_WORD_SIZE,ICACHE_BLOCK_SIZE)) writeenable='hFF;
 						writeenable=writeenable<<{3'b0,val1}*4;
 						memoperation.enq(tuple4(rg_paddress,rg_vaddress,replaceblock,writeenable));
-						`ifdef verbose $display($time,"\tICACHE: mask: %h byteoffset: %h perfmonitors: %h",writeenable,val1,perf_monitor); `endif
+						if (verbosity>1) 
+              $display($time,"\tICACHE: mask: %h byteoffset: %h perfmonitors: %h",writeenable,val1,perf_monitor); 
 						rg_perf_monitor<=perf_monitor;
 					end
 				end
 				else begin
 					`ifdef prefetch
 						if(prefetchmode)begin
-							`ifdef verbose $display($time,"\tICACHE: Do not prefetch in IO space"); `endif
+							if (verbosity>1)
+                $display($time,"\tICACHE: Do not prefetch in IO space");
 							rg_state[0]<=Idle;
 							prefetchmode<=False;
 						end
@@ -300,20 +311,20 @@ package icache;
 							ff_request_to_memory.enq(To_Memory {address:truncate(rg_vaddress),burst_length:1,ld_st:Load, transfer_size:2});
 						`endif
 						rg_state[0]<=IOReadResp;
-						`ifdef verbose $display($time,"\tICACHE: Sending Address for IO ACCESS: %h",rg_paddress); `endif
+						if(verbosity>1) $display($time,"\tICACHE: Sending Address for IO ACCESS: %h",rg_paddress);
 					end
 				end
 			end
 			else begin
 			`ifdef prefetch
 				if(prefetchmode)begin
-					`ifdef verbose $display($time,"\tICACHE: do not respond if Prefetch generated a exception"); `endif
+					if(verbosity>1)$display($time,"\tICACHE: do not respond if Prefetch generated a exception"); 
 					prefetchmode<=False;
 				end
 				else `endif
 				begin
 					wr_response_to_cpu<=tagged Valid tuple3(0,rg_tlb_exception[0],perf_monitor);
-					`ifdef verbose $display($time,"\tICACHE: TLB Exception "); `endif
+					if(verbosity>1) $display($time,"\tICACHE: TLB Exception "); 
 				end
 				rg_state[0]<=Idle;
 				`ifdef MMU rg_trnslte_done[0] <= False; `endif
@@ -322,7 +333,8 @@ package icache;
 			/*===================================================================*/
 			end
 			else begin
-				`ifdef verbose $display($time,"\tICACHE: Translated Address not Available"); `endif
+				if(verbosity>1)
+          $display($time,"\tICACHE: Translated Address not Available");
 				rg_state[0] <= KeepPolling;
 			end
 		endrule
@@ -330,7 +342,7 @@ package icache;
 		rule read_IO_response(rg_state[0]==IOReadResp && !memoperation.notEmpty);
 			let memresp=ff_response_from_memory.first;
 			ff_response_from_memory.deq;
-			`ifdef verbose $display($time,"\tICACHE: Got response from IO ADDRESS: %h",memresp.data_line); `endif
+			if (verbosity>1) $display($time,"\tICACHE: Got response from IO ADDRESS: %h",memresp.data_line); 
 			wr_response_to_cpu<=tagged Valid (tuple3(truncate(memresp.data_line),memresp.bus_error==1?tagged Exception Inst_access_fault:tagged None,1));
 			rg_state[0]<=Idle;
 		endrule
@@ -353,7 +365,7 @@ package icache;
 			end
 			line_bytes_written<=0;
 			memoperation.deq;
-			`ifdef verbose $display($time,"\tICACHE: capturing lbdata cpu_tag: %h setindex: %d linenum: %b data: %h",cpu_tag, setindex,lbreplaceblock,lb_hold_reg); `endif
+			if (verbosity>1) $display($time,"\tICACHE: capturing lbdata cpu_tag: %h setindex: %d linenum: %b data: %h",cpu_tag, setindex,lbreplaceblock,lb_hold_reg); 
 			if(rg_state[1]==KeepPolling)
 				rg_state[1]<=Stall;
 		endrule
@@ -364,16 +376,16 @@ package icache;
 			let {paddress,vaddress,replaceblock,writeenable}=memoperation.first;
 			let cpu_tag=paddress[valueOf(PADDR)-1:valueOf(PADDR)-valueOf(ICACHE_TAG_BITS)];
 			Bit#(TLog#(ICACHE_SETS)) setindex=vaddress[set_bits+word_bits+byte_bits-1:word_bits+byte_bits];
-			`ifdef verbose $display($time,"\tICACHE: Response from Memory: %h writeenable: %h",memresp.data_line, writeenable); `endif 
+			if (verbosity>1) $display($time,"\tICACHE: Response from Memory: %h writeenable: %h",memresp.data_line, writeenable); 
 			let we=writeenable;
 			if(|line_bytes_written!=0)begin
 				we=rg_we;
 			end
 			Bit#(TMul#(2,TMul#(ICACHE_WORD_SIZE,ICACHE_BLOCK_SIZE))) extended_mask=zeroExtend(we)<<8;
 			lbdata.write_portB(we,duplicate(memresp.data_line));
-			`ifdef verbose $display($time,"\tICACHE: linebytes: %h currently writing into: %h",line_bytes_written,we); `endif
+			if (verbosity>1) $display($time,"\tICACHE: linebytes: %h currently writing into: %h",line_bytes_written,we); 
 			if(memresp.last_word)begin // if all the data words have been fetched exit	
-				`ifdef verbose $display($time,"\tICACHE: Received Last response from Memory"); `endif
+				if (verbosity>1) $display($time,"\tICACHE: Received Last response from Memory"); 
 			end
 			`ifdef prefetch 
 				prefetchmode<=False; 
@@ -408,14 +420,14 @@ package icache;
       lbtag=lb_paddress[valueOf(PADDR)-1:valueOf(PADDR)-valueOf(ICACHE_TAG_BITS)];
 			Bit#(TLog#(ICACHE_SETS)) lbset=lb_vaddress[set_bits+word_bits+byte_bits-1:word_bits+byte_bits];
 			Bool generate_request=True;
-			`ifdef verbose $display($time,"\tICACHE: line_bytes_written: %h requested_word: %h memoperation: %b ",line_bytes_written,requested_word,memoperation.notEmpty); `endif
+			if (verbosity>1) $display($time,"\tICACHE: line_bytes_written: %h requested_word: %h memoperation: %b ",line_bytes_written,requested_word,memoperation.notEmpty); 
 			if(lbset==setindex && lbtag==cpu_tag && memoperation.notEmpty)
 				if((line_bytes_written & requested_word) != requested_word)
 					generate_request=False;
 			if(rg_trnslte_done[1] && generate_request)begin
 				if(rg_tlb_exception[1] matches tagged None)begin
 					begin
-						`ifdef verbose $display($time,"\tICACHE: Accessing LB"); `endif
+						if (verbosity>1) $display($time,"\tICACHE: Accessing LB"); 
 						rg_state[1]<=ReadingCache; 
 						for(Integer i=0;i<icache_ways;i=i+1)begin // send address to the Block_rams
 							tag[i].read_request(setindex);
@@ -436,7 +448,7 @@ package icache;
 			end
 			else begin
 				Bit#(TLog#(ICACHE_SETS)) setindex=vaddress[set_bits+word_bits+byte_bits-1:word_bits+byte_bits];
-				`ifdef verbose $display($time,"\tICACHE: Request of VAddr: %h set: %d",vaddress, setindex); `endif
+				if (verbosity>1) $display($time,"\tICACHE: Request of VAddr: %h set: %d",vaddress, setindex); 
 				rg_vaddress<=vaddress;
 				for(Integer i=0;i<icache_ways;i=i+1)begin // send address to the Block_rams
 					tag[i].read_request(truncate(setindex));
@@ -450,7 +462,7 @@ package icache;
 		endmethod
 		`ifdef MMU
 			method Action physical_address(Bit#(PADDR) paddr, Trap_type ex);
-				`ifdef verbose $display($time,"\tICACHE: Sending physical address %h to icache ",paddr); `endif
+				if (verbosity>1) $display($time,"\tICACHE: Sending physical address %h to icache ",paddr); 
 				rg_paddress<=paddr;
 				rg_tlb_exception[1]<=ex;
 				//rg_state[1]<=ReadingCache;
@@ -476,7 +488,7 @@ package icache;
 		`ifdef prefetch
 			method ActionValue#(Bit#(VADDR)) prefetch() if(rg_state[1]==Idle &&& rg_prefetchpc matches tagged Valid .vaddress &&& !memoperation.notEmpty);
 				Bit#(TLog#(ICACHE_SETS)) setindex=vaddress[set_bits+word_bits+byte_bits-1:word_bits+byte_bits];
-				`ifdef verbose $display($time,"\tICACHE: Prefetch Request of VAddr: %h set: %d",vaddress, setindex); `endif
+				if (verbosity>1) $display($time,"\tICACHE: Prefetch Request of VAddr: %h set: %d",vaddress, setindex); 
 				for(Integer i=0;i<icache_ways;i=i+1)begin // send address to the Block_rams
 					tag[i].read_request(truncate(setindex));
 					data[i].read_request(vaddress[set_bits+word_bits+byte_bits-1:word_bits+byte_bits]);
