@@ -185,7 +185,7 @@ package stage3;
         if(verbosity>1)
           $display($time,"\tEXECUTE: Dropping Instruction");
       end
-      // TODO here the trap could be because the misprediction from the previous jump.branch might
+      // here the trap could be because the misprediction from the previous jump.branch might
       // have caused the cpu to fetch an illegal instruction. So trap check should happen after the
       // redirection has been checked.
       else if(redirect_result==CheckRPC && pc!=redirect_pc `ifdef bpu || 
@@ -373,7 +373,7 @@ package stage3;
               fshow(out)," trap: ", trap1);
         end
           
-        `ifdef spfpu // TODO send fflags
+        `ifdef spfpu 
           ExecOut t1 = (tuple8(cmtype, out, {rd,fflags,0}, pc, truncate(addr), epochs[0], trap1, 
                                                                                           rdtype));
         `else

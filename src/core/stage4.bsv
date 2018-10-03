@@ -223,7 +223,7 @@ package stage4;
           // in case of regular instruction simply update RF and forward the data.
           `ifdef spfpu
             wr_commit <= tagged Valid (tuple4(rdaddr, rd, rdindex, rdtype));
-            csr.update_fflags(fflags); // TODO pass on the fflags
+            csr.update_fflags(fflags); 
           `else
             wr_commit <= tagged Valid (tuple3(rdaddr, rd, rdindex));
           `endif
