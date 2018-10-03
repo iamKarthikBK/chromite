@@ -75,6 +75,7 @@ package cclass;
 	//`ifdef MMU (*preempts="mkConnectionGetPut_4,mkConnectionGetPut_3"*) `endif
 	(*synthesize*)
 	module mkcclass_axi4(Ifc_cclass_axi4);
+    let verbosity=`VERBOSITY ;
 	  Ifc_riscv riscv <-mkriscv(); // TODO reset vector
 		AXI4_Master_Xactor_IFC #(PADDR,XLEN,0) imem_xactor <- mkAXI4_Master_Xactor;
 		AXI4_Master_Xactor_IFC #(PADDR,XLEN,0) dmem_xactor <- mkAXI4_Master_Xactor;
@@ -180,7 +181,7 @@ package cclass;
 				arburst=1;
 		 	let read_request = AXI4_Rd_Addr {araddr: truncate(info.address), aruser: 0, arlen: info.burst_length-1, arsize: zeroExtend(info.transfer_size), arburst: arburst, arid:'d0}; // arburst: 00-FIXED 01-INCR 10-WRAP
    	   		dmem_xactor.i_rd_addr.enq(read_request);	
-			`ifdef verbose $display($time,"\tCORE: Sending Read Request from DCACHE for Address: %h Burst Length: %h",info.address,info.burst_length); `endif
+			if (verbosity>0) $display($time,"\tCORE: Sending Read Request from DCACHE for Address: %h Burst Length: %h",info.address,info.burst_length); 
 		endrule
 		rule check_write_request_to_memory_from_dcache(rg_data_line matches tagged Invalid &&& !rg_wait_for_response[1]);
 			let info<-dmem.request_to_memory_write;
@@ -196,7 +197,7 @@ package cclass;
 			let w  = AXI4_Wr_Data {wdata:  actual_data, wstrb: write_strobe, wlast:info.burst_length>1?False:True, wid:'d0};
 			dmem_xactor.i_wr_addr.enq(aw);
 			dmem_xactor.i_wr_data.enq(w);
-	 	  	`ifdef verbose $display($time,"\tCORE: Sending Write Request from DCACHE for  Address: %h BurstLength: %h Data: %h WriteStrobe: %b",info.address,info.burst_length,info.data_line, write_strobe); `endif
+	 	  	if (verbosity>0) $display($time,"\tCORE: Sending Write Request from DCACHE for  Address: %h BurstLength: %h Data: %h WriteStrobe: %b",info.address,info.burst_length,info.data_line, write_strobe); 
 			if(info.burst_length>1)begin // only enable the next rule when doing a line write in burst mode.
 			rg_data_line<=tagged Valid (info.data_line>>valueOf(XLEN));
 			rg_burst_count<=rg_burst_count+1;
@@ -208,7 +209,7 @@ package cclass;
 			let w  = AXI4_Wr_Data {wdata:  truncate(data_line), wstrb: 8'hff ,
       wlast:(rg_burst_count==fromInteger(valueOf(DCACHE_BLOCK_SIZE))-1), wid:'d0};
 			dmem_xactor.i_wr_data.enq(w);
-			`ifdef verbose $display($time,"\tCORE: Sending DCACHE Write Data: %h Burst: %d",data_line,rg_burst_count); `endif
+			if (verbosity>0) $display($time,"\tCORE: Sending DCACHE Write Data: %h Burst: %d",data_line,rg_burst_count); 
 			if(rg_burst_count==fromInteger(valueOf(DCACHE_BLOCK_SIZE))-1)begin
 				rg_burst_count<=0;
 				rg_data_line<=tagged Invalid;
@@ -223,24 +224,24 @@ package cclass;
 			let read_request = AXI4_Rd_Addr {araddr: truncate(info.address), aruser: 0, arlen:
       info.burst_length-1, arsize: zeroExtend(info.transfer_size), arburst: 'b10, arid:'d1}; // arburst: 00-FIXED 01-INCR 10-WRAP
 			imem_xactor.i_rd_addr.enq(read_request);	
-			`ifdef verbose $display($time,"\tCORE: Sending Read Request from ICACHE for Address: %h Burst Length: %h",info.address,info.burst_length); `endif
+			if (verbosity>0) $display($time,"\tCORE: Sending Read Request from ICACHE for Address: %h Burst Length: %h",info.address,info.burst_length); 
 		endrule
 		rule send_read_response_from_memory_to_dcache(dmem_xactor.o_rd_data.first.rid == 'd0); 
 			let response <- pop_o (dmem_xactor.o_rd_data);	
 			let bus_error_from_memory = (response.rresp==AXI4_OKAY) ? 0 : 1;
-			`ifdef verbose $display($time,"\tCORE: Sending Response to DCACHE: ",fshow(response)); `endif
+			if (verbosity>0) $display($time,"\tCORE: Sending Response to DCACHE: ",fshow(response));
 			dmem.response_from_memory_read(From_Memory{data_line:response.rdata,bus_error:bus_error_from_memory,last_word:response.rlast});
 		endrule
 		rule send_read_response_from_memory_to_icache(imem_xactor.o_rd_data.first.rid == 'd1); 
 			let response <- pop_o (imem_xactor.o_rd_data);	
 			let bus_error_from_memory = (response.rresp==AXI4_OKAY) ? 0 : 1;
-			`ifdef verbose $display($time,"\tCORE: Sending Response to ICACHE: ",fshow(response)); `endif
+			if (verbosity>0) $display($time,"\tCORE: Sending Response to ICACHE: ",fshow(response));
 			imem.response_from_memory(From_Memory{data_line:response.rdata,bus_error:bus_error_from_memory, last_word:response.rlast});
 		endrule
 		rule send_write_response_to_dcache(rg_wait_for_response[0] && dmem_xactor.o_wr_resp.first.bid == 'd0);
 			let response<-pop_o(dmem_xactor.o_wr_resp);
-	 	  	let bus_error_from_memory = (response.bresp==AXI4_OKAY) ? 0 : 1;
-			`ifdef verbose $display($time,"\tCORE: Received Write Response:",fshow(response)); `endif
+	 	  let bus_error_from_memory = (response.bresp==AXI4_OKAY) ? 0 : 1;
+			if (verbosity>0) $display($time,"\tCORE: Received Write Response:",fshow(response));
 			dmem.response_from_memory_write(From_Memory{data_line:0,bus_error:bus_error_from_memory,last_word:True});
 			rg_wait_for_response[0]<=False;
 		endrule
