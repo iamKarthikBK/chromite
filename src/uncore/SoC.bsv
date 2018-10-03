@@ -44,12 +44,7 @@ package SoC;
 
   // peripheral imports
   import memory::*;
-  `ifdef BOOTROM
-    import bootrom:: *;
-  `endif
-  `ifdef EXTERNAL
-    import external_mem::*;
-  `endif
+  import bootrom:: *;
   // package imports
   import Connectable:: *;
   import GetPut:: *;
@@ -108,17 +103,9 @@ package SoC;
     Ifc_cclass_axi4 cclass <- mkcclass_axi4();
     AXI4_Fabric_IFC #(`Num_Masters, `Num_Slaves, PADDR, XLEN, USERSPACE) 
                                                     fabric <- mkAXI4_Fabric(fn_slave_map);
-    `ifdef BRAM
-  		Ifc_memory_AXI4#(PADDR, XLEN, USERSPACE, `Addr_space) main_memory <- mkmemory_AXI4(`MemoryBase, 
+ 		Ifc_memory_AXI4#(PADDR, XLEN, USERSPACE, `Addr_space) main_memory <- mkmemory_AXI4(`MemoryBase, 
                                                 "code.mem.MSB", "code.mem.LSB");
-    `endif
-    `ifdef EXTERNAL
-      Ifc_exteral_mem#(PADDR, XLEN, USERSPACE) external_memory <- mkexternal_mem(exmem_clk,
-                                                                                        exmem_rst);
-    `endif
-		`ifdef BOOTROM
-			Ifc_bootrom_AXI4#(PADDR, XLEN, USERSPACE) bootrom <-mkbootrom_AXI4(`BootRomBase);
-		`endif
+		Ifc_bootrom_axi4#(PADDR, XLEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
 
    	mkConnection(cclass.master_d,	fabric.v_from_masters[`Mem_master_num]);
    	mkConnection(cclass.master_i, fabric.v_from_masters[`Fetch_master_num]);
