@@ -4,6 +4,7 @@ AXI=enable
 BPU=enable
 MUL=sequential
 PERF=enable
+COREFABRIC=AXI4
 VERBOSITY=0
 PREFETCH=enable
 DEBUG=disable

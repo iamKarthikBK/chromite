@@ -11,7 +11,7 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 */
-package core;
+package cclass;
 
 	/* ======== Package imports ======= */
 	import Vector							:: *;
@@ -38,9 +38,9 @@ package core;
 		method Action enqueueInterrupts;
 	endinterface
 
-	interface Ifc_core_AXI4;
-		interface AXI4_Master_IFC#(PADDR, XLEN, 0) imem_master;
-		interface AXI4_Master_IFC#(PADDR, XLEN, 0) dmem_master;
+	interface Ifc_cclass_axi4;
+		interface AXI4_Master_IFC#(PADDR, XLEN, 0) master_d;
+		interface AXI4_Master_IFC#(PADDR, XLEN, 0) master_i;
 		method Action set_external_interrupt(Tuple2#(Bool,Bool) i);
 		/* =========================== Debug Interface ===================== */
 		`ifdef Debug
@@ -58,12 +58,12 @@ package core;
    		method ActionValue#(Bit#(XLEN))			rw_csr (Bit#(12) r, Bool write, Bit#(XLEN) data);				 // Read a General-Purpose Register
 		`endif
 		`ifdef CLINT
-			method Action clint_msip(Bit#(1) intrpt);
-			method Action clint_mtip(Bit#(1) intrpt);
-			method Action clint_mtime(Bit#(XLEN) c_mtime);
+      interface Put#(Bit#(1)) sb_clint_msip;
+      interface Put#(Bit#(1)) sb_clint_mtip;
+      interface Put#(Bit#(64)) sb_clint_mtime;
 		`endif
     `ifdef simulate
-      interface Get#(DumpType) dump;
+      interface Get#(DumpType) io_dump;
     `endif
 		/*-========================================================================== */
 	endinterface
@@ -74,7 +74,7 @@ package core;
 	`ifdef MMU (*preempts="dtlb_to_ptw,itlb_to_ptw"*) `endif
 	//`ifdef MMU (*preempts="mkConnectionGetPut_4,mkConnectionGetPut_3"*) `endif
 	(*synthesize*)
-	module mkcore_AXI4#(Bit#(VADDR) reset_vector)(Ifc_core_AXI4);
+	module mkcclass_axi4(Ifc_cclass_axi4);
 	  Ifc_riscv riscv <-mkriscv(); // TODO reset vector
 		AXI4_Master_Xactor_IFC #(PADDR,XLEN,0) imem_xactor <- mkAXI4_Master_Xactor;
 		AXI4_Master_Xactor_IFC #(PADDR,XLEN,0) dmem_xactor <- mkAXI4_Master_Xactor;
@@ -245,8 +245,8 @@ package core;
 			rg_wait_for_response[0]<=False;
 		endrule
 		
-		interface imem_master = imem_xactor.axi_side;
-		interface dmem_master = dmem_xactor.axi_side;
+		interface master_i= imem_xactor.axi_side;
+		interface master_d = dmem_xactor.axi_side;
 		`ifdef Debug
 			method run_continue=riscv.run_continue;
 			method reset_complete=riscv.reset_complete;
@@ -271,12 +271,24 @@ package core;
 		`endif
 		method Action set_external_interrupt(Tuple2#(Bool,Bool) i)=riscv.set_external_interrupt(i);
 		`ifdef CLINT
-			method Action clint_msip(Bit#(1) intrpt)=riscv.clint_msip(intrpt);
-			method Action clint_mtip(Bit#(1) intrpt)=riscv.clint_mtip(intrpt);
-			method Action clint_mtime(Bit#(XLEN) c_mtime)=riscv.clint_mtime(c_mtime);
+    interface sb_clint_msip = interface Put
+  	  method Action put(Bit#(1) intrpt);
+        riscv.clint_msip(intrpt);
+      endmethod
+    endinterface;
+    interface sb_clint_mtip= interface Put
+      method Action put(Bit#(1) intrpt);
+        riscv.clint_mtip(intrpt);
+      endmethod
+    endinterface;
+    interface sb_clint_mtime= interface Put
+  		method Action put (Bit#(64) c_mtime);
+        riscv.clint_mtime(c_mtime);
+      endmethod
+    endinterface;
 		`endif
     `ifdef simulate
-      interface dump = riscv.dump;
+      interface io_dump = riscv.dump;
     `endif
 	endmodule
 endpackage

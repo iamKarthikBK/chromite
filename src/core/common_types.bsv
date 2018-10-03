@@ -149,6 +149,7 @@ typedef struct {
 	typedef Bit #(3)  Funct3;
   typedef 5 PRFDEPTH;
   typedef 8 RAS_DEPTH;
+  typedef 0 USERSPACE ;
 
 
   //------ The follwing contain common tuples across the stages ------------- 
