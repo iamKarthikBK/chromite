@@ -72,7 +72,12 @@
 
 `define FNRAND	8
 
-`define NON_M_TRAP (`USERTRAPS|`supervisor)
+`ifdef usertraps
+  `define non_m_traps True
+`endif
+`ifdef supervisor
+  `define non_m_traps True
+`endif
 /////////////////////////////////////////////////////////////////////////
 ////////////////////// opcode definitions of ISA ////////////////////////
 `define AUIPC_op			    'b00101
