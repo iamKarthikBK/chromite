@@ -71,7 +71,11 @@ endif
 ifeq ($(USER), True)
   define_macros += -D user=True
 endif
-define_macros += -D VERBOSITY=$(VERBOSITY) -D supervisor=$(SUPERVISOR) -D CORE_$(COREFABRIC)=True\
+ifeq ($(SUPERVISOR), True)
+  define_macros += -D supervisor=True
+endif
+
+define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True\
 -D MULSTAGES=$(MULSTAGES) -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True
 CORE:=./src/core/:./src/core/fpu/
 M_EXT:=./src/core/m_ext/
