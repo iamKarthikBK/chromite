@@ -1,0 +1,15 @@
+build64:
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
+    script:
+        - source /tools/setup.sh
+        - make restore 
+        - make patch
+        - make generate_verilog 
+        - make link_verilator generate_boot_files
+        - make regress opts='--filter=rv64 --parallel=90 --sub'
+        - make regress opts='--filter=rv64 --final'
+    only:
+        - master
+    tags:
+        - c-class-build-regression

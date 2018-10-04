@@ -288,6 +288,10 @@ generate_boot_files:
 patch:
 	@cd $(SHAKTI_HOME)/verification/riscv-tests/env && git apply $(SHAKTI_HOME)/verification/patches/riscv-tests-shakti.patch
 
+.PHONY: unpatch
+unpatch:
+	@cd $(SHAKTI_HOME)/verification/riscv-tests/env && git apply -R $(SHAKTI_HOME)/verification/patches/riscv-tests-shakti.patch
+
 .PHONY: clean
 clean:
 	rm -rf $(BSVBUILDDIR) *.log $(BSVOUTDIR) obj_dir
