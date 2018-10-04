@@ -797,7 +797,7 @@ package csrfile;
             else
               return {rg_mtvec, 2'b0}; // pc jumps to base
           end
-      `endif
+      `else
         begin
           rg_mtval<=signExtend(tval);
 			    rg_mepc<=pc;
@@ -812,6 +812,7 @@ package csrfile;
           else
             return {rg_mtvec, 2'b0}; // pc jumps to base
         end
+      `endif
     endmethod
     method Action incr_minstret;
       `ifdef RV64
