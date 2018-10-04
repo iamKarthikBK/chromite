@@ -254,10 +254,19 @@ typedef struct {
 
 	typedef enum{
 		User_soft_int=0,
+    `ifdef supervisor
+      Supervisor_soft_int=1,
+    `endif
 		Machine_soft_int=3,
 		User_timer_int=4,
+    `ifdef supervisor
+      Supervisor_timer_int=5,
+    `endif
 		Machine_timer_int=7,
 		User_external_int=8,
+    `ifdef supervisor
+      Supervisor_external_int=9,
+    `endif
 		Machine_external_int=11
 	} Interrupt_cause deriving (Bits,Eq,FShow);
 
