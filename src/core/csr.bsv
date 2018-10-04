@@ -98,7 +98,7 @@ package csr;
                   end
                   else begin
                 `endif
-                  let temp<-csrfile.upd_on_ret( `ifdef NON_M_TRAP unpack(csr_address[9:8]) `endif );
+                  let temp<-csrfile.upd_on_ret( `ifdef non_m_traps unpack(csr_address[9:8]) `endif );
                   jump_add=temp;
                   flush=True;
                   if(verbosity>1)

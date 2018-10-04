@@ -43,7 +43,7 @@ package csrfile;
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(XLEN) c_mtime);
-    method ActionValue#(Bit#(VADDR)) upd_on_ret ( `ifdef NON_M_TRAP Privilege_mode prv `endif ) ;
+    method ActionValue#(Bit#(VADDR)) upd_on_ret ( `ifdef non_m_traps Privilege_mode prv `endif ) ;
     method ActionValue#(Bit#(VADDR)) upd_on_trap(Bit#(6) cause, Bit#(VADDR) pc, Bit#(VADDR) tval);
     method Action incr_minstret;
     method Bool interrupt;
@@ -134,7 +134,7 @@ package csrfile;
     `else
       Bit#(1) misa_m =0;
     `endif
-    `ifdef USERTRAPS
+    `ifdef usertraps
       Reg#(Bit#(1)) misa_n <- mkReg(1);
     `else
       Bit#(1) misa_n =0;
@@ -190,7 +190,7 @@ package csrfile;
     `else
       Bit#(1) spie = 0;
     `endif
-    `ifdef USERTRAPS
+    `ifdef usertraps
       Reg#(Bit#(1)) rg_upie <- mkReg(0);
     `else
       Bit#(1) rg_upie = 0;
@@ -202,7 +202,7 @@ package csrfile;
     `else
       Bit#(1) sie = 0;
     `endif
-    `ifdef USERTRAPS
+    `ifdef usertraps
       Reg#(Bit#(1)) rg_uie <- mkReg(0);
     `else
       Bit#(1) rg_uie = 0;
@@ -216,7 +216,7 @@ package csrfile;
     `else
       Bit#(1) seie = 0;
     `endif
-    `ifdef USERTRAPS
+    `ifdef usertraps
       Reg#(Bit#(1)) rg_ueie <- mkReg(0);
     `else
       Bit#(1) rg_ueie = 0;
@@ -228,7 +228,7 @@ package csrfile;
     `else
       Bit#(1) stie = 0;
     `endif
-    `ifdef USERTRAPS
+    `ifdef usertraps
       Reg#(Bit#(1)) rg_utie <- mkReg(0);
     `else
       Bit#(1) rg_utie = 0;
@@ -240,7 +240,7 @@ package csrfile;
     `else
       Bit#(1) ssie = 0;
     `endif
-    `ifdef USERTRAPS
+    `ifdef usertraps
       Reg#(Bit#(1)) rg_usie <-  mkReg(0);
     `else
       Bit#(1) rg_usie = 0;
@@ -264,7 +264,7 @@ package csrfile;
     `else
       Bit#(1) seip = 0; 
     `endif
-    `ifdef USERTRAPS
+    `ifdef usertraps
       Reg#(Bit#(1)) soft_ueip <- mkReg(0);
       Reg#(Bit#(1)) ext_ueip <- mkReg(0);
       Reg#(Bit#(1)) rg_ueip = extInterruptReg(soft_ueip, ext_ueip); 
@@ -278,7 +278,7 @@ package csrfile;
     `else
       Bit#(1) stip = 0;
     `endif
-    `ifdef USERTRAPS
+    `ifdef usertraps
       Reg#(Bit#(1)) rg_utip <- mkReg(0);
     `else
       Bit#(1) rg_utip = 0;
@@ -290,7 +290,7 @@ package csrfile;
     `else
       Bit#(1) ssip = 0;
     `endif
-    `ifdef USERTRAPS 
+    `ifdef usertraps 
       Reg#(Bit#(1)) rg_usip <- mkReg(0);
     `else
       Bit#(1) rg_usip = 0;
@@ -338,7 +338,7 @@ package csrfile;
 	    Reg#(Bit#(VADDR)) sepc  		<- mkReg(0);
       Reg#(Bit#(XLEN)) satp      <- mkReg(0);
       // SEDELEG and SIDELEG registers
-      `ifdef USERTRAPS
+      `ifdef usertraps
         Reg#(Bit#(12)) sideleg <-mkReg(0);
         Reg#(Bit#(11)) sedeleg <-mkReg(0);
       `else
@@ -355,7 +355,7 @@ package csrfile;
       Reg#(Bit#(2)) rg_uxl <- mkReg(fromInteger(valueOf(TDiv#(XLEN, 32)))); 
     `endif
 
-    `ifdef USERTRAPS
+    `ifdef usertraps
   	  Reg#(Bit#(VADDR)) rg_uepc  		<- mkReg(0);
 	    Reg#(Bit#(VADDR))rg_utval  		<- mkReg(0);
       Reg#(Bit#(1)) rg_uinterrupt <-mkReg(0);
@@ -445,7 +445,7 @@ package csrfile;
         if (addr == `SCAUSE ) data= {sinterrupt, 'd0, scause};
         if (addr == `STVAL ) data= signExtend(stval);//?
         if (addr == `SATP ) data = satp;
-        `ifdef USERTRAPS
+        `ifdef usertraps
           if (addr == `SIDELEG ) data= {'d0, sideleg};
           if (addr == `SEDELEG ) data= {'d0, sedeleg};
         `endif
@@ -457,7 +457,7 @@ package csrfile;
           else if(rg_uxl==1)
             data= {'d0, sd, 8'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp, hpp, spp, rg_mpie,
                     hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
-        `ifdef USERTRAPS // 
+        `ifdef usertraps // 
           if (addr == `UIE ) data= {'d0, rg_meie, heie, seie, rg_ueie, rg_mtie, htie, 
                          stie, rg_utie, rg_msie, hsie, ssie, rg_usie}; 
           if (addr == `UIP ) data= {'d0, rg_meip, heip, seip, rg_ueip, rg_mtip, htie, 
@@ -469,7 +469,7 @@ package csrfile;
           if (addr == `UCYCLEH ) data= mcycleh;
           if (addr == `UINSTRETH ) data= minstreth;
         `endif
-        `ifdef USERTRAPS
+        `ifdef usertraps
           if (addr == `UTVEC ) data= {'d0, rg_utvec, rg_umode};
           if (addr == `UEPC ) data= signExtend(rg_uepc);
           if (addr == `UTVAL ) data= signExtend(rg_utval);
@@ -494,7 +494,7 @@ package csrfile;
           `ifdef spfpu misa_f<= word[5]; `endif
             misa_i<= word[8];
           `ifdef muldiv misa_m<= word[12]; `endif
-          `ifdef USERTRAPS misa_n<= word[13]; `endif
+          `ifdef usertraps misa_n<= word[13]; `endif
           `ifdef supervisor misa_s<= word[18]; `endif
           `ifdef user misa_u<= word[20]; `endif
           `ifdef RV64
@@ -509,7 +509,7 @@ package csrfile;
           rg_mode<=word[1:0];
         end
         `MSTATUS: begin 
-          `ifdef USERTRAPS
+          `ifdef usertraps
             rg_uie<= word[0];
             rg_upie<= word[4];
           `endif
@@ -531,7 +531,7 @@ package csrfile;
             tsr<= word[22];
           `endif
         end
-        `ifdef NON_M_TRAP
+        `ifdef non_m_traps
           `MIDELEG: begin
             rg_mideleg<= truncate(word);
           end
@@ -543,7 +543,7 @@ package csrfile;
           rg_msie<= word[3];
           rg_mtie<= word[7];
           rg_meie<= word[11];
-          `ifdef USERTRAPS
+          `ifdef usertraps
             rg_ueie<= word[8];
             rg_usie<= word[0];
             rg_utie<= word[4];
@@ -555,7 +555,7 @@ package csrfile;
           `endif
         end
         `MIP: begin
-          `ifdef USERTRAPS
+          `ifdef usertraps
             rg_usip<= word[0];
             rg_utip<= word[4];
             rg_ueip<= word[8];
@@ -584,7 +584,7 @@ package csrfile;
           rg_mcause<= truncate(word);
         end
         `MCOUNTEREN: rg_mcounteren<= truncate(word);
-        `ifdef USERTRAPS
+        `ifdef usertraps
           `USTATUS: begin 
             rg_uie<= word[0];
             rg_upie<= word[4];
@@ -605,7 +605,7 @@ package csrfile;
           end
           `STVAL: stval<= truncate(word);
           `SEPC: sepc <=  truncate(word);
-          `ifdef USERTRAPS
+          `ifdef usertraps
             `SIDELEG: begin
                 sideleg<= truncate(word);
               end
@@ -614,7 +614,7 @@ package csrfile;
               end
           `endif
           `SIP: begin
-            `ifdef USERTRAPS
+            `ifdef usertraps
               rg_usip<= word[0];
               rg_ueip<= word[8];
             `endif
@@ -623,7 +623,7 @@ package csrfile;
             `endif
           end
         `SIE: begin
-          `ifdef USERTRAPS
+          `ifdef usertraps
             rg_ueie<= word[8];
             rg_usie<= word[0];
             rg_utie<= word[4];
@@ -635,7 +635,7 @@ package csrfile;
           `endif
         end
         `SSTATUS:begin
-          `ifdef USERTRAPS
+          `ifdef usertraps
             rg_uie<= word[0];
             rg_upie<= word[4];
           `endif
@@ -659,14 +659,14 @@ package csrfile;
             fs<=2'b11;
           end
 
-        `ifdef USERTRAPS
+        `ifdef usertraps
           `UIE: begin
             rg_usie<= word[0];
             rg_utie<= word[4];
             rg_ueie<= word[8];
           end
           `UIP: begin
-            `ifdef USERTRAPS
+            `ifdef usertraps
               rg_usip<= word[0];
               rg_utip<= word[4];
             `endif
@@ -697,8 +697,8 @@ package csrfile;
   		rg_clint_mtime<=c_mtime;
   	endmethod
     
-    method ActionValue#(Bit#(VADDR)) upd_on_ret `ifdef NON_M_TRAP (Privilege_mode prv) `endif ;
-      `ifdef NON_M_TRAP 
+    method ActionValue#(Bit#(VADDR)) upd_on_ret `ifdef non_m_traps (Privilege_mode prv) `endif ;
+      `ifdef non_m_traps 
         `ifdef supervisor
           if(prv==Supervisor)begin
             spie <= 1;
@@ -710,7 +710,7 @@ package csrfile;
             return sepc;
           end else 
         `endif
-        `ifdef USERTRAPS
+        `ifdef usertraps
           if(prv==User)begin
             rg_upie <= 1;
             rg_prv <= User;
@@ -729,18 +729,18 @@ package csrfile;
     endmethod
     method ActionValue#(Bit#(VADDR)) upd_on_trap(Bit#(6) cause, Bit#(VADDR) pc, Bit#(VADDR) tval);
 
-      `ifdef NON_M_TRAP
+      `ifdef non_m_traps
           Privilege_mode prv=Machine;
           Bool delegateM=(((rg_mideleg >> cause[4:0]) & 1 & duplicate(cause[5]))==1) ||  
-                                         (((rg_medeleg >> cause[4:0]) & 1 & duplicate(~cause[5]))==1);
-          Bool delegateS=(((sideleg >> cause[4:0]) & 1 & duplicate(cause[5]))==1) ||  
-                                         (((sedeleg >> cause[4:0]) & 1 & duplicate(~cause[5]))==1);
+                                      (((rg_medeleg >> cause[4:0]) & 1 & duplicate(~cause[5]))==1);
           `ifdef supervisor
+            Bool delegateS=(((sideleg >> cause[4:0]) & 1 & duplicate(cause[5]))==1) ||  
+                                        (((sedeleg >> cause[4:0]) & 1 & duplicate(~cause[5]))==1);
             if(delegateM && (pack(rg_prv)<=pack(Supervisor)) && misa_s==1)
               prv= Supervisor;
             else if(delegateM && delegateS && rg_prv==User && misa_n==1)
               prv= User;
-          `elsif USERTRAPS
+          `elsif usertraps
             if(delegateM && rg_prv==User && misa_n==1)
               prv= User;
           `endif
@@ -751,7 +751,8 @@ package csrfile;
             delegateS:%b misa_s: %b", delegateM, delegateS, misa_s);
             $display($time,"\tCSRFILE: rg_mtvec:%h rg_stvec:%h", rg_mtvec, rg_stvec);
           end
-
+          
+        `ifdef supervisor
           if(prv==Supervisor) begin
             stval<=signExtend(tval);
 			      sepc<=pc;
@@ -766,7 +767,8 @@ package csrfile;
             else
               return {rg_stvec, 2'b0}; // pc jumps to base
           end else
-        `ifdef USERTRAPS
+        `endif
+        `ifdef usertraps
           if(prv==User) begin
             rg_utval<=signExtend(tval);
 			      rg_uepc<=pc;
@@ -781,6 +783,20 @@ package csrfile;
               return {rg_utvec, 2'b0}; // pc jumps to base
           end else
         `endif
+          begin
+            rg_mtval<=signExtend(tval);
+			      rg_mepc<=pc;
+			      rg_mcause<=cause[4:0];
+            rg_minterrupt<= cause[5];
+			      rg_mie <= 0;
+			      rg_mpp <= pack(rg_prv);
+			      rg_mpie <= rg_mie;
+			      rg_prv <= Machine;
+            if(rg_mode==1 && cause[5]==1)
+              return ({(rg_mtvec+ zeroExtend(cause[4:0])),2'b0}); // pc jumps to base+(4*cause)
+            else
+              return {rg_mtvec, 2'b0}; // pc jumps to base
+          end
       `endif
         begin
           rg_mtval<=signExtend(tval);
@@ -848,7 +864,7 @@ package csrfile;
 	    		ext_seip <= pack(i);
 	    	end
       `endif
-      `ifdef USERTRAPS
+      `ifdef usertraps
   	  	else if(rg_prv == User) begin
 	    		ext_ueip <= pack(i);
 	    	end
