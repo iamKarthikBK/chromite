@@ -65,7 +65,13 @@ endif
 ifeq ($(COREFABRIC), AXI4Lite)
   define_macros += -D CORE_AXI4Lite=True
 endif
-define_macros += -D VERBOSITY=$(VERBOSITY) -D user=$(USER) -D supervisor=$(SUPERVISOR) -D usertraps=$(USERTRAPS) -D CORE_$(COREFABRIC)=True\
+ifeq ($(USERTRAPS), True)
+  define_macros += -D usertraps=True
+endif
+ifeq ($(USER), True)
+  define_macros += -D user=True
+endif
+define_macros += -D VERBOSITY=$(VERBOSITY) -D supervisor=$(SUPERVISOR) -D CORE_$(COREFABRIC)=True\
 -D MULSTAGES=$(MULSTAGES) -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True
 CORE:=./src/core/:./src/core/fpu/
 M_EXT:=./src/core/m_ext/
