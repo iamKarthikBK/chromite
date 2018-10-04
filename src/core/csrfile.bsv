@@ -745,7 +745,7 @@ package csrfile;
               prv= User;
           `endif
           if(verbosity>1)begin
-            $display($time,"\tCSRFILE: Cause: %d, pc: %h, tval: %h, rg_medeleg: %h", cause, pc, tval,
+            $display($time,"\tCSRFILE: Cause: %d, pc: %h, tval: %h, rg_medeleg: %h", cause[4:0], pc, tval,
               rg_medeleg);
             $display($time,"\tCSRFILE:rg_prv: ",fshow(rg_prv)," prv: ", fshow(prv), " delegateM:%b\
             delegateS:%b misa_s: %b", delegateM, delegateS, misa_s);
