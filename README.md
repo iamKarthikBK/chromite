@@ -1,3 +1,4 @@
+[![pipeline status](https://gitlab.com/shaktiproject/cores/c-class/badges/master/pipeline.svg)](https://gitlab.com/shaktiproject/cores/c-class/commits/master)
 # SHAKTI C-CLASS #
 
 This is the C-class core of the SHAKTI Processor family. This repo contains all the relevant
