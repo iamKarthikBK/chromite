@@ -42,7 +42,7 @@ package icache_tb;
   import FIFOF ::*;
   import DReg::*;
   import RegFile::*;
-  import axi_addr_generator::*;
+  import device_common::*;
 
   function Bool isIO(Bit#(`addr_width ) addr);
     if( addr < 4096)
@@ -162,7 +162,7 @@ package icache_tb;
     end
     else begin
       rg_burst_count<=rg_burst_count+1;
-      mem_req <= tagged Valid tuple3(burst_address_generator(burst,size,2,addr),burst,size); // parameterize
+      mem_req <= tagged Valid tuple3(axi4burst_addrgen(burst,size,2,addr),burst,size); // parameterize
     end
     let dat=data.sub(truncate(addr));
     icache.mem_resp.put(tuple2(dat,False));

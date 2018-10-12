@@ -7,9 +7,9 @@ include soc_config.inc
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
-TOP_MODULE:=mkTbSoC
-TOP_FILE:=TbSoC.bsv
-TOP_DIR:=./src/testbench
+TOP_MODULE:=mkicache_tb
+TOP_FILE:=icache_tb.bsv
+TOP_DIR:=./src/caches
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))
@@ -77,7 +77,7 @@ endif
 
 define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True\
 -D MULSTAGES=$(MULSTAGES) -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True
-CORE:=./src/core/:./src/core/fpu/
+CORE:=./src/core/:./src/core/fpu/:./src/caches/
 M_EXT:=./src/core/m_ext/
 FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
 UNCORE:=./src/uncore
@@ -134,6 +134,8 @@ link_bluesim:check-env
 .PHONY: simulate
 simulate:
 	@echo Simulation...
+	@cd src/caches; python3 gen_test.py;
+	@ln -f -s src/caches/*.mem .
 	@exec ./$(BSVOUTDIR)/out
 	@echo Simulation finished
 ########################################################################################
