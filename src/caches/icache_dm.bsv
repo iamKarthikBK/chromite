@@ -208,18 +208,10 @@ package icache_dm;
               $display($time,"\tICACHE: Hit. Word present in LB");
             Bit#(respwidth) word_response = truncate(lbdataline>>block_offset); 
 
-            if(ff_miss_ongoing.notEmpty) begin
-              ff_delayed_resp.enq(tuple2(word_response,False));
-              `ifdef simulate
-                ff_delayed_meta.enq(1);
-              `endif
-            end
-            else begin
-              ff_core_response.enq(tuple2(word_response, False));// word and no bus-error;
-              `ifdef simulate
-                ff_meta.enq(1);
-              `endif
-            end
+            ff_core_response.enq(tuple2(word_response, False));// word and no bus-error;
+            `ifdef simulate
+              ff_meta.enq(1);
+            `endif
             if(verbosity!=0)
               $display($time,"\tICACHE: Sending the response back to the core from address:%h data:%h",
                 request,word_response);
@@ -279,7 +271,7 @@ package icache_dm;
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
 
-      if(lbtag==request_tag && lbset==set_index && ff_lb_control.notEmpty) begin // hit in line-buffer
+      if(lbtag==request_tag && lbset==set_index ) begin // hit in line-buffer
         if(verbosity!=0)
           $display($time,"\tICACHE: Polling LB Holds the line for address: %h",request);
         if(lbenables[word_index]!=1||lbvalid!=1) begin
