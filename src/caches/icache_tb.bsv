@@ -63,7 +63,8 @@ package icache_tb;
 
  (*synthesize*)
   module mkicache(Ifc_icache);
-    Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO);
+    Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
+    False);
     interface core_req=icache.core_req;
     interface core_resp=icache.core_resp;
     interface mem_req=icache.mem_req;

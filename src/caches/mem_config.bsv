@@ -79,7 +79,7 @@ package mem_config;
         Bit#(TDiv#(datawidth, 8)) we);
   endinterface
 
-  module mkmem_config_h(Ifc_mem_config#(n_entries, datawidth,  banks))
+  module mkmem_config_h#(parameter Bool ramreg)(Ifc_mem_config#(n_entries, datawidth,  banks))
     provisos(
              Div#(datawidth, banks, bpb), 
              Mul#(bpb, banks, datawidth),
@@ -90,14 +90,14 @@ package mem_config;
     BRAM_DUAL_PORT#(Bit#(TLog#(n_entries)), Bit#(bpb)) ram [valueOf(banks)];
     Reg#(Bit#(bpb)) rg_output[valueOf(banks)][2];
     for(Integer i=0;i<valueOf(banks);i=i+1) begin
-      ram[i]<-mkBRAMCore2(valueOf(n_entries), False);
+      ram[i]<-mkBRAMCore2(valueOf(n_entries), ramreg);
       rg_output[i] <- mkCReg(2,0);
     end
 
     Reg#(Bool) rg_read_req_made <- mkDReg(False);
 
     for(Integer i=0;i<valueOf(banks);i=i+1)begin
-      rule capture_output(rg_read_req_made);
+      rule capture_output(rg_read_req_made && !ramreg);
         rg_output[i][0]<=ram[i].a.read;
       endrule
     end
@@ -110,7 +110,10 @@ package mem_config;
     method ActionValue#(Bit#(datawidth)) read_response;
       Bit#(datawidth) data_resp=0;
       for(Integer i=0;i<valueOf(banks);i=i+1)begin
-        data_resp[i*bits_per_bank+bits_per_bank-1 : i*bits_per_bank]=rg_output[i][1];
+        if(ramreg)
+          data_resp[i*bits_per_bank+bits_per_bank-1 : i*bits_per_bank]=ram[i].a.read;
+        else
+          data_resp[i*bits_per_bank+bits_per_bank-1 : i*bits_per_bank]=rg_output[i][1];
       end
       return data_resp;
     endmethod

@@ -34,6 +34,7 @@ package icache_dm;
   import FIFOF::*;
   import BUtils ::*;  
   import DReg::*;
+  import Assert::*;
   
   //parameters:
   // wordsize: number of bytes per word. This is what is responded back to the core.
@@ -52,8 +53,9 @@ package icache_dm;
   endinterface
 
   (*conflict_free="check_hit_or_miss,poll_on_lb"*)
-  (*preempts="get_io_response, check_hit_or_miss"*)
-  module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr))(Ifc_icache_dm#(wordsize,blocksize,sets,respwidth, paddr))
+//  (*preempts="get_io_response, check_hit_or_miss"*)
+  module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr), parameter Bool ramreg)
+                                          (Ifc_icache_dm#(wordsize,blocksize,sets,respwidth, paddr))
   provisos(
             Mul#(wordsize, 8, _w),        // _w is the total bits in a word
             Mul#(blocksize, _w,linewidth),// linewidth is the total bits in a cache line
@@ -98,21 +100,24 @@ package icache_dm;
        return write_enable;
     endfunction
 
-    Ifc_mem_config#(sets, linewidth, 8) data_arr <- mkmem_config_h; // data array
-    Ifc_mem_config#(sets, TAdd#(1, tagbits), 1) tag_arr <- mkmem_config_h; // one extra valid bit
+    Ifc_mem_config#(sets, linewidth, 8) data_arr <- mkmem_config_h(ramreg); // data array
+    Ifc_mem_config#(sets, TAdd#(1, tagbits), 1) tag_arr <- mkmem_config_h(ramreg); // one extra valid bit
     
     FIFOF#(ICore_response#(respwidth))ff_core_response <- mkSizedFIFOF(2);
     FIFOF#(IMem_request#(paddr)) ff_mem_request    <- mkSizedFIFOF(2);
     FIFOF#(IMem_response#(respwidth)) ff_mem_response  <- mkSizedFIFOF(2);
-
     FIFOF#(ICore_request#(paddr)) ff_req_queue <- mkSizedFIFOF(2); 
-    // The following fifo indicates if there is a miss that is pending a response to the core.
-    FIFOF#(Bit#(paddr)) ff_miss_ongoing <- mkSizedFIFOF(1);
-    FIFOF#(ICore_response#(respwidth)) ff_delayed_resp <- mkSizedFIFOF(1);
+
+    Reg#(Bool) rg_miss_ongoing <- mkReg(False);
+    Wire#(RespState) wr_cache_state <- mkDWire(None);
+    Wire#(RespState) wr_lb_state <- mkDWire(None);
+    Wire#(IMem_request#(paddr)) wr_miss_from_cache <- mkDWire(tuple3(0,0,0));
+
+    Wire#(ICore_response#(respwidth)) wr_hit_cache <- mkDWire(tuple2(0,False));
+    Wire#(ICore_response#(respwidth)) wr_hit_lb <- mkDWire(tuple2(0,False));
 
     `ifdef simulate
       FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(2);
-      FIFOF#(Bit#(1)) ff_delayed_meta <- mkSizedFIFOF(1);
     `endif
 
     Reg#(Bit#(TLog#(sets))) rg_fence_index <- mkReg(0);
@@ -126,11 +131,18 @@ package icache_dm;
                                                                       mkReg(tuple4(0, 0, 0, False));
     Reg#(Bool) rg_deq_lb <- mkDReg(False);
 
+    Reg#(Bool) rg_delay[2]<- mkCReg(2,False);
+    Reg#(Bool) rg_delay1[2]<- mkCReg(2,False);
    
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
       ff_req_queue.enq(tuple3(?,True,?));
       rg_init<=False;
+    endrule
+
+    rule delay_reg(rg_delay[0] && ramreg && !rg_fence_stall);
+      rg_delay[0]<=False;
+      rg_delay1[1]<=True;
     endrule
 
 
@@ -146,6 +158,10 @@ package icache_dm;
        if(rg_fence_index==(fromInteger(v_sets-1))) begin
           ff_req_queue.deq;
           rg_fence_stall<=False;
+          if(ramreg) begin
+            rg_delay1[1]<=False;
+            rg_delay[1]<=False;
+          end
           if(verbosity>1)begin
             $display($time,"\tICACHE Params:");
             $display($time,"\tv_sets: %d",v_sets);
@@ -159,10 +175,12 @@ package icache_dm;
     endrule
     
     //Checking_line_buffer and cache
-    rule check_hit_or_miss(!ff_delayed_resp.notEmpty && !tpl_2(ff_req_queue.first));
+    rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && 
+        (!ramreg || rg_delay1[0]));
       //TODO: Should epochs be checked here also?
+      if(ramreg)
+        rg_delay1[0]<=False;
       let {request, fence, epoch} =ff_req_queue.first();
-      ff_req_queue.deq;
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
@@ -177,10 +195,6 @@ package icache_dm;
         $display($time,"\tICACHE: Check for Address:%h Valid: %b ReqTag: %h StoredTag: %h",
             request,valid,request_tag,stored_tag);
       end
-
-      let {lbvalid, lbdataline,lbenables,err} = rg_linebuff;
-      let {lbtag,lbset,init_we}=ff_lb_control.first();
-
       // We first check if the requested word is in the line-buffer. This is done by checking the
       // if the tags match. While this means that the line-buffer should have the data
       // required, it might not be available unless it has been filled by the memory. We can confirm
@@ -188,90 +202,34 @@ package icache_dm;
       // also confirm if the valid bit is set.
 
       // TODO check for IO request here before anything else.
-      if(is_IO(request))begin
-        if(verbosity>0)
-          $display($time,"\tICACHE: This address is IO Mapped. Sending to memory");
-        ff_mem_request.enq(tuple3(request,0,2));
-        ff_miss_ongoing.enq(1);
+      
+      if((valid==1) && (stored_tag==request_tag)) begin // hit in cache
+        Bit#(respwidth) word_response = truncate(dataline>>block_offset); 
+        wr_hit_cache<= tuple2(word_response, False);// word and no bus-error;
+        wr_cache_state<=Hit;
+        if(verbosity!=0)
+          $display($time,"\tHIT IN CACHE for addr:%h data:%h",request,word_response);
       end
       else begin
-        if(lbtag==request_tag && lbset==set_index && ff_lb_control.notEmpty) begin // hit in line-buffer
-          if(verbosity!=0)
-            $display($time,"\tICACHE: LB Holds the line for address: %h",request);
-          if(lbenables[word_index]!=1||lbvalid!=1) begin
-            if(verbosity!=0)
-              $display($time,"\tICACHE: Miss. Word not found in LB for address: %h",request);
-            ff_miss_ongoing.enq(request);
-          end  
-          else begin
-            if(verbosity!=0)
-              $display($time,"\tICACHE: Hit. Word present in LB");
-            Bit#(respwidth) word_response = truncate(lbdataline>>block_offset); 
-
-            ff_core_response.enq(tuple2(word_response, False));// word and no bus-error;
-            `ifdef simulate
-              ff_meta.enq(1);
-            `endif
-            if(verbosity!=0)
-              $display($time,"\tICACHE: Sending the response back to the core from address:%h data:%h",
-                request,word_response);
-          end
-        end
-        else begin // since LB doesn't hold the required line check the cache.
-          if((valid==1) && (stored_tag==request_tag)) begin // hit in cache
-            Bit#(respwidth) word_response = truncate(dataline>>block_offset); 
-            if(ff_miss_ongoing.notEmpty)begin
-              ff_delayed_resp.enq(tuple2(word_response,False));
-              `ifdef simulate
-                ff_delayed_meta.enq(1);
-              `endif
-            end
-            else begin
-              ff_core_response.enq(tuple2(word_response, False));// word and no bus-error;
-              `ifdef simulate
-                ff_meta.enq(1);
-              `endif
-            end
-            if(verbosity!=0)
-              $display($time,"\tHIT IN CACHE for addr:%h data:%h",request,word_response);
-          end
-          else begin
-            if(verbosity!=0)
-                $display($time,"\tICACHE: Miss in Cache for addr: %h",request);
-            ff_miss_ongoing.enq(request);
-            ff_mem_request.enq(tuple3(request,fromInteger(valueOf(blocksize)-1),2));
-            // TODO check if the following is valid.
-            // Here we do not check if the lb_control is full since ff_req is of the same size and has
-            // implicit condition on the rule. Thus if ff_req_queue is full then lb_control is also
-            // full.
-            ff_lb_control.enq(tuple3(request_tag,set_index,fn_enable(word_index)));
-          end
-        end        
+        wr_cache_state<=Miss;
+        wr_miss_from_cache<=  (tuple3(request,fromInteger(valueOf(blocksize)-1),2));        
+        if(verbosity!=0)
+            $display($time,"\tICACHE: Miss in Cache for addr: %h",request);
       end
     endrule
 
-    rule deque_delayed_response(!ff_miss_ongoing.notEmpty && ff_delayed_resp.notEmpty);
-      if(verbosity>0)
-        $display($time,"\tICACHE: Sending delayed response");
-      ff_core_response.enq(ff_delayed_resp.first());
-      ff_delayed_resp.deq;
-      `ifdef simulate
-        ff_meta.enq(ff_delayed_meta.first());
-        ff_delayed_meta.deq;
-      `endif
-    endrule
-
-    rule poll_on_lb(ff_lb_control.notEmpty);
+    rule poll_on_lb(!tpl_2(ff_req_queue.first));
       let {lbvalid, lbdataline,lbenables,err} = rg_linebuff;
       let {lbtag,lbset,init_we}=ff_lb_control.first();
-      let request=ff_miss_ongoing.first();
+      let {request, fence, epoch}=ff_req_queue.first();
+
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
-      let set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
+      let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
 
-      if(lbtag==request_tag && lbset==set_index ) begin // hit in line-buffer
+      if(lbtag==request_tag && lbset==request_index && ff_lb_control.notEmpty) begin // hit in line-buffer
         if(verbosity!=0)
           $display($time,"\tICACHE: Polling LB Holds the line for address: %h",request);
         if(lbenables[word_index]!=1||lbvalid!=1) begin
@@ -282,31 +240,59 @@ package icache_dm;
           if(verbosity!=0)
               $display($time,"\tICACHE: Polling Hit. Word present in LB for address: %h",request);
           Bit#(respwidth) word_response = truncate(lbdataline>>block_offset); 
-          ff_core_response.enq(tuple2(word_response,err));// word and no bus-error;
-          `ifdef simulate
-            ff_meta.enq(0);
-          `endif
-          ff_miss_ongoing.deq;
-          if(verbosity!=0)
-            $display($time,"\tICACHE: Polling Sending the response back to the core from address:%h data:%h",
-              request,word_response);
+          wr_hit_lb<=(tuple2(word_response,err));// word and no bus-error;
+          wr_lb_state<=Hit;
         end
       end
+      else begin
+        if(verbosity!=0)
+          $display($time,"\tICACHE: Miss in LB");
+        wr_lb_state<=Miss;
+      end
+    endrule
+
+    rule rl_response_to_core(!tpl_2(ff_req_queue.first) && (wr_lb_state==Hit || wr_cache_state==Hit));
+      dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
+      if(wr_cache_state == Hit) begin
+        ff_core_response.enq(wr_hit_cache);
+        ff_req_queue.deq();
+      end
+      else if(wr_lb_state == Hit)begin
+        ff_core_response.enq(wr_hit_lb);
+        ff_req_queue.deq();
+      end
+      rg_miss_ongoing<=False;
+      `ifdef simulate
+        if(rg_miss_ongoing)
+          ff_meta.enq(0);
+        else
+          ff_meta.enq(1);  
+      `endif
+    endrule
+
+    rule rl_request_to_memory(wr_cache_state==Miss && wr_lb_state==Miss);
+      rg_miss_ongoing<=True;
+      dynamicAssert(rg_miss_ongoing==False,"Issuing a Memory request while one is ongoing");
+      let {request, fence, epoch}=ff_req_queue.first();
+      Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
+      let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
+      Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
+      ff_mem_request.enq(wr_miss_from_cache);
+      ff_lb_control.enq(tuple3(request_tag,request_index,fn_enable(word_index)));
     endrule
     
     //Reading IO_response
     // TODO: When should this fire?
-    rule get_io_response(!ff_lb_control.notEmpty);
-      let {word,err} = ff_mem_response.first;
-      if(verbosity>0)
-        $display($time,"\tICACHE: receiving IO response: %h",word);
-      ff_mem_response.deq;
-      ff_core_response.enq(tuple2(word, err));// word and no bus-error;
-      `ifdef simulate
-        ff_meta.enq(0);
-      `endif
-      ff_miss_ongoing.deq();
-    endrule
+//    rule get_io_response(!ff_lb_control.notEmpty);
+//      let {word,err} = ff_mem_response.first;
+//      if(verbosity>0)
+//        $display($time,"\tICACHE: receiving IO response: %h",word);
+//      ff_mem_response.deq;
+//      ff_core_response.enq(tuple2(word, err));// word and no bus-error;
+//      `ifdef simulate
+//        ff_meta.enq(0);
+//      `endif
+//    endrule
 
     //Capturing memory_response
     rule capture_memory_response(&(tpl_3(rg_linebuff))!=1 && ff_lb_control.notEmpty);
@@ -377,8 +363,7 @@ package icache_dm;
     endrule
 
     interface core_req=interface Put
-      method Action put(ICore_request#(paddr) req) if(!rg_init && !rg_fence_stall &&
-      !ff_miss_ongoing.notEmpty);
+      method Action put(ICore_request#(paddr) req) if(!rg_init && !rg_fence_stall);
         // TODO check if epochs match. If they do not then drop the request.
         let {addr, fence, epoch} =req;
         if(fence)
@@ -391,6 +376,8 @@ package icache_dm;
         Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
         data_arr.read_request(set_index);
         tag_arr.read_request(set_index);
+        if(ramreg)
+          rg_delay[1]<=True;
         if(verbosity!=0)
 		      $display($time,"\tICACHE: Access Cache for Addr: %h Index: %d",addr,set_index); 
         

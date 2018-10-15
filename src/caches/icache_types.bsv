@@ -36,4 +36,6 @@ package icache_types;
                 // addr ,  burst len, burst_size 
   typedef Tuple3#(Bit#(addr),  Bit#(8), Bit#(3)) IMem_request#(numeric type addr);
   typedef Tuple2#(Bit#(data), Bool) IMem_response#(numeric type data);
+
+  typedef enum {Hit, Miss, None} RespState deriving(Eq,Bits,FShow);
 endpackage
