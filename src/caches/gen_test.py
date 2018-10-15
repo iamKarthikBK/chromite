@@ -174,7 +174,26 @@ def test6():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(miss)
 
-    
+def test7():
+  
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    for i in range(20):
+      write_to_file(address,read,delay,nofence)
+      gold_file.write(miss)
+  
+    address=address+(word_size*block_size)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4100
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
 
 test1()
 test2()
@@ -182,6 +201,7 @@ test3()
 test4()
 test5()
 test6() 
+test7()
 write_to_file(0,read,nodelay,nofence)
 gold_file.write(miss)
 test_file.close()
