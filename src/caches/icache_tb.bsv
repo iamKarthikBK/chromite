@@ -44,8 +44,10 @@ package icache_tb;
   import RegFile::*;
   import device_common::*;
 
-  function Bool isIO(Bit#(`addr_width ) addr);
-    if( addr < 4096)
+  function Bool isIO(Bit#(`addr_width ) addr, Bool cacheable);
+    if(!cacheable)
+      return True;
+    else if( addr < 4096)
       return True;
     else
       return False;    

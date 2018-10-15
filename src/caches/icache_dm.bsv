@@ -54,7 +54,7 @@ package icache_dm;
 
   (*conflict_free="check_hit_or_miss,poll_on_lb"*)
 //  (*preempts="get_io_response, check_hit_or_miss"*)
-  module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr), parameter Bool ramreg)
+  module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), parameter Bool ramreg)
                                           (Ifc_icache_dm#(wordsize,blocksize,sets,respwidth, paddr))
   provisos(
             Mul#(wordsize, 8, _w),        // _w is the total bits in a word
