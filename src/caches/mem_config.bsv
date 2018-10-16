@@ -69,6 +69,9 @@ package mem_config;
   interface Ifc_mem_config#( numeric type n_entries, numeric type datawidth, numeric type banks);
     method Action read_request(Bit#(TLog#(n_entries)) index);
     method ActionValue#(Bit#(datawidth)) read_response;
+    `ifdef simulate
+      method Bit#(TLog#(n_entries)) read_index;
+    `endif
     method Action write_request(Bit#(TLog#(n_entries)) address,  Bit#(datawidth) data);
   endinterface
   
@@ -95,17 +98,29 @@ package mem_config;
     end
 
     Reg#(Bool) rg_read_req_made <- mkDReg(False);
+    `ifdef simulate
+      Reg#(Bit#(TLog#(n_entries))) rg_index <- mkReg(0);
+      Reg#(Bit#(TLog#(n_entries))) rg_index1 <- mkReg(0);
+    `endif
 
     for(Integer i=0;i<valueOf(banks);i=i+1)begin
       rule capture_output(rg_read_req_made && !ramreg);
         rg_output[i][0]<=ram[i].a.read;
       endrule
     end
+    `ifdef simulate
+      rule rlindex(ramreg);
+        rg_index1<=rg_index;
+      endrule
+    `endif
 
     method Action read_request(Bit#(TLog#(n_entries)) index);
       for(Integer i=0;i<valueOf(banks);i=i+1)
         ram[i].a.put(False, index,  ?);
       rg_read_req_made<=True;
+      `ifdef simulate
+        rg_index<=index;
+      `endif
     endmethod
     method ActionValue#(Bit#(datawidth)) read_response;
       Bit#(datawidth) data_resp=0;
@@ -117,6 +132,11 @@ package mem_config;
       end
       return data_resp;
     endmethod
+    `ifdef simulate 
+      method Bit#(TLog#(n_entries)) read_index;
+        return ramreg?rg_index1:rg_index; 
+      endmethod
+    `endif
     method Action write_request(Bit#(TLog#(n_entries)) address,  Bit#(datawidth) data);
       for(Integer i=0;i<valueOf(banks);i=i+1)
         ram[i].b.put(True, address, data[i*bits_per_bank+bits_per_bank-1:i*bits_per_bank]);
