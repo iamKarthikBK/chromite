@@ -195,6 +195,29 @@ def test7():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(hit)
 
+# the following test will create a scenario where a LB miss and Cache miss will
+# occur for different addresses (cache array output is registered
+def test8():
+
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    for i in range(8):
+      write_to_file(address,read,delay,nofence)
+      gold_file.write(miss)
+  
+    address=4096
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
+
+    address=address+(word_size*block_size)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
 test1()
 test2()
 test3()
@@ -202,6 +225,7 @@ test4()
 test5()
 test6() 
 test7()
+test8()
 write_to_file(0,read,nodelay,nofence)
 gold_file.write(miss)
 test_file.close()
