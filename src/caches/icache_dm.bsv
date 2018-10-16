@@ -174,9 +174,10 @@ package icache_dm;
        end
     endrule
     
-    //Checking_line_buffer and cache
+    //Checking the data and tag arrays of the cache for a hit or miss.
+    // This rule will fire for every request from the core that is not a Fence operation.
     rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && 
-        (!ramreg || rg_delay1[0]));
+        (!ramreg || rg_delay1[0]) && ff_lb_control.notFull);
       //TODO: Should epochs be checked here also?
       if(ramreg)
         rg_delay1[0]<=False;
@@ -189,11 +190,11 @@ package icache_dm;
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits];
       Bit#(1) valid=tag[v_tagbits];
       Bit#(tagbits) stored_tag=tag[v_tagbits-1:0];
-      let set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
+      Bit#(setbits) set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
 
       if(verbosity!=0)begin
-        $display($time,"\tICACHE: Check for Address:%h Valid: %b ReqTag: %h StoredTag: %h",
-            request,valid,request_tag,stored_tag);
+        $display($time,"\tICACHE: Check for Address:%h Valid: %b ReqTag: %h StoredTag: %h index: %d",
+            request,valid,request_tag,stored_tag,set_index);
       end
       // We first check if the requested word is in the line-buffer. This is done by checking the
       // if the tags match. While this means that the line-buffer should have the data
@@ -218,6 +219,7 @@ package icache_dm;
       end
     endrule
 
+    // This rule will fire for every request from the core that is not a Fence operation.
     rule poll_on_lb(!tpl_2(ff_req_queue.first));
       let {lbvalid, lbdataline,lbenables,err} = rg_linebuff;
       let {lbtag,lbset,init_we}=ff_lb_control.first();
@@ -246,13 +248,15 @@ package icache_dm;
       end
       else begin
         if(verbosity!=0)
-          $display($time,"\tICACHE: Miss in LB");
+          $display($time,"\tICACHE: Miss in LB for address: %h",request);
         wr_lb_state<=Miss;
       end
     endrule
 
     rule rl_response_to_core(!tpl_2(ff_req_queue.first) && (wr_lb_state==Hit || wr_cache_state==Hit));
-      dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
+      `ifdef simulate
+        dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
+      `endifn
       if(wr_cache_state == Hit) begin
         ff_core_response.enq(wr_hit_cache);
         ff_req_queue.deq();
@@ -272,7 +276,9 @@ package icache_dm;
 
     rule rl_request_to_memory(wr_cache_state==Miss && wr_lb_state==Miss);
       rg_miss_ongoing<=True;
-      dynamicAssert(rg_miss_ongoing==False,"Issuing a Memory request while one is ongoing");
+      `ifdef simulate
+        dynamicAssert(rg_miss_ongoing==False,"Issuing a Memory request while one is ongoing");
+      `endif
       let {request, fence, epoch}=ff_req_queue.first();
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -368,14 +374,14 @@ package icache_dm;
         let {addr, fence, epoch} =req;
         if(fence)
           rg_fence_stall<=True;
-        if (verbosity!=0)
-		    $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b ",addr, fence,
-                  epoch); 
 
         ff_req_queue.enq(req);
         Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
         data_arr.read_request(set_index);
         tag_arr.read_request(set_index);
+        if (verbosity!=0)
+		    $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d",
+          addr, fence, epoch, set_index); 
         if(ramreg)
           rg_delay[1]<=True;
         if(verbosity!=0)
