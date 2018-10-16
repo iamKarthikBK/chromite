@@ -272,8 +272,8 @@ package icache_dm;
       rg_miss_ongoing<=True;
       `ifdef simulate
         dynamicAssert(rg_miss_ongoing==False,"Issuing a Memory request while one is ongoing");
-        dynamicAssert(wr_miss_from_cache==wr_miss_lb_cache,"Miss from LB and Cache for different\
-        addresses");
+        dynamicAssert(tpl_1(wr_miss_from_cache)==tpl_1(wr_miss_lb_cache),"Miss from LB and Cache for different\
+addresses");
       `endif
       let {request, fence, epoch}=ff_req_queue.first();
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
