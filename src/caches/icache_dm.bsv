@@ -134,18 +134,10 @@ package icache_dm;
                                                                       mkReg(tuple4(0, 0, 0, False));
     Reg#(Bool) rg_deq_lb <- mkDReg(False);
 
-    Reg#(Bool) rg_delay[2]<- mkCReg(2,False);
-    Reg#(Bool) rg_delay1[2]<- mkCReg(2,False);
-   
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
       ff_req_queue.enq(tuple3(?,True,?));
       rg_init<=False;
-    endrule
-
-    rule delay_reg(rg_delay[0] && ramreg && !rg_fence_stall);
-      rg_delay[0]<=False;
-      rg_delay1[1]<=True;
     endrule
 
 
@@ -161,10 +153,6 @@ package icache_dm;
        if(rg_fence_index==(fromInteger(v_sets-1))) begin
           ff_req_queue.deq;
           rg_fence_stall<=False;
-          if(ramreg) begin
-            rg_delay1[1]<=False;
-            rg_delay[1]<=False;
-          end
           if(verbosity>1)begin
             $display($time,"\tICACHE Params:");
             $display($time,"\tv_sets: %d",v_sets);
@@ -179,11 +167,8 @@ package icache_dm;
     
     //Checking the data and tag arrays of the cache for a hit or miss.
     // This rule will fire for every request from the core that is not a Fence operation.
-    rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && 
-        (!ramreg || rg_delay1[0]) && ff_lb_control.notFull);
+    rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull);
       //TODO: Should epochs be checked here also?
-      if(ramreg)
-        rg_delay1[0]<=False;
       let {request, fence, epoch} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
@@ -194,6 +179,11 @@ package icache_dm;
       Bit#(1) valid=tag[v_tagbits];
       Bit#(tagbits) stored_tag=tag[v_tagbits-1:0];
       Bit#(setbits) set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
+
+      `ifdef simulate
+        $display($time,"\tresponse_index: %d set_index: %d",data_arr.read_index,set_index);
+        dynamicAssert(data_arr.read_index==set_index,"Cache response is for wrong index");
+      `endif
 
       if(verbosity!=0)begin
         $display($time,"\tICACHE: Check for Address:%h Valid: %b ReqTag: %h StoredTag: %h index: %d",
@@ -253,13 +243,14 @@ package icache_dm;
         if(verbosity!=0)
           $display($time,"\tICACHE: Miss in LB for address: %h",request);
         wr_lb_state<=Miss;
+        wr_miss_lb_cache<=(tuple3(request,fromInteger(valueOf(blocksize)-1),2));
       end
     endrule
 
     rule rl_response_to_core(!tpl_2(ff_req_queue.first) && (wr_lb_state==Hit || wr_cache_state==Hit));
       `ifdef simulate
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
-      `endifn
+      `endif
       if(wr_cache_state == Hit) begin
         ff_core_response.enq(wr_hit_cache);
         ff_req_queue.deq();
@@ -387,8 +378,6 @@ package icache_dm;
         if (verbosity!=0)
 		    $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d",
           addr, fence, epoch, set_index); 
-        if(ramreg)
-          rg_delay[1]<=True;
         if(verbosity!=0)
 		      $display($time,"\tICACHE: Access Cache for Addr: %h Index: %d",addr,set_index); 
         
