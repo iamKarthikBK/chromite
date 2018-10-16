@@ -129,6 +129,8 @@ package icache_tb;
 
     let req = ff_req.first;
     let expected_data=data.sub(truncate(req));
+    Bool metafail=False;
+    Bool datafail=False;
   
     ff_req.deq();
 
@@ -139,16 +141,20 @@ package icache_tb;
       if(expected_meta!=meta)begin
         $display($time,"\tTB: Meta does not match for Req: %h",req);
         $display($time,"\tTB: Expected Meta: %b Received Meta:%b", expected_meta,meta);
-        $finish(0);
+        metafail=True;
     end
     `endif
     if(expected_data!=tpl_1(resp))begin
         $display($time,"\tTB: Output from cache is wrong for Req: %h",req);
         $display($time,"\tTB: Expected: %h, Received: %h",expected_data,resp);
-        $finish(0);
+        datafail=True;
     end
+
+    if(metafail||datafail)
+      $finish(0);
     else
-        $display($time,"\tTB: Core received correct response: ",fshow(resp)," For req: %h",req);
+      $display($time,"\tTB: Core received correct response: ",fshow(resp)," For req: %h",req);
+
   endrule
 
   rule mem_request(mem_req matches tagged Invalid);
