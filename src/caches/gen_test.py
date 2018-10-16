@@ -173,6 +173,10 @@ def test6():
     address=32
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(miss)
+    
+    address=4096
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
 
 def test7():
   
