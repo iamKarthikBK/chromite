@@ -131,15 +131,21 @@ package icache_dm;
     Reg#(Bit#(blocksize))rg_blockenable <- mkReg(0);
     Reg#(Bit#(blockbits))index<-mkReg(0);
     //linebuffer control
-    FIFOF#(Tuple3#(Bit#(tagbits), Bit#(setbits),Bit#(blocksize))) ff_lb_control <- mkUGSizedFIFOF(2);
+    FIFOF#(Tuple4#(Bit#(tagbits), Bit#(setbits),Bit#(blocksize), Bool)) ff_lb_control <- mkUGSizedFIFOF(2);
     Reg#(Tuple4#(Bit#(1), Bit#(linewidth), Bit#(blocksize), Bool)) rg_linebuff <- 
                                                                       mkReg(tuple4(0, 0, 0, False));
     Reg#(Bool) rg_deq_lb <- mkDReg(False);
+
+    Reg#(Bit#(paddr)) rg_latest_address <- mkReg(0);
 
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
       ff_req_queue.enq(tuple3(?,True,?));
       rg_init<=False;
+    endrule
+
+    rule rl_display_stuff;
+      $display($time,"\tICACHE: Miss on going: ",fshow(rg_miss_ongoing));
     endrule
 
 
@@ -183,7 +189,6 @@ package icache_dm;
       Bit#(setbits) set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
 
       `ifdef simulate
-        $display($time,"\tresponse_index: %d set_index: %d",data_arr.read_index,set_index);
         dynamicAssert(data_arr.read_index==set_index,"Cache response is for wrong index");
       `endif
 
@@ -191,13 +196,6 @@ package icache_dm;
         $display($time,"\tICACHE: Check for Address:%h Valid: %b ReqTag: %h StoredTag: %h index: %d",
             request,valid,request_tag,stored_tag,set_index);
       end
-      // We first check if the requested word is in the line-buffer. This is done by checking the
-      // if the tags match. While this means that the line-buffer should have the data
-      // required, it might not be available unless it has been filled by the memory. We can confirm
-      // this by checking the byte-enables which indicate which bytes of the line are available and
-      // also confirm if the valid bit is set.
-
-      // TODO check for IO request here before anything else.
       if(is_IO(request, True))begin
         $display($time,"\tICACHE: Cache received IO request for address: %h",request);
         wr_cache_state<=Miss;
@@ -220,8 +218,15 @@ package icache_dm;
 
     // This rule will fire for every request from the core that is not a Fence operation.
     rule poll_on_lb(!tpl_2(ff_req_queue.first));
+      
+      // We first check if the requested word is in the line-buffer. This is done by checking the
+      // if the tags match. While this means that the line-buffer should have the data
+      // required, it might not be available unless it has been filled by the memory. We can confirm
+      // this by checking the byte-enables which indicate which bytes of the line are available and
+      // also confirm if the valid bit is set.
+
       let {lbvalid, lbdataline,lbenables,err} = rg_linebuff;
-      let {lbtag,lbset,init_we}=ff_lb_control.first();
+      let {lbtag,lbset,init_we, isIO}=ff_lb_control.first();
       let {request, fence, epoch}=ff_req_queue.first();
 
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
@@ -256,10 +261,12 @@ package icache_dm;
     endrule
 
     rule rl_response_to_core(!tpl_2(ff_req_queue.first) && (wr_lb_state==Hit || wr_cache_state==Hit
-    || wr_io_response));
+        || wr_io_response));
       `ifdef simulate
+        $display($time,"\tICACHE: Sending Response to the Core");
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
+
       if(wr_cache_state == Hit) begin
         ff_core_response.enq(wr_hit_cache);
         ff_req_queue.deq();
@@ -284,6 +291,7 @@ package icache_dm;
     rule rl_request_to_memory(wr_cache_state==Miss && wr_lb_state==Miss);
       rg_miss_ongoing<=True;
       `ifdef simulate
+        $display($time,"\tICACHE: Sending Request to Memory: ",fshow(wr_miss_from_cache));
         dynamicAssert(rg_miss_ongoing==False,"Issuing a Memory request while one is ongoing");
         dynamicAssert(tpl_1(wr_miss_from_cache)==tpl_1(wr_miss_lb_cache),"Miss from LB and Cache for different\
 addresses");
@@ -293,21 +301,10 @@ addresses");
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
       ff_mem_request.enq(wr_miss_from_cache);
-      if (tpl_2(wr_miss_from_cache)!=0)
-         ff_lb_control.enq(tuple3(request_tag,request_index,fn_enable(word_index)));
+      ff_lb_control.enq(tuple4(request_tag,request_index,fn_enable(word_index),
+                                                          tpl_2(wr_miss_from_cache)==0));
     endrule
     
-    //Reading IO_response
-    // TODO: When should this fire?
-    rule get_io_response(!ff_lb_control.notEmpty);
-      let {word,err} = ff_mem_response.first;
-      if(verbosity>0)
-        $display($time,"\tICACHE: receiving IO response: %h",word);
-      ff_mem_response.deq;
-      wr_io_response<=True;
-      wr_hit_io<=tuple2(word, err);// word and bus-error;
-    endrule
-
     //Capturing memory_response
     rule capture_memory_response(&(tpl_3(rg_linebuff))!=1 && ff_lb_control.notEmpty);
      
@@ -317,7 +314,7 @@ addresses");
       if (verbosity!=0)
         $display($time,"\tICACHE: Receiving Memory Response. Word: %h err: %b",word,err);
       let {lbvalid, lbdataline,lbenables, err1} = rg_linebuff;
-      let {lbtag,lbset, init_we}=ff_lb_control.first();
+      let {lbtag,lbset, init_we, isIO}=ff_lb_control.first();
       Bit#(blocksize) temp = 0;
       if(rg_blockenable==0)
         temp=init_we;
@@ -328,9 +325,6 @@ addresses");
 
       if (verbosity!=0)
         $display($time,"\tICACHE: Lbenables changes to:%b",lbenables);
-
-      rg_blockenable <= {temp[valueOf(blocksize)-2:0],
-                                                temp[valueOf(blocksize)-1]};
 
       if (verbosity!=0)
         $display($time,"\tICACHE: WE :%b",temp);
@@ -350,17 +344,24 @@ addresses");
       Bit#(linewidth) y  = duplicate(word) ; 
       let new_word_line  = y & mask;
       Bit#(linewidth) x  = lbdataline|new_word_line;
-      rg_linebuff <= tuple4(1'b1,x,lbenables, err||err1);
 
+      if(isIO) begin
+        wr_hit_io<=tuple2(word,err);
+        wr_io_response<=True;
+        ff_lb_control.deq;
+      end
+      else begin
+        rg_linebuff <= tuple4(1'b1,x,lbenables, err||err1);
+        rg_blockenable <= {temp[valueOf(blocksize)-2:0],
+                                                temp[valueOf(blocksize)-1]};
+      end
       if(verbosity!=0)
         $display($time,"\tICACHE: Updating line_buffer:%h",x);
 
     endrule
 
     //Loading data into the cache from line_buffer
-    rule upd_data_into_cache(&(tpl_3(rg_linebuff))==1 && (tpl_1(rg_linebuff)==1) &&
-                                                  ff_lb_control.notEmpty  && !rg_deq_lb);
-
+    rule upd_data_into_cache(&(tpl_3(rg_linebuff))==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty  && !rg_deq_lb);
       let {lbtag,lbset,init_we}=ff_lb_control.first();
       tag_arr.write_request(lbset,{1,lbtag});//lbtag
       data_arr.write_request(lbset,truncate(tpl_2(rg_linebuff)));
@@ -369,15 +370,22 @@ addresses");
                                         lbset,tpl_2(rg_linebuff),lbtag);
       rg_deq_lb<=True;
     endrule
-    rule deq_lb(rg_deq_lb && &(tpl_3(rg_linebuff))==1 && (tpl_1(rg_linebuff)==1) &&
-                                                                        ff_lb_control.notEmpty);
+    rule deq_lb(rg_deq_lb && &(tpl_3(rg_linebuff))==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty);
       ff_lb_control.deq;
       rg_blockenable<=0;
-      rg_linebuff<=tuple4(0,0,0, False);
+      rg_linebuff<=tuple4(0,0,0,False);
+      Bit#(setbits) set_index=rg_latest_address[v_setbits+v_blockbits+v_wordbits-1:
+                                                                            v_blockbits+v_wordbits];
+      let {lbtag,lbset, init_we}=ff_lb_control.first();
+      if (lbset==set_index) begin
+        $display($time,"\tICACHE: Resending request to cache for index: %d",set_index);
+        data_arr.read_request(set_index);
+        tag_arr.read_request(set_index);
+      end
     endrule
 
     interface core_req=interface Put
-      method Action put(ICore_request#(paddr) req) if(!rg_init && !rg_fence_stall);
+      method Action put(ICore_request#(paddr) req) if(!rg_init && !rg_fence_stall );
         // TODO check if epochs match. If they do not then drop the request.
         let {addr, fence, epoch} =req;
         if(fence)
@@ -387,6 +395,7 @@ addresses");
         Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
         data_arr.read_request(set_index);
         tag_arr.read_request(set_index);
+        rg_latest_address<=addr;
         if (verbosity!=0)
 		    $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d",
           addr, fence, epoch, set_index); 
