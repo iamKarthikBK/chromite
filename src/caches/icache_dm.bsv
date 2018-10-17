@@ -101,22 +101,31 @@ package icache_dm;
 
     Ifc_mem_config#(sets, linewidth, 8) data_arr <- mkmem_config_h(ramreg); // data array
     Ifc_mem_config#(sets, TAdd#(1, tagbits), 1) tag_arr <- mkmem_config_h(ramreg); // one extra valid bit
-    
+   
+    // FIFOs for interface communication
     FIFOF#(ICore_response#(respwidth))ff_core_response <- mkSizedFIFOF(2);
     FIFOF#(IMem_request#(paddr)) ff_mem_request    <- mkSizedFIFOF(2);
     FIFOF#(IMem_response#(respwidth)) ff_mem_response  <- mkSizedFIFOF(2);
     FIFOF#(ICore_request#(paddr)) ff_req_queue <- mkSizedFIFOF(2); 
 
+    // This register is used to indicate that a miss is ongoing and thus prevents further requests
+    // from being handled.
     Reg#(Bool) rg_miss_ongoing <- mkReg(False);
+
+    // The following set of wires indicate if there was a hit or miss by the cache, LB or io
+    // respectively.
     Wire#(RespState) wr_cache_state <- mkDWire(None);
     Wire#(RespState) wr_lb_state <- mkDWire(None);
     Wire#(Bool) wr_io_response <- mkDWire(False);
 
+    // The following wire holds the request that needs to be made to the memory for a miss in cache
+    // and LB.
     Wire#(IMem_request#(paddr)) wr_miss_from_cache <- mkDWire(tuple3(0,0,0));
     `ifdef simulate
       Wire#(IMem_request#(paddr)) wr_miss_lb_cache <- mkDWire(tuple3(0,0,0));
     `endif
 
+    // The following wires hold the word that was received on a hit in the cache, LB or io.
     Wire#(Tuple2#(Bit#(respwidth),Bool)) wr_hit_cache <- mkDWire(tuple2(0,False));
     Wire#(Tuple2#(Bit#(respwidth),Bool)) wr_hit_lb <- mkDWire(tuple2(0,False));
     Wire#(Tuple2#(Bit#(respwidth),Bool)) wr_hit_io <- mkDWire(tuple2(0,False));
@@ -139,18 +148,16 @@ package icache_dm;
 
     Reg#(Bool) rg_deq_lb <- mkDReg(False);
 
-    Reg#(Bit#(paddr)) rg_latest_address <- mkReg(0);
+    // The following register is used to capture the latest index which has been latched into the
+    // data/tag array. This is used during deque of the LB. If the request to the SRAM was to the 
+    // same line as that held in the LB, then the same line is indexed again while lb deq
+    Reg#(Bit#(setbits)) rg_latest_index <- mkReg(0);
 
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
       ff_req_queue.enq(tuple3(?,True,?));
       rg_init<=False;
     endrule
-
-    rule rl_display_stuff;
-      $display($time,"\tICACHE: Miss on going: ",fshow(rg_miss_ongoing));
-    endrule
-
 
     //Fencing the cache
     // rule to fire only when there is not a pending fill to LB.
@@ -176,8 +183,10 @@ package icache_dm;
        end
     endrule
     
-    //Checking the data and tag arrays of the cache for a hit or miss.
+    // Checking the data and tag arrays of the cache for a hit or miss.
     // This rule will fire for every request from the core that is not a Fence operation.
+    // This rule will also check if the request is cacheable. If not, then a miss generated for that
+    // one request and not the entire line.
     rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull);
       let {request, fence, epoch} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
@@ -198,11 +207,14 @@ package icache_dm;
         $display($time,"\tICACHE: Check for Address:%h Valid: %b ReqTag: %h StoredTag: %h index: %d",
             request,valid,request_tag,stored_tag,set_index);
       end
+
+      // check if the request is cacheable or not
       if(is_IO(request, True))begin
         $display($time,"\tICACHE: Cache received IO request for address: %h",request);
         wr_cache_state<=Miss;
         wr_miss_from_cache<=(tuple3(request,0,2));        
       end
+      // check if hit  in the cache
       else if((valid==1) && (stored_tag==request_tag)) begin // hit in cache
         Bit#(respwidth) word_response = truncate(dataline>>block_offset); 
         wr_hit_cache<= tuple2(word_response, False);// word and no bus-error;
@@ -210,6 +222,7 @@ package icache_dm;
         if(verbosity!=0)
           $display($time,"\tHIT IN CACHE for addr:%h data:%h",request,word_response);
       end
+      // generate a miss
       else begin
         wr_cache_state<=Miss;
         wr_miss_from_cache<=  (tuple3(request,fromInteger(valueOf(blocksize)-1),2));        
@@ -237,9 +250,11 @@ package icache_dm;
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
 
-      if(lbtag==request_tag && lbset==request_index && ff_lb_control.notEmpty) begin // hit in line-buffer
+      // check if line-buffer holds the line containing the word requested
+      if(lbtag==request_tag && lbset==request_index && ff_lb_control.notEmpty) begin
         if(verbosity!=0)
           $display($time,"\tICACHE: Polling LB Holds the line for address: %h",request);
+        // check if the word is available in the line-buffer.
         if(rg_lbenables[word_index]!=1||rg_lbvalid!=1) begin
           if(verbosity!=0)
             $display($time,"\tICACHE: Polling Miss. Word not found in LB for address: %h",request);
@@ -262,6 +277,9 @@ package icache_dm;
       end
     endrule
 
+    // If the miss generated is cacheable then update the line-buffer with the word responded by the
+    // next level memory structure. If the request if not cacheable then deque the line-buffer and
+    // generate an IO hit response.
     rule rl_response_to_core(!tpl_2(ff_req_queue.first) && (wr_lb_state==Hit || wr_cache_state==Hit
         || wr_io_response));
       `ifdef simulate
@@ -381,8 +399,7 @@ addresses");
       rg_lbvalid<=0;
       rg_lbdataline<=0;
       rg_lberr<=False;
-      Bit#(setbits) set_index=rg_latest_address[v_setbits+v_blockbits+v_wordbits-1:
-                                                                            v_blockbits+v_wordbits];
+      Bit#(setbits) set_index=rg_latest_index;
       let {lbtag,lbset, init_we}=ff_lb_control.first();
       if (lbset==set_index) begin
         $display($time,"\tICACHE: Resending request to cache for index: %d",set_index);
@@ -401,7 +418,7 @@ addresses");
         Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
         data_arr.read_request(set_index);
         tag_arr.read_request(set_index);
-        rg_latest_address<=addr;
+        rg_latest_index<=set_index;
         if (verbosity!=0)
 		    $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d",
           addr, fence, epoch, set_index); 
