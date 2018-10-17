@@ -132,8 +132,11 @@ package icache_dm;
     Reg#(Bit#(blockbits))index<-mkReg(0);
     //linebuffer control
     FIFOF#(Tuple4#(Bit#(tagbits), Bit#(setbits),Bit#(blocksize), Bool)) ff_lb_control <- mkUGSizedFIFOF(2);
-    Reg#(Tuple4#(Bit#(1), Bit#(linewidth), Bit#(blocksize), Bool)) rg_linebuff <- 
-                                                                      mkReg(tuple4(0, 0, 0, False));
+    Reg#(Bit#(1)) rg_lbvalid <- mkReg(0);
+    Reg#(Bit#(linewidth)) rg_lbdataline <- mkReg(0);
+    Reg#(Bit#(blocksize)) rg_lbenables <- mkReg(0);
+    Reg#(Bool) rg_lberr <- mkReg(False);
+
     Reg#(Bool) rg_deq_lb <- mkDReg(False);
 
     Reg#(Bit#(paddr)) rg_latest_address <- mkReg(0);
@@ -225,7 +228,7 @@ package icache_dm;
       // this by checking the byte-enables which indicate which bytes of the line are available and
       // also confirm if the valid bit is set.
 
-      let {lbvalid, lbdataline,lbenables,err} = rg_linebuff;
+      
       let {lbtag,lbset,init_we, isIO}=ff_lb_control.first();
       let {request, fence, epoch}=ff_req_queue.first();
 
@@ -238,15 +241,15 @@ package icache_dm;
       if(lbtag==request_tag && lbset==request_index && ff_lb_control.notEmpty) begin // hit in line-buffer
         if(verbosity!=0)
           $display($time,"\tICACHE: Polling LB Holds the line for address: %h",request);
-        if(lbenables[word_index]!=1||lbvalid!=1) begin
+        if(rg_lbenables[word_index]!=1||rg_lbvalid!=1) begin
           if(verbosity!=0)
             $display($time,"\tICACHE: Polling Miss. Word not found in LB for address: %h",request);
         end  
         else begin
           if(verbosity!=0)
               $display($time,"\tICACHE: Polling Hit. Word present in LB for address: %h",request);
-          Bit#(respwidth) word_response = truncate(lbdataline>>block_offset); 
-          wr_hit_lb<=(tuple2(word_response,err));// word and no bus-error;
+          Bit#(respwidth) word_response = truncate(rg_lbdataline>>block_offset); 
+          wr_hit_lb<=(tuple2(word_response,rg_lberr));// word and no bus-error;
           wr_lb_state<=Hit;
         end
       end
@@ -267,17 +270,15 @@ package icache_dm;
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
 
+      ff_req_queue.deq();
       if(wr_cache_state == Hit) begin
         ff_core_response.enq(wr_hit_cache);
-        ff_req_queue.deq();
       end
       else if(wr_lb_state == Hit)begin
         ff_core_response.enq(wr_hit_lb);
-        ff_req_queue.deq();
       end
       else if(wr_io_response)begin
         ff_core_response.enq(wr_hit_io);
-        ff_req_queue.deq();
       end
       rg_miss_ongoing<=False;
       `ifdef simulate
@@ -306,15 +307,14 @@ addresses");
     endrule
     
     //Capturing memory_response
-    rule capture_memory_response(&(tpl_3(rg_linebuff))!=1 && ff_lb_control.notEmpty);
+    rule capture_memory_response(&(rg_lbenables)!=1 && ff_lb_control.notEmpty);
      
-      Bit#(linewidth) mask = 0;
       let {word,err} = ff_mem_response.first;
       ff_mem_response.deq;
-      if (verbosity!=0)
-        $display($time,"\tICACHE: Receiving Memory Response. Word: %h err: %b",word,err);
-      let {lbvalid, lbdataline,lbenables, err1} = rg_linebuff;
+
       let {lbtag,lbset, init_we, isIO}=ff_lb_control.first();
+      let lbenables=rg_lbenables;
+
       Bit#(blocksize) temp = 0;
       if(rg_blockenable==0)
         temp=init_we;
@@ -323,14 +323,9 @@ addresses");
 
       lbenables = lbenables|temp;
 
-      if (verbosity!=0)
-        $display($time,"\tICACHE: Lbenables changes to:%b",lbenables);
-
-      if (verbosity!=0)
-        $display($time,"\tICACHE: WE :%b",temp);
-
      //Each bit in write_enable register refers to corresponding word in block 
       
+      Bit#(linewidth) mask = 0;
       for(Integer i=0;i<valueOf(blocksize);i=i+1)
       begin
             Bit#(respwidth) ex_we=duplicate(temp[i]);
@@ -338,12 +333,16 @@ addresses");
             mask[((i*v_word_len)+(v_word_len-1)):i*v_word_len]=ex_we;
       end
 
-      if (verbosity!=0)
+      if (verbosity!=0) begin
+        $display($time,"\tICACHE: Receiving Memory Response. Word: %h err: %b",word,err);
+        $display($time,"\tICACHE: Lbenables changes to:%b",lbenables);
+        $display($time,"\tICACHE: WE :%b",temp);
         $display($time,"\tICACHE: MASK:%h",mask);
+      end
 
       Bit#(linewidth) y  = duplicate(word) ; 
       let new_word_line  = y & mask;
-      Bit#(linewidth) x  = lbdataline|new_word_line;
+      Bit#(linewidth) x  = rg_lbdataline|new_word_line;
 
       if(isIO) begin
         wr_hit_io<=tuple2(word,err);
@@ -351,7 +350,10 @@ addresses");
         ff_lb_control.deq;
       end
       else begin
-        rg_linebuff <= tuple4(1'b1,x,lbenables, err||err1);
+        rg_lbvalid<=1;
+        rg_lbdataline<=x;
+        rg_lbenables<=lbenables;
+        rg_lberr<=rg_lberr||err;
         rg_blockenable <= {temp[valueOf(blocksize)-2:0],
                                                 temp[valueOf(blocksize)-1]};
       end
@@ -361,19 +363,22 @@ addresses");
     endrule
 
     //Loading data into the cache from line_buffer
-    rule upd_data_into_cache(&(tpl_3(rg_linebuff))==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty  && !rg_deq_lb);
+    rule upd_data_into_cache(&(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty  && !rg_deq_lb);
       let {lbtag,lbset,init_we}=ff_lb_control.first();
       tag_arr.write_request(lbset,{1,lbtag});//lbtag
-      data_arr.write_request(lbset,truncate(tpl_2(rg_linebuff)));
+      data_arr.write_request(lbset,truncate(rg_lbdataline));
       if(verbosity!=0)
         $display($time,"\tICACHE: loading set:%h with dataline %h and tag %h",
-                                        lbset,tpl_2(rg_linebuff),lbtag);
+                                        lbset,rg_lbdataline,lbtag);
       rg_deq_lb<=True;
     endrule
-    rule deq_lb(rg_deq_lb && &(tpl_3(rg_linebuff))==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty);
+    rule deq_lb(rg_deq_lb && &(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty);
       ff_lb_control.deq;
       rg_blockenable<=0;
-      rg_linebuff<=tuple4(0,0,0,False);
+      rg_lbenables<=0;
+      rg_lbvalid<=0;
+      rg_lbdataline<=0;
+      rg_lberr<=False;
       Bit#(setbits) set_index=rg_latest_address[v_setbits+v_blockbits+v_wordbits-1:
                                                                             v_blockbits+v_wordbits];
       let {lbtag,lbset, init_we}=ff_lb_control.first();
