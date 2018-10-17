@@ -117,9 +117,9 @@ package icache_dm;
       Wire#(IMem_request#(paddr)) wr_miss_lb_cache <- mkDWire(tuple3(0,0,0));
     `endif
 
-    Wire#(ICore_response#(respwidth)) wr_hit_cache <- mkDWire(tuple2(0,False));
-    Wire#(ICore_response#(respwidth)) wr_hit_lb <- mkDWire(tuple2(0,False));
-    Wire#(ICore_response#(respwidth)) wr_hit_io <- mkDWire(tuple2(0,False));
+    Wire#(Tuple2#(Bit#(respwidth),Bool)) wr_hit_cache <- mkDWire(tuple2(0,False));
+    Wire#(Tuple2#(Bit#(respwidth),Bool)) wr_hit_lb <- mkDWire(tuple2(0,False));
+    Wire#(Tuple2#(Bit#(respwidth),Bool)) wr_hit_io <- mkDWire(tuple2(0,False));
 
     `ifdef simulate
       FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(2);
@@ -179,7 +179,6 @@ package icache_dm;
     //Checking the data and tag arrays of the cache for a hit or miss.
     // This rule will fire for every request from the core that is not a Fence operation.
     rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull);
-      //TODO: Should epochs be checked here also?
       let {request, fence, epoch} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
@@ -269,17 +268,20 @@ package icache_dm;
         $display($time,"\tICACHE: Sending Response to the Core");
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
-
+      let {addr, fence, epoch}=ff_req_queue.first();
       ff_req_queue.deq();
+      Bit#(respwidth) word=0;
+      Bool err=False;
       if(wr_cache_state == Hit) begin
-        ff_core_response.enq(wr_hit_cache);
+        {word,err}=wr_hit_cache;
       end
       else if(wr_lb_state == Hit)begin
-        ff_core_response.enq(wr_hit_lb);
+        {word,err}=wr_hit_lb;
       end
       else if(wr_io_response)begin
-        ff_core_response.enq(wr_hit_io);
+        {word,err}=wr_hit_io;
       end
+      ff_core_response.enq(tuple3(word,err,epoch));
       rg_miss_ongoing<=False;
       `ifdef simulate
         if(rg_miss_ongoing)
@@ -391,7 +393,6 @@ addresses");
 
     interface core_req=interface Put
       method Action put(ICore_request#(paddr) req) if(!rg_init && !rg_fence_stall );
-        // TODO check if epochs match. If they do not then drop the request.
         let {addr, fence, epoch} =req;
         if(fence)
           rg_fence_stall<=True;

@@ -32,7 +32,8 @@ package icache_types;
   typedef 32 ICACHEADDR;
                   // addr, Fence, epoch
   typedef Tuple3#(Bit#(addr), Bool, Bit#(1)) ICore_request#(numeric type addr);
-  typedef Tuple2#(Bit#(data), Bool) ICore_response#(numeric type data);
+                 // word , err , epoch
+  typedef Tuple3#(Bit#(data), Bool, Bit#(1)) ICore_response#(numeric type data);
                 // addr ,  burst len, burst_size 
   typedef Tuple3#(Bit#(addr),  Bit#(8), Bit#(3)) IMem_request#(numeric type addr);
   typedef Tuple2#(Bit#(data), Bool) IMem_response#(numeric type data);
