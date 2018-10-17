@@ -64,6 +64,7 @@ package icache_tb;
   endinterface
 
  (*synthesize*)
+ (*conflict_free="core_req_put,icache_deq_lb"*)
   module mkicache(Ifc_icache);
     Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
     False);
@@ -84,6 +85,7 @@ package icache_tb;
   Reg#(Bit#(32)) e_index<- mkReg(0);
   Reg#(Maybe#(IMem_request#(32))) mem_req<- mkReg(tagged Invalid);
   Reg#(Bit#(8)) rg_burst_count <- mkReg(0);
+  Reg#(Bit#(32)) rg_test_count <- mkReg(0);
 
   FIFOF#(Bit#(36)) ff_req <- mkSizedFIFOF(32);
   `ifdef simulate
@@ -111,6 +113,9 @@ package icache_tb;
           `ifdef simulate
             ff_meta.enq(e_meta.sub(truncate(index)));
           `endif
+        end
+        if(control[1]==1)begin
+          rg_test_count<=rg_test_count+1;
         end
       end
       else
@@ -150,8 +155,10 @@ package icache_tb;
         datafail=True;
     end
 
-    if(metafail||datafail)
+    if(metafail||datafail)begin
+      $display($time,"\tTB: Test: %d Failed",rg_test_count);
       $finish(0);
+    end
     else
       $display($time,"\tTB: Core received correct response: ",fshow(resp)," For req: %h",req);
 
