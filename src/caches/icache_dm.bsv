@@ -40,6 +40,13 @@ package icache_dm;
   // wordsize: number of bytes per word. This is what is responded back to the core.
   // blocksize: number of words per data line.
   // sets: number of sets within the cache.
+
+  // list of performance counters:
+  // 0. Total accesses
+  // 1. Total Hits in Cache
+  // 2. Total Hits in LB
+  // 3. Total IO requests
+  // 4. Misses which cause evictions
   
   interface Ifc_icache_dm#(numeric type wordsize, numeric type blocksize,  numeric type sets,numeric
   type respwidth, numeric type paddr);
@@ -49,6 +56,9 @@ package icache_dm;
     interface Put#(IMem_response#(respwidth)) mem_resp;
     `ifdef simulate
       interface Get#(Bit#(1)) meta;
+    `endif
+    `ifdef perf
+      method Bit#(5) perf_counters;
     `endif
   endinterface
 
@@ -153,6 +163,15 @@ package icache_dm;
     // same line as that held in the LB, then the same line is indexed again while lb deq
     Reg#(Bit#(setbits)) rg_latest_index <- mkReg(0);
 
+    `ifdef perf
+      Wire#(Bit#(1)) wr_total_access <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_cache_hits <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_lb_hits <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_io <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_evictions <- mkDWire(0);
+      Wire#(Bool) wr_line_valid <- mkDWire(False);
+    `endif
+
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
       ff_req_queue.enq(tuple3(?,True,?));
@@ -224,6 +243,9 @@ package icache_dm;
       end
       // generate a miss
       else begin
+        `ifdef perf
+          wr_line_valid<=unpack(valid);
+        `endif
         wr_cache_state<=Miss;
         wr_miss_from_cache<=  (tuple3(request,fromInteger(valueOf(blocksize)-1),2));        
         if(verbosity!=0)
@@ -291,12 +313,21 @@ package icache_dm;
       Bit#(respwidth) word=0;
       Bool err=False;
       if(wr_cache_state == Hit) begin
+        `ifdef perf
+          wr_total_cache_hits<=1;
+        `endif
         {word,err}=wr_hit_cache;
       end
       else if(wr_lb_state == Hit)begin
+        `ifdef perf
+          wr_total_lb_hits<=1;
+        `endif
         {word,err}=wr_hit_lb;
       end
       else if(wr_io_response)begin
+        `ifdef perf
+          wr_total_io<=1;
+        `endif
         {word,err}=wr_hit_io;
       end
       ff_core_response.enq(tuple3(word,err,epoch));
@@ -310,6 +341,10 @@ package icache_dm;
     endrule
 
     rule rl_request_to_memory(wr_cache_state==Miss && wr_lb_state==Miss);
+      `ifdef perf
+        if(wr_line_valid)
+          wr_total_evictions<=1;
+      `endif
       rg_miss_ongoing<=True;
       `ifdef simulate
         $display($time,"\tICACHE: Sending Request to Memory: ",fshow(wr_miss_from_cache));
@@ -410,6 +445,9 @@ addresses");
 
     interface core_req=interface Put
       method Action put(ICore_request#(paddr) req) if(!rg_init && !rg_fence_stall );
+        `ifdef perf
+          wr_total_access<=1;
+        `endif
         let {addr, fence, epoch} =req;
         if(fence)
           rg_fence_stall<=True;
@@ -455,7 +493,11 @@ addresses");
         endmethod
       endinterface;
     `endif 
-
+    `ifdef perf
+      method Bit#(5) perf_counters;
+        return {wr_total_evictions,wr_total_io,wr_total_lb_hits,wr_total_cache_hits,wr_total_access};
+      endmethod
+    `endif
   endmodule
 
 endpackage

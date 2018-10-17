@@ -43,6 +43,7 @@ package icache_tb;
   import DReg::*;
   import RegFile::*;
   import device_common::*;
+  import Vector::*;
 
   function Bool isIO(Bit#(`addr_width ) addr, Bool cacheable);
     if(!cacheable)
@@ -61,6 +62,9 @@ package icache_tb;
     `ifdef simulate
       interface Get#(Bit#(1)) meta;
     `endif
+    `ifdef perf
+      method Bit#(5) perf_counters;
+    `endif
   endinterface
 
  (*synthesize*)
@@ -74,6 +78,9 @@ package icache_tb;
     interface mem_resp=icache.mem_resp;
     `ifdef simulate
       interface meta=icache.meta;
+    `endif
+    `ifdef perf
+      method perf_counters=icache.perf_counters;
     `endif
   endmodule
 
@@ -94,9 +101,18 @@ package icache_tb;
   RegFile#(Bit#(20), Bit#(36)) stim <- mkRegFileFullLoad("test.mem");
   RegFile#(Bit#(20), Bit#(1))  e_meta <- mkRegFileFullLoad("gold.mem");
   RegFile#(Bit#(20), Bit#(32)) data <- mkRegFileFullLoad("data.mem");
+
     
   let verbosity=`VERBOSITY;
 
+  `ifdef perf
+  Vector#(5,Reg#(Bit#(32))) rg_counters <- replicateM(mkReg(0));
+  rule performance_counters;
+    Bit#(5) incr = icache.perf_counters;
+    for(Integer i=0;i<5;i=i+1)
+      rg_counters[i]<=rg_counters[i]+zeroExtend(incr[i]);
+  endrule
+  `endif
   rule core_req;
     let stime<-$stime;
     if(stime>=660)begin
@@ -124,8 +140,13 @@ package icache_tb;
   endrule
 
   rule end_sim;
-    if(ff_req.first==0)
+    if(ff_req.first==0)begin
+    `ifdef perf
+      for(Integer i=0;i<5;i=i+1)
+        $display($time,"\tTB: Counter-%d",i,": %d",rg_counters[i]);
+    `endif
       $finish(0);
+    end
     $display("\n");
   endrule
 
