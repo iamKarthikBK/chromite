@@ -143,7 +143,7 @@ package icache_tb;
     if(ff_req.first==0)begin
     `ifdef perf
       for(Integer i=0;i<5;i=i+1)
-        $display($time,"\tTB: Counter-%d",i,": %d",rg_counters[i]);
+        $display($time,"\tTB: Counter-",countName(i),": %d",rg_counters[i]);
     `endif
       $finish(0);
     end

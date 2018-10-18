@@ -39,4 +39,15 @@ package icache_types;
   typedef Tuple2#(Bit#(data), Bool) IMem_response#(numeric type data);
 
   typedef enum {Hit, Miss, None} RespState deriving(Eq,Bits,FShow);
+
+  function String countName (Integer cntr);
+    case (cntr)
+      'd0: return "Total accesses";
+      'd1: return "Total Hits in Cache";
+      'd2: return "Total Hits in LB";
+      'd3: return "Total IO requests";
+      'd4: return "Misses which cause evictions";
+      default: return "Null";
+    endcase
+  endfunction
 endpackage
