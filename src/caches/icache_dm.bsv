@@ -419,7 +419,7 @@ addresses");
 
     //Loading data into the cache from line_buffer
     rule upd_data_into_cache(&(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty  && !rg_deq_lb);
-      let {lbtag,lbset,init_we}=ff_lb_control.first();
+      let {lbtag,lbset,init_we, isIO}=ff_lb_control.first();
       tag_arr.write_request(lbset,{1,lbtag});//lbtag
       data_arr.write_request(lbset,truncate(rg_lbdataline));
       if(verbosity!=0)
@@ -435,7 +435,7 @@ addresses");
       rg_lbdataline<=0;
       rg_lberr<=False;
       Bit#(setbits) set_index=rg_latest_index;
-      let {lbtag,lbset, init_we}=ff_lb_control.first();
+      let {lbtag,lbset, init_we, isIO}=ff_lb_control.first();
       if (lbset==set_index) begin
         $display($time,"\tICACHE: Resending request to cache for index: %d",set_index);
         data_arr.read_request(set_index);
