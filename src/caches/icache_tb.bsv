@@ -32,8 +32,10 @@ package icache_tb;
   `define word_size 4
   `define block_size 8
   `define addr_width 32
+  `define ways 4
 
-  import icache_dm::*;
+  import icache_nway::*;
+  //import icache_dm::*;
   import icache_types::*;
   import mem_config::*;
   import GetPut::*;
@@ -70,7 +72,8 @@ package icache_tb;
  (*synthesize*)
  (*conflict_free="core_req_put,icache_deq_lb"*)
   module mkicache(Ifc_icache);
-    Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
+    Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- mkicache_dm(isIO,
+    //Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
     False);
     interface core_req=icache.core_req;
     interface core_resp=icache.core_resp;
