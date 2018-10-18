@@ -222,6 +222,19 @@ def test8():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(miss)
 
+def test9():
+    
+      
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    for i in range(sets):
+      write_to_file(address,read,nodelay,nofence)
+      gold_file.write(miss)
+      address=address+(word_size*block_size*sets)
+  
+
 test1()
 test2()
 test3()
@@ -230,6 +243,7 @@ test5()
 test6() 
 test7()
 test8()
+test9()
 write_to_file(0,read,nodelay,nofence)
 gold_file.write(miss)
 test_file.close()
