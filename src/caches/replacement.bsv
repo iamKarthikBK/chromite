@@ -15,7 +15,7 @@ provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
 OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
 AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONRROBIN
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
 IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
@@ -41,10 +41,12 @@ package replacement;
   module mkreplace#(String alg)(Ifc_replace#(sets,ways))
     provisos(Add#(a__, TLog#(ways), 4));
     let v_ways = valueOf(ways);
+    staticAssert(alg=="RANDOM" || alg=="RROBIN","Invalid replacement Algorithm");
+    if(alg == "RANDOM")begin
       LFSR#(Bit#(4)) random <- mkLFSR_4();
       Reg#(Bool) rg_init <- mkReg(True);
       rule initialize_lfsr(rg_init);
-        random.seed(3);
+        random.seed(1);
         rg_init<=False;
       endrule
 
@@ -66,6 +68,29 @@ package replacement;
       method Action update_set (Bit#(TLog#(sets)) index)if(!rg_init);
         random.next();
       endmethod
+    end
+    else if(alg=="RROBIN")begin
+      Vector#(sets,Reg#(Bit#(TLog#(ways)))) v_count <- replicateM(mkReg(3));
+      method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
+        if (&(valid)==1)begin // if all lines are valid choose one to randomly replace
+          $display("replacing line :%d",readVReg(v_count)[index]);
+          return readVReg(v_count)[index];
+        end
+        else begin // if any line empty then send that
+          Bit#(TLog#(ways)) temp=0;
+          for(Bit#(TAdd#(1,TLog#(ways))) i=0;i<fromInteger(v_ways);i=i+1) begin
+            if(valid[i]==0)begin
+              temp=truncate(i);
+            end
+          end
+          return temp;
+        end
+      endmethod
+      method Action update_set (Bit#(TLog#(sets)) index);
+        $display($time,"\tREPL: Updating index: %d",index);
+        v_count[index]<=v_count[index]-1;
+      endmethod
+    end
   endmodule
 endpackage
 

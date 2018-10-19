@@ -15,7 +15,7 @@ provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
 OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
 AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONRROBIN
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
 IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
@@ -123,7 +123,7 @@ package icache_nway;
 
     Ifc_mem_config#(sets, linewidth, 8) data_arr [v_ways]; // data array
     Ifc_mem_config#(sets, TAdd#(1, tagbits), 1) tag_arr [v_ways];// one extra valid bit
-    Ifc_replace#(sets,ways) repl <- mkreplace("RANDOM");
+    Ifc_replace#(sets,ways) repl <- mkreplace("RROBIN");
     for(Integer i=0;i<v_ways;i=i+1)begin
       data_arr[i]<-mkmem_config_h(ramreg);
       tag_arr[i]<-mkmem_config_h(ramreg);
@@ -294,7 +294,6 @@ package icache_nway;
       end
       // generate a miss
       else begin
-        wr_line_valid<=(&(valid)==1);
         wr_cache_state<=Miss;
         wr_miss_from_cache<=  (tuple3(request,fromInteger(valueOf(blocksize)-1),2));
 
@@ -308,10 +307,11 @@ package icache_nway;
           if(lbset==set_index)
             valid[way]=1;
         end
+        wr_line_valid<=(&(valid)==1);
         let x<-repl.line_replace(set_index, valid);
         wr_replace_line<=x; 
         if(verbosity!=0)
-            $display($time,"\tICACHE: Miss in Cache for addr: %h",request);
+            $display($time,"\tICACHE: Miss in Cache for addr: %h. Replacing line: %d",request,x);
       end
     endrule
 
