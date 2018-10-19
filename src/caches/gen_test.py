@@ -20,13 +20,16 @@ for lineno,line in enumerate(tbfile):
       if 'addr_width' in line:
         line=line.split()
         addr_width=int(line[2])
+      if 'ways' in line:
+        line=line.split()
+        ways=int(line[2])
 
 print('Generating test for Following Parameters: ')
 print('Sets: '+str(sets))
+print('Ways: '+str(ways))
 print('Word_size: '+str(word_size))
 print('Block_size: '+str(block_size))
 print('Addr_width: '+str(addr_width))
-ways=1
 
 
 
@@ -229,7 +232,7 @@ def test9():
     gold_file.write(miss)
 
     address=4096
-    for i in range(sets):
+    for i in range(ways+ways+1):
       write_to_file(address,read,nodelay,nofence)
       gold_file.write(miss)
       address=address+(word_size*block_size*sets)
