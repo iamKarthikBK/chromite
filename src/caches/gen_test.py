@@ -225,6 +225,8 @@ def test8():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(miss)
 
+# this test creates a thrashing scenario on the same set. Total requests =
+# 2*ways
 def test9():
     
       
