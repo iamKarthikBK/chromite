@@ -35,6 +35,7 @@ package icache_nway;
   import BUtils ::*;  
   import DReg::*;
   import Assert::*;
+  import replacement::*;
   
   //parameters:
   // wordsize: number of bytes per word. This is what is responded back to the core.
@@ -89,6 +90,8 @@ package icache_nway;
             Mul#(TDiv#(TDiv#(linewidth, 8), TDiv#(TDiv#(linewidth, 8), 8)),
               TDiv#(TDiv#(linewidth, 8), 8), TDiv#(linewidth, 8)),
             Mul#(TDiv#(linewidth, 8), 8, linewidth),
+            // provisos required by the replacement policy
+            Add#(g__, TLog#(ways), 4), // max 16-way associative replacement supported for now
             // following provisos required by compiler:
             Bits#(Tuple2#(Bit#(respwidth), Bool), c__),
             Add#(d__, 1, blocksize),
@@ -120,6 +123,7 @@ package icache_nway;
 
     Ifc_mem_config#(sets, linewidth, 8) data_arr [v_ways]; // data array
     Ifc_mem_config#(sets, TAdd#(1, tagbits), 1) tag_arr [v_ways];// one extra valid bit
+    Ifc_replace#(sets,ways) repl <- mkreplace("RANDOM");
     for(Integer i=0;i<v_ways;i=i+1)begin
       data_arr[i]<-mkmem_config_h(ramreg);
       tag_arr[i]<-mkmem_config_h(ramreg);
@@ -184,9 +188,9 @@ package icache_nway;
       Wire#(Bit#(1)) wr_total_lb_hits <- mkDWire(0);
       Wire#(Bit#(1)) wr_total_io <- mkDWire(0);
       Wire#(Bit#(1)) wr_total_evictions <- mkDWire(0);
-      Wire#(Bool) wr_line_valid <- mkDWire(False);
     `endif
 
+    Wire#(Bool) wr_line_valid <- mkDWire(False);
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
       ff_req_queue.enq(tuple3(?,True,?));
@@ -228,35 +232,36 @@ package icache_nway;
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
-      Bit#(linewidth) dataline[v_ways];
-      Bit#(TAdd#(1, tagbits)) tag[v_ways];
-      for(Integer i=0;i<v_ways;i=i+1)begin
-        tag[i]<- tag_arr[i].read_response;
-        dataline[i]<- data_arr[i].read_response;
-      end
-      Bit#(1) valid [v_ways];
-      Bit#(tagbits) stored_tag [v_ways];
-      for(Integer i=0;i<v_ways;i=i+1) begin
-        valid[i]=tag[i][v_tagbits];
-        stored_tag[i]=tag[i][v_tagbits-1:0];
-      end
-      
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits];
       Bit#(setbits) set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
 
 
-      // Find the line that was hit
+      Bit#(linewidth) dataline[v_ways];
+      Bit#(TAdd#(1, tagbits)) tag[v_ways];
+      Bit#(ways) valid;
+      Bit#(tagbits) stored_tag [v_ways];
       Bit#(ways) hit=0;
       Bit#(linewidth) temp[v_ways];
       Bit#(linewidth) temp2[v_ways];
+      Bit#(linewidth) ex_dataline=0;
+
+      for(Integer i=0;i<v_ways;i=i+1)begin
+        tag[i]<- tag_arr[i].read_response;
+        dataline[i]<- data_arr[i].read_response;
+      end
+      for(Integer i=0;i<v_ways;i=i+1) begin
+        valid[i]=tag[i][v_tagbits];
+        stored_tag[i]=tag[i][v_tagbits-1:0];
+      end
+      // Find the line that was hit
       for(Integer i=0;i<v_ways;i=i+1)begin
         hit[i]=pack(stored_tag[i]==request_tag && valid[i]==1);
         temp[i]=duplicate(hit[i]);
         temp2[i]=temp[i]&dataline[i];
       end
-      Bit#(linewidth) ex_dataline=0;
       for(Integer i=0;i<v_ways;i=i+1)
         ex_dataline=ex_dataline|temp2[i];
+      
       Bool cachehit=unpack(|hit);
       
       `ifdef simulate
@@ -274,7 +279,8 @@ package icache_nway;
 
       // check if the request is cacheable or not
       if(is_IO(request, True))begin
-        $display($time,"\tICACHE: Cache received IO request for address: %h",request);
+        if(verbosity>0)
+          $display($time,"\tICACHE: Cache received IO request for address: %h",request);
         wr_cache_state<=Miss;
         wr_miss_from_cache<=(tuple3(request,0,2));        
       end
@@ -288,12 +294,16 @@ package icache_nway;
       end
       // generate a miss
       else begin
-        `ifdef perf
-          wr_line_valid<=unpack(valid[1]); // TODO send line to be replaced here
-        `endif
+        wr_line_valid<=(&(valid)==1);
         wr_cache_state<=Miss;
         wr_miss_from_cache<=  (tuple3(request,fromInteger(valueOf(blocksize)-1),2));
-        wr_replace_line<=0; // TODO add replacement scheme output here
+        if (ff_lb_control.notEmpty)begin
+          let {lbtag,lbset,init_we, way, isIO}=ff_lb_control.first();
+          if(lbset==set_index)
+            valid[way]=1;
+        end
+        let x<-repl.line_replace(set_index, valid);
+        wr_replace_line<=x; 
         if(verbosity!=0)
             $display($time,"\tICACHE: Miss in Cache for addr: %h",request);
       end
@@ -366,7 +376,8 @@ package icache_nway;
       end
       else if(wr_lb_state == Hit)begin
         `ifdef perf
-          wr_total_lb_hits<=1;
+          if(!rg_miss_ongoing)
+            wr_total_lb_hits<=1;
         `endif
         {word,err}=wr_hit_lb;
       end
@@ -387,10 +398,6 @@ package icache_nway;
     endrule
 
     rule rl_request_to_memory(wr_cache_state==Miss && wr_lb_state==Miss);
-      `ifdef perf
-        if(wr_line_valid)
-          wr_total_evictions<=1;
-      `endif
       rg_miss_ongoing<=True;
       `ifdef simulate
         $display($time,"\tICACHE: Sending Request to Memory: ",fshow(wr_miss_from_cache));
@@ -405,6 +412,12 @@ addresses");
       ff_mem_request.enq(wr_miss_from_cache);
       ff_lb_control.enq(tuple5(request_tag,request_index,fn_enable(word_index),wr_replace_line,
                                                           tpl_2(wr_miss_from_cache)==0));
+      if(wr_line_valid) begin
+        repl.update_set(request_index);
+        `ifdef perf
+          wr_total_evictions<=1;
+        `endif
+      end
     endrule
     
     //Capturing memory_response
@@ -470,8 +483,8 @@ addresses");
       tag_arr[way].write_request(lbset,{1,lbtag});//lbtag
       data_arr[way].write_request(lbset,truncate(rg_lbdataline));
       if(verbosity!=0)
-        $display($time,"\tICACHE: loading set:%h with dataline %h and tag %h",
-                                        lbset,rg_lbdataline,lbtag);
+        $display($time,"\tICACHE: LB Replacing Way :%d in set: %d tag:%h with dataline",way,
+                                        lbset,lbtag,rg_lbdataline);
       rg_deq_lb<=True;
     endrule
     rule deq_lb(rg_deq_lb && &(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty);
@@ -484,7 +497,8 @@ addresses");
       Bit#(setbits) set_index=rg_latest_index;
       let {lbtag,lbset, init_we, way, isIO}=ff_lb_control.first();
       if (lbset==set_index) begin
-        $display($time,"\tICACHE: Resending request to cache for index: %d",set_index);
+        if(verbosity>0)
+          $display($time,"\tICACHE: Resending request to cache for index: %d",set_index);
         for(Integer i=0;i<v_ways;i=i+1)begin
           data_arr[i].read_request(set_index);
           tag_arr[i].read_request(set_index);
@@ -508,12 +522,11 @@ addresses");
           tag_arr[i].read_request(set_index);
         end
         rg_latest_index<=set_index;
-        if (verbosity!=0)
-		    $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d",
-          addr, fence, epoch, set_index); 
-        if(verbosity!=0)
+        if (verbosity!=0) begin
+		      $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d",
+              addr, fence, epoch, set_index); 
 		      $display($time,"\tICACHE: Access Cache for Addr: %h Index: %d",addr,set_index); 
-        
+        end
       endmethod
     endinterface;
 
