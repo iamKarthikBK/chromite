@@ -297,6 +297,12 @@ package icache_nway;
         wr_line_valid<=(&(valid)==1);
         wr_cache_state<=Miss;
         wr_miss_from_cache<=  (tuple3(request,fromInteger(valueOf(blocksize)-1),2));
+
+        // We need to make sure that the replacement policy accounts for the fact that
+        // there exists a line in the line-buffer which is mapped to the same index as the current
+        // request is. If this is not done, it is possible that the two consecutive misses replace
+        // the same line. This happens because the line-buffer write-back to the cache is lazy in
+        // nature.
         if (ff_lb_control.notEmpty)begin
           let {lbtag,lbset,init_we, way, isIO}=ff_lb_control.first();
           if(lbset==set_index)
@@ -376,6 +382,7 @@ package icache_nway;
       end
       else if(wr_lb_state == Hit)begin
         `ifdef perf
+          // Only when the hit in the LB is not because of a miss should the counter be enabled.
           if(!rg_miss_ongoing)
             wr_total_lb_hits<=1;
         `endif
