@@ -108,6 +108,8 @@ package icache_nway;
     let v_paddr=valueOf(paddr);
     let v_ways=valueOf(ways);
 
+    staticAssert(valueOf(TExp#(TLog#(ways)))==v_ways,"\n\tWays should always be a power of 2\n");
+
     //Following function returns the info regarding word_position in line getting filled
     function Bit#(blocksize) fn_enable(Bit#(blockbits)word_index);
        Bit#(blocksize) write_enable ='h0; //
