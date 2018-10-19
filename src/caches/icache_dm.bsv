@@ -320,7 +320,9 @@ package icache_dm;
       end
       else if(wr_lb_state == Hit)begin
         `ifdef perf
-          wr_total_lb_hits<=1;
+          // Only when the hit in the LB is not because of a miss should the counter be enabled.
+          if(!rg_miss_ongoing)
+            wr_total_lb_hits<=1;
         `endif
         {word,err}=wr_hit_lb;
       end
