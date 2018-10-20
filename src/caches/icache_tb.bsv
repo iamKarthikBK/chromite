@@ -73,7 +73,7 @@ package icache_tb;
  (*conflict_free="core_req_put,icache_deq_lb"*)
   module mkicache(Ifc_icache);
     Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- mkicache_dm(isIO,
-        False, "PLRU");
+        False, "RANDOM", False);
     //Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
     //False);
     interface core_req=icache.core_req;
@@ -124,7 +124,7 @@ package icache_tb;
       Bit#(4) control = truncateLSB(req);
       if(control[2]==0)begin // if input is delayed
         if(req!=0)begin
-          icache.core_req.put(tuple3(truncate(req),unpack(control[1]),0));
+          icache.core_req.put(tuple4(truncate(req),unpack(control[1]),0, False));
           index<=index+1;
           $display($time,"\tTB: Sending core request for addr: %h",req);
         end

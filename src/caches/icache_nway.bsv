@@ -70,7 +70,7 @@ package icache_nway;
 
   (*conflict_free="rl_response_to_core,rl_request_to_memory"*)
   module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), 
-           parameter Bool ramreg, String alg)
+           parameter Bool ramreg, String alg, Bool prefetch_en)
            (Ifc_icache_dm#(wordsize,blocksize,sets,ways,respwidth, paddr))
   provisos(
             Mul#(wordsize, 8, _w),        // _w is the total bits in a word
@@ -195,7 +195,7 @@ package icache_nway;
     Wire#(Bool) wr_line_valid <- mkDWire(False);
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
-      ff_req_queue.enq(tuple3(?,True,?));
+      ff_req_queue.enq(tuple4(?,True,?, False));
       rg_init<=False;
     endrule
 
@@ -329,7 +329,7 @@ package icache_nway;
 
       
       let {lbtag,lbset,init_we, way, isIO}=ff_lb_control.first();
-      let {request, fence, epoch}=ff_req_queue.first();
+      let {request, fence, epoch, prefetch}=ff_req_queue.first();
 
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -373,7 +373,7 @@ package icache_nway;
         $display($time,"\tICACHE: Sending Response to the Core");
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
-      let {addr, fence, epoch}=ff_req_queue.first();
+      let {addr, fence, epoch, prefetch}=ff_req_queue.first();
       ff_req_queue.deq();
       Bit#(respwidth) word=0;
       Bool err=False;
@@ -401,7 +401,12 @@ package icache_nway;
         `endif
         {word,err}=wr_hit_io;
       end
-      ff_core_response.enq(tuple3(word,err,epoch));
+      if(prefetch_en)begin
+        if(!prefetch)
+          ff_core_response.enq(tuple3(word,err,epoch));
+      end
+      else
+        ff_core_response.enq(tuple3(word,err,epoch));
       rg_miss_ongoing<=False;
       `ifdef simulate
         if(rg_miss_ongoing)
@@ -419,7 +424,7 @@ package icache_nway;
         dynamicAssert(tpl_1(wr_miss_from_cache)==tpl_1(wr_miss_lb_cache),"Miss from LB and Cache for different\
 addresses");
       `endif
-      let {request, fence, epoch}=ff_req_queue.first();
+      let {request, fence, epoch, prefetch}=ff_req_queue.first();
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];

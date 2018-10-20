@@ -30,8 +30,8 @@ Details:
 */
 package icache_types;
   typedef 32 ICACHEADDR;
-                  // addr, Fence, epoch
-  typedef Tuple3#(Bit#(addr), Bool, Bit#(1)) ICore_request#(numeric type addr);
+                  // addr, Fence, epoch, prefetch
+  typedef Tuple4#(Bit#(addr), Bool, Bit#(1), Bool) ICore_request#(numeric type addr);
                  // word , err , epoch
   typedef Tuple3#(Bit#(data), Bool, Bit#(1)) ICore_response#(numeric type data);
                 // addr ,  burst len, burst_size 
