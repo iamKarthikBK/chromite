@@ -15,7 +15,7 @@ provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
 OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
 AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONRROBIN
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
 IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
@@ -70,7 +70,7 @@ package icache_nway;
 
   (*conflict_free="rl_response_to_core,rl_request_to_memory"*)
   module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), 
-           parameter Bool ramreg)
+           parameter Bool ramreg, String alg)
            (Ifc_icache_dm#(wordsize,blocksize,sets,ways,respwidth, paddr))
   provisos(
             Mul#(wordsize, 8, _w),        // _w is the total bits in a word
@@ -97,7 +97,9 @@ package icache_nway;
             Add#(d__, 1, blocksize),
             Add#(e__, respwidth, linewidth),
             Mul#(respwidth, f__, linewidth),
-            Add#(1, b__, TLog#(TAdd#(1, ways)))
+            Add#(1, b__, TLog#(TAdd#(1, ways))),
+
+            Add#(h__, TLog#(ways), TLog#(TAdd#(1, ways)))
             );
   
     let v_sets=valueOf(sets);
@@ -123,7 +125,7 @@ package icache_nway;
 
     Ifc_mem_config#(sets, linewidth, 8) data_arr [v_ways]; // data array
     Ifc_mem_config#(sets, TAdd#(1, tagbits), 1) tag_arr [v_ways];// one extra valid bit
-    Ifc_replace#(sets,ways) repl <- mkreplace("RROBIN");
+    Ifc_replace#(sets,ways) repl <- mkreplace(alg);
     for(Integer i=0;i<v_ways;i=i+1)begin
       data_arr[i]<-mkmem_config_h(ramreg);
       tag_arr[i]<-mkmem_config_h(ramreg);
@@ -289,6 +291,7 @@ package icache_nway;
         Bit#(respwidth) word_response = truncate(ex_dataline>>block_offset); 
         wr_hit_cache<= tuple2(word_response, False);// word and no bus-error;
         wr_cache_state<=Hit;
+        wr_replace_line<=truncate(pack(countZerosLSB(hit)));  //TODO send line that was accessed here
         if(verbosity!=0)
           $display($time,"\tHIT IN CACHE for addr:%h data:%h",request,word_response);
       end
@@ -374,7 +377,11 @@ package icache_nway;
       ff_req_queue.deq();
       Bit#(respwidth) word=0;
       Bool err=False;
+      let request_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       if(wr_cache_state == Hit) begin
+        // TODO update the replacement policy on a hit as well
+        if(alg=="PLRU")
+          repl.update_set(request_index, wr_replace_line);
         `ifdef perf
           wr_total_cache_hits<=1;
         `endif
@@ -420,7 +427,7 @@ addresses");
       ff_lb_control.enq(tuple5(request_tag,request_index,fn_enable(word_index),wr_replace_line,
                                                           tpl_2(wr_miss_from_cache)==0));
       if(wr_line_valid) begin
-        repl.update_set(request_index);
+        repl.update_set(request_index, wr_replace_line);
         `ifdef perf
           wr_total_evictions<=1;
         `endif

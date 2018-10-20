@@ -35,13 +35,13 @@ package replacement;
 
   interface Ifc_replace#(numeric type sets, numeric type ways);
     method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
-    method Action update_set (Bit#(TLog#(sets)) index);
+    method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way);
   endinterface
 
   module mkreplace#(String alg)(Ifc_replace#(sets,ways))
     provisos(Add#(a__, TLog#(ways), 4));
     let v_ways = valueOf(ways);
-    staticAssert(alg=="RANDOM" || alg=="RROBIN","Invalid replacement Algorithm");
+    staticAssert(alg=="RANDOM" || alg=="RROBIN" || alg=="PLRU","Invalid replacement Algorithm");
     if(alg == "RANDOM")begin
       LFSR#(Bit#(4)) random <- mkLFSR_4();
       Reg#(Bool) rg_init <- mkReg(True);
@@ -65,7 +65,7 @@ package replacement;
           return temp;
         end
       endmethod
-      method Action update_set (Bit#(TLog#(sets)) index)if(!rg_init);
+      method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way)if(!rg_init);
         random.next();
       endmethod
     end
@@ -86,9 +86,44 @@ package replacement;
           return temp;
         end
       endmethod
-      method Action update_set (Bit#(TLog#(sets)) index);
+      method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way);
         $display($time,"\tREPL: Updating index: %d",index);
         v_count[index]<=v_count[index]-1;
+      endmethod
+    end
+    else if(alg=="PLRU")begin
+      Vector#(sets,Reg#(Bit#(TSub#(ways,1)))) v_count <- replicateM(mkReg(5));
+      method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
+        if (&(valid)==1)begin // if all lines are valid choose one to randomly replace
+          case (v_count[index]) matches
+            'b?00: begin $display($time,"\tREPL: Replacing line: 0"); return 0;end 
+            'b?10: begin $display($time,"\tREPL: Replacing line: 1"); return 1;end
+            'b0?1: begin $display($time,"\tREPL: Replacing line: 2"); return 2;end
+            default: begin $display($time,"\tREPL: Replacing line: 3"); return 3; end
+          endcase
+        end
+        else begin // if any line empty then send that
+          Bit#(TLog#(ways)) temp=0;
+          for(Bit#(TAdd#(1,TLog#(ways))) i=0;i<fromInteger(v_ways);i=i+1) begin
+            if(valid[i]==0)begin
+              temp=truncate(i);
+            end
+          end
+          return temp;
+        end
+      endmethod
+      method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way);
+        $display($time,"\tREPL: Updating index: %d with way:%d",index, way);
+        Bit#(TSub#(ways,1)) mask='b000;
+        Bit#(TSub#(ways,1)) val='b000;
+        case (way) matches
+          'd0:begin val='b011; mask='b011;end
+          'd1:begin val='b001; mask='b011;end
+          'd2:begin val='b100; mask='b101;end
+          'd3:begin val='b000; mask='b101;end  
+        endcase
+        $display($time,"\tREPL: old:%b mask:%b new: %b final: %b",v_count[index],mask,val,(v_count[index]&~mask)|(val&mask));
+        v_count[index]<=(v_count[index]&~mask)|(val&mask);
       endmethod
     end
   endmodule

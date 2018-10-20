@@ -73,8 +73,9 @@ package icache_tb;
  (*conflict_free="core_req_put,icache_deq_lb"*)
   module mkicache(Ifc_icache);
     Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- mkicache_dm(isIO,
+        False, "PLRU");
     //Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
-    False);
+    //False);
     interface core_req=icache.core_req;
     interface core_resp=icache.core_resp;
     interface mem_req=icache.mem_req;
