@@ -52,7 +52,6 @@ package replacement;
 
       method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
         if (&(valid)==1)begin // if all lines are valid choose one to randomly replace
-          $display("random value is :%d",random.value);
           return truncate(random.value());
         end
         else begin // if any line empty then send that
@@ -124,6 +123,14 @@ package replacement;
         endcase
         $display($time,"\tREPL: old:%b mask:%b new: %b final: %b",v_count[index],mask,val,(v_count[index]&~mask)|(val&mask));
         v_count[index]<=(v_count[index]&~mask)|(val&mask);
+      endmethod
+    end
+    else begin
+      method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
+        return ?;
+      endmethod
+      method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way);
+        noAction;
       endmethod
     end
   endmodule
