@@ -64,8 +64,9 @@ package icache_dm;
 
   (*conflict_free="rl_response_to_core,rl_request_to_memory"*)
 //  (*preempts="get_io_response, check_hit_or_miss"*)
-  module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), parameter Bool ramreg)
-                                          (Ifc_icache_dm#(wordsize,blocksize,sets,respwidth, paddr))
+  module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), parameter Bool ramreg,
+  parameter Bool prefetch_en)
+    (Ifc_icache_dm#(wordsize,blocksize,sets,respwidth, paddr))
   provisos(
             Mul#(wordsize, 8, _w),        // _w is the total bits in a word
             Mul#(blocksize, _w,linewidth),// linewidth is the total bits in a cache line
@@ -172,9 +173,15 @@ package icache_dm;
       Wire#(Bool) wr_line_valid <- mkDWire(False);
     `endif
 
+    // The following register is used only when ramreg is set to True - i.e. when the BRAM outputs
+    // are registered. In this case, when a core-requests arrives, the output of the BRAMs should
+    // only be checked on the next-to-next cycle (i.e. not the immediately next cycle). Also this
+    // should only happen when the ff_req_queue has only one entry within it.
+    Reg#(Bool) rg_delay <- mkDReg(False);
+    Bool delay_checking= ramreg && rg_delay && ff_req_queue.notFull && ff_req_queue.notEmpty;
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
-      ff_req_queue.enq(tuple3(?,True,?));
+      ff_req_queue.enq(tuple4(?,True,?, False));
       rg_init<=False;
     endrule
 
@@ -206,8 +213,9 @@ package icache_dm;
     // This rule will fire for every request from the core that is not a Fence operation.
     // This rule will also check if the request is cacheable. If not, then a miss generated for that
     // one request and not the entire line.
-    rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull);
-      let {request, fence, epoch} =ff_req_queue.first();
+    rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull 
+       && !delay_checking);
+      let {request, fence, epoch, prefetch} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
@@ -218,9 +226,9 @@ package icache_dm;
       Bit#(tagbits) stored_tag=tag[v_tagbits-1:0];
       Bit#(setbits) set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
 
-      `ifdef simulate
-        dynamicAssert(data_arr.read_index==set_index,"Cache response is for wrong index");
-      `endif
+//      `ifdef simulate
+//        dynamicAssert(data_arr.read_index==set_index,"Cache response is for wrong index");
+//      `endif
 
       if(verbosity!=0)begin
         $display($time,"\tICACHE: Check for Address:%h Valid: %b ReqTag: %h StoredTag: %h index: %d",
@@ -264,7 +272,7 @@ package icache_dm;
 
       
       let {lbtag,lbset,init_we, isIO}=ff_lb_control.first();
-      let {request, fence, epoch}=ff_req_queue.first();
+      let {request, fence, epoch, prefetch}=ff_req_queue.first();
 
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -308,7 +316,7 @@ package icache_dm;
         $display($time,"\tICACHE: Sending Response to the Core");
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
-      let {addr, fence, epoch}=ff_req_queue.first();
+      let {addr, fence, epoch, prefetch}=ff_req_queue.first();
       ff_req_queue.deq();
       Bit#(respwidth) word=0;
       Bool err=False;
@@ -332,7 +340,12 @@ package icache_dm;
         `endif
         {word,err}=wr_hit_io;
       end
-      ff_core_response.enq(tuple3(word,err,epoch));
+      if(prefetch_en)begin
+        if(!prefetch)
+          ff_core_response.enq(tuple3(word,err,epoch));
+      end
+      else
+        ff_core_response.enq(tuple3(word,err,epoch));
       rg_miss_ongoing<=False;
       `ifdef simulate
         if(rg_miss_ongoing)
@@ -465,6 +478,8 @@ addresses");
         if(verbosity!=0)
 		      $display($time,"\tICACHE: Access Cache for Addr: %h Index: %d",addr,set_index); 
         
+        if(ramreg)
+          rg_delay<=True;
       endmethod
     endinterface;
 
