@@ -9,6 +9,8 @@ build64:
         - make link_verilator generate_boot_files
         - make regress opts='--filter=rv64 --parallel=90 --sub'
         - make regress opts='--filter=rv64 --final'
+        - make aapg opts="--test_count=30 --parallel=90 --sub"
+        - make regress opts='--list=aapg.list --final'
     only:
         - master
     tags:
