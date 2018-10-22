@@ -555,7 +555,8 @@ addresses");
               addr, fence, epoch, set_index); 
 		      $display($time,"\tICACHE: Access Cache for Addr: %h Index: %d",addr,set_index); 
         end
-        rg_delay<=True;
+        if(ramreg)
+          rg_delay<=True;
       endmethod
     endinterface;
 
