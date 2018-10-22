@@ -1,12 +1,12 @@
 [submodule "src/fabrics"]
 	path = src/fabrics
-	url = https://gitlab.com/incoresemi/uncore/fabrics.git
+	url = https://gitlab.com/shaktiproject/uncore/fabrics.git
 [submodule "src/common_bsv"]
 	path = src/common_bsv
-	url = https://gitlab.com/incoresemi/common_bsv.git
+	url = https://gitlab.com/shaktiproject/common_bsv.git
 [submodule "src/devices"]
 	path = src/devices
-	url = https://gitlab.com/incoresemi/uncore/devices.git
+	url = https://gitlab.com/shaktiproject/uncore/devices.git
 [submodule "verification"]
 	path = verification
 	url = https://gitlab.com/shaktiproject/verification_environment/verification.git
