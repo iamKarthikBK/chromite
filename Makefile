@@ -136,7 +136,7 @@ simulate:
 	@echo Simulation...
 	@cd src/caches; python3 gen_test.py;
 	@ln -f -s src/caches/*.mem .
-	@exec ./$(BSVOUTDIR)/out
+	@exec ./$(BSVOUTDIR)/out > log
 	@echo Simulation finished
 ########################################################################################
 
@@ -154,6 +154,7 @@ generate_verilog: check-restore check-env
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BE.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ./verilog/
+	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM1.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO2.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO1.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/RevertReg.v ./verilog/
