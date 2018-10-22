@@ -246,14 +246,16 @@ package icache_nway;
       Bit#(setbits) set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
 
 
+      // The following logic will check if there is a hit in any of the ways. If so, then the data
+      // line corresponding to that way is extracted
       Bit#(linewidth) dataline[v_ways];
       Bit#(TAdd#(1, tagbits)) tag[v_ways];
       Bit#(ways) valid;
       Bit#(tagbits) stored_tag [v_ways];
       Bit#(ways) hit=0;
-      Bit#(linewidth) temp[v_ways];
-      Bit#(linewidth) temp2[v_ways];
-      Bit#(linewidth) ex_dataline=0;
+      Bit#(linewidth) temp[v_ways]; // mask for each way dataline.
+      Bit#(linewidth) temp2[v_ways]; // dataline of each way after masking.
+      Bit#(linewidth) ex_dataline=0; // dataline which was a hit across all ways.
 
       for(Integer i=0;i<v_ways;i=i+1)begin
         tag[i]<- tag_arr[i].read_response;
@@ -274,11 +276,11 @@ package icache_nway;
       
       Bool cachehit=unpack(|hit);
       
-      `ifdef simulate
-        dynamicAssert(countOnes(hit)<=1,"Multiple tags provide a hit");
-        for(Integer i=0;i<v_ways;i=i+1)
-          dynamicAssert(data_arr[i].read_index==set_index,"Cache response is for wrong index");
-      `endif
+//      `ifdef simulate
+//        dynamicAssert(countOnes(hit)<=1,"Multiple tags provide a hit");
+//        for(Integer i=0;i<v_ways;i=i+1)
+//          dynamicAssert(data_arr[i].read_index==set_index,"Cache response is for wrong index");
+//      `endif
 
       if(verbosity!=0)begin
         $display($time,"\tICACHE: Check for Address:%h ReqTag: %h ReqIndex: %d",
@@ -299,7 +301,7 @@ package icache_nway;
         Bit#(respwidth) word_response = truncate(ex_dataline>>block_offset); 
         wr_hit_cache<= tuple2(word_response, False);// word and no bus-error;
         wr_cache_state<=Hit;
-        wr_replace_line<=truncate(pack(countZerosLSB(hit)));  //TODO send line that was accessed here
+        wr_replace_line<=truncate(pack(countZerosLSB(hit)));  
         if(verbosity!=0)
           $display($time,"\tHIT IN CACHE for addr:%h data:%h",request,word_response);
       end
@@ -387,7 +389,6 @@ package icache_nway;
       Bool err=False;
       let request_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       if(wr_cache_state == Hit) begin
-        // TODO update the replacement policy on a hit as well
         if(alg=="PLRU")
           repl.update_set(request_index, wr_replace_line);
         `ifdef perf
