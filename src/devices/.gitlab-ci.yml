@@ -1,0 +1,16 @@
+compile-check:
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
+    script:
+        - source /tools/setup.sh
+        - make TOP_FILE=bootrom_template.bsv TOP_DIR=bootrom
+        - make TOP_FILE=uart_template.bsv TOP_DIR=uart
+        - make TOP_FILE=clint_template.bsv TOP_DIR=clint
+        - make TOP_FILE=pwm_template.bsv TOP_DIR=pwm
+        - make TOP_FILE=bram_template.bsv TOP_DIR=bram
+        - make TOP_FILE=gpio_template.bsv TOP_DIR=gpio
+        - make TOP_FILE=sdram_template.bsv TOP_DIR=sdram
+    only:
+        - master
+    tags:
+        - devices-compile-check
