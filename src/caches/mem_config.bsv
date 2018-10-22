@@ -69,9 +69,6 @@ package mem_config;
   interface Ifc_mem_config#( numeric type n_entries, numeric type datawidth, numeric type banks);
     method Action read_request(Bit#(TLog#(n_entries)) index);
     method ActionValue#(Bit#(datawidth)) read_response;
-    `ifdef simulate
-      method Bit#(TLog#(n_entries)) read_index;
-    `endif
     method Action write_request(Bit#(TLog#(n_entries)) address,  Bit#(datawidth) data);
   endinterface
   
@@ -81,7 +78,7 @@ package mem_config;
     method Action write_request(Bit#(TLog#(n_entries)) address,  Bit#(datawidth) data,
         Bit#(TDiv#(datawidth, 8)) we);
   endinterface
-
+  // TODO check if single-port BRAMs can be instantiated through a parameter.
   module mkmem_config_h#(parameter Bool ramreg)(Ifc_mem_config#(n_entries, datawidth,  banks))
     provisos(
              Div#(datawidth, banks, bpb), 
@@ -93,57 +90,39 @@ package mem_config;
     BRAM_DUAL_PORT#(Bit#(TLog#(n_entries)), Bit#(bpb)) ram [valueOf(banks)];
     Reg#(Bit#(bpb)) rg_output[valueOf(banks)][2];
     for(Integer i=0;i<valueOf(banks);i=i+1) begin
-      ram[i]<-mkBRAMCore2(valueOf(n_entries), ramreg);
+      ram[i]<-mkBRAMCore2(valueOf(n_entries), False);
       rg_output[i] <- mkCReg(2,0);
     end
 
     Reg#(Bool) rg_read_req_made <- mkDReg(False);
-    `ifdef simulate
-      Reg#(Bit#(TLog#(n_entries))) rg_index <- mkReg(0);
-      Reg#(Bit#(TLog#(n_entries))) rg_index1 <- mkReg(0);
-    `endif
-
     for(Integer i=0;i<valueOf(banks);i=i+1)begin
       rule capture_output(rg_read_req_made && !ramreg);
         rg_output[i][0]<=ram[i].a.read;
       endrule
-    end
-    `ifdef simulate
-      rule rlindex(ramreg);
-        rg_index1<=rg_index;
+      rule capture_output_reg(ramreg);
+        rg_output[i][1]<=ram[i].a.read;
       endrule
-    `endif
+    end
 
     method Action read_request(Bit#(TLog#(n_entries)) index);
       for(Integer i=0;i<valueOf(banks);i=i+1)
         ram[i].a.put(False, index,  ?);
       rg_read_req_made<=True;
-      `ifdef simulate
-        rg_index<=index;
-      `endif
     endmethod
     method ActionValue#(Bit#(datawidth)) read_response;
       Bit#(datawidth) data_resp=0;
       for(Integer i=0;i<valueOf(banks);i=i+1)begin
-        if(ramreg)
-          data_resp[i*bits_per_bank+bits_per_bank-1 : i*bits_per_bank]=ram[i].a.read;
-        else
-          data_resp[i*bits_per_bank+bits_per_bank-1 : i*bits_per_bank]=rg_output[i][1];
+        data_resp[i*bits_per_bank+bits_per_bank-1 : i*bits_per_bank]=rg_output[i][1];
       end
       return data_resp;
     endmethod
-    `ifdef simulate 
-      method Bit#(TLog#(n_entries)) read_index;
-        return ramreg?rg_index1:rg_index; 
-      endmethod
-    `endif
     method Action write_request(Bit#(TLog#(n_entries)) address,  Bit#(datawidth) data);
       for(Integer i=0;i<valueOf(banks);i=i+1)
         ram[i].b.put(True, address, data[i*bits_per_bank+bits_per_bank-1:i*bits_per_bank]);
     endmethod
   endmodule
   
-  module mkmem_config_hbe(Ifc_mem_config_be#(n_entries, datawidth,  banks))
+  module mkmem_config_hbe#(parameter Bool ramreg)(Ifc_mem_config_be#(n_entries, datawidth,  banks))
     provisos(Div#(datawidth, banks, bpb), 
              Mul#(bpb, banks, datawidth), 
              Div#(bpb, 8, bytes), 
@@ -167,8 +146,11 @@ package mem_config;
     Reg#(Bool) rg_read_req_made <- mkDReg(False);
     
     for(Integer i=0;i<valueOf(banks);i=i+1)begin
-      rule capture_output(rg_read_req_made);
+      rule capture_output(rg_read_req_made && !ramreg);
         rg_output[i][0]<=ram[i].a.read;
+      endrule
+      rule capture_output_reg(ramreg);
+        rg_output[i][1]<=ram[i].a.read;
       endrule
     end
     
@@ -191,7 +173,7 @@ package mem_config;
     endmethod
   endmodule:mkmem_config_hbe
   
-  module mkmem_config_v(Ifc_mem_config#(n_entries, datawidth,  banks))
+  module mkmem_config_v#(parameter Bool ramreg)(Ifc_mem_config#(n_entries, datawidth,  banks))
     provisos( Log#(n_entries, log_entries), 
               Div#(n_entries, banks, epb), 
               Mul#(epb, banks, n_entries), 
@@ -211,8 +193,11 @@ package mem_config;
     end
     
     for(Integer i=0;i<valueOf(banks);i=i+1)begin
-      rule capture_output(rg_read_req_made);
+      rule capture_output(rg_read_req_made && !ramreg);
         rg_output[i][0]<=ram[i].a.read;
+      endrule
+      rule capture_output_reg(ramreg);
+        rg_output[i][1]<=ram[i].a.read;
       endrule
     end
     
@@ -235,7 +220,7 @@ package mem_config;
     endmethod
   endmodule:mkmem_config_v
   
-  module mkmem_config_vbe(Ifc_mem_config_be#(n_entries, datawidth,  banks))
+  module mkmem_config_vbe#(parameter Bool ramreg)(Ifc_mem_config_be#(n_entries, datawidth,  banks))
     provisos( Log#(n_entries, log_entries), 
               Div#(n_entries, banks, epb), 
               Div#(datawidth, 8, we_line), 
@@ -257,8 +242,11 @@ package mem_config;
     end
     
     for(Integer i=0;i<valueOf(banks);i=i+1)begin
-      rule capture_output(rg_read_req_made);
+      rule capture_output(rg_read_req_made && !ramreg);
         rg_output[i][0]<=ram[i].a.read;
+      endrule
+      rule capture_output_reg(ramreg);
+        rg_output[i][1]<=ram[i].a.read;
       endrule
     end
     

@@ -193,6 +193,13 @@ package icache_nway;
     `endif
 
     Wire#(Bool) wr_line_valid <- mkDWire(False);
+
+    // The following register is used only when ramreg is set to True - i.e. when the BRAM outputs
+    // are registered. In this case, when a core-requests arrives, the output of the BRAMs should
+    // only be checked on the next-to-next cycle (i.e. not the immediately next cycle). Also this
+    // should only happen when the ff_req_queue has only one entry within it.
+    Reg#(Bool) rg_delay <- mkDReg(False);
+    Bool delay_checking= ramreg && rg_delay && ff_req_queue.notFull && ff_req_queue.notEmpty;
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
       ff_req_queue.enq(tuple4(?,True,?, False));
@@ -229,7 +236,8 @@ package icache_nway;
     // This rule will fire for every request from the core that is not a Fence operation.
     // This rule will also check if the request is cacheable. If not, then a miss generated for that
     // one request and not the entire line.
-    rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull);
+    rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull
+    && !delay_checking);
       let {request, fence, epoch} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
@@ -546,6 +554,7 @@ addresses");
               addr, fence, epoch, set_index); 
 		      $display($time,"\tICACHE: Access Cache for Addr: %h Index: %d",addr,set_index); 
         end
+        rg_delay<=True;
       endmethod
     endinterface;
 
