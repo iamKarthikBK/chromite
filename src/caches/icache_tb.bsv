@@ -75,7 +75,7 @@ package icache_tb;
     Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- mkicache_dm(isIO,
         True, "RANDOM", False);
     //Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
-    //False);
+    //False, False);
     interface core_req=icache.core_req;
     interface core_resp=icache.core_resp;
     interface mem_req=icache.mem_req;
