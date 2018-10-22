@@ -1,8 +1,0 @@
-[submodule "fabrics"]
-	path = fabrics
-	url = https://gitlab.com/incoresemi/uncore/fabrics.git
-	branch = master
-[submodule "common_bsv"]
-	path = common_bsv
-	url = https://gitlab.com/incoresemi/common_bsv.git
-	branch = master
