@@ -72,8 +72,9 @@ package icache_tb;
  (*synthesize*)
  (*conflict_free="core_req_put,icache_deq_lb"*)
   module mkicache(Ifc_icache);
-    Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- mkicache_dm(isIO,
-        True, "RANDOM", False);
+                   // word size, block size, sets, ways, response_width, address width
+    Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- 
+        mkicache_dm(isIO,  True, "RANDOM", False); // io function, reg-output, Replacement Alg, Prefetch
     //Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
     //False, False);
     interface core_req=icache.core_req;
