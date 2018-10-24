@@ -54,7 +54,8 @@ package itlb_rv32;
       numeric type reg_size, 
       numeric type mega_size,
       numeric type reg_ways,
-      numeric type mega_ways);
+      numeric type mega_ways,
+      numeric type asid_width);
     interface Put#(Bit#(32)) virtual_addr;
 	  interface Put#(Bit#(32)) sstatus_from_csr;
     interface Put#(Bit#(32)) satp_from_csr;
@@ -62,7 +63,7 @@ package itlb_rv32;
     interface Get#(Tuple2#(Bit#(32),Bit#(2))) req_to_ptw;
   endinterface
 
-  module mkitlb_rv32(Ifc_itlb_rv32#(reg_size,mega_size,reg_ways,mega_ways))
+  module mkitlb_rv32(Ifc_itlb_rv32#(reg_size,mega_size,reg_ways,mega_ways,asid_width))
     provisos(
       Add#(a__, TLog#(reg_size), 20),
       Add#(d__, TLog#(mega_size), 10),
@@ -75,11 +76,12 @@ package itlb_rv32;
     let v_reg_size=valueOf(reg_size);    
     let v_mega_size=valueOf(mega_size);    
     let v_index_bits=valueOf(TLog#(reg_size));
+    let v_asid_width = valueOf(asid_width);
     let verbosity=`VERBOSITY;
 
     // definging the tlb entries and virtual tags for regular pages.
     Ifc_mem_config#(reg_size, 32, 1) tlb_pte_reg [v_reg_ways]; // data array
-    Ifc_mem_config#(reg_size, TAdd#(20,1), 1) tlb_vtag_reg[v_reg_ways]; // data array
+    Ifc_mem_config#(reg_size, TAdd#(1,TAdd#(asid_width,20)), 1) tlb_vtag_reg[v_reg_ways]; // data array 
     for(Integer i=0;i<v_reg_ways;i=i+1)begin
       tlb_pte_reg[i]<-mkmem_config_h(False);
       tlb_vtag_reg[i]<-mkmem_config_h(False);
@@ -87,7 +89,7 @@ package itlb_rv32;
     
     // defining the tlb entries and virtual tags for mega pages.
     Ifc_mem_config#(mega_size, 32, 1) tlb_pte_mega [v_mega_ways]; // data array
-    Ifc_mem_config#(mega_size, TAdd#(10,1), 1) tlb_vtag_mega [v_mega_ways]; // data array
+    Ifc_mem_config#(mega_size, TAdd#(1,TAdd#(asid_width,10)), 1) tlb_vtag_mega [v_mega_ways]; // data array
     for(Integer i=0;i<v_mega_ways;i=i+1)begin
       tlb_pte_mega[i]<-mkmem_config_h(False);
       tlb_vtag_mega[i]<-mkmem_config_h(False);
@@ -106,7 +108,7 @@ package itlb_rv32;
 
     // local variables extracted from csrs
     Bit#(22) satp_ppn = truncate(wr_satp);
-    Bit#(9) satp_asid = wr_satp[30:22];
+    Bit#(asid_width) satp_asid = wr_satp[v_asid_width-1+22:22];
     Bit#(1) satp_mode = wr_satp[31];
     Bit#(1) sstatus_sum = wr_sstatus[18];
 
@@ -137,6 +139,7 @@ package itlb_rv32;
       // find if there is a hit in the regular page tlb
       Bit#(32) pte_reg [v_reg_ways];
       Bit#(20) pte_vpn_reg [v_reg_ways];
+      Bit#(asid_width) pte_asid_reg [v_reg_ways];
       Bit#(1) pte_vpn_valid_reg [v_reg_ways];
       Bit#(reg_ways) hit_reg=0;
       Bit#(32) temp1_reg [v_reg_ways];
@@ -146,10 +149,12 @@ package itlb_rv32;
         pte_reg[i]<-tlb_pte_reg[i].read_response();
         let x<-tlb_vtag_reg[i].read_response();
         pte_vpn_reg[i]=truncate(x);
+        pte_asid_reg[i]=x[20+v_asid_width-1:20];
         pte_vpn_valid_reg[i]=truncateLSB(x);
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)begin
-        hit_reg[i]=pack(pte_vpn_valid_reg[i]==1 && pte_vpn_reg[i]==inp_vpn_reg);
+        hit_reg[i]=pack(pte_vpn_valid_reg[i]==1 && pte_vpn_reg[i]==inp_vpn_reg &&
+            pte_asid_reg[i]==satp_asid);
         temp1_reg[i]=duplicate(hit_reg[i]);
         temp2_reg[i]=temp1_reg[i]&pte_reg[i];
       end
@@ -159,6 +164,7 @@ package itlb_rv32;
       // find if there is a hit in the mega pages.
       Bit#(32) pte_mega [v_mega_ways];
       Bit#(10) pte_vpn_mega [v_mega_ways];
+      Bit#(asid_width) pte_asid_mega [v_mega_ways];
       Bit#(1) pte_vpn_valid_mega [v_reg_ways];
       Bit#(mega_ways) hit_mega=0;
       Bit#(32) temp1_mega [v_mega_ways];
@@ -168,10 +174,12 @@ package itlb_rv32;
         pte_mega[i]<-tlb_pte_mega[i].read_response();
         let y<-tlb_vtag_mega[i].read_response();
         pte_vpn_mega[i]=truncate(y);
+        pte_asid_mega[i]=y[20+v_asid_width-1:20];
         pte_vpn_valid_mega[i]=truncateLSB(y);
       end
       for(Integer i=0;i<v_mega_ways;i=i+1)begin
-        hit_mega[i]=pack(pte_vpn_valid_mega[i]==1 && pte_vpn_mega[i]==inp_vpn_mega);
+        hit_mega[i]=pack(pte_vpn_valid_mega[i]==1 && pte_vpn_mega[i]==inp_vpn_mega &&
+            pte_asid_mega[i]==satp_asid);
         temp1_mega[i]=duplicate(hit_mega[i]);
         temp2_mega[i]=temp1_mega[i]&pte_mega[i];
       end
@@ -232,8 +240,8 @@ package itlb_rv32;
   endmodule
 
   (*synthesize*)
-  module mkTb(Ifc_itlb_rv32#(8,4,2,1));
-    Ifc_itlb_rv32#(8,4,2,1) itlb <- mkitlb_rv32();
+  module mkTb(Ifc_itlb_rv32#(8,4,2,1,9));
+    Ifc_itlb_rv32#(8,4,2,1,9) itlb <- mkitlb_rv32();
     interface virtual_addr=itlb.virtual_addr;
     interface sstatus_from_csr=itlb.sstatus_from_csr;
     interface satp_from_csr=itlb.satp_from_csr;
