@@ -6,7 +6,6 @@ ifeq (, $(wildcard ./old_vars))
 else
 	include ./old_vars
 endif
-
 include soc_config.inc
 
 SHAKTI_HOME=$(PWD)
@@ -82,7 +81,7 @@ endif
 
 define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True\
 -D MULSTAGES=$(MULSTAGES) -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True
-CORE:=./src/core/:./src/core/fpu/
+CORE:=./src/core/:./src/core/fpu/:./src/caches/
 M_EXT:=./src/core/m_ext/
 FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
 UNCORE:=./src/uncore
@@ -157,6 +156,7 @@ generate_verilog: check-restore check-env
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BE.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ./verilog/
+	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM1.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO2.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO1.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/RevertReg.v ./verilog/
