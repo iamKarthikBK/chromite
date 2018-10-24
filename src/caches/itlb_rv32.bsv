@@ -48,7 +48,9 @@ package itlb_rv32;
   import FIFO::*;
   import GetPut::*;
   import BUtils::*;
+
   import mem_config::*;
+  import common_types::*;
 
   interface Ifc_itlb_rv32#(
       numeric type reg_size, 
@@ -61,7 +63,10 @@ package itlb_rv32;
     interface Put#(Bit#(32)) satp_from_csr;
     interface Put#(Bit#(2)) curr_priv;
     interface Get#(Tuple2#(Bit#(32),Bit#(2))) req_to_ptw;
+    interface Get#(Tuple2#(Bit#(22), Trap_type)) send_ppn;
   endinterface
+
+
 
   module mkitlb_rv32(Ifc_itlb_rv32#(reg_size,mega_size,reg_ways,mega_ways,asid_width))
     provisos(
@@ -81,6 +86,7 @@ package itlb_rv32;
 
     // definging the tlb entries and virtual tags for regular pages.
     Ifc_mem_config#(reg_size, 32, 1) tlb_pte_reg [v_reg_ways]; // data array
+    // VTAG stores a Valid bit, ASID and  Virtual PN,
     Ifc_mem_config#(reg_size, TAdd#(1,TAdd#(asid_width,20)), 1) tlb_vtag_reg[v_reg_ways]; // data array 
     for(Integer i=0;i<v_reg_ways;i=i+1)begin
       tlb_pte_reg[i]<-mkmem_config_h(False);
@@ -89,6 +95,7 @@ package itlb_rv32;
     
     // defining the tlb entries and virtual tags for mega pages.
     Ifc_mem_config#(mega_size, 32, 1) tlb_pte_mega [v_mega_ways]; // data array
+    // VTAG stores a Valid bit, ASID and  Virtual PN,
     Ifc_mem_config#(mega_size, TAdd#(1,TAdd#(asid_width,10)), 1) tlb_vtag_mega [v_mega_ways]; // data array
     for(Integer i=0;i<v_mega_ways;i=i+1)begin
       tlb_pte_mega[i]<-mkmem_config_h(False);
@@ -115,6 +122,8 @@ package itlb_rv32;
     // FIFO to hold the next input
     FIFOF#(Bit#(32)) ff_req_queue <- mkSizedFIFOF(2);
     FIFOF#(Tuple2#(Bit#(32),Bit#(2))) ff_ptw_req <- mkSizedFIFOF(2);
+    FIFOF#(Tuple2#(Bit#(22),Trap_type)) ff_send_ppn<- mkSizedFIFOF(2);
+    Reg#(Bool) rg_tlb_miss<- mkReg(False);
 
     rule initialize(rg_init);
       if(verbosity>0)
@@ -130,7 +139,7 @@ package itlb_rv32;
         rg_init<=False;
     endrule
 
-    rule access_tlb_on_request;
+    rule access_tlb_on_request(!rg_tlb_miss);
 
       // capture input vpns for regular and mega pages.
       Bit#(20) inp_vpn_reg=ff_req_queue.first()[31:12];
@@ -154,7 +163,7 @@ package itlb_rv32;
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)begin
         hit_reg[i]=pack(pte_vpn_valid_reg[i]==1 && pte_vpn_reg[i]==inp_vpn_reg &&
-            pte_asid_reg[i]==satp_asid);
+            pte_asid_reg[i]==satp_asid); // TODO check for global here
         temp1_reg[i]=duplicate(hit_reg[i]);
         temp2_reg[i]=temp1_reg[i]&pte_reg[i];
       end
@@ -174,12 +183,12 @@ package itlb_rv32;
         pte_mega[i]<-tlb_pte_mega[i].read_response();
         let y<-tlb_vtag_mega[i].read_response();
         pte_vpn_mega[i]=truncate(y);
-        pte_asid_mega[i]=y[20+v_asid_width-1:20];
+        pte_asid_mega[i]=y[10+v_asid_width-1:10];
         pte_vpn_valid_mega[i]=truncateLSB(y);
       end
       for(Integer i=0;i<v_mega_ways;i=i+1)begin
         hit_mega[i]=pack(pte_vpn_valid_mega[i]==1 && pte_vpn_mega[i]==inp_vpn_mega &&
-            pte_asid_mega[i]==satp_asid);
+            pte_asid_mega[i]==satp_asid); // TODO check for global here?
         temp1_mega[i]=duplicate(hit_mega[i]);
         temp2_mega[i]=temp1_mega[i]&pte_mega[i];
       end
@@ -187,8 +196,45 @@ package itlb_rv32;
         final_mega_pte=temp2_mega[i]|final_mega_pte;
 
       // capture the permissions of the hit entry from the TLBs
+      // 7 6 5 4 3 2 1 0
+      // D A G U X W R V
       Bit#(8) permissions=|(hit_reg)==1?final_reg_pte[7:0]:final_mega_pte[7:0];
-      
+
+      // TODO for mega page how do we create ppn?
+      Bit#(22) pte=|(hit_reg)==1?truncateLSB(final_reg_pte):truncateLSB(final_mega_pte);
+
+      // Check for instruction page-fault conditions
+      Bool page_fault=False;
+      if(satp_mode==0 || wr_priv==3)begin
+        ff_send_ppn.enq(tuple2(zeroExtend(ff_req_queue.first()[31:12]),tagged None));
+        ff_req_queue.deq();
+      end
+      else if(|(hit_reg)==1 || |(hit_mega)==1) begin
+        // pte.v ==0 || (pte.r==0 && pte.w==1)
+        if (permissions[0]==0 || (permissions[1]==0 && permissions[2]==1))
+          page_fault=True;
+        // pte.x == 0
+        else if(permissions[3]==0)
+          page_fault=True;
+        // pte.a == 0
+        else if(permissions[6]==0)
+          page_fault=True;
+        // pte.u==0 for user mode
+        else if(permissions[4]==0 && wr_priv==0)
+          page_fault=True;
+        // pte.u=1 for supervisor
+        else if(permissions[4]==1 && wr_priv==1)
+          page_fault=True;
+
+       Trap_type exception=page_fault?tagged Exception Inst_pagefault:tagged None; 
+       ff_send_ppn.enq(tuple2(pte,exception));
+       ff_req_queue.deq;
+      end
+      else begin
+        // Send virtual-address and indicate it is an instruction access to the PTW
+        ff_ptw_req.enq(tuple2(ff_req_queue.first(), 0));
+        rg_tlb_miss<=True;
+      end
     endrule
 
     interface virtual_addr=interface Put
@@ -237,6 +283,12 @@ package itlb_rv32;
       endmethod
     endinterface;
 
+    interface send_ppn= interface Get
+      method ActionValue#(Tuple2#(Bit#(22),Trap_type)) get;
+        ff_send_ppn.deq;
+        return ff_send_ppn.first();
+      endmethod
+    endinterface;
   endmodule
 
   (*synthesize*)
@@ -247,6 +299,7 @@ package itlb_rv32;
     interface satp_from_csr=itlb.satp_from_csr;
     interface curr_priv=itlb.curr_priv;
     interface req_to_ptw=itlb.req_to_ptw;
+    interface send_ppn=itlb.send_ppn;
   endmodule
 endpackage
 
