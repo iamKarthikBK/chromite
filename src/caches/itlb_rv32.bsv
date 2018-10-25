@@ -59,11 +59,13 @@ package itlb_rv32;
       numeric type mega_ways,
       numeric type asid_width);
     interface Put#(Bit#(32)) virtual_addr;
+    interface Get#(Tuple2#(Bit#(22), Trap_type)) send_ppn;
+
+    interface Get#(Tuple2#(Bit#(32),Bit#(2))) req_to_ptw;
+    interface Put#(Bit#(22)) resp_from_ptw;
 	  interface Put#(Bit#(32)) sstatus_from_csr;
     interface Put#(Bit#(32)) satp_from_csr;
     interface Put#(Bit#(2)) curr_priv;
-    interface Get#(Tuple2#(Bit#(32),Bit#(2))) req_to_ptw;
-    interface Get#(Tuple2#(Bit#(22), Trap_type)) send_ppn;
   endinterface
 
 
@@ -144,6 +146,8 @@ package itlb_rv32;
       // capture input vpns for regular and mega pages.
       Bit#(20) inp_vpn_reg=ff_req_queue.first()[31:12];
       Bit#(10) inp_vpn_mega=ff_req_queue.first()[31:22];
+      Bit#(10) vpn0=ff_req_queue.first[21:12];
+      Bit#(10) vpn1=ff_req_queue.first[31:22];
 
       // find if there is a hit in the regular page tlb
       Bit#(32) pte_reg [v_reg_ways];
@@ -201,7 +205,11 @@ package itlb_rv32;
       Bit#(8) permissions=|(hit_reg)==1?final_reg_pte[7:0]:final_mega_pte[7:0];
 
       // TODO for mega page how do we create ppn?
-      Bit#(22) pte=|(hit_reg)==1?truncateLSB(final_reg_pte):truncateLSB(final_mega_pte);
+      Bit#(22) pte=0;
+      if(|(hit_reg)==1)
+        pte=truncateLSB(final_reg_pte);
+      else
+        pte={final_reg_pte[31:20],vpn0};
 
       // Check for instruction page-fault conditions
       Bool page_fault=False;
