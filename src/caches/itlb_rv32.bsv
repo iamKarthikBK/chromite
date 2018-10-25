@@ -158,16 +158,18 @@ package itlb_rv32;
       Bit#(32) temp1_reg [v_reg_ways];
       Bit#(32) temp2_reg [v_reg_ways];
       Bit#(32) final_reg_pte=0;
+      Bit#(1) global_reg [v_reg_ways];
       for(Integer i=0;i<v_reg_ways;i=i+1) begin
         pte_reg[i]<-tlb_pte_reg[i].read_response();
         let x<-tlb_vtag_reg[i].read_response();
         pte_vpn_reg[i]=truncate(x);
         pte_asid_reg[i]=x[20+v_asid_width-1:20];
         pte_vpn_valid_reg[i]=truncateLSB(x);
+        global_reg[i]=x[5];
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)begin
         hit_reg[i]=pack(pte_vpn_valid_reg[i]==1 && pte_vpn_reg[i]==inp_vpn_reg &&
-            pte_asid_reg[i]==satp_asid); // TODO check for global here
+            (pte_asid_reg[i]==satp_asid || global_reg[i]==1)); 
         temp1_reg[i]=duplicate(hit_reg[i]);
         temp2_reg[i]=temp1_reg[i]&pte_reg[i];
       end
@@ -183,16 +185,18 @@ package itlb_rv32;
       Bit#(32) temp1_mega [v_mega_ways];
       Bit#(32) temp2_mega [v_mega_ways];
       Bit#(32) final_mega_pte=0;
+      Bit#(1) global_mega [v_mega_ways];
       for(Integer i=0;i<v_mega_ways;i=i+1) begin
         pte_mega[i]<-tlb_pte_mega[i].read_response();
         let y<-tlb_vtag_mega[i].read_response();
         pte_vpn_mega[i]=truncate(y);
         pte_asid_mega[i]=y[10+v_asid_width-1:10];
         pte_vpn_valid_mega[i]=truncateLSB(y);
+        global_mega[i]=y[5];
       end
       for(Integer i=0;i<v_mega_ways;i=i+1)begin
         hit_mega[i]=pack(pte_vpn_valid_mega[i]==1 && pte_vpn_mega[i]==inp_vpn_mega &&
-            pte_asid_mega[i]==satp_asid); // TODO check for global here?
+            (pte_asid_mega[i]==satp_asid || global_mega[i]==1)); 
         temp1_mega[i]=duplicate(hit_mega[i]);
         temp2_mega[i]=temp1_mega[i]&pte_mega[i];
       end
@@ -288,6 +292,11 @@ package itlb_rv32;
       method ActionValue#(Tuple2#(Bit#(32),Bit#(2))) get;
         ff_ptw_req.deq;
         return ff_ptw_req.first;
+      endmethod
+    endinterface;
+    interface resp_from_ptw = interface Put
+      method Action put(Bit#(22) ppn);
+        
       endmethod
     endinterface;
 
