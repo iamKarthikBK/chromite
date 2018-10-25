@@ -295,10 +295,14 @@ package itlb_rv32;
       endmethod
     endinterface;
     interface resp_from_ptw = interface Put
-      method Action put(Bit#(22) ppn);
-        
+      method Action put(Bit#(22) ppn)if(rg_tlb_miss);
+        // TODO update tlb entries here.
+        // This will then cause the rule access_tlb_on_request to fire again
+        // which cause a hit in the tlb now and thus respond back to the core.
+         rg_tlb_miss<=True;
       endmethod
     endinterface;
+    // TODO add method to fence the TLB.
 
     interface send_ppn= interface Get
       method ActionValue#(Tuple2#(Bit#(22),Trap_type)) get;
