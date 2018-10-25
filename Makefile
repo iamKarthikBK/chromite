@@ -79,6 +79,17 @@ ifeq ($(SUPERVISOR), True)
   define_macros += -D supervisor=True
 endif
 
+ifeq ($(COVERAGE), none)
+else ifeq ($(COVERAGE),all)
+  coverage := --coverage
+else
+  coverage := --coverage-$(COVERAGE)
+endif
+
+ifeq ($(TRACE), enable)
+  trace := --trace
+endif
+
 define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True\
 -D MULSTAGES=$(MULSTAGES) -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True
 CORE:=./src/core/:./src/core/fpu/:./src/caches/
@@ -89,7 +100,9 @@ TESTBENCH:=./src/testbench/
 PERIPHERALS:=./src/devices/bootrom
 WRAPPERS:=./src/wrappers/
 LIB:=./src/common_bsv
-VERILATOR_FLAGS = --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast --noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush
+VERILATOR_FLAGS = --stats -O2 -CFLAGS -O2 -LDFLAGS "-static" --x-assign fast --x-initial fast \
+--noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
+-Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS)
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(LIB):$(FABRIC):$(UNCORE):$(TESTBENCH):$(PERIPHERALS):$(WRAPPERS):$(M_EXT)
 default: compile_bluesim link_bluesim generate_boot_files
 
@@ -242,7 +255,7 @@ link_msim:
 link_verilator: 
 	@echo "Linking $(TOP_MODULE) using verilator"
 	@mkdir -p bin obj_dir
-	@verilator $(VERILATOR_FLAGS) -y $(VERILOGDIR) --exe --trace 
+	@verilator $(VERILATOR_FLAGS) -y $(VERILOGDIR) --exe
 	@ln -f -s ../src/testbench/sim_main.cpp obj_dir/sim_main.cpp
 	@make -j8 -C obj_dir -f V$(TOP_MODULE).mk
 	@cp obj_dir/V$(TOP_MODULE) bin/out

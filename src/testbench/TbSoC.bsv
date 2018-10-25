@@ -47,9 +47,9 @@ package TbSoC;
       Ifc_SoC soc <- mkSoC();
     `endif
     let verbosity=`VERBOSITY;
-    Reg#(Bit#(1)) rg_cnt <-mkReg(0);
+    Reg#(Bit#(5)) rg_cnt <-mkReg(0);
  	  let dump <- mkReg(InvalidFile) ;
-    rule open_file(rg_cnt==0);
+    rule open_file(rg_cnt<5);
       String dumpFile = "rtl.dump" ;
     	File lfh <- $fopen( dumpFile, "w" ) ;
     	if ( lfh == InvalidFile )begin
@@ -57,11 +57,11 @@ package TbSoC;
     	  $finish(0);
     	end
     	dump <= lfh ;
-    	rg_cnt <= 1 ;
+    	rg_cnt <= rg_cnt+1 ;
     endrule
 
     `ifdef simulate
-      rule write_dump_file(rg_cnt!=0);
+      rule write_dump_file(rg_cnt>=5);
         `ifdef spfpu
           let {prv, pc, instruction, rd, data, rdtype}<- soc.io_dump.get;
         `else

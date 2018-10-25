@@ -17,3 +17,8 @@ MULSTAGES=8
 DIVSTAGES=64
 FPGA=xc7a100tcsg324-1
 SYNTHTOP=mkriscv
+
+# Verilator options
+COVERAGE=none
+TRACE=disable
+THREADS=1
