@@ -39,7 +39,7 @@ performance.
 
 --------------------------------------------------------------------------------------------------
 */
-package itlb_rv32;
+package itlb_rv32_bram;
   import Vector::*;
   import FIFOF::*;
   import DReg::*;
@@ -53,7 +53,7 @@ package itlb_rv32;
   import common_types::*;
   import replacement::*;
 
-  interface Ifc_itlb_rv32#(
+  interface Ifc_itlb_rv32_bram#(
       numeric type reg_size, 
       numeric type mega_size,
       numeric type reg_ways,
@@ -73,8 +73,8 @@ package itlb_rv32;
 
 
 
-  module mkitlb_rv32#(parameter Bool ramreg, parameter String alg_reg, parameter String alg_mega) 
-    (Ifc_itlb_rv32#(reg_size,mega_size,reg_ways,mega_ways,asid_width))
+  module mkitlb_rv32_bram#(parameter Bool ramreg, parameter String alg_reg, parameter String alg_mega) 
+    (Ifc_itlb_rv32_bram#(reg_size,mega_size,reg_ways,mega_ways,asid_width))
     provisos(
       Add#(a__, TLog#(reg_size), 20),
       Add#(d__, TLog#(mega_size), 10),
@@ -353,18 +353,6 @@ package itlb_rv32;
         return ff_core_resp.first();
       endmethod
     endinterface;
-  endmodule
-
-  (*synthesize*)
-  module mkTb(Ifc_itlb_rv32#(8,8,1,1,9));
-    Ifc_itlb_rv32#(8,8,1,1,9) itlb <- mkitlb_rv32(True,"RANDOM","RANDOM");
-    interface core_req=itlb.core_req;
-    interface satp_from_csr=itlb.satp_from_csr;
-    interface curr_priv=itlb.curr_priv;
-    interface req_to_ptw=itlb.req_to_ptw;
-    interface core_resp=itlb.core_resp;
-    interface resp_from_ptw=itlb.resp_from_ptw;
-    interface fence_tlb=itlb.fence_tlb;
   endmodule
 endpackage
 

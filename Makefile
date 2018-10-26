@@ -11,8 +11,8 @@ include soc_config.inc
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
-TOP_MODULE:=mkTb
-TOP_FILE:=itlb_rv32.bsv
+TOP_MODULE:=mkitlb_rv32bram
+TOP_FILE:=itlb_tb.bsv
 TOP_DIR:=./src/caches
 WORKING_DIR := $(shell pwd)
 
