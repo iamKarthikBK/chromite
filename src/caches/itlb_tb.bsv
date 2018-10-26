@@ -37,10 +37,23 @@ package itlb_tb;
   import FIFO::*;
 
   import itlb_rv32_bram::*;
+  import itlb_rv32_array::*;
 
   (*synthesize*)
   module mkitlb_rv32bram(Ifc_itlb_rv32_bram#(8,8,1,1,9));
     Ifc_itlb_rv32_bram#(8,8,1,1,9) itlb <- mkitlb_rv32_bram(True,"RANDOM","RANDOM");
+    interface core_req=itlb.core_req;
+    interface satp_from_csr=itlb.satp_from_csr;
+    interface curr_priv=itlb.curr_priv;
+    interface req_to_ptw=itlb.req_to_ptw;
+    interface core_resp=itlb.core_resp;
+    interface resp_from_ptw=itlb.resp_from_ptw;
+    interface fence_tlb=itlb.fence_tlb;
+  endmodule
+  
+  (*synthesize*)
+  module mkitlb_rv32array(Ifc_itlb_rv32_array#(8,8,1,1,9));
+    Ifc_itlb_rv32_array#(8,8,1,1,9) itlb <- mkitlb_rv32_array("RANDOM","RANDOM");
     interface core_req=itlb.core_req;
     interface satp_from_csr=itlb.satp_from_csr;
     interface curr_priv=itlb.curr_priv;
