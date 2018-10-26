@@ -59,13 +59,13 @@ package itlb_rv32;
       numeric type reg_ways,
       numeric type mega_ways,
       numeric type asid_width);
-    interface Put#(Bit#(32)) virtual_addr;
-    interface Get#(Tuple2#(Bit#(22), Trap_type)) send_ppn;
+    interface Put#(Bit#(32)) core_req;
+    interface Get#(Tuple2#(Bit#(22), Trap_type)) core_resp;
 
+                          // va , type: 0-Execution, 1-Load, 2-Store, 3-Atomic
     interface Get#(Tuple2#(Bit#(32),Bit#(2))) req_to_ptw;
                           // ppn   , levels , trap
     interface Put#(Tuple3#(Bit#(32),Bit#(1),Trap_type)) resp_from_ptw;
-	  interface Put#(Bit#(32)) sstatus_from_csr;
     interface Put#(Bit#(32)) satp_from_csr;
     interface Put#(Bit#(2)) curr_priv;
   endinterface
@@ -97,8 +97,8 @@ package itlb_rv32;
     // VTAG stores a Valid bit, ASID and  Virtual PN,
     Ifc_mem_config#(reg_size, TAdd#(1,TAdd#(asid_width,20)), 1) tlb_vtag_reg[v_reg_ways]; // data array 
     for(Integer i=0;i<v_reg_ways;i=i+1)begin
-      tlb_pte_reg[i]<-mkmem_config_h(False);
-      tlb_vtag_reg[i]<-mkmem_config_h(False);
+      tlb_pte_reg[i]<-mkmem_config_h(True);
+      tlb_vtag_reg[i]<-mkmem_config_h(True);
     end
     Ifc_replace#(reg_size,reg_ways) reg_replacement<- mkreplace("RANDOM");
     Reg#(Bit#(TLog#(reg_ways))) reg_replaceway<- mkReg(0);
@@ -122,7 +122,6 @@ package itlb_rv32;
     Reg#(Bit#(TLog#(TMax#(reg_size,mega_size)))) rg_index <- mkReg(0);
 
     // wire which hold the inputs from csr
-    Wire#(Bit#(32)) wr_sstatus <- mkWire();
     Wire#(Bit#(32)) wr_satp <- mkWire();
     Wire#(Bit#(2)) wr_priv <- mkWire();
 
@@ -130,12 +129,11 @@ package itlb_rv32;
     Bit#(22) satp_ppn = truncate(wr_satp);
     Bit#(asid_width) satp_asid = wr_satp[v_asid_width-1+22:22];
     Bit#(1) satp_mode = wr_satp[31];
-    Bit#(1) sstatus_sum = wr_sstatus[18];
 
     // FIFO to hold the next input
     FIFOF#(Bit#(32)) ff_req_queue <- mkSizedFIFOF(2);
     FIFOF#(Tuple2#(Bit#(32),Bit#(2))) ff_ptw_req <- mkSizedFIFOF(2);
-    FIFOF#(Tuple2#(Bit#(22),Trap_type)) ff_send_ppn<- mkSizedFIFOF(2);
+    FIFOF#(Tuple2#(Bit#(22),Trap_type)) ff_core_resp<- mkSizedFIFOF(2);
     Reg#(Bool) rg_tlb_miss<- mkReg(False);
 
     rule initialize(rg_init);
@@ -152,7 +150,7 @@ package itlb_rv32;
         rg_init<=False;
     endrule
 
-    rule access_tlb_on_request(!rg_tlb_miss);
+    rule access_tlb_on_request(!rg_tlb_miss && !rg_init);
 
       // capture input vpns for regular and mega pages.
       Bit#(20) inp_vpn_reg=ff_req_queue.first()[31:12];
@@ -186,8 +184,12 @@ package itlb_rv32;
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)
         final_reg_pte=temp2_reg[i]|final_reg_pte;
-      let reg_linereplace<-reg_replacement.line_replace(truncate(inp_vpn_reg),pte_vpn_valid_reg);
-      reg_replaceway<=reg_linereplace;
+      if(v_reg_ways>1)begin
+        let reg_linereplace<-reg_replacement.line_replace(truncate(inp_vpn_reg),pte_vpn_valid_reg);
+        reg_replaceway<=reg_linereplace;
+      end
+      else
+        reg_replaceway<=0;
       
       // find if there is a hit in the mega pages.
       Bit#(32) pte_mega [v_mega_ways];
@@ -215,8 +217,12 @@ package itlb_rv32;
       end
       for(Integer i=0;i<v_mega_ways;i=i+1)
         final_mega_pte=temp2_mega[i]|final_mega_pte;
-      let mega_linereplace<-mega_replacement.line_replace(truncate(inp_vpn_mega),pte_vpn_valid_mega);
-      mega_replaceway<=mega_linereplace;
+      if(v_mega_ways>1)begin
+        let mega_linereplace<-mega_replacement.line_replace(truncate(inp_vpn_mega),pte_vpn_valid_mega);
+        mega_replaceway<=mega_linereplace;
+      end
+      else
+        mega_replaceway<=0;
 
       // capture the permissions of the hit entry from the TLBs
       // 7 6 5 4 3 2 1 0
@@ -233,7 +239,7 @@ package itlb_rv32;
       // Check for instruction page-fault conditions
       Bool page_fault=False;
       if(satp_mode==0 || wr_priv==3)begin
-        ff_send_ppn.enq(tuple2(zeroExtend(ff_req_queue.first()[31:12]),tagged None));
+        ff_core_resp.enq(tuple2(zeroExtend(ff_req_queue.first()[31:12]),tagged None));
         ff_req_queue.deq();
       end
       else if(|(hit_reg)==1 || |(hit_mega)==1) begin
@@ -254,7 +260,7 @@ package itlb_rv32;
           page_fault=True;
 
        Trap_type exception=page_fault?tagged Exception Inst_pagefault:tagged None; 
-       ff_send_ppn.enq(tuple2(pte,exception));
+       ff_core_resp.enq(tuple2(pte,exception));
        ff_req_queue.deq;
       end
       else begin
@@ -264,7 +270,7 @@ package itlb_rv32;
       end
     endrule
 
-    interface virtual_addr=interface Put
+    interface core_req=interface Put
       method Action put (Bit#(32) va) if(!rg_init);
         Bit#(12) page_offset=va[11:0];
 
@@ -282,12 +288,6 @@ package itlb_rv32;
           tlb_vtag_mega[i].read_request(truncate(vpn_mega));
         end
         ff_req_queue.enq(va);
-      endmethod
-    endinterface;
-
-    interface sstatus_from_csr=interface Put
-      method Action put (Bit#(32) ss);
-        wr_sstatus<=ss;
       endmethod
     endinterface;
 
@@ -318,39 +318,40 @@ package itlb_rv32;
         if(levels==1) begin
             tlb_pte_reg[reg_replaceway].write_request(truncate(vpn_reg),pte);
             tlb_vtag_reg[reg_replaceway].write_request(truncate(vpn_reg),{1'b1,satp_asid,vpn_reg});
-            reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
+            if(v_reg_ways>1)
+              reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
         end
         else begin
           // index into the mega page arrays
           Bit#(10) vpn_mega=ff_req_queue.first[31:22];
             tlb_pte_mega[mega_replaceway].write_request(truncate(vpn_mega),pte);
             tlb_vtag_mega[mega_replaceway].write_request(truncate(vpn_mega),{1'b1,satp_asid,vpn_mega});
-            mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
+            if(v_mega_ways>1)
+              mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
         end
-        ff_send_ppn.enq(tuple2(truncateLSB(pte),trap));
+        ff_core_resp.enq(tuple2(truncateLSB(pte),trap));
         ff_req_queue.deq;
         rg_tlb_miss<=True;
       endmethod
     endinterface;
     // TODO add method to fence the TLB.
 
-    interface send_ppn= interface Get
+    interface core_resp= interface Get
       method ActionValue#(Tuple2#(Bit#(22),Trap_type)) get;
-        ff_send_ppn.deq;
-        return ff_send_ppn.first();
+        ff_core_resp.deq;
+        return ff_core_resp.first();
       endmethod
     endinterface;
   endmodule
 
   (*synthesize*)
-  module mkTb(Ifc_itlb_rv32#(8,4,2,1,9));
-    Ifc_itlb_rv32#(8,4,2,1,9) itlb <- mkitlb_rv32();
-    interface virtual_addr=itlb.virtual_addr;
-    interface sstatus_from_csr=itlb.sstatus_from_csr;
+  module mkTb(Ifc_itlb_rv32#(8,8,1,1,9));
+    Ifc_itlb_rv32#(8,8,1,1,9) itlb <- mkitlb_rv32();
+    interface core_req=itlb.core_req;
     interface satp_from_csr=itlb.satp_from_csr;
     interface curr_priv=itlb.curr_priv;
     interface req_to_ptw=itlb.req_to_ptw;
-    interface send_ppn=itlb.send_ppn;
+    interface core_resp=itlb.core_resp;
     interface resp_from_ptw=itlb.resp_from_ptw;
   endmodule
 endpackage
