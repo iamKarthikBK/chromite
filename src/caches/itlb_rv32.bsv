@@ -62,7 +62,8 @@ package itlb_rv32;
     interface Get#(Tuple2#(Bit#(22), Trap_type)) send_ppn;
 
     interface Get#(Tuple2#(Bit#(32),Bit#(2))) req_to_ptw;
-    interface Put#(Bit#(22)) resp_from_ptw;
+                          // ppn   , levels , trap
+    interface Put#(Tuple3#(Bit#(32),Bit#(1),Trap_type)) resp_from_ptw;
 	  interface Put#(Bit#(32)) sstatus_from_csr;
     interface Put#(Bit#(32)) satp_from_csr;
     interface Put#(Bit#(2)) curr_priv;
@@ -295,11 +296,45 @@ package itlb_rv32;
       endmethod
     endinterface;
     interface resp_from_ptw = interface Put
-      method Action put(Bit#(22) ppn)if(rg_tlb_miss);
+      method Action put(Tuple3#(Bit#(32),Bit#(1),Trap_type) resp)if(rg_tlb_miss);
         // TODO update tlb entries here.
         // This will then cause the rule access_tlb_on_request to fire again
         // which cause a hit in the tlb now and thus respond back to the core.
-         rg_tlb_miss<=True;
+        let {ppn, levels, trap}=resp;
+        Trap_type exception;
+        Bit#(10) vpn0=ff_req_queue.first[21:12];
+        Bit#(10) vpn1=ff_req_queue.first[31:22];
+        Bit#(22) pte=0;
+        if(levels==1)
+          pte=truncateLSB(pte);
+        else
+          pte={ppn[31:20],vpn0};
+
+        Bit#(8) permissions=ppn[7:0];
+        Bool page_fault=False;
+        if (permissions[0]==0 || (permissions[1]==0 && permissions[2]==1))
+          page_fault=True;
+        // pte.x == 0
+        else if(permissions[3]==0)
+          page_fault=True;
+        // pte.a == 0
+        else if(permissions[6]==0)
+          page_fault=True;
+        // pte.u==0 for user mode
+        else if(permissions[4]==0 && wr_priv==0)
+          page_fault=True;
+        // pte.u=1 for supervisor
+        else if(permissions[4]==1 && wr_priv==1)
+          page_fault=True;
+
+        if(trap matches tagged None &&& page_fault)
+          exception=tagged Exception Inst_pagefault; 
+        else
+          exception=trap;
+
+        ff_send_ppn.enq(tuple2(pte,exception));
+        ff_req_queue.deq;
+        rg_tlb_miss<=True;
       endmethod
     endinterface;
     // TODO add method to fence the TLB.
@@ -321,6 +356,7 @@ package itlb_rv32;
     interface curr_priv=itlb.curr_priv;
     interface req_to_ptw=itlb.req_to_ptw;
     interface send_ppn=itlb.send_ppn;
+    interface resp_from_ptw=itlb.resp_from_ptw;
   endmodule
 endpackage
 
