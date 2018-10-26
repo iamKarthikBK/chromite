@@ -51,6 +51,7 @@ package itlb_rv32;
 
   import mem_config::*;
   import common_types::*;
+  import replacement::*;
 
   interface Ifc_itlb_rv32#(
       numeric type reg_size, 
@@ -76,7 +77,11 @@ package itlb_rv32;
       Add#(a__, TLog#(reg_size), 20),
       Add#(d__, TLog#(mega_size), 10),
       Add#(b__, TLog#(reg_size), TLog#(TMax#(reg_size, mega_size))),
-      Add#(c__, TLog#(mega_size), TLog#(TMax#(reg_size, mega_size)))
+      Add#(c__, TLog#(mega_size), TLog#(TMax#(reg_size, mega_size))),
+
+      // for replacement
+      Add#(e__, TLog#(reg_ways), 4),
+      Add#(f__, TLog#(mega_ways), 4)
     );
 
     let v_reg_ways=valueOf(reg_ways);
@@ -95,6 +100,8 @@ package itlb_rv32;
       tlb_pte_reg[i]<-mkmem_config_h(False);
       tlb_vtag_reg[i]<-mkmem_config_h(False);
     end
+    Ifc_replace#(reg_size,reg_ways) reg_replacement<- mkreplace("RANDOM");
+    Reg#(Bit#(TLog#(reg_ways))) reg_replaceway<- mkReg(0);
     
     // defining the tlb entries and virtual tags for mega pages.
     Ifc_mem_config#(mega_size, 32, 1) tlb_pte_mega [v_mega_ways]; // data array
@@ -104,6 +111,9 @@ package itlb_rv32;
       tlb_pte_mega[i]<-mkmem_config_h(False);
       tlb_vtag_mega[i]<-mkmem_config_h(False);
     end
+    Ifc_replace#(mega_size,mega_ways) mega_replacement<- mkreplace("RANDOM");
+    Reg#(Bit#(TLog#(mega_ways))) mega_replaceway<- mkReg(0);
+
 
     // register to initialize the tlbs on reset.
     Reg#(Bool) rg_init <- mkReg(True);
@@ -154,7 +164,7 @@ package itlb_rv32;
       Bit#(32) pte_reg [v_reg_ways];
       Bit#(20) pte_vpn_reg [v_reg_ways];
       Bit#(asid_width) pte_asid_reg [v_reg_ways];
-      Bit#(1) pte_vpn_valid_reg [v_reg_ways];
+      Bit#(reg_ways) pte_vpn_valid_reg=0;
       Bit#(reg_ways) hit_reg=0;
       Bit#(32) temp1_reg [v_reg_ways];
       Bit#(32) temp2_reg [v_reg_ways];
@@ -176,12 +186,14 @@ package itlb_rv32;
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)
         final_reg_pte=temp2_reg[i]|final_reg_pte;
+      let reg_linereplace<-reg_replacement.line_replace(truncate(inp_vpn_reg),pte_vpn_valid_reg);
+      reg_replaceway<=reg_linereplace;
       
       // find if there is a hit in the mega pages.
       Bit#(32) pte_mega [v_mega_ways];
       Bit#(10) pte_vpn_mega [v_mega_ways];
       Bit#(asid_width) pte_asid_mega [v_mega_ways];
-      Bit#(1) pte_vpn_valid_mega [v_reg_ways];
+      Bit#(mega_ways) pte_vpn_valid_mega=0;
       Bit#(mega_ways) hit_mega=0;
       Bit#(32) temp1_mega [v_mega_ways];
       Bit#(32) temp2_mega [v_mega_ways];
@@ -203,6 +215,8 @@ package itlb_rv32;
       end
       for(Integer i=0;i<v_mega_ways;i=i+1)
         final_mega_pte=temp2_mega[i]|final_mega_pte;
+      let mega_linereplace<-mega_replacement.line_replace(truncate(inp_vpn_mega),pte_vpn_valid_mega);
+      mega_replaceway<=mega_linereplace;
 
       // capture the permissions of the hit entry from the TLBs
       // 7 6 5 4 3 2 1 0
@@ -296,43 +310,24 @@ package itlb_rv32;
       endmethod
     endinterface;
     interface resp_from_ptw = interface Put
-      method Action put(Tuple3#(Bit#(32),Bit#(1),Trap_type) resp)if(rg_tlb_miss);
-        // TODO update tlb entries here.
+      method Action put(Tuple3#(Bit#(32),Bit#(1),Trap_type) resp)if(rg_tlb_miss && !rg_init);
         // This will then cause the rule access_tlb_on_request to fire again
         // which cause a hit in the tlb now and thus respond back to the core.
-        let {ppn, levels, trap}=resp;
-        Trap_type exception;
-        Bit#(10) vpn0=ff_req_queue.first[21:12];
-        Bit#(10) vpn1=ff_req_queue.first[31:22];
-        Bit#(22) pte=0;
-        if(levels==1)
-          pte=truncateLSB(pte);
-        else
-          pte={ppn[31:20],vpn0};
-
-        Bit#(8) permissions=ppn[7:0];
-        Bool page_fault=False;
-        if (permissions[0]==0 || (permissions[1]==0 && permissions[2]==1))
-          page_fault=True;
-        // pte.x == 0
-        else if(permissions[3]==0)
-          page_fault=True;
-        // pte.a == 0
-        else if(permissions[6]==0)
-          page_fault=True;
-        // pte.u==0 for user mode
-        else if(permissions[4]==0 && wr_priv==0)
-          page_fault=True;
-        // pte.u=1 for supervisor
-        else if(permissions[4]==1 && wr_priv==1)
-          page_fault=True;
-
-        if(trap matches tagged None &&& page_fault)
-          exception=tagged Exception Inst_pagefault; 
-        else
-          exception=trap;
-
-        ff_send_ppn.enq(tuple2(pte,exception));
+        let {pte, levels, trap}=resp;
+        Bit#(20) vpn_reg=ff_req_queue.first[31:12];
+        if(levels==1) begin
+            tlb_pte_reg[reg_replaceway].write_request(truncate(vpn_reg),pte);
+            tlb_vtag_reg[reg_replaceway].write_request(truncate(vpn_reg),{1'b1,satp_asid,vpn_reg});
+            reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
+        end
+        else begin
+          // index into the mega page arrays
+          Bit#(10) vpn_mega=ff_req_queue.first[31:22];
+            tlb_pte_mega[mega_replaceway].write_request(truncate(vpn_mega),pte);
+            tlb_vtag_mega[mega_replaceway].write_request(truncate(vpn_mega),{1'b1,satp_asid,vpn_mega});
+            mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
+        end
+        ff_send_ppn.enq(tuple2(truncateLSB(pte),trap));
         ff_req_queue.deq;
         rg_tlb_miss<=True;
       endmethod
