@@ -68,11 +68,13 @@ package itlb_rv32;
     interface Put#(Tuple3#(Bit#(32),Bit#(1),Trap_type)) resp_from_ptw;
     interface Put#(Bit#(32)) satp_from_csr;
     interface Put#(Bit#(2)) curr_priv;
+    interface Put#(Tuple2#(Bit#(32),Bit#(32))) fence_tlb;
   endinterface
 
 
 
-  module mkitlb_rv32(Ifc_itlb_rv32#(reg_size,mega_size,reg_ways,mega_ways,asid_width))
+  module mkitlb_rv32#(parameter Bool ramreg, parameter String alg_reg, parameter String alg_mega) 
+    (Ifc_itlb_rv32#(reg_size,mega_size,reg_ways,mega_ways,asid_width))
     provisos(
       Add#(a__, TLog#(reg_size), 20),
       Add#(d__, TLog#(mega_size), 10),
@@ -97,10 +99,10 @@ package itlb_rv32;
     // VTAG stores a Valid bit, ASID and  Virtual PN,
     Ifc_mem_config#(reg_size, TAdd#(1,TAdd#(asid_width,20)), 1) tlb_vtag_reg[v_reg_ways]; // data array 
     for(Integer i=0;i<v_reg_ways;i=i+1)begin
-      tlb_pte_reg[i]<-mkmem_config_h(True);
-      tlb_vtag_reg[i]<-mkmem_config_h(True);
+      tlb_pte_reg[i]<-mkmem_config_h(ramreg);
+      tlb_vtag_reg[i]<-mkmem_config_h(ramreg);
     end
-    Ifc_replace#(reg_size,reg_ways) reg_replacement<- mkreplace("RANDOM");
+    Ifc_replace#(reg_size,reg_ways) reg_replacement<- mkreplace(alg_reg);
     Reg#(Bit#(TLog#(reg_ways))) reg_replaceway<- mkReg(0);
     
     // defining the tlb entries and virtual tags for mega pages.
@@ -108,15 +110,17 @@ package itlb_rv32;
     // VTAG stores a Valid bit, ASID and  Virtual PN,
     Ifc_mem_config#(mega_size, TAdd#(1,TAdd#(asid_width,10)), 1) tlb_vtag_mega [v_mega_ways]; // data array
     for(Integer i=0;i<v_mega_ways;i=i+1)begin
-      tlb_pte_mega[i]<-mkmem_config_h(False);
-      tlb_vtag_mega[i]<-mkmem_config_h(False);
+      tlb_pte_mega[i]<-mkmem_config_h(ramreg);
+      tlb_vtag_mega[i]<-mkmem_config_h(ramreg);
     end
-    Ifc_replace#(mega_size,mega_ways) mega_replacement<- mkreplace("RANDOM");
+    Ifc_replace#(mega_size,mega_ways) mega_replacement<- mkreplace(alg_reg);
     Reg#(Bit#(TLog#(mega_ways))) mega_replaceway<- mkReg(0);
 
 
     // register to initialize the tlbs on reset.
     Reg#(Bool) rg_init <- mkReg(True);
+    Reg#(Bit#(32)) rg_rs1<- mkReg(0);
+    Reg#(Bit#(32)) rg_rs2<- mkReg(0);
 
     // register to index into the tlb during initialization phase.
     Reg#(Bit#(TLog#(TMax#(reg_size,mega_size)))) rg_index <- mkReg(0);
@@ -135,8 +139,10 @@ package itlb_rv32;
     FIFOF#(Tuple2#(Bit#(32),Bit#(2))) ff_ptw_req <- mkSizedFIFOF(2);
     FIFOF#(Tuple2#(Bit#(22),Trap_type)) ff_core_resp<- mkSizedFIFOF(2);
     Reg#(Bool) rg_tlb_miss<- mkReg(False);
+    Reg#(Bool) rg_delay <- mkDReg(False);
+    Bool delay_checking= ramreg && rg_delay && ff_req_queue.notFull && ff_req_queue.notEmpty;
 
-    rule initialize(rg_init);
+    rule initialize(rg_init && !ff_req_queue.notEmpty);
       if(verbosity>0)
         $display($time,"\tITLB: Initiliazing TLB index: %d",rg_index);
       for(Integer i=0;i<v_reg_ways;i=i+1) 
@@ -150,7 +156,7 @@ package itlb_rv32;
         rg_init<=False;
     endrule
 
-    rule access_tlb_on_request(!rg_tlb_miss && !rg_init);
+    rule access_tlb_on_request(!rg_tlb_miss && !rg_init && !delay_checking);
 
       // capture input vpns for regular and mega pages.
       Bit#(20) inp_vpn_reg=ff_req_queue.first()[31:12];
@@ -229,7 +235,6 @@ package itlb_rv32;
       // D A G U X W R V
       Bit#(8) permissions=|(hit_reg)==1?final_reg_pte[7:0]:final_mega_pte[7:0];
 
-      // TODO for mega page how do we create ppn?
       Bit#(22) pte=0;
       if(|(hit_reg)==1)
         pte=truncateLSB(final_reg_pte);
@@ -288,6 +293,8 @@ package itlb_rv32;
           tlb_vtag_mega[i].read_request(truncate(vpn_mega));
         end
         ff_req_queue.enq(va);
+        if(ramreg)
+          rg_delay<=True;
       endmethod
     endinterface;
 
@@ -334,7 +341,11 @@ package itlb_rv32;
         rg_tlb_miss<=True;
       endmethod
     endinterface;
-    // TODO add method to fence the TLB.
+    interface  fence_tlb=interface Put
+      method Action put(Tuple2#(Bit#(32),Bit#(32)) req) if(!rg_init);
+        rg_init<=True;
+      endmethod
+    endinterface;
 
     interface core_resp= interface Get
       method ActionValue#(Tuple2#(Bit#(22),Trap_type)) get;
@@ -346,13 +357,14 @@ package itlb_rv32;
 
   (*synthesize*)
   module mkTb(Ifc_itlb_rv32#(8,8,1,1,9));
-    Ifc_itlb_rv32#(8,8,1,1,9) itlb <- mkitlb_rv32();
+    Ifc_itlb_rv32#(8,8,1,1,9) itlb <- mkitlb_rv32(True,"RANDOM","RANDOM");
     interface core_req=itlb.core_req;
     interface satp_from_csr=itlb.satp_from_csr;
     interface curr_priv=itlb.curr_priv;
     interface req_to_ptw=itlb.req_to_ptw;
     interface core_resp=itlb.core_resp;
     interface resp_from_ptw=itlb.resp_from_ptw;
+    interface fence_tlb=itlb.fence_tlb;
   endmodule
 endpackage
 
