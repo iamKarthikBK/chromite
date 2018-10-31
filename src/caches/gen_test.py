@@ -202,8 +202,10 @@ def test7():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(hit)
 
-# the following test will create a scenario where a LB miss and Cache miss will
-# occur for different addresses (cache array output is registered
+# the following test will check for a possibility where a LB miss and Cache miss will
+# occur for different addresses (cache array output is registered)
+# Req to a line which will be CM, then req a word in the same line.
+# Then req a line in diff set which would be miss.
 def test8():
 
     write_to_file(0,read,nodelay,fence)
@@ -213,11 +215,11 @@ def test8():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(miss)
 
-    for i in range(8):
-      write_to_file(address,read,delay,nofence)
-      gold_file.write(miss)
+   # for i in range(8):
+    #  write_to_file(address,read,delay,nofence)
+     # gold_file.write(miss)
   
-    address=4096
+    address=4096+(word_size*5)
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(hit)
 
@@ -396,22 +398,79 @@ def test13():
     gold_file.write(miss)
 
 
+#Filling 2 lines in different sets, then requesting the same lines in same order
+#1st req would be a hit in cache and other in lb.
+#This checks for a possibility of hits coming from different addresses in same cycle.
+#Test to ensure correct implementation of RAMREG.
+def test14a():
+    
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
 
+    address=4096
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+    
+    address=address+(word_size*block_size)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+   
+    for i in range(20):
+      write_to_file(address,read,delay,nofence)
+      gold_file.write(miss)
+  
+    address=4096 # 1st req
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
 
+    address=address+(word_size*block_size) # 2nd req
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
+   
 
-#test1()
-#test2()
-#test3()
-#test4()
-#test5()
-#test6() 
-#test7()
-#test8()
-#test9()
+#Same idea as test 14a, but after filling the lines, the requests are made in reverse order.
+#1st req would be hit in lb, 2nd one in cache.
+#For 1st req, once it is a hit in lb, cache check (supposed to happen in cycle after lb check) wont happen at all.   
+def test14b():
+    
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+    
+    address=address+(word_size*block_size)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+   
+    for i in range(20):
+      write_to_file(address,read,delay,nofence)
+      gold_file.write(miss)
+  
+    write_to_file(address,read,nodelay,nofence) #1st req
+    gold_file.write(hit)
+
+    address=4096 # 2nd req
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
+ 
+
+test1()
+test2()
+test3()
+test4()
+test5()
+test6() 
+test7()
+test8()
+test9()
 test10()
 test11()
 test12()
-#test13()
+test13()
+test14a()
+test14b()
 write_to_file(0,read,nodelay,nofence)
 gold_file.write(miss)
 test_file.close()
