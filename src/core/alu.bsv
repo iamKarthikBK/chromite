@@ -38,10 +38,30 @@ This module contains single cycle MUL instruction execution.
 
 package alu;
 
-  `define multicycle (`muldiv||`spfpu )
-  `define muldivfpu_both (`muldiv && `spfpu )
-  `define only_muldiv (`muldiv && !(`spfpu) )
-  `define only_spfpu (!(`muldiv) && `spfpu )
+  `ifdef muldiv
+    `define multicycle True
+  `endif
+  `ifdef spfpu
+    `define multicycle True
+  `endif
+  
+  `ifdef muldiv
+    `ifdef spfpu
+      `define muldivfpu_both True
+    `endif
+  `endif
+  
+  `ifdef muldiv
+    `ifndef spfpu
+      `define only_muldiv True
+    `endif
+  `endif
+
+  `ifndef muldiv
+    `ifdef spfpu
+      `define only_spfpu True
+    `endif
+  `endif
   `ifdef muldiv_fpga 
     import muldiv_fpga::*; 
   `else

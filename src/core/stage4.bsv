@@ -154,8 +154,10 @@ package stage4;
               let {data, err, access_type}=resp;
             `endif
             if(!err `ifdef supervisor && !fault `endif )begin // no bus error
+            `ifdef spfpu
               if(nanboxing==1)
                 data[63:32]='1;
+            `endif
               wr_operand_fwding <= tagged Valid tuple2(data, rdindex);
               `ifdef spfpu
                 wr_commit <= tagged Valid (tuple4(rdaddr, data, rdindex, rdtype));

@@ -205,8 +205,8 @@ package stage2;
         $display($time, "\tDECODE: rs1index: %d rs2index: %d rdindex: %d instrtype: ", rs1index,
         rs2index, rd_index, fshow(instrType) `ifdef spfpu ,", rs3index:%d", rs3index `endif );
         $display($time, "\tDECODE: op1: %h op2: %h op3: %h op4: %h", op1, op2, op3, op4);
-        $display($time, "\tDECODE: rd: %d, rdtype: ",rd, fshow(rdtype)," word32: %b, memaccess:", 
-        word32, fshow(memaccess));
+        $display($time, "\tDECODE: rd: %d, rdtype: ",rd, `ifdef spfpu fshow(rdtype), `endif 
+            " word32: %b, memaccess:",  word32, fshow(memaccess));
         $display($time, "\tDECODE: fn: %b funt3: %b trap:", fn, funct3, fshow(trap) );
       end
 
