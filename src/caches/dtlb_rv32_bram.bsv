@@ -180,7 +180,7 @@ package dtlb_rv32_bram;
         pte_vpn_reg[i]=truncate(x);
         pte_asid_reg[i]=x[20+v_asid_width-1:20];
         pte_vpn_valid_reg[i]=truncateLSB(x);
-        global_reg[i]=x[5];
+        global_reg[i]=pte_reg[i][5];
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)begin
         hit_reg[i]=pack(pte_vpn_valid_reg[i]==1 && pte_vpn_reg[i]==inp_vpn_reg &&
@@ -213,7 +213,7 @@ package dtlb_rv32_bram;
         pte_vpn_mega[i]=truncate(y);
         pte_asid_mega[i]=y[10+v_asid_width-1:10];
         pte_vpn_valid_mega[i]=truncateLSB(y);
-        global_mega[i]=y[5];
+        global_mega[i]=pte_mega[i][5];
       end
       for(Integer i=0;i<v_mega_ways;i=i+1)begin
         hit_mega[i]=pack(pte_vpn_valid_mega[i]==1 && pte_vpn_mega[i]==inp_vpn_mega &&
