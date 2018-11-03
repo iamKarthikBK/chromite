@@ -598,7 +598,13 @@ package csrfile;
             rg_smode<=word[1:0];
           end
           `SSCRATCH: sscratch<= word;
-          `SATP: satp<= word;
+          // make sure only valid values of satp-mode field cause a change in the satp reg
+          `SATP: begin
+            `ifdef RV64
+              if(word[63:60]==0 || word[63:60]==8)
+            `endif
+              satp<= word;
+          end
           `SCAUSE: begin
             scause<= truncate(word);
             sinterrupt<= word[maxIndex-1];
