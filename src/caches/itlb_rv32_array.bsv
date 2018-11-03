@@ -86,11 +86,10 @@ package itlb_rv32_array;
     let v_mega_ways=valueOf(mega_ways);
     let v_reg_size=valueOf(reg_size);    
     let v_mega_size=valueOf(mega_size);    
-    let v_index_bits=valueOf(TLog#(reg_size));
     let v_asid_width = valueOf(asid_width);
     let verbosity=`VERBOSITY;
 
-    // definging the tlb entries and virtual tags for regular pages.
+    // defining the tlb entries and virtual tags for regular pages.
     Reg#(Bit#(32)) tlb_pte_reg [v_reg_ways][v_reg_size];
     Reg#(Bit#(TAdd#(1,TAdd#(asid_width,20)))) tlb_vtag_reg [v_reg_ways][v_reg_size];
     // VTAG stores a Valid bit, ASID and  Virtual PN,
@@ -154,8 +153,8 @@ package itlb_rv32_array;
       // capture input vpns for regular and mega pages.
       Bit#(20) inp_vpn_reg=ff_req_queue.first()[31:12];
       Bit#(10) inp_vpn_mega=ff_req_queue.first()[31:22];
-      Bit#(10) vpn0=ff_req_queue.first[21:12];
-      Bit#(10) vpn1=ff_req_queue.first[31:22];
+      Bit#(10) vpn0=ff_req_queue.first()[21:12];
+      Bit#(10) vpn1=ff_req_queue.first()[31:22];
 
       // find if there is a hit in the regular page tlb
       Bit#(32) pte_reg [v_reg_ways];
