@@ -204,7 +204,7 @@ def test7():
 
 # the following test will check for a possibility where a LB miss and Cache miss will
 # occur for different addresses (cache array output is registered)
-# Req to a line which will be CM, then req a word in the same line.
+# Req to a line which will be CM, then req a word in the same line after a delay.
 # Then req a line in diff set which would be miss.
 def test8():
 
@@ -215,9 +215,9 @@ def test8():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(miss)
 
-   # for i in range(8):
-    #  write_to_file(address,read,delay,nofence)
-     # gold_file.write(miss)
+    for i in range(5):
+        write_to_file(address,read,delay,nofence)
+        gold_file.write(miss)
   
     address=4096+(word_size*5)
     write_to_file(address,read,nodelay,nofence)
@@ -352,6 +352,7 @@ def test12():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(hit)
 
+   
     address=4096+(word_size*block_size) # miss to make lb write back to cache
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(miss)
@@ -430,7 +431,8 @@ def test14a():
 
 #Same idea as test 14a, but after filling the lines, the requests are made in reverse order.
 #1st req would be hit in lb, 2nd one in cache.
-#For 1st req, once it is a hit in lb, cache check (supposed to happen in cycle after lb check) wont happen at all.   
+#For 1st req, once it is a hit in lb, cache check (supposed to happen in cycle after lb check) wont happen at all,
+#as the req would have been dequed already.
 def test14b():
     
     write_to_file(0,read,nodelay,fence)
@@ -456,6 +458,36 @@ def test14b():
     gold_file.write(hit)
  
 
+
+# Test to gaurantee consecutive IO requests are all misses and they dont change replacement state.
+# Fill up a set, then make 2 IO requests which index to the same set. Both should be misses.
+# make req to a line which maps to the above set. It would be a miss and would take way 3 as replacement,
+# even though there were 2 IO misses to that set.
+
+def test15():
+
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4128
+    for i in range(ways): # filling set completely
+        write_to_file(address,read,nodelay,nofence)
+        gold_file.write(miss)
+        address=address+(word_size*block_size*sets)
+
+    address=32 # 2 IO requests indexing to same set
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+    
+    address=4128+(word_size*block_size*sets*4) # req to a new line mapping to that set
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+
+
+   
 test1()
 test2()
 test3()
@@ -471,6 +503,7 @@ test12()
 test13()
 test14a()
 test14b()
+test15()
 write_to_file(0,read,nodelay,nofence)
 gold_file.write(miss)
 test_file.close()
