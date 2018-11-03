@@ -235,12 +235,12 @@ package dtlb_rv32_array;
       if(|(hit_reg)==1)
         pte=truncateLSB(final_reg_pte);
       else
-        pte={final_reg_pte[31:20],vpn0};
+        pte={final_mega_pte[31:20],vpn0};
 
       // Check for instruction page-fault conditions
       Bool page_fault=False;
       if(satp_mode==0 || wr_priv==3)begin
-        ff_core_resp.enq(tuple2(zeroExtend(va[31:12]),tagged None));
+        ff_core_resp.enq(tuple2(signExtend(va[31:12]),tagged None));
         ff_req_queue.deq();
       end
       else if(|(hit_reg)==1 || |(hit_mega)==1) begin
