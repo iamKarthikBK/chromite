@@ -324,7 +324,7 @@ package dtlb_rv32_bram;
         let {va,access}=ff_req_queue.first();
         let {pte, levels, trap}=resp;
         Bit#(20) vpn_reg=va[31:12];
-        if(levels==1) begin
+        if(levels==0) begin
             tlb_pte_reg[reg_replaceway].write_request(truncate(vpn_reg),pte);
             tlb_vtag_reg[reg_replaceway].write_request(truncate(vpn_reg),{1'b1,satp_asid,vpn_reg});
             if(v_reg_ways>1)

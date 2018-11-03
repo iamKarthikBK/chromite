@@ -314,9 +314,9 @@ package dtlb_rv32_array;
         Bit#(TLog#(reg_size)) index_reg=truncate(vpn_reg);
         
         Bit#(10) vpn_mega=va[31:22];
-        Bit#(TLog#(reg_size)) index_mega=truncate(vpn_reg);
+        Bit#(TLog#(mega_size)) index_mega=truncate(vpn_mega);
 
-        if(levels==1) begin
+        if(levels==0) begin
             tlb_pte_reg[reg_replaceway][index_reg]<=pte;
             tlb_vtag_reg[reg_replaceway][index_reg]<={1'b1,satp_asid,vpn_reg};
             if(v_reg_ways>1)
