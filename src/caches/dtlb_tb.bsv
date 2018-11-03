@@ -38,6 +38,7 @@ package dtlb_tb;
 
   import dtlb_rv32_bram::*;
   import dtlb_rv32_array::*;
+  import dtlb_rv64_array::*;
 
   (*synthesize*)
   module mkdtlb_rv32bram(Ifc_dtlb_rv32_bram#(8,8,1,1,9));
@@ -53,14 +54,26 @@ package dtlb_tb;
   
   (*synthesize*)
   module mkdtlb_rv32array(Ifc_dtlb_rv32_array#(8,8,1,1,9));
-    Ifc_dtlb_rv32_array#(8,8,1,1,9) dtlb <- mkdtlb_rv32_array("RANDOM","RANDOM");
-    interface core_req=dtlb.core_req;
-    interface satp_from_csr=dtlb.satp_from_csr;
-    interface curr_priv=dtlb.curr_priv;
-    interface req_to_ptw=dtlb.req_to_ptw;
-    interface core_resp=dtlb.core_resp;
-    interface resp_from_ptw=dtlb.resp_from_ptw;
-    interface fence_tlb=dtlb.fence_tlb;
+    Ifc_dtlb_rv32_array#(8,8,1,1,9) dtlb2 <- mkdtlb_rv32_array("RANDOM","RANDOM");
+    interface core_req=dtlb2.core_req;
+    interface satp_from_csr=dtlb2.satp_from_csr;
+    interface curr_priv=dtlb2.curr_priv;
+    interface req_to_ptw=dtlb2.req_to_ptw;
+    interface core_resp=dtlb2.core_resp;
+    interface resp_from_ptw=dtlb2.resp_from_ptw;
+    interface fence_tlb=dtlb2.fence_tlb;
+  endmodule
+  
+  (*synthesize*)
+  module mkdtlb_rv64array(Ifc_dtlb_rv64_array#(8,8,8,1,1,1,9));
+    Ifc_dtlb_rv64_array#(8,8,8,1,1,1,9) dtlb3 <- mkdtlb_rv64_array("RANDOM","RANDOM");
+    interface core_req=dtlb3.core_req;
+    interface satp_from_csr=dtlb3.satp_from_csr;
+    interface curr_priv=dtlb3.curr_priv;
+    interface req_to_ptw=dtlb3.req_to_ptw;
+    interface core_resp=dtlb3.core_resp;
+    interface resp_from_ptw=dtlb3.resp_from_ptw;
+    interface fence_tlb=dtlb3.fence_tlb;
   endmodule
 endpackage
 
