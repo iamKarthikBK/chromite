@@ -174,7 +174,7 @@ package itlb_rv32_array;
         pte_vpn_reg[i]=truncate(x);
         pte_asid_reg[i]=x[20+v_asid_width-1:20];
         pte_vpn_valid_reg[i]=truncateLSB(x);
-        global_reg[i]=pte_reg[i][index_reg][5];
+        global_reg[i]=pte_reg[i][5];
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)begin
         hit_reg[i]=pack(pte_vpn_valid_reg[i]==1 && pte_vpn_reg[i]==inp_vpn_reg &&
