@@ -76,8 +76,6 @@ package itlb_rv32_array;
     provisos(
       Add#(a__, TLog#(reg_size), 20),
       Add#(d__, TLog#(mega_size), 10),
-      Add#(b__, TLog#(reg_size), TLog#(TMax#(reg_size, mega_size))),
-      Add#(c__, TLog#(mega_size), TLog#(TMax#(reg_size, mega_size))),
 
       // for replacement
       Add#(e__, TLog#(reg_ways), 4),
