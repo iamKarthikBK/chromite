@@ -57,11 +57,9 @@ package cclass;
 			`endif
    		method ActionValue#(Bit#(XLEN))			rw_csr (Bit#(12) r, Bool write, Bit#(XLEN) data);				 // Read a General-Purpose Register
 		`endif
-		`ifdef CLINT
       interface Put#(Bit#(1)) sb_clint_msip;
       interface Put#(Bit#(1)) sb_clint_mtip;
       interface Put#(Bit#(64)) sb_clint_mtime;
-		`endif
     `ifdef simulate
       interface Get#(DumpType) io_dump;
     `endif
