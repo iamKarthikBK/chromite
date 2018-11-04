@@ -45,6 +45,9 @@ package SoC;
   // peripheral imports
   import memory::*;
   import bootrom:: *;
+  import uart::*;
+  import clint::*;
+  import sign_dump::*;
   // package imports
   import Connectable:: *;
   import GetPut:: *;
@@ -78,6 +81,13 @@ package SoC;
         slave_num = `Memory_slave_num;
       else if(addr>= `BootRomBase && addr<= `BootRomEnd)
         slave_num =  `BootRom_slave_num;
+        else
+      if(addr>= `UartBase && addr<= `UartEnd)
+        slave_num = `Uart_slave_num;
+      else if(addr>= `ClintBase && addr<= `ClintEnd)
+        slave_num = `Clint_slave_num;
+      else if(addr>= `SignBase && addr<= `SignEnd)
+        slave_num = `Sign_slave_num;
       else
         slave_exist = False;
         
@@ -92,30 +102,43 @@ package SoC;
     `ifdef EXTERNAL
       interface AXI4_Master_IFC#(PADDR, XLEN, USERSPACE) mem_master;
     `endif
+    interface RS232 uart_io;
   endinterface
 
 `ifdef CORE_AXI4
   (*synthesize*)
   module mkSoC `ifdef EXTERNAL #(Clock exmem_clk, Reset exmem_rst) `endif (Ifc_SoC);
+    let curr_clk<-exposeCurrentClock;
+    let curr_reset<-exposeCurrentReset;
     Ifc_cclass_axi4 cclass <- mkcclass_axi4();
+    Ifc_sign_dump signature<- mksign_dump();
     AXI4_Fabric_IFC #(`Num_Masters, `Num_Slaves, PADDR, XLEN, USERSPACE) 
                                                     fabric <- mkAXI4_Fabric(fn_slave_map);
  		Ifc_memory_AXI4#(PADDR, XLEN, USERSPACE, `Addr_space) main_memory <- mkmemory_AXI4(`MemoryBase, 
                                                 "code.mem.MSB", "code.mem.LSB");
 		Ifc_bootrom_axi4#(PADDR, XLEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
+	  Ifc_uart_axi4#(PADDR,XLEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);
+    Ifc_clint_axi4#(PADDR,XLEN,0,1) clint <- mkclint_axi4();
 
    	mkConnection(cclass.master_d,	fabric.v_from_masters[`Mem_master_num]);
    	mkConnection(cclass.master_i, fabric.v_from_masters[`Fetch_master_num]);
+   	mkConnection(signature.master, fabric.v_from_masters[`Sign_master_num ]);
 
   	mkConnection(fabric.v_to_slaves[`Memory_slave_num ],main_memory.slave);
 		mkConnection (fabric.v_to_slaves [`BootRom_slave_num ],bootrom.slave);
+ 	mkConnection (fabric.v_to_slaves [`Uart_slave_num ],uart.slave);
+  	mkConnection (fabric.v_to_slaves [`Clint_slave_num ],clint.slave);
+    mkConnection (fabric.v_to_slaves [`Sign_slave_num ] , signature.slave);
+
+    // sideband connection
+    mkConnection(cclass.sb_clint_msip,clint.sb_clint_msip);
+    mkConnection(cclass.sb_clint_mtip,clint.sb_clint_mtip);
+    mkConnection(cclass.sb_clint_mtime,clint.sb_clint_mtime);
 
     `ifdef simulate
       interface io_dump= cclass.io_dump;
     `endif
-    `ifdef EXTERNAL
-      interface mem_master=external_memory.master;
-    `endif
+    interface uart_io=uart.io;
   endmodule: mkSoC
 `endif
 `ifdef CORE_AXI4Lite
