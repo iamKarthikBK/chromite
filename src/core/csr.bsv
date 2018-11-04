@@ -124,7 +124,7 @@ package csr;
             writecsrdata = op1|csrread;
           else
             writecsrdata = ~op1&csrread;
-          csrfile.write_csr(csr_address, writecsrdata);
+          csrfile.write_csr(csr_address, writecsrdata,  truncate(pc));
         end
       endcase
 	  	return tuple3(flush,jump_add,destination_value);
