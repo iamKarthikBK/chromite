@@ -22,3 +22,6 @@ SYNTHTOP=mkriscv
 COVERAGE=none
 TRACE=disable
 THREADS=1
+
+# DebugOptions
+RTLDUMP=True
