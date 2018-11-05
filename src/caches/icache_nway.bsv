@@ -25,6 +25,11 @@ Author: Neel Gala,Deepa N. Sarma
 Email id: neelgala@gmail.com
 Details:
 --------------------------------------------------------------------------------------------------
+// TODO :- Need to add functionality to dynamically update the way field in lb_control.
+// In case of PLRU, when there is a miss, a particular way (say way 3) is taken and stored in lb_control,
+// now if there are hits to way 3, the next repl state is gets updated but lb_control still has stale value.
+// if there is another miss now, lb will write back to cache and evict line 3 which shouldnt happen.
+// Thus need for dynamic updation of way field. test 12 in gen_test.py checks this scenario.
 */
 
 package icache_nway;
