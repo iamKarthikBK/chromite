@@ -23,6 +23,9 @@ for lineno,line in enumerate(tbfile):
       if 'ways' in line:
         line=line.split()
         ways=int(line[2])
+      if 'repl' in line:
+          line=line.split()
+          repl=line[2]
 
 print('Generating test for Following Parameters: ')
 print('Sets: '+str(sets))
@@ -30,6 +33,7 @@ print('Ways: '+str(ways))
 print('Word_size: '+str(word_size))
 print('Block_size: '+str(block_size))
 print('Addr_width: '+str(addr_width))
+print('Repl_Policy: '+str(repl))
 
 
 
@@ -284,11 +288,17 @@ def test10():
     
     address=4096+(word_size*block_size*sets) # request to old line 2, should be a miss
     write_to_file(address,read,nodelay,nofence)
-    gold_file.write(miss)
+    if repl=="PLRU" :
+        gold_file.write(miss)
+    if repl=="RROBIN" :
+        gold_file.write(miss)
 
     address=4096+(word_size*block_size*sets*(ways-1)) # request to old line 0, should be a miss 
     write_to_file(address,read,nodelay,nofence)
-    gold_file.write(miss)
+    if repl=="PLRU" :
+        gold_file.write(miss)
+    if repl=="RROBIN" :
+        gold_file.write(hit)
 
 
 
@@ -359,8 +369,10 @@ def test12():
 
     address=4096 # request to old line 3
     write_to_file(address,read,nodelay,nofence)
-    gold_file.write(miss)
-
+    if repl=="PLRU" :
+        gold_file.write(miss)
+    if repl=="RROBIN" :
+        gold_file.write(miss)
 
 # fill the set completely, req line 3(a hit), generate 2 misses, request line 3 again
 # this line 3 request should be a hit for PLRU and miss for RROBIN
@@ -396,7 +408,10 @@ def test13():
 
     address=4096
     write_to_file(address,read,nodelay,nofence) # request to old line 3
-    gold_file.write(miss)
+    if repl=="PLRU" :
+        gold_file.write(hit)
+    if repl=="RROBIN" :
+        gold_file.write(miss)
 
 
 #Filling 2 lines in different sets, then requesting the same lines in same order
