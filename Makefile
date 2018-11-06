@@ -11,9 +11,9 @@ include soc_config.inc
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
-TOP_MODULE:=mkicache_tb
-TOP_FILE:=icache_tb.bsv
-TOP_DIR:=./src/caches
+TOP_MODULE:=mkTbSoC
+TOP_FILE:=TbSoC.bsv
+TOP_DIR:=./src/testbench
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))
@@ -138,8 +138,6 @@ link_bluesim:check-env
 .PHONY: simulate
 simulate:
 	@echo Simulation...
-	@cd src/caches; python gen_test.py
-	@ln -f -s src/caches/*.mem .
 	@exec ./$(BSVOUTDIR)/out > log
 	@echo Simulation finished
 ########################################################################################
