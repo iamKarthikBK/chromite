@@ -36,6 +36,7 @@ package replacement;
   interface Ifc_replace#(numeric type sets, numeric type ways);
     method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
     method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way);
+    method Action reset_repl(Bit#(TLog#(sets)) index);
   endinterface
 
   module mkreplace#(String alg)(Ifc_replace#(sets,ways))
@@ -67,12 +68,15 @@ package replacement;
       method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way)if(!rg_init);
         random.next();
       endmethod
+      method Action reset_repl(Bit#(TLog#(sets)) index);
+        random.seed(1);
+      endmethod
     end
     else if(alg=="RROBIN")begin
-      Vector#(sets,Reg#(Bit#(TLog#(ways)))) v_count <- replicateM(mkReg(3));
+      Vector#(sets,Reg#(Bit#(TLog#(ways)))) v_count <- replicateM(mkReg(fromInteger(v_ways-1)));
       method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
         if (&(valid)==1)begin // if all lines are valid choose one to randomly replace
-          $display("replacing line :%d",readVReg(v_count)[index]);
+          $display("replacing line :%d valid: %b index: %d",readVReg(v_count)[index],valid,index);
           return readVReg(v_count)[index];
         end
         else begin // if any line empty then send that
@@ -86,8 +90,11 @@ package replacement;
         end
       endmethod
       method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way);
-        $display($time,"\tREPL: Updating index: %d",index);
+        $display("REPL: Updating index: %d",index);
         v_count[index]<=v_count[index]-1;
+      endmethod
+      method Action reset_repl(Bit#(TLog#(sets)) index);
+        v_count[index]<=fromInteger(v_ways-1);
       endmethod
     end
     else if(alg=="PLRU")begin
@@ -124,12 +131,18 @@ package replacement;
         $display($time,"\tREPL: old:%b mask:%b new: %b final: %b",v_count[index],mask,val,(v_count[index]&~mask)|(val&mask));
         v_count[index]<=(v_count[index]&~mask)|(val&mask);
       endmethod
+      method Action reset_repl(Bit#(TLog#(sets)) index);
+        v_count[index]<=5;
+      endmethod
     end
     else begin
       method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
         return ?;
       endmethod
       method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way);
+        noAction;
+      endmethod
+      method Action reset_repl(Bit#(TLog#(sets)) index);
         noAction;
       endmethod
     end
