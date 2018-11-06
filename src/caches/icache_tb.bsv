@@ -70,8 +70,9 @@ package icache_tb;
     `endif
   endinterface
 
- (*synthesize*)
- (*conflict_free="core_req_put,icache_deq_lb"*)
+  (*synthesize*)
+  (*conflict_free="core_req_put,icache_deq_lb"*)
+  (*preempts="icache_upd_data_into_cache,core_req_put"*)
   module mkicache(Ifc_icache);
                    // word size, block size, sets, ways, response_width, address width
     Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- 
@@ -104,9 +105,9 @@ package icache_tb;
   `ifdef simulate
     FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(32);
   `endif
-  RegFile#(Bit#(20), Bit#(36)) stim <- mkRegFileFullLoad("test.mem");
-  RegFile#(Bit#(20), Bit#(1))  e_meta <- mkRegFileFullLoad("gold.mem");
-  RegFile#(Bit#(20), Bit#(32)) data <- mkRegFileFullLoad("data.mem");
+  RegFile#(Bit#(10), Bit#(36)) stim <- mkRegFileFullLoad("test.mem");
+  RegFile#(Bit#(10), Bit#(1))  e_meta <- mkRegFileFullLoad("gold.mem");
+  RegFile#(Bit#(19), Bit#(32)) data <- mkRegFileFullLoad("data.mem");
 
     
   let verbosity=`VERBOSITY;
