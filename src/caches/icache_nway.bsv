@@ -390,7 +390,8 @@ package icache_nway;
     rule rl_response_to_core(!tpl_2(ff_req_queue.first) && (wr_lb_state==Hit || wr_cache_state==Hit
         || wr_io_response));
       `ifdef simulate
-        $display($time,"\tICACHE: Sending Response to the Core");
+        if (verbosity>0)
+          $display($time,"\tICACHE: Sending Response to the Core");
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
       let {addr, fence, epoch, prefetch}=ff_req_queue.first();
@@ -438,7 +439,8 @@ package icache_nway;
     rule rl_request_to_memory(wr_cache_state==Miss && wr_lb_state==Miss);
       rg_miss_ongoing<=True;
       `ifdef simulate
-        $display($time,"\tICACHE: Sending Request to Memory: ",fshow(wr_miss_from_cache));
+        if (verbosity>0)
+          $display($time,"\tICACHE: Sending Request to Memory: ",fshow(wr_miss_from_cache));
         dynamicAssert(rg_miss_ongoing==False,"Issuing a Memory request while one is ongoing");
         dynamicAssert(tpl_1(wr_miss_from_cache)==tpl_1(wr_miss_lb_cache),"Miss from LB and Cache for different\
 addresses");
