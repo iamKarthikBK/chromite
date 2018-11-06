@@ -138,6 +138,8 @@ package icache_tb;
         end
         if(control[1]==1)begin
           rg_test_count<=rg_test_count+1;
+          $display($time,"\tTB: ********** Test:%d PASSED\
+********",rg_test_count);
         end
       end
       else
@@ -151,6 +153,8 @@ package icache_tb;
       for(Integer i=0;i<5;i=i+1)
         $display($time,"\tTB: Counter-",countName(i),": %d",rg_counters[i]);
     `endif
+      $display($time,"\tTB: ********** Test:%d PASSED\
+********",rg_test_count);
       $finish(0);
     end
     $display("\n");

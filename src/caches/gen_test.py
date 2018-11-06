@@ -79,6 +79,8 @@ def write_to_file(addr,readwrite, delaycycle, fencecycle):
 # each request will be a miss in the cache and probably a hit a in the Line
 # buffer if present.
 def test1():
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
     address=4096
     for i in range(block_size):
       write_to_file(address,read,nodelay,nofence)
