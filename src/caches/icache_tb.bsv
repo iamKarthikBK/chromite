@@ -72,7 +72,7 @@ package icache_tb;
 
   (*synthesize*)
   (*conflict_free="core_req_put,icache_deq_lb"*)
-  (*preempts="icache_upd_data_into_cache,core_req_put"*)
+ // (*preempts="icache_upd_data_into_cache,core_req_put"*)
   module mkicache(Ifc_icache);
                    // word size, block size, sets, ways, response_width, address width
     Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- 
