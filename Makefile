@@ -162,7 +162,7 @@ link_bluesim:check-env
 .PHONY: simulate
 simulate:
 	@echo Simulation...
-	@exec ./$(BSVOUTDIR)/out
+	@exec ./$(BSVOUTDIR)/out > log
 	@echo Simulation finished
 ########################################################################################
 

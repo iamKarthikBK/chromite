@@ -23,6 +23,9 @@ for lineno,line in enumerate(tbfile):
       if 'ways' in line:
         line=line.split()
         ways=int(line[2])
+      if 'repl' in line:
+          line=line.split()
+          repl=line[2]
 
 print('Generating test for Following Parameters: ')
 print('Sets: '+str(sets))
@@ -30,6 +33,7 @@ print('Ways: '+str(ways))
 print('Word_size: '+str(word_size))
 print('Block_size: '+str(block_size))
 print('Addr_width: '+str(addr_width))
+print('Repl_Policy: '+str(repl))
 
 
 
@@ -75,6 +79,8 @@ def write_to_file(addr,readwrite, delaycycle, fencecycle):
 # each request will be a miss in the cache and probably a hit a in the Line
 # buffer if present.
 def test1():
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
     address=4096
     for i in range(block_size):
       write_to_file(address,read,nodelay,nofence)
@@ -202,8 +208,10 @@ def test7():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(hit)
 
-# the following test will create a scenario where a LB miss and Cache miss will
-# occur for different addresses (cache array output is registered
+# the following test will check for a possibility where a LB miss and Cache miss will
+# occur for different addresses (cache array output is registered)
+# Req to a line which will be CM, then req a word in the same line after a delay.
+# Then req a line in diff set which would be miss.
 def test8():
 
     write_to_file(0,read,nodelay,fence)
@@ -213,11 +221,11 @@ def test8():
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(miss)
 
-    for i in range(8):
-      write_to_file(address,read,delay,nofence)
-      gold_file.write(miss)
+    for i in range(5):
+        write_to_file(address,read,delay,nofence)
+        gold_file.write(miss)
   
-    address=4096
+    address=4096+(word_size*5)
     write_to_file(address,read,nodelay,nofence)
     gold_file.write(hit)
 
@@ -229,17 +237,274 @@ def test8():
 # 2*ways
 def test9():
     
-      
     write_to_file(0,read,nodelay,fence)
     gold_file.write(miss)
 
     address=4096
-    for i in range(ways+ways+1):
+    for i in range(ways+ways+ways+1):
       write_to_file(address,read,nodelay,nofence)
       gold_file.write(miss)
       address=address+(word_size*block_size*sets)
-  
 
+
+
+# first fill a set completely. Then access the lines in that set from line 0 to 3.
+# Then generate 2 misses to that set.
+# This test to assess how PLRU is affected by hits before generating those misses.
+# RR wont have an effect because of the hits.
+# gold file w.r.t PLRU
+def test10():
+
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    for i in range(ways):
+        write_to_file(address,read,nodelay,nofence)
+        gold_file.write(miss)
+        address=address+(word_size*block_size*sets)
+
+    address=4096+(word_size*block_size) # a miss to fully fill the set
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4096 # accessing lines from 0 to 3
+    address=address+(word_size*block_size*sets*(ways-1)) # this would set next_repl to be line 0
+    for i in range(ways): 
+        write_to_file(address,read,nodelay,nofence)
+        gold_file.write(hit)
+        address=address-(word_size*block_size*sets)
+        
+    address=4096
+    address=address+(word_size*block_size*sets*(ways)) # miss to the set, would replace line 0 and set next_repl to line 2
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=address+(word_size*block_size*sets) # another miss to the set, would replace line 2
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4096+(word_size*block_size*2) # miss to a different set to write back lb contents, line 0 and 2 get replaced
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+    
+    address=4096+(word_size*block_size*sets) # request to old line 2, should be a miss
+    write_to_file(address,read,nodelay,nofence)
+    if repl=="PLRU" :
+        gold_file.write(miss)
+    if repl=="RROBIN" :
+        gold_file.write(miss)
+
+    address=4096+(word_size*block_size*sets*(ways-1)) # request to old line 0, should be a miss 
+    write_to_file(address,read,nodelay,nofence)
+    if repl=="PLRU" :
+        gold_file.write(miss)
+    if repl=="RROBIN" :
+        gold_file.write(hit)
+
+
+
+## test consists of combination of misses and hits and then requesting certain lines.
+# gives better understanding of PLRU policy in a sense as how hits between misses changes next replacement line.
+# gold file w.r.t PLRU
+def test11():
+   
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    for i in range(ways+1): #  1st miss after filling the set would replace line 3, next_repl would be set to line 0 
+        write_to_file(address,read,nodelay,nofence)
+        gold_file.write(miss)
+        address=address+(word_size*block_size*sets)
+
+    address=4096
+    address=address+(word_size*block_size) # miss (to a diff set) to actually replace line 3 (needed due to lazy write back)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4096+(word_size*block_size*sets*2) # Req for line 1(2000) is hit, would set next_repl as line2
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
+
+    address=4096+(word_size*block_size*sets*5) # miss to that set would replace line 2
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4096+(word_size*block_size*2) # miss(to diff set) for lb to update cache and actually replace line 2
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4096+(word_size*block_size*sets) # request to line 2 (addr-1800) would be a miss
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+
+
+# fill a set completely, generate a miss (line 3 would be taken) but prevent lb writing back to cache.
+# generate requests to line 3 which would be hits, they would change next_repl lines.
+# genertate miss (to a diff set), it would replace line 3 as lb already had next_repl as line 3,
+# even though there were hits for line 3.
+# gold file w.r.t PLRU
+
+def test12():
+
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    for i in range(ways+1): # filling set completely + generating a miss
+        write_to_file(address,read,nodelay,nofence)
+        gold_file.write(miss)
+        address=address+(word_size*block_size*sets)
+
+    address=4096 # 2 hits to line 3
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
+
+   
+    address=4096+(word_size*block_size) # miss to make lb write back to cache
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4096 # request to old line 3
+    write_to_file(address,read,nodelay,nofence)
+    if repl=="PLRU" :
+        gold_file.write(miss)
+    if repl=="RROBIN" :
+        gold_file.write(miss)
+
+# fill the set completely, req line 3(a hit), generate 2 misses, request line 3 again
+# this line 3 request should be a hit for PLRU and miss for RROBIN
+# gold file w.r.t RROBIN
+
+def test13():
+
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    for i in range(ways):
+        write_to_file(address,read,nodelay,nofence)
+        gold_file.write(miss)
+        address=address+(word_size*block_size*sets)
+   
+    
+    address=4096+(word_size*block_size) # miss lb to write back to cache 
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4096
+    write_to_file(address,read,nodelay,nofence) #request to line 3
+    gold_file.write(hit)
+
+    address=4096+(word_size*block_size*sets*4) # 1st miss
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4096+(word_size*block_size*sets*5) # 2nd miss
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+    address=4096
+    write_to_file(address,read,nodelay,nofence) # request to old line 3
+    if repl=="PLRU" :
+        gold_file.write(hit)
+    if repl=="RROBIN" :
+        gold_file.write(miss)
+
+
+#Filling 2 lines in different sets, then requesting the same lines in same order
+#1st req would be a hit in cache and other in lb.
+#This checks for a possibility of hits coming from different addresses in same cycle.
+#Test to ensure correct implementation of RAMREG.
+def test14a():
+    
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+    
+    address=address+(word_size*block_size)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+   
+    for i in range(20):
+      write_to_file(address,read,delay,nofence)
+      gold_file.write(miss)
+  
+    address=4096 # 1st req
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
+
+    address=address+(word_size*block_size) # 2nd req
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
+   
+
+#Same idea as test 14a, but after filling the lines, the requests are made in reverse order.
+#1st req would be hit in lb, 2nd one in cache.
+#For 1st req, once it is a hit in lb, cache check (supposed to happen in cycle after lb check) wont happen at all,
+#as the req would have been dequed already.
+def test14b():
+    
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4096
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+    
+    address=address+(word_size*block_size)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+   
+    for i in range(20):
+      write_to_file(address,read,delay,nofence)
+      gold_file.write(miss)
+  
+    write_to_file(address,read,nodelay,nofence) #1st req
+    gold_file.write(hit)
+
+    address=4096 # 2nd req
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(hit)
+ 
+
+
+# Test to gaurantee consecutive IO requests are all misses and they dont change replacement state.
+# Fill up a set, then make 2 IO requests which index to the same set. Both should be misses.
+# make req to a line which maps to the above set. It would be a miss and would take way 3 as replacement,
+# even though there were 2 IO misses to that set.
+
+def test15():
+
+    write_to_file(0,read,nodelay,fence)
+    gold_file.write(miss)
+
+    address=4128
+    for i in range(ways): # filling set completely
+        write_to_file(address,read,nodelay,nofence)
+        gold_file.write(miss)
+        address=address+(word_size*block_size*sets)
+
+    address=32 # 2 IO requests indexing to same set
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+    
+    address=4128+(word_size*block_size*sets*4) # req to a new line mapping to that set
+    write_to_file(address,read,nodelay,nofence)
+    gold_file.write(miss)
+
+
+
+   
 test1()
 test2()
 test3()
@@ -249,6 +514,13 @@ test6()
 test7()
 test8()
 test9()
+test10()
+test11()
+test12()
+test13()
+test14a()
+test14b()
+test15()
 write_to_file(0,read,nodelay,nofence)
 gold_file.write(miss)
 test_file.close()
