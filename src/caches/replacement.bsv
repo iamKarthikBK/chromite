@@ -76,9 +76,11 @@ package replacement;
     else if(alg=="RROBIN")begin
       Vector#(sets,Reg#(Bit#(TLog#(ways)))) v_count <- replicateM(mkReg(fromInteger(v_ways-1)));
       method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
+        if (verbosity>1)
+          $display("valid: %b index: %d",valid,index);
         if (&(valid)==1)begin // if all lines are valid choose one to randomly replace
           if (verbosity>1)
-            $display("replacing line :%d valid: %b index: %d",readVReg(v_count)[index],valid,index);
+            $display("replacing line :%d ",readVReg(v_count)[index]);
           return readVReg(v_count)[index];
         end
         else begin // if any line empty then send that
