@@ -25,6 +25,11 @@ Author: Neel Gala,Deepa N. Sarma
 Email id: neelgala@gmail.com
 Details:
 --------------------------------------------------------------------------------------------------
+// TODO :- Need to add functionality to dynamically update the way field in lb_control.
+// In case of PLRU, when there is a miss, a particular way (say way 3) is taken and stored in lb_control,
+// now if there are hits to way 3, the next repl state is gets updated but lb_control still has stale value.
+// if there is another miss now, lb will write back to cache and evict line 3 which shouldnt happen.
+// Thus need for dynamic updation of way field. test 12 in gen_test.py checks this scenario.
 */
 
 package icache_nway;
@@ -69,6 +74,7 @@ package icache_nway;
   endinterface
 
   (*conflict_free="rl_response_to_core,rl_request_to_memory"*)
+  (*conflict_free="fence_cache,rl_request_to_memory"*)
   module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), 
            parameter Bool ramreg, String alg, Bool prefetch_en)
            (Ifc_icache_dm#(wordsize,blocksize,sets,ways,respwidth, paddr))
@@ -214,9 +220,13 @@ package icache_nway;
       for(Integer i=0;i<v_ways;i=i+1)
        tag_arr[i].write_request(rg_fence_index,'d0);
       rg_fence_index<= rg_fence_index+1;
+      if(alg=="PLRU" || alg=="RROBIN")
+        repl.reset_repl(truncate(rg_fence_index));
       if(verbosity>0)
         $display($time,"\tICACHE: Fence in progress. Index: %d",rg_fence_index);
       if(rg_fence_index==(fromInteger(v_sets-1))) begin
+        if(alg!="PLRU" && alg!="RROBIN")
+          repl.reset_repl(truncate(rg_fence_index));
         ff_req_queue.deq;
         rg_fence_stall<=False;
         if(verbosity>1)begin
@@ -380,7 +390,8 @@ package icache_nway;
     rule rl_response_to_core(!tpl_2(ff_req_queue.first) && (wr_lb_state==Hit || wr_cache_state==Hit
         || wr_io_response));
       `ifdef simulate
-        $display($time,"\tICACHE: Sending Response to the Core");
+        if (verbosity>0)
+          $display($time,"\tICACHE: Sending Response to the Core");
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
       let {addr, fence, epoch, prefetch}=ff_req_queue.first();
@@ -428,7 +439,8 @@ package icache_nway;
     rule rl_request_to_memory(wr_cache_state==Miss && wr_lb_state==Miss);
       rg_miss_ongoing<=True;
       `ifdef simulate
-        $display($time,"\tICACHE: Sending Request to Memory: ",fshow(wr_miss_from_cache));
+        if (verbosity>0)
+          $display($time,"\tICACHE: Sending Request to Memory: ",fshow(wr_miss_from_cache));
         dynamicAssert(rg_miss_ongoing==False,"Issuing a Memory request while one is ongoing");
         dynamicAssert(tpl_1(wr_miss_from_cache)==tpl_1(wr_miss_lb_cache),"Miss from LB and Cache for different\
 addresses");

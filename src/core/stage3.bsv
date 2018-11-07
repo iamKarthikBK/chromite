@@ -62,7 +62,13 @@ There twooptions to solve this issue:
 */
 package stage3;
 
-  `define multicycle (`muldiv||`spfpu)
+  `ifdef muldiv
+    `define multicycle True
+  `endif
+  `ifdef spfpu
+    `define multicycle True
+  `endif
+  
   import common_types::*;
   `include "common_params.bsv"
 	import TxRx:: *;

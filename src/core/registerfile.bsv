@@ -198,8 +198,11 @@ package registerfile;
           let{r, d, index}=in;
         `endif
 			  if(verbosity>0)begin
-          $display($time,"\tRF: Writing Rd: %d(%h) index: %d ",r,d, index, fshow(rdtype));
-          $display($time,"\tRF: arr_rename_float: ",fshow(arr_rename_float[r]));
+          $display($time,"\tRF: Writing Rd: %d(%h) index: %d ",r,d, index `ifdef spfpu 
+              , fshow(rdtype) `endif );
+          `ifdef spfpu
+            $display($time,"\tRF: arr_rename_float: ",fshow(arr_rename_float[r]));
+          `endif
         end
 
         `ifdef spfpu

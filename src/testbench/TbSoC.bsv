@@ -35,8 +35,12 @@ package TbSoC;
 	import Semi_FIFOF:: *;
 	import AXI4_Types:: *;
 	import AXI4_Fabric:: *;
-	`include "common_params.bsv"
+  import uart::*;
 	import common_types::*;
+  `include "common_params.bsv"
+  import device_common::*;
+  import DReg::*;
+
   module mkTbSoC(Empty);
 
     let def_clk <- exposeCurrentClock;
@@ -46,10 +50,16 @@ package TbSoC;
     `else
       Ifc_SoC soc <- mkSoC();
     `endif
+    
+    UserInterface#(PADDR,XLEN,16) uart <- mkuart_user(5);
+    Reg#(Bool) rg_read_rx<- mkDReg(False);
+    Reg#(Bool) rg_stop <- mkReg(False);
+
     let verbosity=`VERBOSITY;
-    Reg#(Bit#(1)) rg_cnt <-mkReg(0);
+    Reg#(Bit#(5)) rg_cnt <-mkReg(0);
+    `ifdef rtldump
  	  let dump <- mkReg(InvalidFile) ;
-    rule open_file(rg_cnt==0);
+      rule open_file_rtldump(rg_cnt<5);
       String dumpFile = "rtl.dump" ;
     	File lfh <- $fopen( dumpFile, "w" ) ;
     	if ( lfh == InvalidFile )begin
@@ -57,19 +67,50 @@ package TbSoC;
     	  $finish(0);
     	end
     	dump <= lfh ;
-    	rg_cnt <= 1 ;
+      endrule
+    `endif
+    
+ 	  let dump1 <- mkReg(InvalidFile) ;
+    rule open_file_app(rg_cnt<5);
+      String dumpFile1 = "app_log" ;
+    	File lfh1 <- $fopen( dumpFile1, "w" ) ;
+    	if (lfh1==InvalidFile )begin
+    	  if(verbosity>1) $display("cannot open %s", dumpFile1); 
+    	  $finish(0);
+    	end
+      dump1 <= lfh1;
+    	rg_cnt <= rg_cnt+1 ;
     endrule
 
-    `ifdef simulate
-      rule write_dump_file(rg_cnt!=0);
+    rule connect_uart_out;
+      soc.uart_io.sin(uart.io.sout);
+    endrule
+    rule connect_uart_in;
+      uart.io.sin(soc.uart_io.sout);
+    endrule
+
+    rule check_if_character_present(!rg_read_rx);
+      let {data,err}<- uart.read_req('hc,Byte);
+      $display($time,"\tTB: data: %b",data);
+      if (data[3]==1) // character present
+        rg_read_rx<=True;
+    endrule
+
+    rule write_received_character(rg_cnt>=5 && rg_read_rx);
+      let {data,err}<-uart.read_req('h8,Byte);
+      $fwrite(dump1,"%c",data);
+    endrule
+
+    `ifdef rtldump
+      rule write_dump_file(rg_cnt>=5 && !rg_stop);
         `ifdef spfpu
           let {prv, pc, instruction, rd, data, rdtype}<- soc.io_dump.get;
         `else
           let {prv, pc, instruction, rd, data}<- soc.io_dump.get;
         `endif
-        $display("TB pc:%h inst:%h rd:%d rdata:%h",pc,instruction,rd,data);
-        if(instruction=='h00006f||instruction =='h00a001)
+        if(instruction=='h00006f||instruction =='h00a001)begin
           $finish(0);
+	end
         else begin
   		  	$fwrite(dump, prv, " 0x%16h", pc, " (0x%8h", instruction, ")"); 
         `ifdef spfpu

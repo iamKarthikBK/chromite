@@ -67,6 +67,11 @@ The soc_config.inc file is used to configure the specs of the core and the Soc t
 |__SYNTHTOP__| Module Name| This is the module name of the design that needs to be synthesized in the FPGA.|
 |__VERBOSE__|enable,disable|This controls whether the $display statements are printed|
 |__SYNTH__|SIM, FPGA| controls whether the core is being generated for simulation or synthesis. <br/>* SIM: This will generate a core which will have some simulate-only features like file-io, etc.<br/>* FPGA: This will generate a core which will ignore the simulate-only features.
+|__COVERAGE__| none,all, line, toggle, user| This is used for verilator simulation only and enables the coverage.|
+|__TRACE__| enable, disable | This is used by verilator to enable or disable VCD dump.|
+|__THREADS__|Integer| Number of threads to be used by verilator.|
+|__RTLDUMP__|True,False| When set to true will generate a rtl.dump file with instruction trace of the application being run.|
+
 
 ### Compiling the Core/SoC ###
 
