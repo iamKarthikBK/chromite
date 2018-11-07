@@ -70,6 +70,8 @@ The soc_config.inc file is used to configure the specs of the core and the Soc t
 |__COVERAGE__| none,all, line, toggle, user| This is used for verilator simulation only and enables the coverage.|
 |__TRACE__| enable, disable | This is used by verilator to enable or disable VCD dump.|
 |__THREADS__|Integer| Number of threads to be used by verilator.|
+|__RTLDUMP__|True,False| When set to true will generate a rtl.dump file with instruction trace of the application being run.|
+
 
 ### Compiling the Core/SoC ###
 
