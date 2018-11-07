@@ -17,6 +17,11 @@ endif
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
+define presim_config
+#	@cd src/caches/;python3 gen_test.py
+#	@ln -fs src/caches/*.mem .
+endef
+
 TOP_MODULE:=mkTbSoC
 TOP_FILE:=TbSoC.bsv
 TOP_DIR:=./src/testbench
@@ -161,6 +166,7 @@ link_bluesim:check-env
 .PHONY: simulate
 simulate:
 	@echo Simulation...
+	$(call presim_config)
 	@exec ./$(BSVOUTDIR)/out > log
 	@echo Simulation finished
 ########################################################################################
