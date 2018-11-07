@@ -46,13 +46,19 @@ package ptwalk_rv32;
     interface Get#(Tuple3#(Bit#(ptesize),Bit#(1),Trap_type)) to_tlb;
     interface Put#(Bit#(32)) satp_from_csr;
     interface Put#(Bit#(2)) curr_priv;
+    interface Get#(Bit#(34)) request_to_cache;
+                          // data , err, epoch
+    interface Put#(Tuple3#(Bit#(32),Bit#(1),Bit#(1))) response_frm_cache;
   endinterface
 
   module mkptwalk_rv32(Ifc_ptwalk_rv32#(asid_width,ptesize));
     let v_asid_width = valueOf(asid_width);
+    let pagesize=12;
 
     FIFOF#(Tuple2#(Bit#(ptesize),Bit#(2))) ff_req_queue<-mkSizedFIFOF(2);
     FIFOF#(Tuple3#(Bit#(ptesize),Bit#(1),Trap_type)) ff_response<-mkSizedFIFOF(2);
+    FIFOF#(Bit#(34)) ff_memory_req<-mkSizedFIFOF(2);
+    FIFOF#(Tuple3#(Bit#(32),Bit#(1),Bit#(1))) ff_memory_response<-mkSizedFIFOF(2);
 
     // wire which hold the inputs from csr
     Wire#(Bit#(32)) wr_satp <- mkWire();
@@ -61,6 +67,9 @@ package ptwalk_rv32;
     Bit#(22) satp_ppn = truncate(wr_satp);
     Bit#(asid_width) satp_asid = wr_satp[v_asid_width-1+22:22];
     Bit#(1) satp_mode = wr_satp[31];
+
+    // register to hold the level number
+    Reg#(Bit#(1)) rg_levels <- mkReg(1);
 
     interface from_tlb=interface Put
       method Action put(Tuple2#(Bit#(ptesize),Bit#(2)) req);
@@ -86,7 +95,18 @@ package ptwalk_rv32;
         wr_priv<=priv;
       endmethod
     endinterface;
+    interface request_to_cache=interface Get
+      method ActionValue#(Bit#(34)) get;
+        ff_memory_req.deq;
+        return ff_memory_req.first();
+      endmethod
+    endinterface;
 
+    interface response_frm_cache=interface Put
+      method Action put (Tuple3#(Bit#(32),Bit#(1),Bit#(1)) resp);
+        ff_memory_response.enq(resp);
+      endmethod
+    endinterface;
   endmodule
 
   (*synthesize*)
