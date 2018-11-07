@@ -28,7 +28,7 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package ptwalk;
+package ptwalk_rv32;
   import Vector::*;
   import FIFOF::*;
   import DReg::*;
@@ -39,21 +39,28 @@ package ptwalk;
 
   import common_types::*;
 
-  interface Ifc_ptwalk#(numeric type asid_width,
+  interface Ifc_ptwalk_rv32#(numeric type asid_width,
                         numeric type ptesize);
     interface Put#(Tuple2#(Bit#(ptesize),Bit#(2))) from_tlb;
                           // ppn   , levels , trap
     interface Get#(Tuple3#(Bit#(ptesize),Bit#(1),Trap_type)) to_tlb;
-    interface Put#(Bit#(XLEN)) satp_from_csr;
+    interface Put#(Bit#(32)) satp_from_csr;
     interface Put#(Bit#(2)) curr_priv;
   endinterface
 
-  module mkptwalk(Ifc_ptwalk#(asid_width,ptesize));
+  module mkptwalk_rv32(Ifc_ptwalk_rv32#(asid_width,ptesize));
+    let v_asid_width = valueOf(asid_width);
+
     FIFOF#(Tuple2#(Bit#(ptesize),Bit#(2))) ff_req_queue<-mkSizedFIFOF(2);
     FIFOF#(Tuple3#(Bit#(ptesize),Bit#(1),Trap_type)) ff_response<-mkSizedFIFOF(2);
+
     // wire which hold the inputs from csr
-    Wire#(Bit#(XLEN)) wr_satp <- mkWire();
+    Wire#(Bit#(32)) wr_satp <- mkWire();
     Wire#(Bit#(2)) wr_priv <- mkWire();
+    
+    Bit#(22) satp_ppn = truncate(wr_satp);
+    Bit#(asid_width) satp_asid = wr_satp[v_asid_width-1+22:22];
+    Bit#(1) satp_mode = wr_satp[31];
 
     interface from_tlb=interface Put
       method Action put(Tuple2#(Bit#(ptesize),Bit#(2)) req);
@@ -69,7 +76,7 @@ package ptwalk;
     endinterface;
 
     interface satp_from_csr=interface Put
-      method Action put (Bit#(XLEN) satp);
+      method Action put (Bit#(32) satp);
         wr_satp<=satp;
       endmethod
     endinterface;
@@ -83,9 +90,9 @@ package ptwalk;
   endmodule
 
   (*synthesize*)
-  module mkinstance(Ifc_ptwalk#(9,32));
+  module mkinstance(Ifc_ptwalk_rv32#(9,32));
     let ifc();
-    mkptwalk _temp(ifc);
+    mkptwalk_rv32 _temp(ifc);
     return (ifc);
   endmodule
 endpackage
