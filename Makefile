@@ -23,7 +23,7 @@ define presim_config
 endef
 
 TOP_MODULE:=mkinstance
-TOP_FILE:=ptwalk.bsv
+TOP_FILE:=ptwalk_rv32.bsv
 TOP_DIR:=./src/caches
 WORKING_DIR := $(shell pwd)
 
