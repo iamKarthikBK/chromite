@@ -8,7 +8,6 @@ else
 endif
 include soc_config.inc
 
-
 ifeq (, $(wildcard ${TOOLS_DIR}/shakti-tools/insert_license.sh))
   VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout
 else
