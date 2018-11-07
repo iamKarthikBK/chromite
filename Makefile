@@ -17,9 +17,9 @@ endif
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
-TOP_MODULE:=mkitlb_rv32bram
-TOP_FILE:=itlb_tb.bsv
-TOP_DIR:=./src/caches
+TOP_MODULE:=mkTbSoC
+TOP_FILE:=TbSoC.bsv
+TOP_DIR:=./src/testbench
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))
