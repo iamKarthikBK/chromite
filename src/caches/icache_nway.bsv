@@ -76,7 +76,7 @@ package icache_nway;
   (*conflict_free="rl_response_to_core,rl_request_to_memory"*)
   (*conflict_free="fence_cache,rl_request_to_memory"*)
   module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), 
-           parameter Bool ramreg, String alg, Bool prefetch_en)
+           parameter Bool ramreg, String alg, Bool prefetch_en, parameter String porttype)
            (Ifc_icache_dm#(wordsize,blocksize,sets,ways,respwidth, paddr))
   provisos(
             Mul#(wordsize, 8, _w),        // _w is the total bits in a word
@@ -133,8 +133,8 @@ package icache_nway;
     Ifc_mem_config#(sets, TAdd#(1, tagbits), 1) tag_arr [v_ways];// one extra valid bit
     Ifc_replace#(sets,ways) repl <- mkreplace(alg);
     for(Integer i=0;i<v_ways;i=i+1)begin
-      data_arr[i]<-mkmem_config_h(ramreg);
-      tag_arr[i]<-mkmem_config_h(ramreg);
+      data_arr[i]<-mkmem_config_h(ramreg, porttype);
+      tag_arr[i]<-mkmem_config_h(ramreg, porttype);
     end
    
     // FIFOs for interface communication
