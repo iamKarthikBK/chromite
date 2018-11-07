@@ -17,6 +17,11 @@ endif
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
+define presim_config
+#	@cd src/caches/;python3 gen_test.py
+#	@ln -fs src/caches/*.mem .
+endef
+
 TOP_MODULE:=mkTbSoC
 TOP_FILE:=TbSoC.bsv
 TOP_DIR:=./src/testbench
@@ -114,7 +119,7 @@ VERILATOR_FLAGS = --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x
 --noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
 -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS)
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(LIB):$(FABRIC):$(UNCORE):$(TESTBENCH):$(PERIPHERALS):$(WRAPPERS):$(M_EXT)
-default: compile_bluesim link_bluesim generate_boot_files
+default: generate_verilog link_verilator 
 
 check-env:
 	@if test -z "$$BLUESPECDIR"; then echo "BLUESPECDIR variable not set"; exit 1; fi;
@@ -161,6 +166,7 @@ link_bluesim:check-env
 .PHONY: simulate
 simulate:
 	@echo Simulation...
+	$(call presim_config)
 	@exec ./$(BSVOUTDIR)/out > log
 	@echo Simulation finished
 ########################################################################################
@@ -175,11 +181,11 @@ generate_verilog: check-restore check-env
   $(define_macros) -D verilog=True $(BSVCOMPILEOPTS) $(VERILOG_FILTER) \
   -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1) 
 	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ./verilog/  
-	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM1Load.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BE.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM1.v ./verilog/
+	@cp src/common_verilog/BRAM1.v ./verilog/
+	@cp src/common_verilog/BRAM1Load.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO2.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO1.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/RevertReg.v ./verilog/
@@ -340,7 +346,7 @@ unpatch:
 .PHONY: clean
 clean:
 	rm -rf $(BSVBUILDDIR) *.log $(BSVOUTDIR) obj_dir
-	rm -f *.jou rm *.log
+	rm -f *.jou rm *.log *.mem old_vars log
 	rm -rf verification/workdir/*
 
 clean_verilog: clean 

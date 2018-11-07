@@ -33,7 +33,7 @@ package icache_tb;
   `define block_size 8
   `define addr_width 32
   `define ways 4
-  `define repl RROBIN
+  `define repl PLRU
 
   import icache_nway::*;
   //import icache_dm::*;
@@ -72,11 +72,11 @@ package icache_tb;
 
   (*synthesize*)
   (*conflict_free="core_req_put,icache_deq_lb"*)
- // (*preempts="icache_upd_data_into_cache,core_req_put"*)
+  (*conflict_free="icache_upd_data_into_cache,core_req_put"*)
   module mkicache(Ifc_icache);
                    // word size, block size, sets, ways, response_width, address width
     Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- 
-        mkicache_dm(isIO,  True, "RROBIN", False); // io function, reg-output, Replacement Alg, Prefetch
+        mkicache_dm(isIO,  True, "PLRU", False, "single"); // io function, reg-output, Replacement Alg, Prefetch
     //Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
     //False, False);
     interface core_req=icache.core_req;
