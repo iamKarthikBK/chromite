@@ -81,8 +81,23 @@ endif
 ifeq ($(USER), True)
   define_macros += -D user=True
 endif
-ifeq ($(SUPERVISOR), True)
+ifeq ($(RTLDUMP), True)
+  define_macros += -D rtldump=True
+endif
+ifeq ($(SUPERVISOR),  True)
   define_macros += -D supervisor=True
+endif
+
+
+ifeq ($(COVERAGE), none)
+else ifeq ($(COVERAGE),all)
+  coverage := --coverage
+else
+  coverage := --coverage-$(COVERAGE)
+endif
+
+ifeq ($(TRACE), enable)
+  trace := --trace
 endif
 
 define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True\
@@ -92,10 +107,12 @@ M_EXT:=./src/core/m_ext/
 FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
 UNCORE:=./src/uncore
 TESTBENCH:=./src/testbench/
-PERIPHERALS:=./src/devices/bootrom
+PERIPHERALS:=./src/devices/bootrom:./src/devices/pwm:./src/devices/uart:./src/devices/clint
 WRAPPERS:=./src/wrappers/
 LIB:=./src/common_bsv
-VERILATOR_FLAGS = --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast --noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush
+VERILATOR_FLAGS = --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
+--noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
+-Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS)
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(LIB):$(FABRIC):$(UNCORE):$(TESTBENCH):$(PERIPHERALS):$(WRAPPERS):$(M_EXT)
 default: compile_bluesim link_bluesim generate_boot_files
 
@@ -144,7 +161,7 @@ link_bluesim:check-env
 .PHONY: simulate
 simulate:
 	@echo Simulation...
-	@exec ./$(BSVOUTDIR)/out
+	@exec ./$(BSVOUTDIR)/out > log
 	@echo Simulation finished
 ########################################################################################
 
@@ -154,7 +171,7 @@ generate_verilog: check-restore check-env
 	@mkdir -p $(BSVBUILDDIR); 
 	@mkdir -p $(VERILOGDIR); 
 	@echo "old_define_macros = $(define_macros)" > old_vars
-	@bsc -u -verilog -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
+	bsc -u -verilog -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
   $(define_macros) -D verilog=True $(BSVCOMPILEOPTS) $(VERILOG_FILTER) \
   -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1) 
 	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ./verilog/  
@@ -169,6 +186,9 @@ generate_verilog: check-restore check-env
 	@cp ${BLUESPECDIR}/Verilog/FIFO20.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFOL1.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/SyncFIFO.v ./verilog/
+	@cp ${BLUESPECDIR}/Verilog/Counter.v ./verilog/
+	@cp ${BLUESPECDIR}/Verilog/SizedFIFO.v ./verilog/
+	@cp ${BLUESPECDIR}/Verilog/RegFileLoad.v ./verilog/
 	@$(VERILOGLICENSE)
 #ifeq ($(SYNTH), SIM)
 #  ifeq ($(MUL), fpga)
@@ -249,8 +269,11 @@ link_msim:
 link_verilator: 
 	@echo "Linking $(TOP_MODULE) using verilator"
 	@mkdir -p bin obj_dir
-	@verilator $(VERILATOR_FLAGS) -y $(VERILOGDIR) --exe --trace 
+	@echo "#define TOPMODULE V$(TOP_MODULE)" > src/testbench/sim_main.h
+	@echo '#include "V$(TOP_MODULE).h"' >> src/testbench/sim_main.h
+	@verilator $(VERILATOR_FLAGS) -y $(VERILOGDIR) --exe
 	@ln -f -s ../src/testbench/sim_main.cpp obj_dir/sim_main.cpp
+	@ln -f -s ../src/testbench/sim_main.h obj_dir/sim_main.h
 	@make -j8 -C obj_dir -f V$(TOP_MODULE).mk
 	@cp obj_dir/V$(TOP_MODULE) bin/out
 
@@ -281,7 +304,7 @@ vivado_build:
 
 .PHONY: regress 
 regress:  
-	@SHAKTI_HOME=$$PWD CONFIG_LOG=0 perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeRegress.pl $(opts)
+	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeRegress.pl $(opts)
 	
 .PHONY: test
 test:  
@@ -308,11 +331,11 @@ generate_boot_files:
 
 .PHONY: patch
 patch:
-	@cd $(SHAKTI_HOME)/verification/riscv-tests/env && git apply $(SHAKTI_HOME)/verification/patches/riscv-tests-shakti.patch
+	@cd $(SHAKTI_HOME)/verification/riscv-tests/env && git apply $(SHAKTI_HOME)/verification/patches/riscv-tests-shakti-signature.patch
 
 .PHONY: unpatch
 unpatch:
-	@cd $(SHAKTI_HOME)/verification/riscv-tests/env && git apply -R $(SHAKTI_HOME)/verification/patches/riscv-tests-shakti.patch
+	@cd $(SHAKTI_HOME)/verification/riscv-tests/env && git apply -R $(SHAKTI_HOME)/verification/patches/riscv-tests-shakti-signature.patch
 
 .PHONY: clean
 clean:
