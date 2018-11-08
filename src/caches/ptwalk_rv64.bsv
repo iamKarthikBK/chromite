@@ -90,7 +90,8 @@ package ptwalk_rv64;
       vpn[1]=va[29:21];
       vpn[0]=va[20:12];
 
-      Bit#(56) a = rg_levels==1?{satp_ppn,12'b0}:rg_a;
+      Bit#(2) max_levels = satp_mode==8?2:3;
+      Bit#(56) a = rg_levels==max_levels?{satp_ppn,12'b0}:rg_a;
 
       Bit#(56) pte_address=a+zeroExtend({vpn[rg_levels],3'b0});
       ff_memory_req.enq(pte_address);
@@ -108,7 +109,7 @@ package ptwalk_rv64;
       ff_memory_response.deq;
       Bit#(9) ppn0=pte[18:10];
       Bit#(9) ppn1=pte[27:19];
-      Bit#(26) ppn2=pte[53:28];
+      Bit#(9) ppn2=pte[36:28];
       
       Bool fault=False;
       Trap_type exception=tagged None;
@@ -151,7 +152,8 @@ package ptwalk_rv64;
           fault=True;
 
         // mis-aligned page fault
-        if((rg_levels==1 && ppn0!=0) || (rg_levels==2 && {ppn1,ppn0}!=0))
+        if((rg_levels==1 && ppn0!=0) || (rg_levels==2 && {ppn1,ppn0}!=0) || (rg_levels==3 && 
+                                                                {ppn2,ppn1,ppn0}!=0) )
           fault=True;
       end
 
@@ -167,7 +169,7 @@ package ptwalk_rv64;
 
         ff_response.enq(tuple3(pte,rg_levels,exception));
         ff_req_queue.deq();
-        rg_levels<=1;
+        rg_levels<=satp_mode==8?2:3;
       end
       else if (!permissions.r && !permissions.x)begin // this pointer to next level
         rg_levels<=rg_levels-1;
@@ -177,7 +179,7 @@ package ptwalk_rv64;
       else begin // Leaf PTE found
         ff_response.enq(tuple3(pte,rg_levels,exception));
         ff_req_queue.deq();
-        rg_levels<=1;
+        rg_levels<=satp_mode==8?2:3;
       end
     endrule
 
