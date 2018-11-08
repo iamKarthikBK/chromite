@@ -18,12 +18,12 @@ SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
 define presim_config
-#	@cd src/caches/;python3 gen_test.py
-#	@ln -fs src/caches/*.mem .
+	@cd src/caches/;python3 gen_test.py
+	@ln -fs src/caches/*.mem .
 endef
 
-TOP_MODULE:=mkinstance
-TOP_FILE:=dcache_nway.bsv
+TOP_MODULE:=mkdcache_tb
+TOP_FILE:=dcache_tb.bsv
 TOP_DIR:=./src/caches
 WORKING_DIR := $(shell pwd)
 
