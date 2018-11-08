@@ -28,7 +28,7 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package icache_types;
+package cache_types;
   typedef 32 ICACHEADDR;
                   // addr, Fence, epoch, prefetch
   typedef Tuple4#(Bit#(addr), Bool, Bit#(1), Bool) ICore_request#(numeric type addr);
@@ -50,4 +50,25 @@ package icache_types;
       default: return "Null";
     endcase
   endfunction
+  typedef struct {
+  	Bool v;					//valid
+  	Bool r;					//allow reads
+  	Bool w;					//allow writes
+  	Bool x;					//allow execute(instruction read)
+  	Bool u;					//allow supervisor
+  	Bool g;					//global page
+  	Bool a;					//accessed already
+  	Bool d;					//dirty
+  } TLB_permissions deriving(Bits, Eq, FShow);
+	
+  function TLB_permissions bits_to_permission(Bit#(8) perms);
+		return TLB_permissions { v : unpack(perms[0]),
+														 r : unpack(perms[1]),
+														 w : unpack(perms[2]),
+														 x : unpack(perms[3]),
+														 u : unpack(perms[4]),
+														 g : unpack(perms[5]),
+														 a : unpack(perms[6]),
+														 d : unpack(perms[7])};
+	endfunction
 endpackage

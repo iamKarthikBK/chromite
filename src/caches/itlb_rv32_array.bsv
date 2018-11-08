@@ -230,11 +230,11 @@ package itlb_rv32_array;
       // D A G U X W R V
       Bit#(8) permissions=|(hit_reg)==1?final_reg_pte[7:0]:final_mega_pte[7:0];
 
-      Bit#(22) pte=0;
+      Bit#(22) physical_address=0;
       if(|(hit_reg)==1)
-        pte=truncateLSB(final_reg_pte);
+        physical_address=truncateLSB(final_reg_pte);
       else
-        pte={final_mega_pte[31:20],vpn0};
+        physical_address={final_mega_pte[31:20],vpn0};
 
       // Check for instruction page-fault conditions
       Bool page_fault=False;
@@ -260,7 +260,7 @@ package itlb_rv32_array;
           page_fault=True;
 
        Trap_type exception=page_fault?tagged Exception Inst_pagefault:tagged None; 
-       ff_core_resp.enq(tuple2(pte,exception));
+       ff_core_resp.enq(tuple2(physical_address,exception));
        ff_req_queue.deq;
       end
       else begin
@@ -306,21 +306,30 @@ package itlb_rv32_array;
         
         Bit#(10) vpn_mega=ff_req_queue.first[31:22];
         Bit#(TLog#(mega_size)) index_mega=truncate(vpn_mega);
+      
+        Bit#(10) vpn0=ff_req_queue.first()[21:12];
 
-        if(levels==0) begin
-            tlb_pte_reg[reg_replaceway][index_reg]<=pte;
-            tlb_vtag_reg[reg_replaceway][index_reg]<={1'b1,satp_asid,vpn_reg};
-            if(v_reg_ways>1)
-              reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
+        if(trap matches tagged None) begin
+          if(levels==0) begin
+              tlb_pte_reg[reg_replaceway][index_reg]<=pte;
+              tlb_vtag_reg[reg_replaceway][index_reg]<={1'b1,satp_asid,vpn_reg};
+              if(v_reg_ways>1)
+                reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
+          end
+          else begin
+            // index into the mega page arrays
+              tlb_pte_mega[mega_replaceway] [index_mega]<=pte;
+              tlb_vtag_mega[mega_replaceway][index_mega]<={1'b1,satp_asid,vpn_mega};
+              if(v_mega_ways>1)
+                mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
+          end
         end
-        else begin
-          // index into the mega page arrays
-            tlb_pte_mega[mega_replaceway] [index_mega]<=pte;
-            tlb_vtag_mega[mega_replaceway][index_mega]<={1'b1,satp_asid,vpn_mega};
-            if(v_mega_ways>1)
-              mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
-        end
-        ff_core_resp.enq(tuple2(truncateLSB(pte),trap));
+        Bit#(22) physical_address=0;
+        if(levels==0)
+          physical_address=truncateLSB(pte);
+        else
+          physical_address={pte[31:20],vpn0};
+        ff_core_resp.enq(tuple2(physical_address,trap));
         ff_req_queue.deq;
         rg_tlb_miss<=True;
       endmethod

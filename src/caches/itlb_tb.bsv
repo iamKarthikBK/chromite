@@ -36,21 +36,21 @@ package itlb_tb;
   import BRAMCore::*;
   import FIFO::*;
 
-  import itlb_rv32_bram::*;
+//  import itlb_rv32_bram::*;
   import itlb_rv32_array::*;
   import itlb_rv64_array::*;
 
-  (*synthesize*)
-  module mkitlb_rv32bram(Ifc_itlb_rv32_bram#(8,8,1,1,9));
-    Ifc_itlb_rv32_bram#(8,8,1,1,9) itlb1 <- mkitlb_rv32_bram(True,"RANDOM","RANDOM");
-    interface core_req=itlb1.core_req;
-    interface satp_from_csr=itlb1.satp_from_csr;
-    interface curr_priv=itlb1.curr_priv;
-    interface req_to_ptw=itlb1.req_to_ptw;
-    interface core_resp=itlb1.core_resp;
-    interface resp_from_ptw=itlb1.resp_from_ptw;
-    interface fence_tlb=itlb1.fence_tlb;
-  endmodule
+//  (*synthesize*)
+//  module mkitlb_rv32bram(Ifc_itlb_rv32_bram#(8,8,1,1,9));
+//    Ifc_itlb_rv32_bram#(8,8,1,1,9) itlb1 <- mkitlb_rv32_bram(True,"RANDOM","RANDOM");
+//    interface core_req=itlb1.core_req;
+//    interface satp_from_csr=itlb1.satp_from_csr;
+//    interface curr_priv=itlb1.curr_priv;
+//    interface req_to_ptw=itlb1.req_to_ptw;
+//    interface core_resp=itlb1.core_resp;
+//    interface resp_from_ptw=itlb1.resp_from_ptw;
+//    interface fence_tlb=itlb1.fence_tlb;
+//  endmodule
   
   (*synthesize*)
   module mkitlb_rv32array(Ifc_itlb_rv32_array#(8,8,1,1,9));

@@ -33,7 +33,7 @@ Details:
 */
 
 package icache_nway;
-  import icache_types::*;
+  import cache_types::*;
   import mem_config::*;
   import GetPut::*;
   import FIFOF::*;

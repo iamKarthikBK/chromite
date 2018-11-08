@@ -49,6 +49,7 @@ package dtlb_rv32_array;
 
   import mem_config::*;
   import common_types::*;
+  import cache_types::*;
   import replacement::*;
 
   interface Ifc_dtlb_rv32_array#(
@@ -65,6 +66,7 @@ package dtlb_rv32_array;
                           // ppn   , levels , trap
     interface Put#(Tuple3#(Bit#(32),Bit#(1),Trap_type)) resp_from_ptw;
     interface Put#(Bit#(32)) satp_from_csr;
+    interface Put#(Bit#(32)) mstatus_from_csr;
     interface Put#(Bit#(2)) curr_priv;
     interface Put#(Tuple2#(Bit#(32),Bit#(32))) fence_tlb;
   endinterface
@@ -124,12 +126,15 @@ package dtlb_rv32_array;
 
     // wire which hold the inputs from csr
     Wire#(Bit#(32)) wr_satp <- mkWire();
+    Wire#(Bit#(32)) wr_mstatus <- mkWire();
     Wire#(Bit#(2)) wr_priv <- mkWire();
 
     // local variables extracted from csrs
     Bit#(22) satp_ppn = truncate(wr_satp);
     Bit#(asid_width) satp_asid = wr_satp[v_asid_width-1+22:22];
     Bit#(1) satp_mode = wr_satp[31];
+    Bit#(1) mxr = wr_mstatus[19];
+    Bit#(1) sum = wr_mstatus[18];
 
     // FIFO to hold the next input
     FIFOF#(Tuple2#(Bit#(32),Bit#(2))) ff_req_queue <- mkSizedFIFOF(2);
@@ -229,13 +234,17 @@ package dtlb_rv32_array;
       // capture the permissions of the hit entry from the TLBs
       // 7 6 5 4 3 2 1 0
       // D A G U X W R V
-      Bit#(8) permissions=|(hit_reg)==1?final_reg_pte[7:0]:final_mega_pte[7:0];
+      TLB_permissions permissions=|(hit_reg)==1?bits_to_permission(final_reg_pte[7:0]):
+                                                bits_to_permission(final_mega_pte[7:0]);
 
-      Bit#(22) pte=0;
+      Bit#(22) physical_address=0;
       if(|(hit_reg)==1)
-        pte=truncateLSB(final_reg_pte);
+        physical_address=truncateLSB(final_reg_pte);
       else
-        pte={final_mega_pte[31:20],vpn0};
+        physical_address={final_mega_pte[31:20],vpn0};
+      
+      Bit#(10) ppn0=physical_address[9:0];
+      Bit#(12) ppn1=physical_address[21:10];
 
       // Check for instruction page-fault conditions
       Bool page_fault=False;
@@ -245,29 +254,29 @@ package dtlb_rv32_array;
       end
       else if(|(hit_reg)==1 || |(hit_mega)==1) begin
         // pte.v ==0 || (pte.r==0 && pte.w==1)
-        if (permissions[0]==0 || (permissions[1]==0 && permissions[2]==1))
+        if (!permissions.v || (!permissions.r && permissions.w))
           page_fault=True;
-        // (pte.w == 0 && access=Write) || (pte.r==0 && access==Read)
-        // here we assume that the input access valid values are: 1, 2, 3.
-        else if((permissions[2]==0 && access!=1) || (permissions[1]==0 && access==1))
+        // pte.a==0 || pte.d==0 and access!=Load
+        if(!permissions.a || (!permissions.d && access!=1))
           page_fault=True;
-        // pte.a == 0
-        else if(permissions[6]==0)
+        if(access == 1 && !permissions.r && (!permissions.x || mxr==0)) // if not readable and not mxr  executable
           page_fault=True;
-        // pte.d==0 and access!=Load
-        else if(permissions[7]==0 && access!=1)
+        if(wr_priv==1 && permissions.u && sum==0) // supervisor accessing user
           page_fault=True;
-        // pte.u==0 for user mode
-        else if(permissions[4]==0 && wr_priv==0)
+        if(!permissions.u && wr_priv==0)
           page_fault=True;
-        // pte.u=1 for supervisor
-        else if(permissions[4]==1 && wr_priv==1)
+        
+        // for Store access
+        if(access == 2 && !permissions.w) // if not readable and not mxr  executable
+          page_fault=True;
+
+        if( |(hit_mega)==1 && ppn0!=0)
           page_fault=True;
 
        Trap_type exception=page_fault?(access==1)?tagged Exception Load_pagefault:
                                                   tagged Exception Store_pagefault
                                       :tagged None; 
-       ff_core_resp.enq(tuple2(pte,exception));
+       ff_core_resp.enq(tuple2(physical_address,exception));
        ff_req_queue.deq;
       end
       else begin
@@ -289,6 +298,11 @@ package dtlb_rv32_array;
     interface satp_from_csr=interface Put
       method Action put (Bit#(32) satp);
         wr_satp<=satp;
+      endmethod
+    endinterface;
+    interface mstatus_from_csr=interface Put
+      method Action put (Bit#(32) mstatus);
+        wr_mstatus<=mstatus;
       endmethod
     endinterface;
 
@@ -316,20 +330,29 @@ package dtlb_rv32_array;
         Bit#(10) vpn_mega=va[31:22];
         Bit#(TLog#(mega_size)) index_mega=truncate(vpn_mega);
 
-        if(levels==0) begin
-            tlb_pte_reg[reg_replaceway][index_reg]<=pte;
-            tlb_vtag_reg[reg_replaceway][index_reg]<={1'b1,satp_asid,vpn_reg};
-            if(v_reg_ways>1)
-              reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
+        Bit#(10) vpn0=va[21:12];
+
+        if(trap matches tagged None)begin
+          if(levels==0) begin
+              tlb_pte_reg[reg_replaceway][index_reg]<=pte;
+              tlb_vtag_reg[reg_replaceway][index_reg]<={1'b1,satp_asid,vpn_reg};
+              if(v_reg_ways>1)
+                reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
+          end
+          else begin
+            // index into the mega page arrays
+              tlb_pte_mega[mega_replaceway] [index_mega]<=pte;
+              tlb_vtag_mega[mega_replaceway][index_mega]<={1'b1,satp_asid,vpn_mega};
+              if(v_mega_ways>1)
+                mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
+          end
         end
-        else begin
-          // index into the mega page arrays
-            tlb_pte_mega[mega_replaceway] [index_mega]<=pte;
-            tlb_vtag_mega[mega_replaceway][index_mega]<={1'b1,satp_asid,vpn_mega};
-            if(v_mega_ways>1)
-              mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
-        end
-        ff_core_resp.enq(tuple2(truncateLSB(pte),trap));
+        Bit#(22) physical_address=0;
+        if(levels==0)
+          physical_address=truncateLSB(pte);
+        else
+          physical_address={pte[31:20],vpn0};
+        ff_core_resp.enq(tuple2(physical_address,trap));
         ff_req_queue.deq;
         rg_tlb_miss<=True;
       endmethod
