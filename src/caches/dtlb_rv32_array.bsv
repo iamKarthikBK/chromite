@@ -94,7 +94,7 @@ package dtlb_rv32_array;
 
     // definging the tlb entries and virtual tags for regular pages.
     Reg#(Bit#(32)) tlb_pte_reg [v_reg_ways][v_reg_size];
-    Reg#(Bit#(TAdd#(1,TAdd#(asid_width,20)))) tlb_vtag_reg [v_reg_ways][v_reg_size];
+    Reg#(Bit#(TAdd#(asid_width,20))) tlb_vtag_reg [v_reg_ways][v_reg_size];
     // VTAG stores a Valid bit, ASID and  Virtual PN,
     for(Integer i=0;i<v_reg_ways;i=i+1)begin
       for(Integer j=0;j<v_reg_size;j=j+1)begin
@@ -108,7 +108,7 @@ package dtlb_rv32_array;
     // defining the tlb entries and virtual tags for mega pages.
     Reg#(Bit#(32)) tlb_pte_mega [v_mega_ways][v_mega_size]; // data array
     // VTAG stores a Valid bit, ASID and  Virtual PN,
-    Reg#(Bit#(TAdd#(1,TAdd#(asid_width,10)))) tlb_vtag_mega [v_mega_ways][v_mega_size]; // data array
+    Reg#(Bit#(TAdd#(asid_width,10))) tlb_vtag_mega [v_mega_ways][v_mega_size]; // data array
     for(Integer i=0;i<v_mega_ways;i=i+1)begin
       for(Integer j=0;j<v_mega_size;j=j+1)begin
         tlb_pte_mega[i][j]<-mkReg(0);
@@ -179,7 +179,7 @@ package dtlb_rv32_array;
         let x=tlb_vtag_reg[i][index_reg];
         pte_vpn_reg[i]=truncate(x);
         pte_asid_reg[i]=x[20+v_asid_width-1:20];
-        pte_vpn_valid_reg[i]=truncateLSB(x);
+        pte_vpn_valid_reg[i]=pte_reg[i][0];
         global_reg[i]=pte_reg[i][5];
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)begin
@@ -213,7 +213,7 @@ package dtlb_rv32_array;
         let y=tlb_vtag_mega[i][index_mega];
         pte_vpn_mega[i]=truncate(y);
         pte_asid_mega[i]=y[10+v_asid_width-1:10];
-        pte_vpn_valid_mega[i]=truncateLSB(y);
+        pte_vpn_valid_mega[i]=pte_mega[i][0];
         global_mega[i]=pte_mega[i][5];
       end
       for(Integer i=0;i<v_mega_ways;i=i+1)begin
@@ -253,9 +253,6 @@ package dtlb_rv32_array;
         ff_req_queue.deq();
       end
       else if(|(hit_reg)==1 || |(hit_mega)==1) begin
-        // pte.v ==0 || (pte.r==0 && pte.w==1)
-        if (!permissions.v || (!permissions.r && permissions.w))
-          page_fault=True;
         // pte.a==0 || pte.d==0 and access!=Load
         if(!permissions.a || (!permissions.d && access!=1))
           page_fault=True;
@@ -335,14 +332,14 @@ package dtlb_rv32_array;
         if(trap matches tagged None)begin
           if(levels==0) begin
               tlb_pte_reg[reg_replaceway][index_reg]<=pte;
-              tlb_vtag_reg[reg_replaceway][index_reg]<={1'b1,satp_asid,vpn_reg};
+              tlb_vtag_reg[reg_replaceway][index_reg]<={satp_asid,vpn_reg};
               if(v_reg_ways>1)
                 reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
           end
           else begin
             // index into the mega page arrays
               tlb_pte_mega[mega_replaceway] [index_mega]<=pte;
-              tlb_vtag_mega[mega_replaceway][index_mega]<={1'b1,satp_asid,vpn_mega};
+              tlb_vtag_mega[mega_replaceway][index_mega]<={satp_asid,vpn_mega};
               if(v_mega_ways>1)
                 mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
           end

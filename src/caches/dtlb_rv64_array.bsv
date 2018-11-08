@@ -99,7 +99,7 @@ package dtlb_rv64_array;
 
     // defining the tlb entries and virtual tags for regular pages.
     Reg#(Bit#(54)) tlb_pte_reg [v_reg_ways][v_reg_size];
-    Reg#(Bit#(TAdd#(1,TAdd#(asid_width,27)))) tlb_vtag_reg [v_reg_ways][v_reg_size];
+    Reg#(Bit#(TAdd#(asid_width,27))) tlb_vtag_reg [v_reg_ways][v_reg_size];
     // VTAG stores a Valid bit, ASID and  Virtual PN,
     for(Integer i=0;i<v_reg_ways;i=i+1)begin
       for(Integer j=0;j<v_reg_size;j=j+1)begin
@@ -113,7 +113,7 @@ package dtlb_rv64_array;
     // defining the tlb entries and virtual tags for mega pages.
     Reg#(Bit#(54)) tlb_pte_mega [v_mega_ways][v_mega_size]; // data array
     // VTAG stores a Valid bit, ASID and  Virtual PN,
-    Reg#(Bit#(TAdd#(1,TAdd#(asid_width,18)))) tlb_vtag_mega [v_mega_ways][v_mega_size]; // data array
+    Reg#(Bit#(TAdd#(asid_width,18))) tlb_vtag_mega [v_mega_ways][v_mega_size]; // data array
     for(Integer i=0;i<v_mega_ways;i=i+1)begin
       for(Integer j=0;j<v_mega_size;j=j+1)begin
         tlb_pte_mega[i][j]<-mkReg(0);
@@ -126,7 +126,7 @@ package dtlb_rv64_array;
     // defining the tlb entries and virtual tags for giga pages.
     Reg#(Bit#(54)) tlb_pte_giga [v_giga_ways][v_giga_size]; // data array
     // VTAG stores a Valid bit, ASID and  Virtual PN,
-    Reg#(Bit#(TAdd#(1,TAdd#(asid_width,9)))) tlb_vtag_giga [v_giga_ways][v_giga_size]; // data array
+    Reg#(Bit#(TAdd#(asid_width,9))) tlb_vtag_giga [v_giga_ways][v_giga_size]; // data array
     for(Integer i=0;i<v_giga_ways;i=i+1)begin
       for(Integer j=0;j<v_giga_size;j=j+1)begin
         tlb_pte_giga[i][j]<-mkReg(0);
@@ -206,7 +206,7 @@ package dtlb_rv64_array;
         let x=tlb_vtag_reg[i][index_reg];
         pte_vpn_reg[i]=truncate(x);
         pte_asid_reg[i]=x[27+v_asid_width-1:27];
-        pte_vpn_valid_reg[i]=truncateLSB(x);
+        pte_vpn_valid_reg[i]=pte_reg[i][0];
         global_reg[i]=pte_reg[i][5];
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)begin
@@ -240,7 +240,7 @@ package dtlb_rv64_array;
         let y=tlb_vtag_mega[i][index_mega];
         pte_vpn_mega[i]=truncate(y);
         pte_asid_mega[i]=y[18+v_asid_width-1:18];
-        pte_vpn_valid_mega[i]=truncateLSB(y);
+        pte_vpn_valid_mega[i]=pte_mega[i][0];
         global_mega[i]=pte_mega[i][5];
       end
       for(Integer i=0;i<v_mega_ways;i=i+1)begin
@@ -274,7 +274,7 @@ package dtlb_rv64_array;
         let y=tlb_vtag_giga[i][index_giga];
         pte_vpn_giga[i]=truncate(y);
         pte_asid_giga[i]=y[9+v_asid_width-1:9];
-        pte_vpn_valid_giga[i]=truncateLSB(y);
+        pte_vpn_valid_giga[i]=pte_giga[i][0];
         global_giga[i]=pte_giga[i][5];
       end
       for(Integer i=0;i<v_giga_ways;i=i+1)begin
@@ -325,9 +325,6 @@ package dtlb_rv64_array;
         ff_req_queue.deq();
       end
       else if(|(hit_reg)==1 || |(hit_mega)==1 || |(hit_giga)==1 ) begin
-        // pte.v ==0 || (pte.r==0 && pte.w==1)
-        if (!permissions.v || (!permissions.r && permissions.w))
-          page_fault=True;
         // pte.a==0 || pte.d==0 and access!=Load
         if(!permissions.a || (!permissions.d && access!=1))
           page_fault=True;
@@ -409,21 +406,21 @@ package dtlb_rv64_array;
         if(trap matches tagged None)begin
           if(levels==0) begin
               tlb_pte_reg[reg_replaceway][index_reg]<=pte;
-              tlb_vtag_reg[reg_replaceway][index_reg]<={1'b1,satp_asid,vpn_reg};
+              tlb_vtag_reg[reg_replaceway][index_reg]<={satp_asid,vpn_reg};
               if(v_reg_ways>1)
                 reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
           end
           else if(levels==1)begin
             // index into the mega page arrays
               tlb_pte_mega[mega_replaceway] [index_mega]<=pte;
-              tlb_vtag_mega[mega_replaceway][index_mega]<={1'b1,satp_asid,vpn_mega};
+              tlb_vtag_mega[mega_replaceway][index_mega]<={satp_asid,vpn_mega};
               if(v_mega_ways>1)
                 mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
           end
           else begin
             // index into the giga page arrays
               tlb_pte_giga[giga_replaceway] [index_giga]<=pte;
-              tlb_vtag_giga[giga_replaceway][index_giga]<={1'b1,satp_asid,vpn_giga};
+              tlb_vtag_giga[giga_replaceway][index_giga]<={satp_asid,vpn_giga};
               if(v_giga_ways>1)
                 giga_replacement.update_set(truncate(vpn_giga),?);//TODO for plru need to send current valids
           end
