@@ -38,47 +38,154 @@ package ptwalk_rv32;
   import GetPut::*;
 
   import common_types::*;
+  import cache_types::*;
 
-  interface Ifc_ptwalk_rv32#(numeric type asid_width,
-                        numeric type ptesize);
-    interface Put#(Tuple2#(Bit#(ptesize),Bit#(2))) from_tlb;
+  interface Ifc_ptwalk_rv32#(numeric type asid_width);
+    interface Put#(Tuple2#(Bit#(32),Bit#(2))) from_tlb;
                           // ppn   , levels , trap
-    interface Get#(Tuple3#(Bit#(ptesize),Bit#(1),Trap_type)) to_tlb;
+    interface Get#(Tuple3#(Bit#(32),Bit#(1),Trap_type)) to_tlb;
     interface Put#(Bit#(32)) satp_from_csr;
+    interface Put#(Bit#(32)) mstatus_from_csr;
     interface Put#(Bit#(2)) curr_priv;
     interface Get#(Bit#(34)) request_to_cache;
                           // data , err, epoch
     interface Put#(Tuple3#(Bit#(32),Bit#(1),Bit#(1))) response_frm_cache;
   endinterface
 
-  module mkptwalk_rv32(Ifc_ptwalk_rv32#(asid_width,ptesize));
+  typedef enum {WaitForMemory, GeneratePTE} State deriving(Bits,Eq,FShow);
+
+  module mkptwalk_rv32(Ifc_ptwalk_rv32#(asid_width));
     let v_asid_width = valueOf(asid_width);
     let pagesize=12;
 
-    FIFOF#(Tuple2#(Bit#(ptesize),Bit#(2))) ff_req_queue<-mkSizedFIFOF(2);
-    FIFOF#(Tuple3#(Bit#(ptesize),Bit#(1),Trap_type)) ff_response<-mkSizedFIFOF(2);
+    FIFOF#(Tuple2#(Bit#(32),Bit#(2))) ff_req_queue<-mkSizedFIFOF(2);
+    FIFOF#(Tuple3#(Bit#(32),Bit#(1),Trap_type)) ff_response<-mkSizedFIFOF(2);
     FIFOF#(Bit#(34)) ff_memory_req<-mkSizedFIFOF(2);
     FIFOF#(Tuple3#(Bit#(32),Bit#(1),Bit#(1))) ff_memory_response<-mkSizedFIFOF(2);
 
     // wire which hold the inputs from csr
     Wire#(Bit#(32)) wr_satp <- mkWire();
+    Wire#(Bit#(32)) wr_mstatus <- mkWire();
     Wire#(Bit#(2)) wr_priv <- mkWire();
     
     Bit#(22) satp_ppn = truncate(wr_satp);
     Bit#(asid_width) satp_asid = wr_satp[v_asid_width-1+22:22];
     Bit#(1) satp_mode = wr_satp[31];
+    Bit#(1) mxr = wr_mstatus[19];
+    Bit#(1) sum = wr_mstatus[18];
 
     // register to hold the level number
     Reg#(Bit#(1)) rg_levels <- mkReg(1);
 
+    // this register is named "a" to keep coherence with the algorithem provided in the spec.
+    Reg#(Bit#(34)) rg_a <- mkReg(0);
+
+    Reg#(State) rg_state<- mkReg(GeneratePTE);
+
+    rule generate_pte(rg_state==GeneratePTE);
+      let {va,access}=ff_req_queue.first();
+
+      Bit#(10) vpn[2];
+      vpn[1]=va[31:22];
+      vpn[0]=va[21:12];
+
+      Bit#(34) a = rg_levels==1?{satp_ppn,12'b0}:rg_a;
+
+      Bit#(34) pte_address=a+zeroExtend({vpn[rg_levels],2'b0});
+      ff_memory_req.enq(pte_address);
+      rg_state<=WaitForMemory;
+    endrule
+
+    rule check_pte(rg_state==WaitForMemory);
+      let {va,access}=ff_req_queue.first();
+      Bit#(10) vpn[2];
+      vpn[1]=va[31:22];
+      vpn[0]=va[21:12];
+
+      let {pte,err,epoch}=ff_memory_response.first();
+      ff_memory_response.deq;
+      Bit#(10) ppn0=pte[19:10];
+      Bit#(12) ppn1=pte[31:20];
+      
+      Bool fault=False;
+      Trap_type exception=tagged None;
+      // capture the permissions of the hit entry from the TLBs
+      // 7 6 5 4 3 2 1 0
+      // D A G U X W R V
+      TLB_permissions permissions=bits_to_permission(truncate(pte));
+      if(err ==1) begin
+        fault=True;
+      end
+      else if (permissions.v || (!permissions.r && permissions.w))begin // access fault generated while doing PTWALK
+        fault=True;
+      end
+      else if(rg_levels==0 && !permissions.r && !permissions.x) begin // level=0 and not leaf PTE
+        fault=True;
+      end
+      else if(permissions.x||permissions.r||permissions.w) begin // valid PTE
+        // general
+        if(!permissions.a || (!permissions.d && access==2))
+          fault=True;
+
+        // for execute access
+        if(access == 0  && !permissions.x)
+          fault=True;
+        if(access == 0  && permissions.x && permissions.u && wr_priv==1)
+          fault=True;
+        if(access == 0  && permissions.x && !permissions.u && wr_priv==0)
+          fault=True;
+
+        // for load access
+        if(access == 1 && !permissions.r && (!permissions.x || mxr==0)) // if not readable and not mxr  executable
+          fault=True;
+        if(access != 0 && wr_priv==1 && permissions.u && sum==0) // supervisor accessing user
+          fault=True;
+        if(access != 0 && !permissions.u && wr_priv==0)
+          fault=True;
+        
+        // for Store access
+        if(access == 2 && !permissions.w) // if not readable and not mxr  executable
+          fault=True;
+
+        // mis-aligned page fault
+        if(rg_levels==1 && ppn0!=0)
+          fault=True;
+      end
+
+      if(fault || err==1) begin  
+        if(err==1)
+          exception = access==0?tagged Exception Inst_access_fault: 
+                    access==1?tagged Exception Load_access_fault:
+                    tagged Exception Store_access_fault;
+        else if(fault)
+          exception = access==0?tagged Exception Inst_pagefault: 
+                    access==1?tagged Exception Load_pagefault:
+                    tagged Exception Store_pagefault;
+
+        ff_response.enq(tuple3(pte,rg_levels,exception));
+        ff_req_queue.deq();
+        rg_levels<=1;
+      end
+      else if (!permissions.r && !permissions.x)begin // this pointer to next level
+        rg_levels<=rg_levels-1;
+        rg_a<={pte[31:10],12'b0};
+        rg_state<=GeneratePTE;
+      end
+      else begin // Leaf PTE found
+        ff_response.enq(tuple3(pte,rg_levels,exception));
+        ff_req_queue.deq();
+        rg_levels<=1;
+      end
+    endrule
+
     interface from_tlb=interface Put
-      method Action put(Tuple2#(Bit#(ptesize),Bit#(2)) req);
+      method Action put(Tuple2#(Bit#(32),Bit#(2)) req);
         ff_req_queue.enq(req);
       endmethod
     endinterface;
 
     interface to_tlb=interface Get
-      method ActionValue#(Tuple3#(Bit#(ptesize),Bit#(1),Trap_type)) get;
+      method ActionValue#(Tuple3#(Bit#(32),Bit#(1),Trap_type)) get;
         ff_response.deq;
         return ff_response.first();
       endmethod
@@ -107,10 +214,15 @@ package ptwalk_rv32;
         ff_memory_response.enq(resp);
       endmethod
     endinterface;
+    interface mstatus_from_csr=interface Put
+      method Action put (Bit#(32) mstatus);
+        wr_mstatus<=mstatus;
+      endmethod
+    endinterface;
   endmodule
 
   (*synthesize*)
-  module mkinstance(Ifc_ptwalk_rv32#(9,32));
+  module mkinstance(Ifc_ptwalk_rv32#(9));
     let ifc();
     mkptwalk_rv32 _temp(ifc);
     return (ifc);
