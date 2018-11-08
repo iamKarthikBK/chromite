@@ -248,11 +248,8 @@ package dtlb_rv32_bram;
         ff_req_queue.deq();
       end
       else if(|(hit_reg)==1 || |(hit_mega)==1) begin
-        // pte.v ==0 || (pte.r==0 && pte.w==1)
-        if (permissions[0]==0 || (permissions[1]==0 && permissions[2]==1))
-          page_fault=True;
         // pte.x == 0
-        else if(permissions[3]==0)
+        if(permissions[3]==0)
           page_fault=True;
         // pte.a == 0
         else if(permissions[6]==0)

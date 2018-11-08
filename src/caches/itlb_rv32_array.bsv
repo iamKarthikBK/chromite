@@ -91,7 +91,7 @@ package itlb_rv32_array;
 
     // defining the tlb entries and virtual tags for regular pages.
     Reg#(Bit#(32)) tlb_pte_reg [v_reg_ways][v_reg_size];
-    Reg#(Bit#(TAdd#(1,TAdd#(asid_width,20)))) tlb_vtag_reg [v_reg_ways][v_reg_size];
+    Reg#(Bit#(TAdd#(asid_width,20))) tlb_vtag_reg [v_reg_ways][v_reg_size];
     // VTAG stores a Valid bit, ASID and  Virtual PN,
     for(Integer i=0;i<v_reg_ways;i=i+1)begin
       for(Integer j=0;j<v_reg_size;j=j+1)begin
@@ -105,7 +105,7 @@ package itlb_rv32_array;
     // defining the tlb entries and virtual tags for mega pages.
     Reg#(Bit#(32)) tlb_pte_mega [v_mega_ways][v_mega_size]; // data array
     // VTAG stores a Valid bit, ASID and  Virtual PN,
-    Reg#(Bit#(TAdd#(1,TAdd#(asid_width,10)))) tlb_vtag_mega [v_mega_ways][v_mega_size]; // data array
+    Reg#(Bit#(TAdd#(asid_width,10))) tlb_vtag_mega [v_mega_ways][v_mega_size]; // data array
     for(Integer i=0;i<v_mega_ways;i=i+1)begin
       for(Integer j=0;j<v_mega_size;j=j+1)begin
         tlb_pte_mega[i][j]<-mkReg(0);
@@ -173,7 +173,7 @@ package itlb_rv32_array;
         let x=tlb_vtag_reg[i][index_reg];
         pte_vpn_reg[i]=truncate(x);
         pte_asid_reg[i]=x[20+v_asid_width-1:20];
-        pte_vpn_valid_reg[i]=truncateLSB(x);
+        pte_vpn_valid_reg[i]=pte_reg[i][0];
         global_reg[i]=pte_reg[i][5];
       end
       for(Integer i=0;i<v_reg_ways;i=i+1)begin
@@ -207,7 +207,7 @@ package itlb_rv32_array;
         let y=tlb_vtag_mega[i][index_mega];
         pte_vpn_mega[i]=truncate(y);
         pte_asid_mega[i]=y[10+v_asid_width-1:10];
-        pte_vpn_valid_mega[i]=truncateLSB(y);
+        pte_vpn_valid_mega[i]=pte_mega[i][0];
         global_mega[i]=pte_mega[i][5];
       end
       for(Integer i=0;i<v_mega_ways;i=i+1)begin
@@ -230,11 +230,14 @@ package itlb_rv32_array;
       // D A G U X W R V
       Bit#(8) permissions=|(hit_reg)==1?final_reg_pte[7:0]:final_mega_pte[7:0];
 
-      Bit#(22) pte=0;
+      Bit#(22) physical_address=0;
       if(|(hit_reg)==1)
-        pte=truncateLSB(final_reg_pte);
+        physical_address=truncateLSB(final_reg_pte);
       else
-        pte={final_mega_pte[31:20],vpn0};
+        physical_address={final_mega_pte[31:20],vpn0};
+      
+      Bit#(10) ppn0=physical_address[9:0];
+      Bit#(12) ppn1=physical_address[21:10];
 
       // Check for instruction page-fault conditions
       Bool page_fault=False;
@@ -243,11 +246,8 @@ package itlb_rv32_array;
         ff_req_queue.deq();
       end
       else if(|(hit_reg)==1 || |(hit_mega)==1) begin
-        // pte.v ==0 || (pte.r==0 && pte.w==1)
-        if (permissions[0]==0 || (permissions[1]==0 && permissions[2]==1))
-          page_fault=True;
         // pte.x == 0
-        else if(permissions[3]==0)
+        if(permissions[3]==0)
           page_fault=True;
         // pte.a == 0
         else if(permissions[6]==0)
@@ -258,9 +258,12 @@ package itlb_rv32_array;
         // pte.u=1 for supervisor
         else if(permissions[4]==1 && wr_priv==1)
           page_fault=True;
+        else if( |(hit_mega)==1 && ppn0!=0)
+          page_fault=True;
+
 
        Trap_type exception=page_fault?tagged Exception Inst_pagefault:tagged None; 
-       ff_core_resp.enq(tuple2(pte,exception));
+       ff_core_resp.enq(tuple2(physical_address,exception));
        ff_req_queue.deq;
       end
       else begin
@@ -306,21 +309,30 @@ package itlb_rv32_array;
         
         Bit#(10) vpn_mega=ff_req_queue.first[31:22];
         Bit#(TLog#(mega_size)) index_mega=truncate(vpn_mega);
+      
+        Bit#(10) vpn0=ff_req_queue.first()[21:12];
 
-        if(levels==0) begin
-            tlb_pte_reg[reg_replaceway][index_reg]<=pte;
-            tlb_vtag_reg[reg_replaceway][index_reg]<={1'b1,satp_asid,vpn_reg};
-            if(v_reg_ways>1)
-              reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
+        if(trap matches tagged None) begin
+          if(levels==0) begin
+              tlb_pte_reg[reg_replaceway][index_reg]<=pte;
+              tlb_vtag_reg[reg_replaceway][index_reg]<={satp_asid,vpn_reg};
+              if(v_reg_ways>1)
+                reg_replacement.update_set(truncate(vpn_reg),?);//TODO for plru need to send current valids
+          end
+          else begin
+            // index into the mega page arrays
+              tlb_pte_mega[mega_replaceway] [index_mega]<=pte;
+              tlb_vtag_mega[mega_replaceway][index_mega]<={satp_asid,vpn_mega};
+              if(v_mega_ways>1)
+                mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
+          end
         end
-        else begin
-          // index into the mega page arrays
-            tlb_pte_mega[mega_replaceway] [index_mega]<=pte;
-            tlb_vtag_mega[mega_replaceway][index_mega]<={1'b1,satp_asid,vpn_mega};
-            if(v_mega_ways>1)
-              mega_replacement.update_set(truncate(vpn_mega),?);//TODO for plru need to send current valids
-        end
-        ff_core_resp.enq(tuple2(truncateLSB(pte),trap));
+        Bit#(22) physical_address=0;
+        if(levels==0)
+          physical_address=truncateLSB(pte);
+        else
+          physical_address={pte[31:20],vpn0};
+        ff_core_resp.enq(tuple2(physical_address,trap));
         ff_req_queue.deq;
         rg_tlb_miss<=True;
       endmethod
