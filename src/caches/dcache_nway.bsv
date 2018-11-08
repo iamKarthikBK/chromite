@@ -32,7 +32,7 @@ Details:
 // Thus need for dynamic updation of way field. test 12 in gen_test.py checks this scenario.
 */
 
-package icache_nway;
+package dcache_nway;
   import cache_types::*;
   import mem_config::*;
   import GetPut::*;
@@ -54,17 +54,19 @@ package icache_nway;
   // 3. Total IO requests
   // 4. Misses which cause evictions
   
-  interface Ifc_icache_dm#(numeric type wordsize, 
+  interface Ifc_dcache_dm#(numeric type wordsize, 
                            numeric type blocksize,  
                            numeric type sets,
                            numeric type ways,
                            numeric type respwidth, 
                            numeric type paddr
                            );
-    interface Put#(ICore_request#(paddr)) core_req;
-    interface Get#(ICore_response#(respwidth)) core_resp;
-    interface Get#(IMem_request#(paddr)) mem_req;
-    interface Put#(IMem_response#(respwidth)) mem_resp;
+    interface Put#(DCore_request#(paddr)) core_req;
+    interface Get#(DCore_response#(respwidth)) core_resp;
+    interface Get#(DMem_read_request#(paddr)) read_mem_req;
+    interface Put#(DMem_read_response#(respwidth)) read_mem_resp;
+    interface Get#(DMem_write_request#(paddr,TMul#(blocksize,TMul#(wordsize,8)))) write_mem_req;
+    interface Put#(DMem_write_response) write_mem_resp;
     `ifdef simulate
       interface Get#(Bit#(1)) meta;
     `endif
@@ -75,9 +77,9 @@ package icache_nway;
 
   (*conflict_free="rl_response_to_core,rl_request_to_memory"*)
   (*conflict_free="fence_cache,rl_request_to_memory"*)
-  module mkicache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), 
+  module mkdcache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), 
            parameter Bool ramreg, String alg, Bool prefetch_en, parameter String porttype)
-           (Ifc_icache_dm#(wordsize,blocksize,sets,ways,respwidth, paddr))
+           (Ifc_dcache_dm#(wordsize,blocksize,sets,ways,respwidth, paddr))
   provisos(
             Mul#(wordsize, 8, _w),        // _w is the total bits in a word
             Mul#(blocksize, _w,linewidth),// linewidth is the total bits in a cache line
@@ -138,10 +140,13 @@ package icache_nway;
     end
    
     // FIFOs for interface communication
-    FIFOF#(ICore_response#(respwidth))ff_core_response <- mkSizedFIFOF(2);
-    FIFOF#(IMem_request#(paddr)) ff_mem_request    <- mkSizedFIFOF(2);
-    FIFOF#(IMem_response#(respwidth)) ff_mem_response  <- mkSizedFIFOF(2);
-    FIFOF#(ICore_request#(paddr)) ff_req_queue <- mkSizedFIFOF(2); 
+    FIFOF#(DCore_response#(respwidth))ff_core_response <- mkSizedFIFOF(2);
+    FIFOF#(DMem_read_request#(paddr)) ff_read_mem_request    <- mkSizedFIFOF(2);
+    FIFOF#(DMem_read_response#(respwidth)) ff_read_mem_response  <- mkSizedFIFOF(2);
+    FIFOF#(DMem_write_request#(paddr,TMul#(blocksize,TMul#(wordsize,8)))) ff_write_mem_request    
+                                                                              <- mkSizedFIFOF(2);
+    FIFOF#(DMem_write_response) ff_write_mem_response  <- mkSizedFIFOF(2);
+    FIFOF#(DCore_request#(paddr)) ff_req_queue <- mkSizedFIFOF(2); 
 
     // This register is used to indicate that a miss is ongoing and thus prevents further requests
     // from being handled.
@@ -155,10 +160,10 @@ package icache_nway;
 
     // The following wire holds the request that needs to be made to the memory for a miss in cache
     // and LB.
-    Wire#(IMem_request#(paddr)) wr_miss_from_cache <- mkDWire(tuple3(0,0,0));
+    Wire#(DMem_read_request#(paddr)) wr_miss_from_cache <- mkDWire(tuple3(0,0,0));
     Wire#(Bit#(TLog#(ways))) wr_replace_line <- mkDWire(0);
     `ifdef simulate
-      Wire#(IMem_request#(paddr)) wr_miss_lb_cache <- mkDWire(tuple3(0,0,0));
+      Wire#(DMem_read_request#(paddr)) wr_miss_lb_cache <- mkDWire(tuple3(0,0,0));
     `endif
 
     // The following wires hold the word that was received on a hit in the cache, LB or io.
@@ -182,7 +187,6 @@ package icache_nway;
     Reg#(Bit#(linewidth)) rg_lbdataline <- mkReg(0);
     Reg#(Bit#(blocksize)) rg_lbenables <- mkReg(0);
     Reg#(Bool) rg_lberr <- mkReg(False);
-
     Reg#(Bool) rg_deq_lb <- mkDReg(False);
 
     // The following register is used to capture the latest index which has been latched into the
@@ -208,7 +212,7 @@ package icache_nway;
     Bool delay_checking= ramreg && rg_delay && ff_req_queue.notFull && ff_req_queue.notEmpty;
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
-      ff_req_queue.enq(tuple4(?,True,?, False));
+      ff_req_queue.enq(tuple5(?,True,?, False, ?));
       rg_init<=False;
     endrule
 
@@ -248,7 +252,7 @@ package icache_nway;
     // one request and not the entire line.
     rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull
     && !delay_checking);
-      let {request, fence, epoch, prefetch} =ff_req_queue.first();
+      let {request, fence, epoch, prefetch, access} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
@@ -349,7 +353,7 @@ package icache_nway;
 
       
       let {lbtag,lbset,init_we, way, isIO}=ff_lb_control.first();
-      let {request, fence, epoch, prefetch}=ff_req_queue.first();
+      let {request, fence, epoch, prefetch, access}=ff_req_queue.first();
 
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -394,7 +398,7 @@ package icache_nway;
           $display($time,"\tICACHE: Sending Response to the Core");
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
-      let {addr, fence, epoch, prefetch}=ff_req_queue.first();
+      let {addr, fence, epoch, prefetch, access}=ff_req_queue.first();
       ff_req_queue.deq();
       Bit#(respwidth) word=0;
       Bool err=False;
@@ -445,11 +449,11 @@ package icache_nway;
         dynamicAssert(tpl_1(wr_miss_from_cache)==tpl_1(wr_miss_lb_cache),"Miss from LB and Cache for different\
 addresses");
       `endif
-      let {request, fence, epoch, prefetch}=ff_req_queue.first();
+      let {request, fence, epoch, prefetch, access}=ff_req_queue.first();
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
-      ff_mem_request.enq(wr_miss_from_cache);
+      ff_read_mem_request.enq(wr_miss_from_cache);
       ff_lb_control.enq(tuple5(request_tag,request_index,fn_enable(word_index),wr_replace_line,
                                                           tpl_2(wr_miss_from_cache)==0));
       if(wr_line_valid) begin
@@ -463,8 +467,8 @@ addresses");
     //Capturing memory_response
     rule capture_memory_response(&(rg_lbenables)!=1 && ff_lb_control.notEmpty);
      
-      let {word,err} = ff_mem_response.first;
-      ff_mem_response.deq;
+      let {word,err} = ff_read_mem_response.first;
+      ff_read_mem_response.deq;
 
       let {lbtag,lbset, init_we, way, isIO}=ff_lb_control.first();
       let lbenables=rg_lbenables;
@@ -547,11 +551,11 @@ addresses");
     endrule
 
     interface core_req=interface Put
-      method Action put(ICore_request#(paddr) req) if(!rg_init && !rg_fence_stall );
+      method Action put(DCore_request#(paddr) req) if(!rg_init && !rg_fence_stall );
         `ifdef perf
           wr_total_access<=1;
         `endif
-        let {addr, fence, epoch, prefetch} =req;
+        let {addr, fence, epoch, prefetch, access} =req;
         if(fence)
           rg_fence_stall<=True;
 
@@ -573,22 +577,35 @@ addresses");
     endinterface;
 
     interface core_resp = interface Get
-      method ActionValue#(ICore_response#(respwidth)) get();
+      method ActionValue#(DCore_response#(respwidth)) get();
         ff_core_response.deq;
         return ff_core_response.first;
       endmethod
     endinterface;
     
-    interface mem_req = interface Get
-      method ActionValue#(IMem_request#(paddr)) get;
-        ff_mem_request.deq;
-        return ff_mem_request.first;
+    interface read_mem_req = interface Get
+      method ActionValue#(DMem_read_request#(paddr)) get;
+        ff_read_mem_request.deq;
+        return ff_read_mem_request.first;
       endmethod
     endinterface;
 
-    interface mem_resp= interface Put
-     method Action put(IMem_response#(respwidth) resp);
-        ff_mem_response.enq(resp);
+    interface read_mem_resp= interface Put
+     method Action put(DMem_read_response#(respwidth) resp);
+        ff_read_mem_response.enq(resp);
+     endmethod
+    endinterface;
+
+    interface write_mem_req = interface Get
+      method ActionValue#(DMem_write_request#(paddr,TMul#(blocksize,TMul#(wordsize,8)))) get;
+        ff_write_mem_request.deq;
+        return ff_write_mem_request.first;
+      endmethod
+    endinterface;
+
+    interface write_mem_resp= interface Put
+     method Action put(DMem_write_response resp);
+        ff_write_mem_response.enq(resp);
      endmethod
     endinterface;
     `ifdef simulate 
@@ -604,6 +621,15 @@ addresses");
         return {wr_total_evictions,wr_total_io,wr_total_lb_hits,wr_total_cache_hits,wr_total_access};
       endmethod
     `endif
+  endmodule
+
+  (*synthesize*)
+  (*conflict_free="core_req_put,deq_lb"*)
+  (*conflict_free="upd_data_into_cache,core_req_put"*)
+  module mkinstance(Ifc_dcache_dm#(4,8,64,4,32,32));
+    let ifc();
+    mkdcache_dm#(?,  True, "PLRU", False, "single") _temp(ifc);
+    return (ifc);
   endmodule
 
 endpackage

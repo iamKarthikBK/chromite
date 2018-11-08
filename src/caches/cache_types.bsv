@@ -40,6 +40,19 @@ package cache_types;
 
   typedef enum {Hit, Miss, None} RespState deriving(Eq,Bits,FShow);
 
+                  // addr, Fence, epoch, prefetch, access_type
+  typedef Tuple5#(Bit#(addr), Bool, Bit#(1), Bool, Bit#(2)) DCore_request#(numeric type addr);
+                 // word , err , epoch
+  typedef Tuple3#(Bit#(data), Bool, Bit#(1)) DCore_response#(numeric type data);
+                // addr ,  burst len, burst_size 
+  typedef Tuple3#(Bit#(addr),  Bit#(8), Bit#(3)) DMem_read_request#(numeric type addr);
+  typedef Tuple2#(Bit#(data), Bool) DMem_read_response#(numeric type data);
+                
+                // addr ,  burst len, burst_size, data
+  typedef Tuple4#(Bit#(addr),  Bit#(8), Bit#(3), Bit#(linewidth)) DMem_write_request#(
+                                    numeric type addr, numeric type linewidth);
+  typedef Bool DMem_write_response;
+
   function String countName (Integer cntr);
     case (cntr)
       'd0: return "Total accesses";
