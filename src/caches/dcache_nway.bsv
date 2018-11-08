@@ -623,13 +623,4 @@ addresses");
     `endif
   endmodule
 
-  (*synthesize*)
-  (*conflict_free="core_req_put,deq_lb"*)
-  (*conflict_free="upd_data_into_cache,core_req_put"*)
-  module mkinstance(Ifc_dcache_dm#(4,8,64,4,32,32));
-    let ifc();
-    mkdcache_dm#(?,  True, "PLRU", False, "single") _temp(ifc);
-    return (ifc);
-  endmodule
-
 endpackage

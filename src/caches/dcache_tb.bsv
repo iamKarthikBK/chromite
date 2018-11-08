@@ -26,7 +26,7 @@ Email id: neelgala@gmail.com
 Details:
 --------------------------------------------------------------------------------------------------
 */
-package icache_tb;
+package dcache_tb;
 
   `define sets 64
   `define word_size 4
@@ -35,7 +35,7 @@ package icache_tb;
   `define ways 4
   `define repl PLRU
 
-  import icache_nway::*;
+  import dcache_nway::*;
   //import icache_dm::*;
   import cache_types::*;
   import mem_config::*;
@@ -57,44 +57,20 @@ package icache_tb;
       return False;    
   endfunction
 
-  interface Ifc_icache;
-    interface Put#(ICore_request#(32)) core_req;
-    interface Get#(ICore_response#(32)) core_resp;
-    interface Get#(IMem_request#(32)) mem_req;
-    interface Put#(IMem_response#(32)) mem_resp;
-    `ifdef simulate
-      interface Get#(Bit#(1)) meta;
-    `endif
-    `ifdef perf
-      method Bit#(5) perf_counters;
-    `endif
-  endinterface
-
   (*synthesize*)
-  (*conflict_free="core_req_put,icache_deq_lb"*)
-  (*conflict_free="icache_upd_data_into_cache,core_req_put"*)
-  module mkicache(Ifc_icache);
-                   // word size, block size, sets, ways, response_width, address width
-    Ifc_icache_dm#(`word_size , `block_size , `sets ,`ways, 32 , `addr_width ) icache <- 
-        mkicache_dm(isIO,  True, "PLRU", False, "single"); // io function, reg-output, Replacement Alg, Prefetch
-    //Ifc_icache_dm#(`word_size , `block_size , `sets , 32 , `addr_width ) icache <- mkicache_dm(isIO,
-    //False, False);
-    interface core_req=icache.core_req;
-    interface core_resp=icache.core_resp;
-    interface mem_req=icache.mem_req;
-    interface mem_resp=icache.mem_resp;
-    `ifdef simulate
-      interface meta=icache.meta;
-    `endif
-    `ifdef perf
-      method perf_counters=icache.perf_counters;
-    `endif
+  (*conflict_free="core_req_put,deq_lb"*)
+  (*conflict_free="upd_data_into_cache,core_req_put"*)
+  module mkdcache(Ifc_dcache_dm#(`word_size , `block_size , `sets , `ways ,32,`addr_width ));
+    let ifc();
+    mkdcache_dm#(isIO,  True, "PLRU", False, "single") _temp(ifc);
+    return (ifc);
   endmodule
 
-  (*synthesize*)
-  module mkicache_tb(Empty);
 
-  Ifc_icache icache <- mkicache();
+  (*synthesize*)
+  module mkdcache_tb(Empty);
+
+  let dcache <- mkdcache();
   Reg#(Bit#(32)) index<- mkReg(0);
   Reg#(Bit#(32)) e_index<- mkReg(0);
   Reg#(Maybe#(IMem_request#(32))) mem_req<- mkReg(tagged Invalid);
@@ -115,7 +91,7 @@ package icache_tb;
   `ifdef perf
   Vector#(5,Reg#(Bit#(32))) rg_counters <- replicateM(mkReg(0));
   rule performance_counters;
-    Bit#(5) incr = icache.perf_counters;
+    Bit#(5) incr = dcache.perf_counters;
     for(Integer i=0;i<5;i=i+1)
       rg_counters[i]<=rg_counters[i]+zeroExtend(incr[i]);
   endrule
@@ -124,10 +100,12 @@ package icache_tb;
     let stime<-$stime;
     if(stime>=660)begin
       let req=stim.sub(truncate(index));
+      // read/write : delay/nodelay : Fence/noFence : Null 
       Bit#(4) control = truncateLSB(req);
       if(control[2]==0)begin // if input is delayed
         if(req!=0)begin
-          icache.core_req.put(tuple4(truncate(req),unpack(control[1]),0, False));
+          dcache.core_req.put(tuple5(truncate(req),unpack(control[1]),0, False,
+              control[3]==0?1:3));
           index<=index+1;
           $display($time,"\tTB: Sending core request for addr: %h",req);
         end
@@ -162,7 +140,7 @@ package icache_tb;
   endrule
 
   rule core_resp;
-    let resp <- icache.core_resp.get();
+    let resp <- dcache.core_resp.get();
 
     let req = ff_req.first;
     let expected_data=data.sub(truncate(req));
@@ -172,7 +150,7 @@ package icache_tb;
     ff_req.deq();
 
     `ifdef simulate
-      let meta <- icache.meta.get();
+      let meta <- dcache.meta.get();
       let expected_meta=ff_meta.first();
       ff_meta.deq();
       if(expected_meta!=meta)begin
@@ -197,7 +175,7 @@ package icache_tb;
   endrule
 
   rule mem_request(mem_req matches tagged Invalid);
-    let req<- icache.mem_req.get;
+    let req<- dcache.read_mem_req.get;
     mem_req<=tagged Valid req;
     $display($time,"\tTB: Memory request",fshow(req));
   endrule
@@ -213,7 +191,7 @@ package icache_tb;
       mem_req <= tagged Valid tuple3(axi4burst_addrgen(burst,size,2,addr),burst,size); // parameterize
     end
     let dat=data.sub(truncate(addr));
-    icache.mem_resp.put(tuple2(dat,False));
+    dcache.read_mem_resp.put(tuple2(dat,False));
     $display($time,"\tTB: Memory responding with: %h ",dat);
   endrule
 
