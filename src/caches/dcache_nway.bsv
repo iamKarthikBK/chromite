@@ -132,7 +132,7 @@ package dcache_nway;
     endfunction
 
     Ifc_mem_config#(sets, linewidth, 8) data_arr [v_ways]; // data array
-    Ifc_mem_config#(sets, TAdd#(1, tagbits), 1) tag_arr [v_ways];// one extra valid bit
+    Ifc_mem_config#(sets, TAdd#(2, tagbits), 1) tag_arr [v_ways];// one extra valid bit
     Ifc_replace#(sets,ways) repl <- mkreplace(alg);
     for(Integer i=0;i<v_ways;i=i+1)begin
       data_arr[i]<-mkmem_config_h(ramreg, porttype);
@@ -188,6 +188,7 @@ package dcache_nway;
     Reg#(Bit#(blocksize)) rg_lbenables <- mkReg(0);
     Reg#(Bool) rg_lberr <- mkReg(False);
     Reg#(Bool) rg_deq_lb <- mkDReg(False);
+    Reg#(Bit#(1)) rg_lbdirty <- mkReg(0);
 
     // The following register is used to capture the latest index which has been latched into the
     // data/tag array. This is used during deque of the LB. If the request to the SRAM was to the 
@@ -263,8 +264,9 @@ package dcache_nway;
       // The following logic will check if there is a hit in any of the ways. If so, then the data
       // line corresponding to that way is extracted
       Bit#(linewidth) dataline[v_ways];
-      Bit#(TAdd#(1, tagbits)) tag[v_ways];
+      Bit#(TAdd#(2, tagbits)) tag[v_ways];
       Bit#(ways) valid;
+      Bit#(ways) dirty;
       Bit#(tagbits) stored_tag [v_ways];
       Bit#(ways) hit=0;
       Bit#(linewidth) temp[v_ways]; // mask for each way dataline.
@@ -276,7 +278,8 @@ package dcache_nway;
         dataline[i]<- data_arr[i].read_response;
       end
       for(Integer i=0;i<v_ways;i=i+1) begin
-        valid[i]=tag[i][v_tagbits];
+        dirty[i]=tag[i][v_tagbits];
+        valid[i]=tag[i][v_tagbits+1];
         stored_tag[i]=tag[i][v_tagbits-1:0];
       end
       // Find the line that was hit
@@ -524,7 +527,7 @@ addresses");
     rule upd_data_into_cache(&(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty  && !rg_deq_lb);
       let {lbtag,lbset,init_we, way, isIO}=ff_lb_control.first();
 
-      tag_arr[way].write_request(lbset,{1,lbtag});//lbtag
+      tag_arr[way].write_request(lbset,{1,rg_lbdirty,lbtag});//lbtag
       data_arr[way].write_request(lbset,truncate(rg_lbdataline));
       if(verbosity!=0)
         $display($time,"\tICACHE: LB Replacing Way :%d in set: %d tag:%h with dataline",way,
@@ -537,6 +540,7 @@ addresses");
       rg_lbenables<=0;
       rg_lbvalid<=0;
       rg_lbdataline<=0;
+      rg_lbdirty<=0;
       rg_lberr<=False;
       Bit#(setbits) set_index=rg_latest_index;
       let {lbtag,lbset, init_we, way, isIO}=ff_lb_control.first();
