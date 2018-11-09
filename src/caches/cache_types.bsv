@@ -40,8 +40,8 @@ package cache_types;
 
   typedef enum {Hit, Miss, None} RespState deriving(Eq,Bits,FShow);
 
-                  // addr, Fence, epoch, prefetch, access_type
-  typedef Tuple5#(Bit#(addr), Bool, Bit#(1), Bool, Bit#(2)) DCore_request#(numeric type addr);
+                  // addr, Fence, epoch, prefetch, access_type, access_size
+  typedef Tuple6#(Bit#(addr), Bool, Bit#(1), Bool, Bit#(2), Bit#(2)) DCore_request#(numeric type addr);
                  // word , err , epoch
   typedef Tuple3#(Bit#(data), Bool, Bit#(1)) DCore_response#(numeric type data);
                 // addr ,  burst len, burst_size 

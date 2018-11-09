@@ -106,7 +106,7 @@ package dcache_nway;
             Add#(e__, respwidth, linewidth),
             Mul#(respwidth, f__, linewidth),
             Add#(1, b__, TLog#(TAdd#(1, ways))),
-
+            Add#(i__, TAdd#(TLog#(sets), TAdd#(TLog#(blocksize), TLog#(wordsize))), paddr),
             Add#(h__, TLog#(ways), TLog#(TAdd#(1, ways)))
             );
   
@@ -120,6 +120,7 @@ package dcache_nway;
     let verbosity=`VERBOSITY;
     let v_paddr=valueOf(paddr);
     let v_ways=valueOf(ways);
+    let v_wordsize=valueOf(wordsize);
 
     staticAssert(valueOf(TExp#(TLog#(ways)))==v_ways,"\n\tWays should always be a power of 2\n");
 
@@ -205,6 +206,15 @@ package dcache_nway;
 
     Wire#(Bool) wr_line_valid <- mkDWire(False);
 
+    // registers required to perform a fence
+    Reg#(Bool) rg_pending_fence_response <-mkReg(False);
+    Reg#(Bit#(TLog#(ways))) rg_way_index <- mkReg(0);
+    Reg#(Bit#(TLog#(ways))) curr_way <-mkReg(0);
+    Reg#(Bit#(TLog#(sets))) curr_index<- mkReg(0);
+    Reg#(Bool) rg_init_delay <-mkReg(!ramreg);
+    Reg#(Bool) rg_init_delay2 <-mkReg(False);
+    Reg#(Bool) rg_global_dirty <- mkReg(False);
+
     // The following register is used only when ramreg is set to True - i.e. when the BRAM outputs
     // are registered. In this case, when a core-requests arrives, the output of the BRAMs should
     // only be checked on the next-to-next cycle (i.e. not the immediately next cycle). Also this
@@ -213,7 +223,7 @@ package dcache_nway;
     Bool delay_checking= ramreg && rg_delay && ff_req_queue.notFull && ff_req_queue.notEmpty;
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
-      ff_req_queue.enq(tuple5(?,True,?, False, ?));
+      ff_req_queue.enq(tuple6(?,True,?, False, ?, ?));
       rg_init<=False;
     endrule
 
@@ -221,21 +231,104 @@ package dcache_nway;
     // rule to fire only when there is not a pending fill to LB.
     // If this condition is not added then it is possible that LB populates the CACHE line after
     // being fenced which is wrong behavior
-    rule fence_cache(tpl_2(ff_req_queue.first) && !ff_lb_control.notEmpty && rg_fence_stall);
-      for(Integer i=0;i<v_ways;i=i+1)
-       tag_arr[i].write_request(rg_fence_index,'d0);
-      rg_fence_index<= rg_fence_index+1;
+    //
+    // Here we need to check each way of each set.
+    //
+    // If RAM has outputs registered, then the first cycle is used to only latch the address into
+    // the first way of the first set. The next cycle is then a dummy cycle, but the way_index is
+    // incremented to latch into the next way of the same set. From the third cycle onwards the data
+    // and tag bits are read and cleared. If the line is dirty then it is written back to the
+    // memory.
+    //
+    // If RAM outputs are not registered, then the same algorithm as above is followed without the
+    // second dummy cycle.
+    // 
+    // In case of initialization at reset it is possible that the tag and data RAMs respond with
+    // random data. To avoid this confusion we use a single bit global register which indicates
+    // whether there exists even a single way in the entire cache which is dirty.
+    // 
+    // Here in the same rule we are performing read and write to teh RAMs. To avoid conflicts and
+    // support single port RAMs we have curr_way and curr_index registers which are used to clear
+    // the RAM entries and rg_fence_index and rg_way_index to latch into the new RAM entries. By
+    // nature of the algorithm used below curr_way and rg_way_index can never be the same at a given
+    // cycle during the operation of the fence (i.e. after rg_init_delay2 is True)
+    //rule fence_cache(tpl_2(ff_req_queue.first) && !ff_lb_control.notEmpty && rg_fence_stall);
+    //  for(Integer i=0;i<v_ways;i=i+1)
+    //   tag_arr[i].write_request(rg_fence_index,'d0);
+    //  rg_fence_index<= rg_fence_index+1;
+    //  if(alg=="PLRU" || alg=="RROBIN")
+    //    repl.reset_repl(truncate(rg_fence_index));
+    //  if(verbosity>0)
+    //    $display($time,"\tICACHE: Fence in progress. Index: %d",rg_fence_index);
+    //  if(rg_fence_index==(fromInteger(v_sets-1))) begin
+    //    if(alg!="PLRU" && alg!="RROBIN")
+    //      repl.reset_repl(truncate(rg_fence_index));
+    //    ff_req_queue.deq;
+    //    rg_fence_stall<=False;
+    //    if(verbosity>1)begin
+    //      $display($time,"\tICACHE Params:");
+    //      $display($time,"\tv_sets: %d",v_sets);
+    //      $display($time,"\tv_ways: %d",v_ways);
+    //      $display($time,"\tv_setbits: %d",v_setbits);
+    //      $display($time,"\tv_wordbits: %d",v_wordbits);
+    //      $display($time,"\tv_blockbits: %d",v_blockbits);
+    //      $display($time,"\tv_tagbits: %d",v_tagbits);
+    //      $display($time,"\tv_num_words: %d",v_num_words);
+    //    end
+    //  end
+    //endrule
+    rule fence_cache(tpl_2(ff_req_queue.first) && !ff_lb_control.notEmpty && rg_fence_stall &&
+        !rg_pending_fence_response);
+      if(verbosity>0)begin
+        $display($time,"\tDCACHE: Fence in progress. Index: %d Way: %d",rg_fence_index,rg_way_index);
+        $display($time,"\tDCACHE: rg_init_delay: %b rg_init_delay2: %b curr_way: %d curr_index: %d",
+                      rg_init_delay,rg_init_delay2,curr_way,curr_index);
+      end
+     
       if(alg=="PLRU" || alg=="RROBIN")
         repl.reset_repl(truncate(rg_fence_index));
-      if(verbosity>0)
-        $display($time,"\tICACHE: Fence in progress. Index: %d",rg_fence_index);
-      if(rg_fence_index==(fromInteger(v_sets-1))) begin
+
+      if(rg_fence_index==0 && !rg_init_delay)
+        rg_init_delay<=True;
+      else if(rg_fence_index==0 && rg_init_delay && !rg_init_delay2)
+        rg_init_delay2<=True;
+
+      if(rg_init_delay2)begin
+        let curr_tag<-tag_arr[curr_way].read_response;
+        let curr_data<-data_arr[curr_way].read_response;
+        Bit#(1) curr_dirty = curr_tag[v_tagbits] & pack(rg_global_dirty);
+        Bit#(TAdd#(TLog#(blocksize),TLog#(wordsize))) offset=0;
+        Bit#(paddr) addr = {curr_tag[v_tagbits-1:0],curr_index,offset};
+        if (curr_dirty==1 ) begin
+          ff_write_mem_request.enq(tuple4(addr,fromInteger(valueOf(blocksize)-1),
+                              fromInteger(valueOf(TLog#(wordsize))),curr_data));
+          rg_pending_fence_response<=True;
+        end
+        if(curr_way!=rg_way_index)begin
+          tag_arr[curr_way].write_request(curr_index,'d0);
+          data_arr[curr_way].write_request(curr_index,'d0);
+          if(verbosity>0)
+            $display($time,"\tDCACHE: Fence Clearing Entry: %d Way: %d",curr_index,curr_way);
+          
+        end
+        if(verbosity>0)begin
+          $display($time,"\tDCACHE: curr_tag: %h curr_dirty: %h addr: %h",curr_tag,curr_dirty,addr);
+        end
+      end
+      tag_arr[rg_way_index].read_request(rg_fence_index);
+      data_arr[rg_way_index].read_request(rg_fence_index);
+
+
+      
+      if(rg_fence_index==0 && rg_way_index==0 && rg_init_delay && rg_init_delay2)begin
         if(alg!="PLRU" && alg!="RROBIN")
           repl.reset_repl(truncate(rg_fence_index));
         ff_req_queue.deq;
         rg_fence_stall<=False;
+        rg_init_delay<=False;
+        rg_init_delay2<=False;
         if(verbosity>1)begin
-          $display($time,"\tICACHE Params:");
+          $display($time,"\tDCACHE Params:");
           $display($time,"\tv_sets: %d",v_sets);
           $display($time,"\tv_ways: %d",v_ways);
           $display($time,"\tv_setbits: %d",v_setbits);
@@ -245,6 +338,20 @@ package dcache_nway;
           $display($time,"\tv_num_words: %d",v_num_words);
         end
       end
+      else if(rg_init_delay)begin
+        if(rg_way_index==fromInteger(v_ways-1))
+          rg_fence_index<= rg_fence_index+1;
+        rg_way_index<=rg_way_index+1;
+        curr_index<=rg_fence_index;
+        curr_way<=rg_way_index;
+      end
+  
+    endrule
+
+    rule capture_fence_response(tpl_2(ff_req_queue.first) && rg_pending_fence_response);
+      let resp=ff_write_mem_response.first();
+      ff_write_mem_response.deq;
+      rg_pending_fence_response<=False;
     endrule
     
     // Checking the data and tag arrays of the cache for a hit or miss.
@@ -253,7 +360,7 @@ package dcache_nway;
     // one request and not the entire line.
     rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull
     && !delay_checking);
-      let {request, fence, epoch, prefetch, access} =ff_req_queue.first();
+      let {request, fence, epoch, prefetch, access, size} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                           (request[v_blockbits+v_wordbits-1:0])<<3;
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
@@ -300,18 +407,18 @@ package dcache_nway;
 //      `endif
 
       if(verbosity!=0)begin
-        $display($time,"\tICACHE: Check for Address:%h ReqTag: %h ReqIndex: %d",
+        $display($time,"\tDCACHE: Check for Address:%h ReqTag: %h ReqIndex: %d",
             request,request_tag,set_index);
         for(Integer i=0;i<v_ways;i=i+1)
-          $display($time,"\tICACHE: Way: %2d Valid: %d StoredTag: %h",i,valid[i],stored_tag[i]);
+          $display($time,"\tDCACHE: Way: %2d Valid: %d StoredTag: %h",i,valid[i],stored_tag[i]);
       end
 
       // check if the request is cacheable or not
       if(is_IO(request, True))begin
         if(verbosity>0)
-          $display($time,"\tICACHE: Cache received IO request for address: %h",request);
+          $display($time,"\tDCACHE: Cache received IO request for address: %h",request);
         wr_cache_state<=Miss;
-        wr_miss_from_cache<=(tuple3(request,0,2));        
+        wr_miss_from_cache<=(tuple3(request,0,zeroExtend(size)));        
       end
       // check if hit  in the cache
       else if(cachehit) begin // hit in cache
@@ -325,7 +432,8 @@ package dcache_nway;
       // generate a miss
       else begin
         wr_cache_state<=Miss;
-        wr_miss_from_cache<=  (tuple3(request,fromInteger(valueOf(blocksize)-1),2));
+        wr_miss_from_cache<= (tuple3(request,fromInteger(valueOf(blocksize)-1),
+                fromInteger(valueOf(TLog#(wordsize)))   ));
 
         // We need to make sure that the replacement policy accounts for the fact that
         // there exists a line in the line-buffer which is mapped to the same index as the current
@@ -341,7 +449,7 @@ package dcache_nway;
         let x<-repl.line_replace(set_index, valid);
         wr_replace_line<=x; 
         if(verbosity!=0)
-            $display($time,"\tICACHE: Miss in Cache for addr: %h. Replacing line: %d",request,x);
+            $display($time,"\tDCACHE: Miss in Cache for addr: %h. Replacing line: %d",request,x);
       end
     endrule
 
@@ -356,7 +464,7 @@ package dcache_nway;
 
       
       let {lbtag,lbset,init_we, way, isIO}=ff_lb_control.first();
-      let {request, fence, epoch, prefetch, access}=ff_req_queue.first();
+      let {request, fence, epoch, prefetch, access, size}=ff_req_queue.first();
 
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -367,15 +475,15 @@ package dcache_nway;
       // check if line-buffer holds the line containing the word requested
       if(lbtag==request_tag && lbset==request_index && ff_lb_control.notEmpty) begin
         if(verbosity!=0)
-          $display($time,"\tICACHE: Polling LB Holds the line for address: %h",request);
+          $display($time,"\tDCACHE: Polling LB Holds the line for address: %h",request);
         // check if the word is available in the line-buffer.
         if(rg_lbenables[word_index]!=1||rg_lbvalid!=1) begin
           if(verbosity!=0)
-            $display($time,"\tICACHE: Polling Miss. Word not found in LB for address: %h",request);
+            $display($time,"\tDCACHE: Polling Miss. Word not found in LB for address: %h",request);
         end  
         else begin
           if(verbosity!=0)
-              $display($time,"\tICACHE: Polling Hit. Word present in LB for address: %h",request);
+              $display($time,"\tDCACHE: Polling Hit. Word present in LB for address: %h",request);
           Bit#(respwidth) word_response = truncate(rg_lbdataline>>block_offset); 
           wr_hit_lb<=(tuple2(word_response,rg_lberr));// word and no bus-error;
           wr_lb_state<=Hit;
@@ -383,10 +491,11 @@ package dcache_nway;
       end
       else begin
         if(verbosity!=0)
-          $display($time,"\tICACHE: Miss in LB for address: %h",request);
+          $display($time,"\tDCACHE: Miss in LB for address: %h",request);
         wr_lb_state<=Miss;
         `ifdef simulate
-          wr_miss_lb_cache<=(tuple3(request,fromInteger(valueOf(blocksize)-1),2));
+          wr_miss_lb_cache<=(tuple3(request,fromInteger(valueOf(blocksize)-1),
+                  fromInteger(valueOf(TLog#(wordsize)))   ));
         `endif
       end
     endrule
@@ -398,10 +507,10 @@ package dcache_nway;
         || wr_io_response));
       `ifdef simulate
         if (verbosity>0)
-          $display($time,"\tICACHE: Sending Response to the Core");
+          $display($time,"\tDCACHE: Sending Response to the Core");
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
-      let {addr, fence, epoch, prefetch, access}=ff_req_queue.first();
+      let {addr, fence, epoch, prefetch, access, size}=ff_req_queue.first();
       ff_req_queue.deq();
       Bit#(respwidth) word=0;
       Bool err=False;
@@ -447,12 +556,12 @@ package dcache_nway;
       rg_miss_ongoing<=True;
       `ifdef simulate
         if (verbosity>0)
-          $display($time,"\tICACHE: Sending Request to Memory: ",fshow(wr_miss_from_cache));
+          $display($time,"\tDCACHE: Sending Request to Memory: ",fshow(wr_miss_from_cache));
         dynamicAssert(rg_miss_ongoing==False,"Issuing a Memory request while one is ongoing");
         dynamicAssert(tpl_1(wr_miss_from_cache)==tpl_1(wr_miss_lb_cache),"Miss from LB and Cache for different\
 addresses");
       `endif
-      let {request, fence, epoch, prefetch, access}=ff_req_queue.first();
+      let {request, fence, epoch, prefetch, access, size}=ff_req_queue.first();
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
@@ -495,10 +604,10 @@ addresses");
       end
 
       if (verbosity!=0) begin
-        $display($time,"\tICACHE: Receiving Memory Response. Word: %h err: %b",word,err);
-        $display($time,"\tICACHE: Lbenables changes to:%b",lbenables);
-        $display($time,"\tICACHE: WE :%b",temp);
-        $display($time,"\tICACHE: MASK:%h",mask);
+        $display($time,"\tDCACHE: Receiving Memory Response. Word: %h err: %b",word,err);
+        $display($time,"\tDCACHE: Lbenables changes to:%b",lbenables);
+        $display($time,"\tDCACHE: WE :%b",temp);
+        $display($time,"\tDCACHE: MASK:%h",mask);
       end
 
       Bit#(linewidth) y  = duplicate(word) ; 
@@ -519,7 +628,7 @@ addresses");
                                                 temp[valueOf(blocksize)-1]};
       end
       if(verbosity!=0)
-        $display($time,"\tICACHE: Updating line_buffer:%h",x);
+        $display($time,"\tDCACHE: Updating line_buffer:%h",x);
 
     endrule
 
@@ -530,7 +639,7 @@ addresses");
       tag_arr[way].write_request(lbset,{1,rg_lbdirty,lbtag});//lbtag
       data_arr[way].write_request(lbset,truncate(rg_lbdataline));
       if(verbosity!=0)
-        $display($time,"\tICACHE: LB Replacing Way :%d in set: %d tag:%h with dataline",way,
+        $display($time,"\tDCACHE: LB Replacing Way :%d in set: %d tag:%h with dataline",way,
                                         lbset,lbtag,rg_lbdataline);
       rg_deq_lb<=True;
     endrule
@@ -546,7 +655,7 @@ addresses");
       let {lbtag,lbset, init_we, way, isIO}=ff_lb_control.first();
       if (lbset==set_index) begin
         if(verbosity>0)
-          $display($time,"\tICACHE: Resending request to cache for index: %d",set_index);
+          $display($time,"\tDCACHE: Resending request to cache for index: %d",set_index);
         for(Integer i=0;i<v_ways;i=i+1)begin
           data_arr[i].read_request(set_index);
           tag_arr[i].read_request(set_index);
@@ -559,7 +668,7 @@ addresses");
         `ifdef perf
           wr_total_access<=1;
         `endif
-        let {addr, fence, epoch, prefetch, access} =req;
+        let {addr, fence, epoch, prefetch, access, size} =req;
         if(fence)
           rg_fence_stall<=True;
 
@@ -571,9 +680,9 @@ addresses");
         end
         rg_latest_index<=set_index;
         if (verbosity!=0) begin
-		      $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d",
+		      $display($time,"\tDCACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d",
               addr, fence, epoch, set_index); 
-		      $display($time,"\tICACHE: Access Cache for Addr: %h Index: %d",addr,set_index); 
+		      $display($time,"\tDCACHE: Access Cache for Addr: %h Index: %d",addr,set_index); 
         end
         if(ramreg)
           rg_delay<=True;

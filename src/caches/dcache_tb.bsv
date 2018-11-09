@@ -104,8 +104,8 @@ package dcache_tb;
       Bit#(4) control = truncateLSB(req);
       if(control[2]==0)begin // if input is delayed
         if(req!=0)begin
-          dcache.core_req.put(tuple5(truncate(req),unpack(control[1]),0, False,
-              control[3]==0?1:3));
+          dcache.core_req.put(tuple6(truncate(req),unpack(control[1]),0, False,
+              control[3]==0?1:3, 2));
           index<=index+1;
           $display($time,"\tTB: Sending core request for addr: %h",req);
         end
@@ -136,7 +136,6 @@ package dcache_tb;
 ********",rg_test_count);
       $finish(0);
     end
-    $display("\n");
   endrule
 
   rule core_resp;
@@ -193,6 +192,10 @@ package dcache_tb;
     let dat=data.sub(truncate(addr));
     dcache.read_mem_resp.put(tuple2(dat,False));
     $display($time,"\tTB: Memory responding with: %h ",dat);
+  endrule
+
+  rule extra_line;
+    $display("\n",$time);
   endrule
 
 endmodule
