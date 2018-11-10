@@ -113,7 +113,10 @@ package dcache_nway;
             Add#(h__, TLog#(ways), TLog#(TAdd#(1, ways))),
             Add#(j__, 16, respwidth),
             Add#(k__, 8, respwidth),
-            Add#(l__, respwidth, TMul#(blocksize, TMul#(wordsize, 8)))
+            Add#(l__, respwidth, TMul#(blocksize, TMul#(wordsize, 8))),
+            Mul#(32, m__, respwidth),
+            Mul#(16, n__, respwidth),
+            Mul#(8, o__, respwidth)
             );
   
     let v_sets=valueOf(sets);
@@ -177,6 +180,8 @@ package dcache_nway;
     Wire#(Tuple2#(Bit#(respwidth),Bool)) wr_hit_cache <- mkDWire(tuple2(0,False));
     Wire#(Tuple2#(Bit#(respwidth),Bool)) wr_hit_lb <- mkDWire(tuple2(0,False));
     Wire#(Tuple2#(Bit#(respwidth),Bool)) wr_hit_io <- mkDWire(tuple2(0,False));
+    Wire#(Bit#(linewidth)) wr_lbhit_mask<-mkDWire(0);
+    Wire#(Bit#(linewidth)) wr_lbhit_data<-mkDWire(0);
 
     `ifdef simulate
       FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(2);
@@ -196,6 +201,8 @@ package dcache_nway;
     Reg#(Bool) rg_lberr <- mkReg(False);
     Reg#(Bool) rg_deq_lb <- mkDReg(False);
     Reg#(Bit#(1)) rg_lbdirty <- mkReg(0);
+    Wire#(Bit#(linewidth)) wr_miss_mask<-mkDWire(0);
+    Wire#(Bit#(linewidth)) wr_miss_data<-mkDWire(0);
 
     // The following register is used to capture the latest index which has been latched into the
     // data/tag array. This is used during deque of the LB. If the request to the SRAM was to the 
@@ -449,8 +456,18 @@ package dcache_nway;
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
-                                                          (request[v_blockbits+v_wordbits-1:0])<<3;
-
+                                                      {request[v_blockbits+v_wordbits-1:0],3'b0};
+      
+      Bit#(linewidth) mask = size==0?'hFF:size==1?'hFFFF:size==2?'hFFFFFFFF:'hFFFFFFFFFFFFFFFF;
+      mask=mask<<block_offset;
+      data = 
+      case (size[1:0])
+        'b00: duplicate(data[7:0]);
+        'b01: duplicate(data[15:0]);
+        'b10: duplicate(data[31:0]);
+        default: data;
+      endcase;
+      
       // check if line-buffer holds the line containing the word requested
       if(lbtag==request_tag && lbset==request_index && ff_lb_control.notEmpty) begin
         if(verbosity!=0)
@@ -464,6 +481,10 @@ package dcache_nway;
           if(verbosity!=0)
               $display($time,"\tDCACHE: Polling Hit. Word present in LB for address: %h",request);
           Bit#(respwidth) word_response = truncate(rg_lbdataline>>block_offset); 
+          if(access==2) begin // Store operation
+            wr_lbhit_mask<=mask;
+            wr_lbhit_data<=duplicate(data);
+          end
           wr_hit_lb<=(tuple2(word_response,rg_lberr));// word and no bus-error;
           wr_lb_state<=Hit;
         end
@@ -592,10 +613,10 @@ addresses");
      //Each bit in write_enable register refers to corresponding word in block 
       
       Bit#(linewidth) mask = 0;
+      let v_word_len = valueOf(word_len);
       for(Integer i=0;i<valueOf(blocksize);i=i+1)
       begin
             Bit#(respwidth) ex_we=duplicate(temp[i]);
-            let v_word_len = valueOf(word_len);
             mask[((i*v_word_len)+(v_word_len-1)):i*v_word_len]=ex_we;
       end
 
@@ -607,17 +628,35 @@ addresses");
       end
 
       Bit#(linewidth) y  = duplicate(word) ; 
-      let new_word_line  = y & mask;
-      Bit#(linewidth) x  = rg_lbdataline|new_word_line;
+      wr_miss_mask<=mask;
+      wr_miss_data<=y;
+      //let new_word_line  = y & mask;
+      //Bit#(linewidth) x  = rg_lbdataline|new_word_line;
+      //rg_lbdataline<=x;
       rg_lbvalid<=1;
-      rg_lbdataline<=x;
       rg_lbenables<=lbenables;
       rg_lberr<=rg_lberr||err;
       rg_blockenable <= {temp[valueOf(blocksize)-2:0],
                                               temp[valueOf(blocksize)-1]};
+
+    endrule
+
+    // This rule will update the linebuffer when the memory responds or if there is a store hit to
+    // the linebuffer. Masks from the hit or memory response are used to create a common maske and
+    // the linebuffer is updated accordingly.
+    rule update_linebuffer(!rg_deq_lb);
+      Bit#(linewidth) final_mask = wr_miss_mask|wr_lbhit_mask;
+      Bit#(linewidth) final_data = wr_miss_data|wr_lbhit_data;
+      `ifdef simulate
+        dynamicAssert((wr_miss_mask&wr_lbhit_mask) == 0,"Memory and New request updating common \
+fields in the LB");
+      `endif
+      Bit#(linewidth) x=(~final_mask&rg_lbdataline) | (final_mask&final_data);
+      rg_lbdataline<= (~final_mask&rg_lbdataline) | (final_mask&final_data);
+      if(wr_lbhit_mask!=0) // If there is store to the linebuffer mark it as dirty before.
+        rg_lbdirty<=1;
       if(verbosity!=0)
         $display($time,"\tDCACHE: Updating line_buffer:%h",x);
-
     endrule
     
     // thsi rule will fire when the response for a IO read request has arrived
@@ -643,7 +682,8 @@ addresses");
     endrule
 
     //Loading data into the cache from line_buffer
-    rule upd_data_into_cache(&(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty  && !rg_deq_lb);
+    rule upd_data_into_cache(&(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && 
+                                                            ff_lb_control.notEmpty  && !rg_deq_lb);
       let {lbtag,lbset,init_we, way, isIO}=ff_lb_control.first();
 
       tag_arr[way].write_request(lbset,{1,rg_lbdirty,lbtag});//lbtag
