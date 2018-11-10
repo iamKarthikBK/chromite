@@ -104,8 +104,8 @@ package dcache_tb;
       Bit#(4) control = truncateLSB(req);
       if(control[2]==0)begin // if input is delayed
         if(req!=0)begin
-          dcache.core_req.put(tuple6(truncate(req),unpack(control[1]),0, False,
-              control[3]==0?1:3, 2));
+          dcache.core_req.put(tuple7(truncate(req),unpack(control[1]),0, False,
+              control[3]==0?1:3, 2, ?));
           index<=index+1;
           $display($time,"\tTB: Sending core request for addr: %h",req);
         end

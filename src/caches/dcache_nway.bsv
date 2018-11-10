@@ -61,7 +61,7 @@ package dcache_nway;
                            numeric type respwidth, 
                            numeric type paddr
                            );
-    interface Put#(DCore_request#(paddr)) core_req;
+    interface Put#(DCore_request#(paddr,respwidth)) core_req;
     interface Get#(DCore_response#(respwidth)) core_resp;
     interface Get#(DMem_read_request#(paddr)) read_mem_req;
     interface Put#(DMem_read_response#(respwidth)) read_mem_resp;
@@ -77,6 +77,7 @@ package dcache_nway;
 
   (*conflict_free="rl_response_to_core,rl_request_to_memory"*)
   (*conflict_free="fence_cache,rl_request_to_memory"*)
+  (*conflict_free="capture_memory_response,capture_io_write"*)
   module mkdcache_dm#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable), 
            parameter Bool ramreg, String alg, Bool prefetch_en, parameter String porttype)
            (Ifc_dcache_dm#(wordsize,blocksize,sets,ways,respwidth, paddr))
@@ -111,7 +112,8 @@ package dcache_nway;
             Add#(i__, TAdd#(TLog#(sets), TAdd#(TLog#(blocksize), TLog#(wordsize))), paddr),
             Add#(h__, TLog#(ways), TLog#(TAdd#(1, ways))),
             Add#(j__, 16, respwidth),
-            Add#(k__, 8, respwidth)
+            Add#(k__, 8, respwidth),
+            Add#(l__, respwidth, TMul#(blocksize, TMul#(wordsize, 8)))
             );
   
     let v_sets=valueOf(sets);
@@ -151,7 +153,7 @@ package dcache_nway;
     FIFOF#(DMem_write_request#(paddr,TMul#(blocksize,TMul#(wordsize,8)))) ff_write_mem_request    
                                                                               <- mkSizedFIFOF(2);
     FIFOF#(DMem_write_response) ff_write_mem_response  <- mkSizedFIFOF(2);
-    FIFOF#(DCore_request#(paddr)) ff_req_queue <- mkSizedFIFOF(2); 
+    FIFOF#(DCore_request#(paddr,respwidth)) ff_req_queue <- mkSizedFIFOF(2); 
 
     // This register is used to indicate that a miss is ongoing and thus prevents further requests
     // from being handled.
@@ -227,7 +229,7 @@ package dcache_nway;
     Bool delay_checking= ramreg && rg_delay && ff_req_queue.notFull && ff_req_queue.notEmpty;
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
-      ff_req_queue.enq(tuple6(?,True,?, False, ?, ?));
+      ff_req_queue.enq(tuple7(?,True,?, False, ?, ?, ?));
       rg_init<=False;
     endrule
 
@@ -297,8 +299,6 @@ package dcache_nway;
       tag_arr[rg_way_index].read_request(rg_fence_index);
       data_arr[rg_way_index].read_request(rg_fence_index);
 
-
-      
       if(rg_fence_index==0 && rg_way_index==0 && rg_init_delay && rg_init_delay2)begin
         if(alg!="PLRU" && alg!="RROBIN")
           repl.reset_repl(truncate(rg_fence_index));
@@ -339,7 +339,7 @@ package dcache_nway;
     // one request and not the entire line.
     rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull
     && !delay_checking);
-      let {request, fence, epoch, prefetch, access, size} =ff_req_queue.first();
+      let {request, fence, epoch, prefetch, access, size, data} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                         {request[v_blockbits+v_wordbits-1:0],3'b0};
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
@@ -443,7 +443,7 @@ package dcache_nway;
 
       
       let {lbtag,lbset,init_we, way, isIO}=ff_lb_control.first();
-      let {request, fence, epoch, prefetch, access, size}=ff_req_queue.first();
+      let {request, fence, epoch, prefetch, access, size, data}=ff_req_queue.first();
 
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -489,7 +489,7 @@ package dcache_nway;
           $display($time,"\tDCACHE: Sending Response to the Core");
         dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
       `endif
-      let {addr, fence, epoch, prefetch, access, size}=ff_req_queue.first();
+      let {addr, fence, epoch, prefetch, access, size, data}=ff_req_queue.first();
       ff_req_queue.deq();
       Bit#(respwidth) word=0;
       Bool err=False;
@@ -552,11 +552,15 @@ package dcache_nway;
         dynamicAssert(tpl_1(wr_miss_from_cache)==tpl_1(wr_miss_lb_cache),"Miss from LB and Cache for different\
 addresses");
       `endif
-      let {request, fence, epoch, prefetch, access, size}=ff_req_queue.first();
+      let {request, fence, epoch, prefetch, access, size, data}=ff_req_queue.first();
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits]; 
       let request_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
-      ff_read_mem_request.enq(wr_miss_from_cache);
+      if(tpl_2(wr_miss_from_cache)==0 && access==2) // IO operation which is store
+        ff_write_mem_request.enq(tuple4(tpl_1(wr_miss_from_cache),0,zeroExtend(size[1:0]),
+                                                                                zeroExtend(data)));
+      else
+        ff_read_mem_request.enq(wr_miss_from_cache);
       ff_lb_control.enq(tuple5(request_tag,request_index,fn_enable(word_index),wr_replace_line,
                                                           tpl_2(wr_miss_from_cache)==0));
       if(wr_line_valid) begin
@@ -623,6 +627,16 @@ addresses");
 
     endrule
 
+    // thsi rule will fire when the response for a IO write request has arrived
+    rule capture_io_write(ff_lb_control.notEmpty && tpl_5(ff_req_queue.first())==2 && 
+          tpl_5(ff_lb_control.first()) && !rg_pending_fence_response);
+      let err=ff_write_mem_response.first();
+      ff_write_mem_response.deq();
+      wr_hit_io<=tuple2(0,err);
+      wr_io_response<=True;
+      ff_lb_control.deq();
+    endrule
+
     //Loading data into the cache from line_buffer
     rule upd_data_into_cache(&(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty  && !rg_deq_lb);
       let {lbtag,lbset,init_we, way, isIO}=ff_lb_control.first();
@@ -634,7 +648,8 @@ addresses");
                                         lbset,lbtag,rg_lbdataline);
       rg_deq_lb<=True;
     endrule
-    rule deq_lb(rg_deq_lb && &(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty);
+    rule deq_lb(rg_deq_lb && &(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && 
+        ff_lb_control.notEmpty && !tpl_5(ff_lb_control.first()));
       ff_lb_control.deq;
       rg_blockenable<=0;
       rg_lbenables<=0;
@@ -655,11 +670,11 @@ addresses");
     endrule
 
     interface core_req=interface Put
-      method Action put(DCore_request#(paddr) req) if(!rg_init && !rg_fence_stall );
+      method Action put(DCore_request#(paddr,respwidth) req) if(!rg_init && !rg_fence_stall );
         `ifdef perf
           wr_total_access<=1;
         `endif
-        let {addr, fence, epoch, prefetch, access, size} =req;
+        let {addr, fence, epoch, prefetch, access, size, data} =req;
         if(fence)
           rg_fence_stall<=True;
 
