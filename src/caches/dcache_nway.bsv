@@ -252,31 +252,6 @@ package dcache_nway;
     // the RAM entries and rg_fence_index and rg_way_index to latch into the new RAM entries. By
     // nature of the algorithm used below curr_way and rg_way_index can never be the same at a given
     // cycle during the operation of the fence (i.e. after rg_init_delay2 is True)
-    //rule fence_cache(tpl_2(ff_req_queue.first) && !ff_lb_control.notEmpty && rg_fence_stall);
-    //  for(Integer i=0;i<v_ways;i=i+1)
-    //   tag_arr[i].write_request(rg_fence_index,'d0);
-    //  rg_fence_index<= rg_fence_index+1;
-    //  if(alg=="PLRU" || alg=="RROBIN")
-    //    repl.reset_repl(truncate(rg_fence_index));
-    //  if(verbosity>0)
-    //    $display($time,"\tICACHE: Fence in progress. Index: %d",rg_fence_index);
-    //  if(rg_fence_index==(fromInteger(v_sets-1))) begin
-    //    if(alg!="PLRU" && alg!="RROBIN")
-    //      repl.reset_repl(truncate(rg_fence_index));
-    //    ff_req_queue.deq;
-    //    rg_fence_stall<=False;
-    //    if(verbosity>1)begin
-    //      $display($time,"\tICACHE Params:");
-    //      $display($time,"\tv_sets: %d",v_sets);
-    //      $display($time,"\tv_ways: %d",v_ways);
-    //      $display($time,"\tv_setbits: %d",v_setbits);
-    //      $display($time,"\tv_wordbits: %d",v_wordbits);
-    //      $display($time,"\tv_blockbits: %d",v_blockbits);
-    //      $display($time,"\tv_tagbits: %d",v_tagbits);
-    //      $display($time,"\tv_num_words: %d",v_num_words);
-    //    end
-    //  end
-    //endrule
     rule fence_cache(tpl_2(ff_req_queue.first) && !ff_lb_control.notEmpty && rg_fence_stall &&
         !rg_pending_fence_response);
       if(verbosity>0)begin
@@ -325,7 +300,7 @@ package dcache_nway;
           repl.reset_repl(truncate(rg_fence_index));
         ff_req_queue.deq;
         rg_fence_stall<=False;
-        rg_init_delay<=False;
+        rg_init_delay<=!ramreg;
         rg_init_delay2<=False;
         if(verbosity>1)begin
           $display($time,"\tDCACHE Params:");
