@@ -633,7 +633,7 @@ addresses");
 
 
     // thsi rule will fire when the response for a IO write request has arrived
-    rule capture_io_write(ff_lb_control.notEmpty && tpl_5(ff_req_queue.first())!=1 && 
+    rule capture_io_write(ff_lb_control.notEmpty && tpl_5(ff_req_queue.first())==2 && 
           tpl_5(ff_lb_control.first()) && !rg_pending_fence_response);
       let err=ff_write_mem_response.first();
       ff_write_mem_response.deq();
