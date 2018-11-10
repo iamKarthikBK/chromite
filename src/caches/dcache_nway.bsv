@@ -572,7 +572,8 @@ addresses");
     endrule
     
     //Capturing memory_response
-    rule capture_memory_response(&(rg_lbenables)!=1 && ff_lb_control.notEmpty);
+    rule capture_memory_response(&(rg_lbenables)!=1 && ff_lb_control.notEmpty && 
+        !tpl_5(ff_lb_control.first()) );
      
       let {word,err} = ff_read_mem_response.first;
       ff_read_mem_response.deq;
@@ -608,27 +609,31 @@ addresses");
       Bit#(linewidth) y  = duplicate(word) ; 
       let new_word_line  = y & mask;
       Bit#(linewidth) x  = rg_lbdataline|new_word_line;
-
-      if(isIO) begin
-        wr_hit_io<=tuple2(word,err);
-        wr_io_response<=True;
-        ff_lb_control.deq;
-      end
-      else begin
-        rg_lbvalid<=1;
-        rg_lbdataline<=x;
-        rg_lbenables<=lbenables;
-        rg_lberr<=rg_lberr||err;
-        rg_blockenable <= {temp[valueOf(blocksize)-2:0],
-                                                temp[valueOf(blocksize)-1]};
-      end
+      rg_lbvalid<=1;
+      rg_lbdataline<=x;
+      rg_lbenables<=lbenables;
+      rg_lberr<=rg_lberr||err;
+      rg_blockenable <= {temp[valueOf(blocksize)-2:0],
+                                              temp[valueOf(blocksize)-1]};
       if(verbosity!=0)
         $display($time,"\tDCACHE: Updating line_buffer:%h",x);
 
     endrule
+    
+    // thsi rule will fire when the response for a IO read request has arrived
+    rule capture_io_read(ff_lb_control.notEmpty && tpl_5(ff_req_queue.first())==1 && 
+          tpl_5(ff_lb_control.first()) && !rg_pending_fence_response);
+      let {word,err}=ff_read_mem_response.first();
+      ff_read_mem_response.deq();
+      wr_hit_io<=tuple2(word,err);
+      wr_io_response<=True;
+      // TODO if IO is atomic generate a store as well
+      ff_lb_control.deq();
+    endrule
+
 
     // thsi rule will fire when the response for a IO write request has arrived
-    rule capture_io_write(ff_lb_control.notEmpty && tpl_5(ff_req_queue.first())==2 && 
+    rule capture_io_write(ff_lb_control.notEmpty && tpl_5(ff_req_queue.first())!=1 && 
           tpl_5(ff_lb_control.first()) && !rg_pending_fence_response);
       let err=ff_write_mem_response.first();
       ff_write_mem_response.deq();

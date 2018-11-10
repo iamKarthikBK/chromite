@@ -461,7 +461,8 @@ addresses");
     endrule
     
     //Capturing memory_response
-    rule capture_memory_response(&(rg_lbenables)!=1 && ff_lb_control.notEmpty);
+    rule capture_memory_response(&(rg_lbenables)!=1 && ff_lb_control.notEmpty && 
+        !tpl_5(ff_lb_control.first()) );
      
       let {word,err} = ff_mem_response.first;
       ff_mem_response.deq;
@@ -498,22 +499,23 @@ addresses");
       let new_word_line  = y & mask;
       Bit#(linewidth) x  = rg_lbdataline|new_word_line;
 
-      if(isIO) begin
-        wr_hit_io<=tuple2(word,err);
-        wr_io_response<=True;
-        ff_lb_control.deq;
-      end
-      else begin
-        rg_lbvalid<=1;
-        rg_lbdataline<=x;
-        rg_lbenables<=lbenables;
-        rg_lberr<=rg_lberr||err;
-        rg_blockenable <= {temp[valueOf(blocksize)-2:0],
-                                                temp[valueOf(blocksize)-1]};
-      end
+      rg_lbvalid<=1;
+      rg_lbdataline<=x;
+      rg_lbenables<=lbenables;
+      rg_lberr<=rg_lberr||err;
+      rg_blockenable <= {temp[valueOf(blocksize)-2:0],
+                                              temp[valueOf(blocksize)-1]};
       if(verbosity!=0)
         $display($time,"\tICACHE: Updating line_buffer:%h",x);
 
+    endrule
+
+    rule capture_io_response(tpl_5(ff_lb_control.first()));
+      let {word,err} = ff_mem_response.first;
+      ff_mem_response.deq;
+      wr_hit_io<=tuple2(word,err);
+      wr_io_response<=True;
+      ff_lb_control.deq;
     endrule
 
     //Loading data into the cache from line_buffer
@@ -527,7 +529,8 @@ addresses");
                                         lbset,lbtag,rg_lbdataline);
       rg_deq_lb<=True;
     endrule
-    rule deq_lb(rg_deq_lb && &(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && ff_lb_control.notEmpty);
+    rule deq_lb(rg_deq_lb && &(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && 
+        ff_lb_control.notEmpty && !tpl_5(ff_lb_control.first()) );
       ff_lb_control.deq;
       rg_blockenable<=0;
       rg_lbenables<=0;
