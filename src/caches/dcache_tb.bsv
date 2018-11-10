@@ -1,4 +1,4 @@
-/*
+/* 
 Copyright (c) 2018, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
@@ -21,32 +21,37 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
 IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
-Author: Neel Gala,Deepa N. Sarma
+
+Author: Neel Gala
 Email id: neelgala@gmail.com
 Details:
+
 --------------------------------------------------------------------------------------------------
 */
-package dcache_tb;
-
+package dcache_tb_new;
+  import Vector::*;
+  import FIFOF::*;
+  import DReg::*;
+  import SpecialFIFOs::*;
+  import BRAMCore::*;
+  import FIFO::*;
+  import GetPut::*;
+  import dcache_nway::*;
+  import test_caches::*;
+  //import icache_dm::*;
+  import cache_types::*;
+  import mem_config::*;
+  import BUtils ::*;
+  import RegFile::*;
+  import device_common::*;
+  import Vector::*;
+  
   `define sets 64
   `define word_size 4
   `define block_size 8
   `define addr_width 32
   `define ways 4
   `define repl PLRU
-
-  import dcache_nway::*;
-  //import icache_dm::*;
-  import cache_types::*;
-  import mem_config::*;
-  import GetPut::*;
-  import FIFOF::*;
-  import BUtils ::*;
-  import FIFOF ::*;
-  import DReg::*;
-  import RegFile::*;
-  import device_common::*;
-  import Vector::*;
 
   function Bool isIO(Bit#(`addr_width ) addr, Bool cacheable);
     if(!cacheable)
@@ -57,33 +62,47 @@ package dcache_tb;
       return False;    
   endfunction
 
+
   (*synthesize*)
   (*conflict_free="core_req_put,deq_lb"*)
   (*conflict_free="upd_data_into_cache,core_req_put"*)
   module mkdcache(Ifc_dcache_dm#(`word_size , `block_size , `sets , `ways ,32,`addr_width ));
     let ifc();
-    mkdcache_dm#(isIO,  True, "PLRU", False, "single") _temp(ifc);
+    mkdcache_dm#(isIO,  True, "PLRU", False, "dual") _temp(ifc);
     return (ifc);
   endmodule
 
+  
+  (*synthesize*)
+  module mktest(Ifc_test_caches#(4,8,64,4,32,32));
+    let ifc();
+    mktest_caches _temp(ifc);
+    return (ifc);
+  endmodule
 
   (*synthesize*)
   module mkdcache_tb(Empty);
 
   let dcache <- mkdcache();
+  let testcache<- mktest();
+
+  RegFile#(Bit#(10), Bit#(36)) stim <- mkRegFileFullLoad("test.mem");
+  RegFile#(Bit#(10), Bit#(1))  e_meta <- mkRegFileFullLoad("gold.mem");
+  RegFile#(Bit#(19), Bit#(32)) data <- mkRegFileFullLoad("data.mem");
+
   Reg#(Bit#(32)) index<- mkReg(0);
   Reg#(Bit#(32)) e_index<- mkReg(0);
-  Reg#(Maybe#(IMem_request#(32))) mem_req<- mkReg(tagged Invalid);
-  Reg#(Bit#(8)) rg_burst_count <- mkReg(0);
+  Reg#(Maybe#(DMem_read_request#(32))) read_mem_req<- mkReg(tagged Invalid);
+  Reg#(Maybe#(DMem_write_request#(32,TMul#(`block_size, TMul#(`word_size ,8))))) 
+                                                            write_mem_req <- mkReg(tagged Invalid);
+  Reg#(Bit#(8)) rg_read_burst_count <- mkReg(0);
+  Reg#(Bit#(8)) rg_write_burst_count <- mkReg(0);
   Reg#(Bit#(32)) rg_test_count <- mkReg(0);
 
   FIFOF#(Bit#(36)) ff_req <- mkSizedFIFOF(32);
   `ifdef simulate
     FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(32);
   `endif
-  RegFile#(Bit#(10), Bit#(36)) stim <- mkRegFileFullLoad("test.mem");
-  RegFile#(Bit#(10), Bit#(1))  e_meta <- mkRegFileFullLoad("gold.mem");
-  RegFile#(Bit#(19), Bit#(32)) data <- mkRegFileFullLoad("data.mem");
 
     
   let verbosity=`VERBOSITY;
@@ -96,26 +115,30 @@ package dcache_tb;
       rg_counters[i]<=rg_counters[i]+zeroExtend(incr[i]);
   endrule
   `endif
+
   rule core_req;
     let stime<-$stime;
-    if(stime>=660)begin
+    if(stime>=(`sets * `ways * 10 + 20)) begin
       let req=stim.sub(truncate(index));
       // read/write : delay/nodelay : Fence/noFence : Null 
       Bit#(4) control = truncateLSB(req);
-      if(control[2]==0)begin // if input is delayed
-        if(req!=0)begin
-          dcache.core_req.put(tuple7(truncate(req),unpack(control[1]),0, False,
-              control[3]==0?1:3, 2, ?));
+      Bit#(1) readwrite=control[3];
+      Bit#(1) delay=control[2];
+      Bit#(1) fence=control[1];
+
+      if(delay==0)begin // if input is not delayed
+        if(req!=0)begin // // not end of simulation
+          dcache.core_req.put(tuple7(truncate(req),unpack(fence),0, False, readwrite==0?1:3, 2, ?));
           index<=index+1;
           $display($time,"\tTB: Sending core request for addr: %h",req);
         end
-        if(control[1]!=1'b1)begin
+        if(fence!=1'b1)begin // if not a fence instruction
           ff_req.enq(req);
           `ifdef simulate
             ff_meta.enq(e_meta.sub(truncate(index)));
           `endif
         end
-        if(control[1]==1)begin
+        if(fence==1)begin // fence means increment test count
           rg_test_count<=rg_test_count+1;
           $display($time,"\tTB: ********** Test:%d PASSED\
 ********",rg_test_count);
@@ -140,9 +163,13 @@ package dcache_tb;
 
   rule core_resp;
     let resp <- dcache.core_resp.get();
-
     let req = ff_req.first;
-    let expected_data=data.sub(truncate(req));
+    Bit#(4) control = truncateLSB(req);
+    Bit#(1) readwrite=control[3];
+    Bit#(1) delay=control[2];
+    Bit#(1) fence=control[1];
+
+    let expected_data<-testcache.memory_operation(truncate(req),readwrite==0?1:2,2,?);
     Bool metafail=False;
     Bool datafail=False;
   
@@ -173,26 +200,61 @@ package dcache_tb;
 
   endrule
 
-  rule mem_request(mem_req matches tagged Invalid);
+  rule read_mem_request(read_mem_req matches tagged Invalid);
     let req<- dcache.read_mem_req.get;
-    mem_req<=tagged Valid req;
+    read_mem_req<=tagged Valid req;
     $display($time,"\tTB: Memory request",fshow(req));
   endrule
 
-  rule mem_resp(mem_req matches tagged Valid .req);
+  rule read_mem_resp(read_mem_req matches tagged Valid .req);
     let {addr, burst, size}=req;
-    if(rg_burst_count == burst) begin
-      rg_burst_count<=0;
-      mem_req<=tagged Invalid;
+    if(rg_read_burst_count == burst) begin
+      rg_read_burst_count<=0;
+      read_mem_req<=tagged Invalid;
     end
     else begin
-      rg_burst_count<=rg_burst_count+1;
-      mem_req <= tagged Valid tuple3(axi4burst_addrgen(burst,size,2,addr),burst,size); // parameterize
+      rg_read_burst_count<=rg_read_burst_count+1;
+      read_mem_req <= tagged Valid tuple3(axi4burst_addrgen(burst,size,2,addr),burst,size); // parameterize
     end
-    let dat=data.sub(truncate(addr));
+    let v_wordbits = valueOf(TLog#(`word_size));
+    Bit#(19) index = truncate(addr>>v_wordbits);
+    let dat=data.sub(truncate(index));
     dcache.read_mem_resp.put(tuple2(dat,False));
     $display($time,"\tTB: Memory responding with: %h ",dat);
   endrule
+  
+  rule write_mem_request(write_mem_req matches tagged Invalid);
+    let req<- dcache.write_mem_req.get;
+    write_mem_req<=tagged Valid req;
+    $display($time,"\tTB: Memory request",fshow(req));
+  endrule
+
+  rule write_mem_resp(write_mem_req matches tagged Valid .req);
+    let {addr, burst, size, writedata}=req;
+    if(rg_write_burst_count == burst) begin
+      rg_write_burst_count<=0;
+      write_mem_req<=tagged Invalid;
+      dcache.write_mem_resp.put(False);
+    end
+    else begin
+      rg_write_burst_count<=rg_write_burst_count+1;
+      writedata=writedata>>32;
+      write_mem_req <= tagged Valid tuple4(axi4burst_addrgen(burst,size,2,addr),burst,size,writedata); // parameterize
+    end
+    
+    let v_wordbits = valueOf(TLog#(`word_size));
+    Bit#(19) index = truncate(addr>>v_wordbits);
+    let loaded_data=data.sub(index);
+
+    Bit#(32) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:'1;
+    Bit#(TLog#(`word_size)) shift_amt=addr[v_wordbits-1:0];
+    mask= mask<<shift_amt;
+
+    Bit#(32) write_word=~mask&loaded_data|mask&truncate(writedata);
+    data.upd(index,write_word);
+    $display($time,"\tTB: Updating Memory index: %d with: %h ",index,write_word);
+  endrule
+
 
   rule extra_line;
     $display("\n",$time);
@@ -201,3 +263,4 @@ package dcache_tb;
 endmodule
 
 endpackage
+
