@@ -91,6 +91,8 @@ package dcache_nway;
             Add#(tagbits, _b, paddr),        // tagbits = 32-(wordbits+blockbits+setbits)
             Mul#(wordsize,8,word_len),    // word_len = number of bits in a word
             Div#(respwidth,word_len,num_words),//num_words=number of words fetched from memory in a
+            Add#(_c, respwidth,64),
+            Add#(_d, 32, respwidth),
             //cycle
             // Provisos for mem_config. If the number of banks have changed then the following
             // provisos will have to be re-written.
@@ -107,7 +109,9 @@ package dcache_nway;
             Mul#(respwidth, f__, linewidth),
             Add#(1, b__, TLog#(TAdd#(1, ways))),
             Add#(i__, TAdd#(TLog#(sets), TAdd#(TLog#(blocksize), TLog#(wordsize))), paddr),
-            Add#(h__, TLog#(ways), TLog#(TAdd#(1, ways)))
+            Add#(h__, TLog#(ways), TLog#(TAdd#(1, ways))),
+            Add#(j__, 16, respwidth),
+            Add#(k__, 8, respwidth)
             );
   
     let v_sets=valueOf(sets);
@@ -337,7 +341,7 @@ package dcache_nway;
     && !delay_checking);
       let {request, fence, epoch, prefetch, access, size} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
-                                                          (request[v_blockbits+v_wordbits-1:0])<<3;
+                                                        {request[v_blockbits+v_wordbits-1:0],3'b0};
       Bit#(blockbits) word_index=request[v_blockbits+v_wordbits-1:v_wordbits];
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits];
       Bit#(setbits) set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -393,7 +397,7 @@ package dcache_nway;
         if(verbosity>0)
           $display($time,"\tDCACHE: Cache received IO request for address: %h",request);
         wr_cache_state<=Miss;
-        wr_miss_from_cache<=(tuple3(request,0,zeroExtend(size)));        
+        wr_miss_from_cache<=(tuple3(request,0,zeroExtend(size[1:0])));        
       end
       // check if hit  in the cache
       else if(cachehit) begin // hit in cache
@@ -512,6 +516,18 @@ package dcache_nway;
         `endif
         {word,err}=wr_hit_io;
       end
+      word = 
+      case (size)
+        'b000: signExtend(word[7:0]);
+        'b001: signExtend(word[15:0]);
+        'b010: signExtend(word[31:0]);
+        'b100: zeroExtend(word[7:0]);
+        'b101: zeroExtend(word[15:0]);
+        'b110: zeroExtend(word[31:0]);
+        default: word;
+      endcase;
+
+
       if(prefetch_en)begin
         if(!prefetch)
           ff_core_response.enq(tuple3(word,err,epoch));
