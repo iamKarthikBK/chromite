@@ -269,8 +269,6 @@ package dcache_nway;
         !rg_pending_fence_response);
       if(verbosity>0)begin
         $display($time,"\tDCACHE: Fence in progress. Index: %d Way: %d",rg_fence_index,rg_way_index);
-        $display($time,"\tDCACHE: rg_init_delay: %b rg_init_delay2: %b curr_way: %d curr_index: %d",
-                      rg_init_delay,rg_init_delay2,curr_way,curr_index);
       end
      
       if(alg=="PLRU" || alg=="RROBIN")
@@ -295,12 +293,7 @@ package dcache_nway;
         if(curr_way!=rg_way_index)begin
           tag_arr[curr_way].write_request(curr_index,'d0);
           data_arr[curr_way].write_request(curr_index,'d0);
-          if(verbosity>0)
-            $display($time,"\tDCACHE: Fence Clearing Entry: %d Way: %d",curr_index,curr_way);
           
-        end
-        if(verbosity>0)begin
-          $display($time,"\tDCACHE: curr_tag: %h curr_dirty: %h addr: %h",curr_tag,curr_dirty,addr);
         end
       end
       tag_arr[rg_way_index].read_request(rg_fence_index);
@@ -458,7 +451,8 @@ package dcache_nway;
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                       {request[v_blockbits+v_wordbits-1:0],3'b0};
       
-      Bit#(linewidth) mask = size==0?'hFF:size==1?'hFFFF:size==2?'hFFFFFFFF:'hFFFFFFFFFFFFFFFF;
+      Bit#(linewidth) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:
+                                                                                'hFFFFFFFFFFFFFFFF;
       mask=mask<<block_offset;
       data = 
       case (size[1:0])
