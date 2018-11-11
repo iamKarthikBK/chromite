@@ -98,7 +98,7 @@ package dcache_tb;
                                                             write_mem_req <- mkReg(tagged Invalid);
   Reg#(Bit#(8)) rg_read_burst_count <- mkReg(0);
   Reg#(Bit#(8)) rg_write_burst_count <- mkReg(0);
-  Reg#(Bit#(32)) rg_test_count <- mkReg(0);
+  Reg#(Bit#(32)) rg_test_count <- mkReg(1);
 
   FIFOF#(Bit#(TAdd#(TAdd#(TMul#(`word_size, 8), 8), `addr_width ) )) ff_req <- mkSizedFIFOF(32);
   `ifdef simulate
@@ -130,26 +130,18 @@ package dcache_tb;
       Bit#(TAdd#(`addr_width ,  8)) request = truncate(req);
       Bit#(TMul#(`word_size, 8)) writedata=truncateLSB(req);
 
-      if(delay==0)begin // if input is not delayed
-        if(request!=0)begin // // not end of simulation
+      if(request!=0) begin // // not end of simulation
+        if(request!='1 && delay==0)
           dcache.core_req.put(tuple7(truncate(req),unpack(fence),0, False, readwrite, size, writedata));
-          index<=index+1;
-          $display($time,"\tTB: Sending core request for addr: %h",req);
-        end
-        if(fence!=1'b1)begin // if not a fence instruction
-          ff_req.enq(req);
-          `ifdef simulate
-            ff_meta.enq(e_meta.sub(truncate(index)));
-          `endif
-        end
-        if(fence==1)begin // fence means increment test count
-          rg_test_count<=rg_test_count+1;
-          $display($time,"\tTB: ********** Test:%d PASSED\
-********",rg_test_count);
-        end
-      end
-      else
         index<=index+1;
+        $display($time,"\tTB: Sending core request for addr: %h",req);
+      end
+      if((fence==0 && delay==0) || request=='1)begin // if not a fence instruction
+        ff_req.enq(req);
+        `ifdef simulate
+          ff_meta.enq(e_meta.sub(truncate(index)));
+        `endif
+      end
     end
   endrule
 
@@ -160,15 +152,23 @@ package dcache_tb;
       for(Integer i=0;i<5;i=i+1)
         $display($time,"\tTB: Counter-",countName(i),": %d",rg_counters[i]);
     `endif
-      $display($time,"\tTB: ********** Test:%d PASSED\
-********",rg_test_count);
+      $display($time, "\tTB: All Tests PASSED. Total TestCount: %d", rg_test_count-1);
       $finish(0);
     end
   endrule
 
-  rule core_resp;
+  rule checkout_request(ff_req.first[39:0]=='1);
+    ff_req.deq;
+    ff_meta.deq;
+    rg_test_count<=rg_test_count+1;
+    $display($time,"\tTB: ********** Test:%d PASSED****",rg_test_count);
+  endrule
+
+
+  rule core_resp(ff_req.first[39:0]!='1);
     let resp <- dcache.core_resp.get();
     let req = ff_req.first;
+    ff_req.deq();
       Bit#(8) control = req[`addr_width + 7: `addr_width ];
       Bit#(2) readwrite=control[7:6];
       Bit#(3) size=control[5:3];
@@ -180,8 +180,6 @@ package dcache_tb;
     Bool metafail=False;
     Bool datafail=False;
   
-    ff_req.deq();
-
     `ifdef simulate
       let meta <- dcache.meta.get();
       let expected_meta=ff_meta.first();
