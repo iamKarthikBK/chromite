@@ -640,7 +640,9 @@ addresses");
     // the linebuffer is updated accordingly.
     rule update_linebuffer(!rg_deq_lb);
       Bit#(linewidth) final_mask = wr_miss_mask|wr_lbhit_mask;
-      Bit#(linewidth) final_data = wr_miss_data|wr_lbhit_data;
+      Bit#(linewidth) final_data = (wr_miss_data&wr_miss_mask)|(wr_lbhit_mask&wr_lbhit_data);
+//      $display($time, "\tDCACHE: wr_miss_mask: %h wr_lbhit_mask: %h", wr_miss_mask,  wr_lbhit_mask);
+//      $display($time, "\tDCACHE: wr_miss_data: %h wr_lbhit_data: %h", wr_miss_data,  wr_lbhit_data);
       `ifdef simulate
         dynamicAssert((wr_miss_mask&wr_lbhit_mask) == 0,"Memory and New request updating common \
 fields in the LB");
@@ -725,8 +727,8 @@ fields in the LB");
         end
         rg_latest_index<=set_index;
         if (verbosity!=0) begin
-		      $display($time,"\tDCACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d",
-              addr, fence, epoch, set_index); 
+		      $display($time,"\tDCACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d \
+access: %d size: %b data:%h", addr, fence, epoch, set_index,  access,  size,  data); 
 		      $display($time,"\tDCACHE: Access Cache for Addr: %h Index: %d",addr,set_index); 
         end
         if(ramreg)
