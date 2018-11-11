@@ -18,7 +18,7 @@ SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
 define presim_config
-	@cd src/caches/;python3 gen_test.py
+	@cd src/caches/;python3 gen_test_dcache.py
 	@ln -fs src/caches/*.mem .
 endef
 

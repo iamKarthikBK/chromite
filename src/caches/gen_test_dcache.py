@@ -1,7 +1,7 @@
 import os
 import sys
 import math
-
+import random
 # parameters:
 
 tbfile=open('icache_tb.bsv','r')
@@ -53,7 +53,7 @@ dword='dword'
 signed='signed'
 unsigned='unsigned'
 
-nibbles=int(math.ceil((addr_width+8)/4))
+nibbles=int(math.ceil((addr_width+8+(word_size*8))/4))
 test_file=open('test.mem','w')
 gold_file=open('gold.mem','w')
 miss='0\n'
@@ -64,6 +64,8 @@ entrycount=0
 
 def write_to_file(addr,readwrite, size, sign, delaycycle, fencecycle):
 
+
+    data = random.randrange(4294967296)
     if readwrite == 'read':
       rw=int(format(1,'#04b'),2)
     elif readwrite == 'write':
@@ -99,7 +101,7 @@ def write_to_file(addr,readwrite, size, sign, delaycycle, fencecycle):
     # test format:
     # read/write : size: sign: delay/nodelay : Fence/noFence : Null : Addr
     upperbits=((rw<<6) | (sg<<5) | (s<<3) | (d<<2) | (f<<1) | 0b0)
-    s = str(hex(addr| (upperbits<<addr_width)))
+    s = str(hex( (upperbits<<addr_width) | addr | (data<<(addr_width+8))))
     test_file.write(s[2:].zfill(nibbles)+'\n')
     return 0
 

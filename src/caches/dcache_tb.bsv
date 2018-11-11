@@ -28,7 +28,7 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package dcache_tb_new;
+package dcache_tb;
   import Vector::*;
   import FIFOF::*;
   import DReg::*;
@@ -86,9 +86,10 @@ package dcache_tb_new;
   let dcache <- mkdcache();
   let testcache<- mktest();
 
-  RegFile#(Bit#(10), Bit#(36)) stim <- mkRegFileFullLoad("test.mem");
+  RegFile#(Bit#(10), Bit#(TAdd#(TAdd#(TMul#(`word_size, 8), 8), `addr_width ) )) stim <- 
+                                                                      mkRegFileFullLoad("test.mem");
   RegFile#(Bit#(10), Bit#(1))  e_meta <- mkRegFileFullLoad("gold.mem");
-  RegFile#(Bit#(19), Bit#(32)) data <- mkRegFileFullLoad("data.mem");
+  RegFile#(Bit#(19), Bit#(TMul#(`word_size, 8))) data <- mkRegFileFullLoad("data.mem");
 
   Reg#(Bit#(32)) index<- mkReg(0);
   Reg#(Bit#(32)) e_index<- mkReg(0);
@@ -99,7 +100,7 @@ package dcache_tb_new;
   Reg#(Bit#(8)) rg_write_burst_count <- mkReg(0);
   Reg#(Bit#(32)) rg_test_count <- mkReg(0);
 
-  FIFOF#(Bit#(36)) ff_req <- mkSizedFIFOF(32);
+  FIFOF#(Bit#(TAdd#(TAdd#(TMul#(`word_size, 8), 8), `addr_width ) )) ff_req <- mkSizedFIFOF(32);
   `ifdef simulate
     FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(32);
   `endif
@@ -121,14 +122,17 @@ package dcache_tb_new;
     if(stime>=(`sets * `ways * 10 + 20)) begin
       let req=stim.sub(truncate(index));
       // read/write : delay/nodelay : Fence/noFence : Null 
-      Bit#(4) control = truncateLSB(req);
-      Bit#(1) readwrite=control[3];
+      Bit#(8) control = req[`addr_width + 7: `addr_width ];
+      Bit#(2) readwrite=control[7:6];
+      Bit#(3) size=control[5:3];
       Bit#(1) delay=control[2];
       Bit#(1) fence=control[1];
+      Bit#(TAdd#(`addr_width ,  8)) request = truncate(req);
+      Bit#(TMul#(`word_size, 8)) writedata=truncateLSB(req);
 
       if(delay==0)begin // if input is not delayed
-        if(req!=0)begin // // not end of simulation
-          dcache.core_req.put(tuple7(truncate(req),unpack(fence),0, False, readwrite==0?1:3, 2, ?));
+        if(request!=0)begin // // not end of simulation
+          dcache.core_req.put(tuple7(truncate(req),unpack(fence),0, False, readwrite, size, writedata));
           index<=index+1;
           $display($time,"\tTB: Sending core request for addr: %h",req);
         end
@@ -150,7 +154,8 @@ package dcache_tb_new;
   endrule
 
   rule end_sim;
-    if(ff_req.first==0)begin
+    Bit#(TAdd#(`addr_width ,  8)) request = truncate(ff_req.first());
+    if(request==0)begin
     `ifdef perf
       for(Integer i=0;i<5;i=i+1)
         $display($time,"\tTB: Counter-",countName(i),": %d",rg_counters[i]);
@@ -164,12 +169,14 @@ package dcache_tb_new;
   rule core_resp;
     let resp <- dcache.core_resp.get();
     let req = ff_req.first;
-    Bit#(4) control = truncateLSB(req);
-    Bit#(1) readwrite=control[3];
-    Bit#(1) delay=control[2];
-    Bit#(1) fence=control[1];
+      Bit#(8) control = req[`addr_width + 7: `addr_width ];
+      Bit#(2) readwrite=control[7:6];
+      Bit#(3) size=control[5:3];
+      Bit#(1) delay=control[2];
+      Bit#(1) fence=control[1];
+      Bit#(TMul#(`word_size, 8)) writedata=truncateLSB(req);
 
-    let expected_data<-testcache.memory_operation(truncate(req),readwrite==0?1:2,2,?);
+    let expected_data<-testcache.memory_operation(truncate(req),readwrite,size,writedata);
     Bool metafail=False;
     Bool datafail=False;
   
