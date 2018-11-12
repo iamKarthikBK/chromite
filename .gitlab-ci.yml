@@ -11,6 +11,9 @@ build64:
         - make regress opts='--filter=rv64 --final'
         - make aapg opts="--test_count=30 --parallel=90 --sub"
         - make regress opts='--list=aapg.list --final'
+        - make torture opts="--config=all"
+        - make regress opts="--list=riscv-torture.list --parallel=40 --sub"
+        - make regress opts="--list=riscv-torture.list --final"
     only:
         - master
     tags:
