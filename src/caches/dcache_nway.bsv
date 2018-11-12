@@ -151,11 +151,11 @@ package dcache_nway;
     end
    
     // FIFOs for interface communication
-    FIFOF#(DCore_response#(respwidth))ff_core_response <- mkSizedBypassFIFOF(2);
-    FIFOF#(DMem_read_request#(paddr)) ff_read_mem_request    <- mkSizedBypassFIFOF(2);
+    FIFOF#(DCore_response#(respwidth))ff_core_response <- mkSizedFIFOF(2);
+    FIFOF#(DMem_read_request#(paddr)) ff_read_mem_request    <- mkSizedFIFOF(2);
     FIFOF#(DMem_read_response#(respwidth)) ff_read_mem_response  <- mkSizedFIFOF(2);
     FIFOF#(DMem_write_request#(paddr,TMul#(blocksize,TMul#(wordsize,8)))) ff_write_mem_request    
-                                                                              <- mkSizedBypassFIFOF(2);
+                                                                              <- mkSizedFIFOF(2);
     FIFOF#(DMem_write_response) ff_write_mem_response  <- mkSizedFIFOF(2);
     FIFOF#(DCore_request#(paddr,respwidth)) ff_req_queue <- mkSizedFIFOF(2); 
 
@@ -469,8 +469,8 @@ package dcache_nway;
 //      `endif
 
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: Check for Address:%h ReqTag: %h ReqIndex: %d",
-            request,request_tag,set_index);
+        $display($time,"\tDCACHE: Check for Address:%h ReqTag: %h ReqIndex: %d Access: %d",
+            request,request_tag,set_index, access);
         for(Integer i=0;i<v_ways;i=i+1)
           $display($time,"\tDCACHE: Way: %2d Valid: %d StoredTag: %h",i,valid[i],stored_tag[i]);
       end
@@ -810,6 +810,8 @@ fields in the LB");
         tag_arr[i].read_request(set_index);
       end
       rg_repeatlatch<=False;
+      if(ramreg)
+        rg_delay<=True;
     endrule
 
     interface core_req=interface Put
