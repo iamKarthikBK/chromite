@@ -225,7 +225,7 @@ package dcache_tb;
     Bit#(19) index = truncate(addr>>v_wordbits);
     let dat=data.sub(truncate(index));
     dcache.read_mem_resp.put(tuple2(dat,False));
-    $display($time,"\tTB: Memory responding with: %h ",dat);
+    $display($time,"\tTB: Memory Read index: %d responding with: %h ",index,dat);
   endrule
   
   rule write_mem_request(write_mem_req matches tagged Invalid);

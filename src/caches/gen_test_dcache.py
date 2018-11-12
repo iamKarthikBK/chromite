@@ -771,7 +771,52 @@ def test17():
     return 0
 
 
+# This test if for reading signed and unsigned bytes, halfwords, etc from the
+# the cache.
+def test18():
+
+    global entrycount
+
+    write_to_file(0,read,word,unsigned,nodelay,fence)
+    gold_file.write(miss)
+    entrycount=entrycount+1
+
+    
+    address=4128
+    write_to_file(address,read,byte,signed,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(miss)
+
+    write_to_file(address,read,byte,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+
+    address=address+2
+    write_to_file(address,read,byte,signed,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+    
+    write_to_file(address,read,byte,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+    
+    write_to_file(address,read,hword,signed,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+    
+    write_to_file(address,read,hword,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+
+    address=address+2
+    write_to_file(address,read,word,signed,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
    
+    write_to_file(maxaddr,atomic,dword,unsigned,delay,fence)
+    gold_file.write(miss)
+    entrycount=entrycount+1
+    return 0
    
 #test1()
 #test2()
@@ -791,6 +836,7 @@ def test17():
 #test15()
 test16()
 test17()
+test18()
 write_to_file(0,endsim,byte,signed,nodelay,nofence)
 gold_file.write(miss)
 entrycount=entrycount+1
