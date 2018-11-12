@@ -283,6 +283,9 @@ package dcache_nway;
         let curr_tag<-tag_arr[curr_way].read_response;
         let curr_data<-data_arr[curr_way].read_response;
         Bit#(1) curr_dirty = curr_tag[v_tagbits] & pack(rg_global_dirty);
+        $display($time,"\tDCACHE: Fence. curr_index: %d curr_dirty: %b curr_tag: %h curr_data:%h",
+            curr_index,curr_dirty, curr_tag,curr_data);
+      
         Bit#(TAdd#(TLog#(blocksize),TLog#(wordsize))) offset=0;
         Bit#(paddr) addr = {curr_tag[v_tagbits-1:0],curr_index,offset};
         if (curr_dirty==1 ) begin
@@ -306,6 +309,7 @@ package dcache_nway;
         rg_fence_stall<=False;
         rg_init_delay<=!ramreg;
         rg_init_delay2<=False;
+        rg_global_dirty<=False;
         if(verbosity>1)begin
           $display($time,"\tDCACHE Params:");
           $display($time,"\tv_sets: %d",v_sets);
@@ -391,6 +395,9 @@ package dcache_nway;
         for(Integer i=0;i<v_ways;i=i+1)
           $display($time,"\tDCACHE: Way: %2d Valid: %d StoredTag: %h",i,valid[i],stored_tag[i]);
       end
+
+      if(access!=1)
+        rg_global_dirty<=True;
 
       // check if the request is cacheable or not
       if(is_IO(request, True))begin
