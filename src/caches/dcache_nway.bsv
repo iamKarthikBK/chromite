@@ -453,8 +453,8 @@ package dcache_nway;
           if(verbosity>0) begin
             $display($time,"\tDCACHE: Replacing HB line into Cache:");
             $display($time,"\tDCACHE: rg_hbway: %d rg_hbset: %d rg_hbtag: %h rg_hbdata: %h",rg_hbway,
+                  rg_hbset,rg_hbtag,rg_hbdata);
           end
-          rg_hbset,rg_hbtag,rg_hbdata);
           tag_arr[rg_hbway].write_request(rg_hbset,{2'b11,rg_hbtag});
           data_arr[rg_hbway].write_request(rg_hbset,rg_hbdata);
           wr_hb_update<=True;
