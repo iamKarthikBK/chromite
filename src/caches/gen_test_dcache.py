@@ -136,7 +136,6 @@ def test1():
 # All should be a cold miss
 def test2():
     global entrycount
-    global entrycount
     write_to_file(0,read,word,unsigned,nodelay,fence)
     gold_file.write(miss)
     entrycount=entrycount+1
@@ -147,6 +146,19 @@ def test2():
       gold_file.write(miss)
       address=address+(word_size*block_size)
       entrycount=entrycount+1
+
+    for i in range(40):
+      write_to_file(address,read,word,unsigned,delay,nofence)
+      gold_file.write(miss)
+      entrycount=entrycount+1
+
+    address=4096
+    for i in range(sets):
+      write_to_file(address,read,word,unsigned,nodelay,nofence)
+      gold_file.write(hit)
+      address=address+(word_size*block_size)
+      entrycount=entrycount+1
+
     write_to_file(maxaddr,atomic,dword,unsigned,delay,fence)
     gold_file.write(miss)
     entrycount=entrycount+1
@@ -817,26 +829,100 @@ def test18():
     gold_file.write(miss)
     entrycount=entrycount+1
     return 0
-   
-#test1()
-#test2()
-#test3()
-#test4()
-#test5()
-#test6() 
-#test7()
-#test8()
-#test9()
-#test10()
-#test11()
-#test12()
-#test13()
-#test14a()
-#test14b()
-#test15()
+
+def test19():
+
+
+    global entrycount
+
+    write_to_file(0,read,word,unsigned,nodelay,fence)
+    gold_file.write(miss)
+    entrycount=entrycount+1
+    
+    address=4096
+    for i in range(block_size):
+      write_to_file(address,write,word,unsigned,nodelay,nofence)
+      entrycount=entrycount+1
+      if i == 0:
+        gold_file.write(miss)
+      else:
+        gold_file.write(hit)
+      address=address+word_size
+    
+    address=address+(block_size*word_size)
+    for i in range(block_size):
+      write_to_file(address,write,word,unsigned,nodelay,nofence)
+      entrycount=entrycount+1
+      if i == 0:
+        gold_file.write(miss)
+      else:
+        gold_file.write(hit)
+      address=address+word_size
+    
+    address=address+(block_size*word_size)
+    write_to_file(address,write,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(miss)
+
+    for i in range(20):
+      write_to_file(address,read,word,unsigned,delay,nofence)
+      gold_file.write(miss)
+      entrycount=entrycount+1
+  
+
+    address=4096
+    write_to_file(address,read,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+
+    address=4096
+    write_to_file(address,write,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+    
+    address=address+(block_size*word_size)+(block_size*word_size)
+    write_to_file(address,write,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+    
+    
+    address=4096
+    write_to_file(address,read,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+    
+    address=address+(block_size*word_size)+(block_size*word_size)
+    write_to_file(address,read,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+
+    write_to_file(maxaddr,atomic,dword,unsigned,delay,fence)
+    gold_file.write(miss)
+    entrycount=entrycount+1
+    return 0
+
+
+
+test1()
+test2()
+test3()
+test4()
+test5()
+test6() 
+test7()
+test8()
+test9()
+test10()
+test11()
+test12()
+test13()
+test14a()
+test14b()
+test15()
 test16()
 test17()
 test18()
+test19()
 write_to_file(0,endsim,byte,signed,nodelay,nofence)
 gold_file.write(miss)
 entrycount=entrycount+1

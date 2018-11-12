@@ -66,9 +66,10 @@ package dcache_tb;
   (*synthesize*)
   (*conflict_free="core_req_put,deq_lb"*)
   (*conflict_free="upd_data_into_cache,core_req_put"*)
+//  (*preempts="check_hit_or_miss,core_req_put"*) // this is only required is single port rams are instantiated
   module mkdcache(Ifc_dcache_dm#(`word_size , `block_size , `sets , `ways ,32,`addr_width ));
     let ifc();
-    mkdcache_dm#(isIO,  True, "PLRU", False, "dual") _temp(ifc);
+    mkdcache_dm#(isIO,  False, "PLRU", False, "dual") _temp(ifc);
     return (ifc);
   endmodule
 

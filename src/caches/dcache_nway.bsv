@@ -41,6 +41,7 @@ package dcache_nway;
   import DReg::*;
   import Assert::*;
   import replacement::*;
+  import SpecialFIFOs::*;
   
   //parameters:
   // wordsize: number of bytes per word. This is what is responded back to the core.
@@ -150,11 +151,11 @@ package dcache_nway;
     end
    
     // FIFOs for interface communication
-    FIFOF#(DCore_response#(respwidth))ff_core_response <- mkSizedFIFOF(2);
-    FIFOF#(DMem_read_request#(paddr)) ff_read_mem_request    <- mkSizedFIFOF(2);
+    FIFOF#(DCore_response#(respwidth))ff_core_response <- mkSizedBypassFIFOF(2);
+    FIFOF#(DMem_read_request#(paddr)) ff_read_mem_request    <- mkSizedBypassFIFOF(2);
     FIFOF#(DMem_read_response#(respwidth)) ff_read_mem_response  <- mkSizedFIFOF(2);
     FIFOF#(DMem_write_request#(paddr,TMul#(blocksize,TMul#(wordsize,8)))) ff_write_mem_request    
-                                                                              <- mkSizedFIFOF(2);
+                                                                              <- mkSizedBypassFIFOF(2);
     FIFOF#(DMem_write_response) ff_write_mem_response  <- mkSizedFIFOF(2);
     FIFOF#(DCore_request#(paddr,respwidth)) ff_req_queue <- mkSizedFIFOF(2); 
 
@@ -236,6 +237,26 @@ package dcache_nway;
     // should only happen when the ff_req_queue has only one entry within it.
     Reg#(Bool) rg_delay <- mkDReg(False);
     Bool delay_checking= ramreg && rg_delay && ff_req_queue.notFull && ff_req_queue.notEmpty;
+
+    
+    // following registers and wires are used for handling the hit-buffer.
+    // The hitbuffer is written to whenever there is a store-hit to the RAMs
+    // During such a hit, the line from the RAMs is read and written to the hit buffer
+    // store-effects. Also, if the hit-buffer already contains a valid line, then this line written
+    // back to the RAM. While this write happens it is possible that the core receives a new request
+    // for the same line that is being evicted from the line-buffer. In such a case the same request
+    // is repeated on the next cycle to ensure that the RAM output is updated with the latest write
+    // performed by the Hitbuffer.
+    Reg#(Bit#(1)) rg_hbvalid<- mkReg(0);
+    Reg#(Bit#(tagbits)) rg_hbtag <- mkReg(0);
+    Reg#(Bit#(setbits)) rg_hbset <- mkReg(0);
+    Reg#(Bit#(TLog#(ways))) rg_hbway <- mkReg(0);
+    Reg#(Bit#(linewidth)) rg_hbdata<-mkReg(0);
+    Wire#(Bool) wr_hb_update <-mkDWire(False);
+    Wire#(Bit#(setbits)) wr_hbset <- mkDWire(0);
+    Reg#(Bool) rg_repeatlatch <- mkReg(True);
+
+
     // on reset we issue a fence instruction to initiliase the cache.
     rule initialize(rg_init);
       ff_req_queue.enq(tuple7(?,True,?, False, ?, ?, ?));
@@ -268,7 +289,7 @@ package dcache_nway;
     // nature of the algorithm used below curr_way and rg_way_index can never be the same at a given
     // cycle during the operation of the fence (i.e. after rg_init_delay2 is True)
     rule fence_cache(tpl_2(ff_req_queue.first) && !ff_lb_control.notEmpty && rg_fence_stall &&
-        !rg_pending_fence_response);
+        !rg_pending_fence_response && rg_hbvalid==0);
       if(verbosity>0)begin
         $display($time,"\tDCACHE: Fence in progress. Index: %d Way: %d",rg_fence_index,rg_way_index);
       end
@@ -349,13 +370,19 @@ package dcache_nway;
       ff_write_mem_response.deq;
       rg_pending_fence_response<=False;
     endrule
+
+    rule update_hb_before_fence(rg_hbvalid==1 && tpl_2(ff_req_queue.first) &&
+        !ff_lb_control.notEmpty && rg_fence_stall);
+        tag_arr[rg_hbway].write_request(rg_hbset,{2'b11,rg_hbtag});
+        data_arr[rg_hbway].write_request(rg_hbset, rg_hbdata);
+    endrule
     
     // Checking the data and tag arrays of the cache for a hit or miss.
     // This rule will fire for every request from the core that is not a Fence operation.
     // This rule will also check if the request is cacheable. If not, then a miss generated for that
     // one request and not the entire line.
     rule check_hit_or_miss(!tpl_2(ff_req_queue.first) && !rg_miss_ongoing && ff_lb_control.notFull
-    && !delay_checking);
+    && !delay_checking && !rg_fence_stall && !rg_repeatlatch);
       let {request, fence, epoch, prefetch, access, size, data} =ff_req_queue.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset=
                                                         {request[v_blockbits+v_wordbits-1:0],3'b0};
@@ -363,6 +390,16 @@ package dcache_nway;
       Bit#(tagbits) request_tag = request[v_paddr-1:v_paddr-v_tagbits];
       Bit#(setbits) set_index=request[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
 
+      Bit#(linewidth) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:
+                                                                                'hFFFFFFFFFFFFFFFF;
+      mask=mask<<block_offset;
+      data = 
+      case (size[1:0])
+        'b00: duplicate(data[7:0]);
+        'b01: duplicate(data[15:0]);
+        'b10: duplicate(data[31:0]);
+        default: data;
+      endcase;
 
       // The following logic will check if there is a hit in any of the ways. If so, then the data
       // line corresponding to that way is extracted
@@ -395,7 +432,36 @@ package dcache_nway;
         ex_dataline=ex_dataline|temp2[i];
       
       Bool cachehit=unpack(|hit);
-      
+      Bool hbhit=False; 
+
+      // check if the requested line is in the Hit-Buffer;
+      if(rg_hbvalid==1 && rg_hbtag==request_tag && rg_hbset==set_index) begin
+        ex_dataline=rg_hbdata;
+        hbhit=True;
+      end
+      // if the access is a store/atomic the update will always happen to the HB
+      Bit#(linewidth) updated_line= (mask&duplicate(data)) |  (~mask&ex_dataline);
+      if(access!=1) begin // it is a store hit on the hit-buffer
+        rg_hbdata<=updated_line;
+      end
+      if(cachehit && !hbhit && access!=1)begin
+        rg_hbvalid<=1;
+        rg_hbtag<=request_tag;
+        rg_hbset<=set_index;
+        rg_hbway<=truncate(pack(countZerosLSB(hit)));
+        if(rg_hbvalid==1)begin // write data into RAM
+          if(verbosity>0) begin
+            $display($time,"\tDCACHE: Replacing HB line into Cache:");
+            $display($time,"\tDCACHE: rg_hbway: %d rg_hbset: %d rg_hbtag: %h rg_hbdata: %h",rg_hbway,
+          end
+          rg_hbset,rg_hbtag,rg_hbdata);
+          tag_arr[rg_hbway].write_request(rg_hbset,{2'b11,rg_hbtag});
+          data_arr[rg_hbway].write_request(rg_hbset,rg_hbdata);
+          wr_hb_update<=True;
+          wr_hbset<=rg_hbset;
+        end
+      end
+
 //      `ifdef simulate
 //        dynamicAssert(countOnes(hit)<=1,"Multiple tags provide a hit");
 //        for(Integer i=0;i<v_ways;i=i+1)
@@ -420,7 +486,7 @@ package dcache_nway;
         wr_miss_from_cache<=(tuple3(request,0,zeroExtend(size[1:0])));        
       end
       // check if hit  in the cache
-      else if(cachehit) begin // hit in cache
+      else if(cachehit || hbhit) begin // hit in cache
         Bit#(respwidth) word_response = truncate(ex_dataline>>block_offset); 
         wr_hit_cache<= tuple2(word_response, False);// word and no bus-error;
         wr_cache_state<=Hit;
@@ -473,6 +539,8 @@ package dcache_nway;
       
       Bit#(linewidth) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:
                                                                                 'hFFFFFFFFFFFFFFFF;
+      // the following logic ensure that the write data is properly shifted to hold the relevant
+      // bits in the LSB end
       mask=mask<<block_offset;
       data = 
       case (size[1:0])
@@ -730,18 +798,35 @@ fields in the LB");
         end
       end
     endrule
+  
+    // in the case when the HB writes a line back to the cache and there is a request from core to
+    // the same line, the following rule is fired in the next cycle to ensure that the RAM outputs
+    // are updated with the write before the check_hit_or_miss rules fires.
+    // TODO: check is ramreg creates a problem here.
+    rule repeat_request_on_hbupdate(rg_repeatlatch && !rg_deq_lb && !rg_fence_stall);
+      Bit#(setbits) set_index=rg_latest_index;
+      for(Integer i=0;i<v_ways;i=i+1)begin
+        data_arr[i].read_request(set_index);
+        tag_arr[i].read_request(set_index);
+      end
+      rg_repeatlatch<=False;
+    endrule
 
     interface core_req=interface Put
-      method Action put(DCore_request#(paddr,respwidth) req) if(!rg_init && !rg_fence_stall );
+      method Action put(DCore_request#(paddr,respwidth) req) if(!rg_init && !rg_fence_stall &&
+          !rg_repeatlatch);
         `ifdef perf
           wr_total_access<=1;
         `endif
         let {addr, fence, epoch, prefetch, access, size, data} =req;
+        Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
+        ff_req_queue.enq(req);
         if(fence)
           rg_fence_stall<=True;
 
-        ff_req_queue.enq(req);
-        Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
+        if(wr_hb_update && set_index==wr_hbset && !fence)
+          rg_repeatlatch<=True;
+
         for(Integer i=0;i<v_ways;i=i+1)begin
           data_arr[i].read_request(set_index);
           tag_arr[i].read_request(set_index);
