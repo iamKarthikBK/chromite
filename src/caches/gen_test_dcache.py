@@ -47,7 +47,7 @@ nodelay='nodelay'
 fence='fence'
 nofence='nofence'
 byte='byte'
-halfword='halfword'
+hword='halfword'
 word='word'
 dword='dword'
 signed='signed'
@@ -699,7 +699,7 @@ def test15():
     gold_file.write(miss)
     entrycount=entrycount+1
 
-
+################### DCACHE Tests ##############################################
 
 # test will first generate a store miss to all words of a line. These are
 # expected to be updated in the linebuffer itself. The same line is then read to
@@ -734,6 +734,44 @@ def test16():
     return 0
 
 
+# The test will generate a store miss on the least byte of the line and then a
+# store on highest byte of the line. This is followed by reading least and
+# highest 4-byte word from the same line. Except for the first store all other
+# accesses should be a hit.
+def test17():
+    global entrycount
+
+    write_to_file(0,read,word,unsigned,nodelay,fence)
+    gold_file.write(miss)
+    entrycount=entrycount+1
+
+    address=4096
+    write_to_file(address,write,byte,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(miss)
+
+    address=address+(word_size*block_size)-1
+    write_to_file(address,write,byte,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+
+    address=4096
+    write_to_file(address,read,hword,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+
+    address=address+(word_size*block_size)-4
+    write_to_file(address,read,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+
+    write_to_file(maxaddr,atomic,dword,unsigned,delay,fence)
+    gold_file.write(miss)
+    entrycount=entrycount+1
+    return 0
+
+
+   
    
 #test1()
 #test2()
@@ -752,6 +790,7 @@ def test16():
 #test14b()
 #test15()
 test16()
+test17()
 write_to_file(0,endsim,byte,signed,nodelay,nofence)
 gold_file.write(miss)
 entrycount=entrycount+1
