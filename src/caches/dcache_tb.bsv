@@ -192,7 +192,7 @@ package dcache_tb;
     `endif
     if(expected_data!=tpl_1(resp))begin
         $display($time,"\tTB: Output from cache is wrong for Req: %h",req);
-        $display($time,"\tTB: Expected: %h, Received: %h",expected_data,resp);
+        $display($time,"\tTB: Expected: %h, Received: %h",expected_data,tpl_1(resp));
         datafail=True;
     end
 
@@ -208,7 +208,7 @@ package dcache_tb;
   rule read_mem_request(read_mem_req matches tagged Invalid);
     let req<- dcache.read_mem_req.get;
     read_mem_req<=tagged Valid req;
-    $display($time,"\tTB: Memory request",fshow(req));
+    $display($time,"\tTB: Memory Read request",fshow(req));
   endrule
 
   rule read_mem_resp(read_mem_req matches tagged Valid .req);
@@ -231,7 +231,7 @@ package dcache_tb;
   rule write_mem_request(write_mem_req matches tagged Invalid);
     let req<- dcache.write_mem_req.get;
     write_mem_req<=tagged Valid req;
-    $display($time,"\tTB: Memory request",fshow(req));
+    $display($time,"\tTB: Memory Write request",fshow(req));
   endrule
 
   rule write_mem_resp(write_mem_req matches tagged Valid .req);
@@ -243,8 +243,8 @@ package dcache_tb;
     end
     else begin
       rg_write_burst_count<=rg_write_burst_count+1;
-      writedata=writedata>>32;
-      write_mem_req <= tagged Valid tuple4(axi4burst_addrgen(burst,size,2,addr),burst,size,writedata); // parameterize
+      let nextdata=writedata>>32;
+      write_mem_req <= tagged Valid tuple4(axi4burst_addrgen(burst,size,2,addr),burst,size,nextdata); // parameterize
     end
     
     let v_wordbits = valueOf(TLog#(`word_size));
