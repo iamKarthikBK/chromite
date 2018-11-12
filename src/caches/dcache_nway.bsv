@@ -506,11 +506,6 @@ package dcache_nway;
     // generate an IO hit response.
     rule rl_response_to_core(!tpl_2(ff_req_queue.first) && (wr_lb_state==Hit || wr_cache_state==Hit
         || wr_io_response));
-      `ifdef simulate
-        if (verbosity>0)
-          $display($time,"\tDCACHE: Sending Response to the Core");
-        dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
-      `endif
       let {addr, fence, epoch, prefetch, access, size, data}=ff_req_queue.first();
       ff_req_queue.deq();
       Bit#(respwidth) word=0;
@@ -538,6 +533,7 @@ package dcache_nway;
         `endif
         {word,err}=wr_hit_io;
       end
+      $display($time,"\tDCACHE: Sending Response to the Core: word: %h",word);
       word = 
       case (size)
         'b000: signExtend(word[7:0]);
@@ -549,6 +545,11 @@ package dcache_nway;
         default: word;
       endcase;
 
+      `ifdef simulate
+        if (verbosity>0)
+          $display($time,"\tDCACHE: Sending Response to the Core: word: %h",word);
+        dynamicAssert(!(wr_lb_state==Hit && wr_cache_state==Hit), "Hit in Both LB and Cache found");
+      `endif
 
       if(prefetch_en)begin
         if(!prefetch)
@@ -648,8 +649,8 @@ addresses");
     rule update_linebuffer(!rg_deq_lb);
       Bit#(linewidth) final_mask = wr_miss_mask|wr_lbhit_mask;
       Bit#(linewidth) final_data = (wr_miss_data&wr_miss_mask)|(wr_lbhit_mask&wr_lbhit_data);
-//      $display($time, "\tDCACHE: wr_miss_mask: %h wr_lbhit_mask: %h", wr_miss_mask,  wr_lbhit_mask);
-//      $display($time, "\tDCACHE: wr_miss_data: %h wr_lbhit_data: %h", wr_miss_data,  wr_lbhit_data);
+      $display($time, "\tDCACHE: wr_miss_mask: %h wr_lbhit_mask: %h", wr_miss_mask,  wr_lbhit_mask);
+      $display($time, "\tDCACHE: wr_miss_data: %h wr_lbhit_data: %h", wr_miss_data,  wr_lbhit_data);
       `ifdef simulate
         dynamicAssert((wr_miss_mask&wr_lbhit_mask) == 0,"Memory and New request updating common \
 fields in the LB");
@@ -659,7 +660,7 @@ fields in the LB");
       if(wr_lbhit_mask!=0) // If there is store to the linebuffer mark it as dirty before.
         rg_lbdirty<=1;
       if(verbosity!=0)
-        $display($time,"\tDCACHE: Updating line_buffer:%h",x);
+        $display($time,"\tDCACHE: Updating line_buffer:%h dirty: %b",x, rg_lbdirty);
     endrule
     
     // thsi rule will fire when the response for a IO read request has arrived
@@ -692,8 +693,8 @@ fields in the LB");
       tag_arr[way].write_request(lbset,{1,rg_lbdirty,lbtag});//lbtag
       data_arr[way].write_request(lbset,truncate(rg_lbdataline));
       if(verbosity!=0)
-        $display($time,"\tDCACHE: LB Replacing Way :%d in set: %d tag:%h with dataline",way,
-                                        lbset,lbtag,rg_lbdataline);
+        $display($time,"\tDCACHE: LB Replacing Way :%d in set: %d tag:%h dirty: %b with dataline",way,
+                                        lbset,lbtag,rg_lbdirty,rg_lbdataline);
       rg_deq_lb<=True;
     endrule
     rule deq_lb(rg_deq_lb && &(rg_lbenables)==1 && (!ff_lb_control.notFull|| rg_fence_stall) && 
