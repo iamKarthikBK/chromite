@@ -224,6 +224,8 @@ package dcache_nway;
     Reg#(Bit#(TLog#(ways))) rg_way_index <- mkReg(0);
     Reg#(Bit#(TLog#(ways))) curr_way <-mkReg(0);
     Reg#(Bit#(TLog#(sets))) curr_index<- mkReg(0);
+    Reg#(Bit#(TLog#(ways))) curr_way_delay <-mkReg(0);
+    Reg#(Bit#(TLog#(sets))) curr_index_delay<- mkReg(0);
     Reg#(Bool) rg_init_delay <-mkReg(!ramreg);
     Reg#(Bool) rg_init_delay2 <-mkReg(False);
     Reg#(Bool) rg_global_dirty <- mkReg(False);
@@ -280,29 +282,31 @@ package dcache_nway;
         rg_init_delay2<=True;
 
       if(rg_init_delay2)begin
-        let curr_tag<-tag_arr[curr_way].read_response;
-        let curr_data<-data_arr[curr_way].read_response;
+        let curr_tag<-tag_arr[curr_way_delay].read_response;
+        let curr_data<-data_arr[curr_way_delay].read_response;
         Bit#(1) curr_dirty = curr_tag[v_tagbits] & pack(rg_global_dirty);
-        $display($time,"\tDCACHE: Fence. curr_index: %d curr_dirty: %b curr_tag: %h curr_data:%h",
-            curr_index,curr_dirty, curr_tag,curr_data);
+        $display($time,"\tDCACHE: Fence. curr_way: %d curr_index: %d curr_dirty: %b curr_tag: %h curr_data:%h",
+            curr_way_delay,curr_index_delay,curr_dirty, curr_tag,curr_data);
       
         Bit#(TAdd#(TLog#(blocksize),TLog#(wordsize))) offset=0;
-        Bit#(paddr) addr = {curr_tag[v_tagbits-1:0],curr_index,offset};
+        Bit#(paddr) addr = {curr_tag[v_tagbits-1:0],curr_index_delay,offset};
         if (curr_dirty==1 ) begin
           ff_write_mem_request.enq(tuple4(addr,fromInteger(valueOf(blocksize)-1),
                               fromInteger(valueOf(TLog#(wordsize))),curr_data));
           rg_pending_fence_response<=True;
         end
-        if(curr_way!=rg_way_index)begin
-          tag_arr[curr_way].write_request(curr_index,'d0);
-          data_arr[curr_way].write_request(curr_index,'d0);
+        if(curr_way_delay!=rg_way_index)begin
+          $display($time,"\tDCACHE: Fence. Clearing Current line");
+          tag_arr[curr_way_delay].write_request(curr_index_delay,'d0);
+          data_arr[curr_way_delay].write_request(curr_index_delay,'d0);
           
         end
       end
       tag_arr[rg_way_index].read_request(rg_fence_index);
       data_arr[rg_way_index].read_request(rg_fence_index);
 
-      if(rg_fence_index==0 && rg_way_index==0 && rg_init_delay && rg_init_delay2)begin
+      if(curr_index_delay==fromInteger(v_sets-1) && curr_way_delay==fromInteger(v_ways-1) && rg_init_delay &&
+      rg_init_delay2)begin
         if(alg!="PLRU" && alg!="RROBIN")
           repl.reset_repl(truncate(rg_fence_index));
         ff_req_queue.deq;
@@ -310,6 +314,8 @@ package dcache_nway;
         rg_init_delay<=!ramreg;
         rg_init_delay2<=False;
         rg_global_dirty<=False;
+        rg_fence_index<=0;
+        rg_way_index<=0;
         if(verbosity>1)begin
           $display($time,"\tDCACHE Params:");
           $display($time,"\tv_sets: %d",v_sets);
@@ -321,14 +327,21 @@ package dcache_nway;
           $display($time,"\tv_num_words: %d",v_num_words);
         end
       end
-      else if(rg_init_delay)begin
+      else begin
         if(rg_way_index==fromInteger(v_ways-1))
           rg_fence_index<= rg_fence_index+1;
         rg_way_index<=rg_way_index+1;
-        curr_index<=rg_fence_index;
-        curr_way<=rg_way_index;
       end
-  
+      if(ramreg) begin
+        curr_way<=rg_way_index;
+        curr_way_delay<=curr_way;
+        curr_index<=rg_fence_index;
+        curr_index_delay<=curr_index;
+      end
+      else begin
+        curr_way_delay<=rg_way_index;
+        curr_index_delay<=rg_fence_index;
+      end
     endrule
 
     rule capture_fence_response(tpl_2(ff_req_queue.first) && rg_pending_fence_response);
@@ -649,8 +662,8 @@ addresses");
     rule update_linebuffer(!rg_deq_lb);
       Bit#(linewidth) final_mask = wr_miss_mask|wr_lbhit_mask;
       Bit#(linewidth) final_data = (wr_miss_data&wr_miss_mask)|(wr_lbhit_mask&wr_lbhit_data);
-      $display($time, "\tDCACHE: wr_miss_mask: %h wr_lbhit_mask: %h", wr_miss_mask,  wr_lbhit_mask);
-      $display($time, "\tDCACHE: wr_miss_data: %h wr_lbhit_data: %h", wr_miss_data,  wr_lbhit_data);
+//      $display($time, "\tDCACHE: wr_miss_mask: %h wr_lbhit_mask: %h", wr_miss_mask,  wr_lbhit_mask);
+//      $display($time, "\tDCACHE: wr_miss_data: %h wr_lbhit_data: %h", wr_miss_data,  wr_lbhit_data);
       `ifdef simulate
         dynamicAssert((wr_miss_mask&wr_lbhit_mask) == 0,"Memory and New request updating common \
 fields in the LB");
@@ -659,8 +672,8 @@ fields in the LB");
       rg_lbdataline<= (~final_mask&rg_lbdataline) | (final_mask&final_data);
       if(wr_lbhit_mask!=0) // If there is store to the linebuffer mark it as dirty before.
         rg_lbdirty<=1;
-      if(verbosity!=0)
-        $display($time,"\tDCACHE: Updating line_buffer:%h dirty: %b",x, rg_lbdirty);
+//      if(verbosity!=0)
+//        $display($time,"\tDCACHE: Updating line_buffer:%h dirty: %b",x, rg_lbdirty);
     endrule
     
     // thsi rule will fire when the response for a IO read request has arrived
@@ -693,7 +706,7 @@ fields in the LB");
       tag_arr[way].write_request(lbset,{1,rg_lbdirty,lbtag});//lbtag
       data_arr[way].write_request(lbset,truncate(rg_lbdataline));
       if(verbosity!=0)
-        $display($time,"\tDCACHE: LB Replacing Way :%d in set: %d tag:%h dirty: %b with dataline",way,
+        $display($time,"\tDCACHE: LB Replacing Way :%d in set: %d tag:%h dirty: %b with dataline: ",way,
                                         lbset,lbtag,rg_lbdirty,rg_lbdataline);
       rg_deq_lb<=True;
     endrule
