@@ -142,7 +142,7 @@ package dcache_nway;
        return write_enable;
     endfunction
 
-    Ifc_mem_config#(sets, linewidth, 8) data_arr [v_ways]; // data array
+    Ifc_mem_config#(sets, linewidth, 1) data_arr [v_ways]; // data array
     Ifc_mem_config#(sets, TAdd#(2, tagbits), 1) tag_arr [v_ways];// one extra valid bit
     Ifc_replace#(sets,ways) repl <- mkreplace(alg);
     for(Integer i=0;i<v_ways;i=i+1)begin
@@ -319,7 +319,6 @@ package dcache_nway;
         if(curr_way_delay!=rg_way_index)begin
           $display($time,"\tDCACHE: Fence. Clearing Current line");
           tag_arr[curr_way_delay].write_request(curr_index_delay,'d0);
-          data_arr[curr_way_delay].write_request(curr_index_delay,'d0);
           
         end
       end
@@ -405,8 +404,8 @@ package dcache_nway;
       // line corresponding to that way is extracted
       Bit#(linewidth) dataline[v_ways];
       Bit#(TAdd#(2, tagbits)) tag[v_ways];
-      Bit#(ways) valid;
-      Bit#(ways) dirty;
+      Bit#(ways) valid=0;
+      Bit#(ways) dirty=0;
       Bit#(tagbits) stored_tag [v_ways];
       Bit#(ways) hit=0;
       Bit#(linewidth) temp[v_ways]; // mask for each way dataline.
