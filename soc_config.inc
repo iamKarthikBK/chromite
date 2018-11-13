@@ -1,4 +1,4 @@
-ISA=RV64IMAFD
+ISA=RV64I
 MMU=enable
 AXI=enable
 BPU=enable
@@ -16,7 +16,7 @@ SUPERVISOR=True
 MULSTAGES=8
 DIVSTAGES=64
 FPGA=xc7a100tcsg324-1
-SYNTHTOP=mkriscv
+SYNTHTOP=mkdcache
 
 # Verilator options
 COVERAGE=none
