@@ -75,7 +75,7 @@ package dcache_tb;
 
   
   (*synthesize*)
-  module mktest(Ifc_test_caches#(4,8,64,4,32,32));
+  module mktest(Ifc_test_caches#(`word_size , `block_size , `sets , `ways ,32,`addr_width ));
     let ifc();
     mktest_caches _temp(ifc);
     return (ifc);
