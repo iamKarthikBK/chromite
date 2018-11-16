@@ -47,7 +47,8 @@ package victim;
                       numeric type sets,
                       numeric type ways,
                       numeric type respwidth, 
-                      numeric type paddr
+                      numeric type paddr,
+                      numeric type size
                       );
     // The following method is called when there is a line to be evicted from the cache.
     method Action line_from_cache(Bit#(TMul#(blocksize,TMul#(wordsize,8))) dataline,Bit#(paddr) addr);
@@ -60,12 +61,12 @@ package victim;
     method ActionValue#(DMem_write_request#(paddr)) memory_request;
     method ActionValue#(DMem_write_data#(respwidth)) memory_data;
     // The following method is called when a store from the write-back stage needs to be performed
-    method Action store_from_core (Bit#(TLog#( `size) ) index, Bit#(respwidth) data, Bit#(2) access_size,
+    method Action store_from_core (Bit#(TLog#(size) ) index, Bit#(respwidth) data, Bit#(2) access_size,
                                    Bit#(TAdd#(TLog#(wordsize),TLog#(blocksize))) offset);
     method Bool vb_is_full; 
   endinterface
 
-  module mkvictim(Ifc_victim#(wordsize,blocksize,sets, ways, respwidth, paddr))
+  module mkvictim(Ifc_victim#(wordsize,blocksize,sets, ways, respwidth, paddr, size))
       provisos(
             Mul#(wordsize, 8, _w),        // _w is the total bits in a word
             Mul#(blocksize, _w,linewidth),// linewidth is the total bits in a cache line
@@ -78,6 +79,7 @@ package victim;
 
             // required by compiler
             Add#(a__, respwidth, linewidth),
+            Add#(d__, respwidth, TSub#(linewidth, respwidth)),
             Add#(TAdd#(tagbits, setbits), b__, paddr),
             Mul#(respwidth, c__, linewidth)
           );
@@ -93,11 +95,12 @@ package victim;
     let v_ways=valueOf(ways);
     let v_wordsize=valueOf(wordsize);
     let v_blocksize=valueOf(blocksize);
+    let v_size=valueOf(size);
 
-    Reg#(Bit#(linewidth)) vb_datalines [ `size ]; 
-    Reg#(Bit#(TAdd#(tagbits,setbits))) vb_tagbits [ `size ];
-    Reg#(Bit#( `size )) vb_valid <- mkReg(0);
-    for (Integer i=0; i<`size ; i=i+1) begin
+    Reg#(Bit#(linewidth)) vb_datalines [v_size]; 
+    Reg#(Bit#(TAdd#(tagbits,setbits))) vb_tagbits [v_size];
+    Reg#(Bit#( size )) vb_valid <- mkReg(0);
+    for (Integer i=0; i<v_size ; i=i+1) begin
       vb_datalines[i]<-mkReg(0);
       vb_tagbits[i]<-mkReg(0);
     end
@@ -105,9 +108,9 @@ package victim;
     Reg#(Tuple2#(Bool,Bit#(respwidth))) rg_response<- mkReg(tuple2(False,0));
     Reg#(Bit#(TSub#(linewidth,respwidth))) rg_evict_temp <- mkReg(0);
 
-    Reg#(Bit#(TLog#( `size ))) rg_enq <- mkReg(0);
-    Reg#(Bit#(TLog#( `size ))) rg_evict <- mkReg(0);
-    Reg#(Bit#( `size )) rg_evictmask <- mkReg('b1);
+    Reg#(Bit#(TLog#( size ))) rg_enq <- mkReg(0);
+    Reg#(Bit#(TLog#( size ))) rg_evict <- mkReg(0);
+    Reg#(Bit#( size )) rg_evictmask <- mkReg('b1);
 
     FIFOF#(DMem_write_request#(paddr)) ff_write_request <- mkSizedFIFOF(2);
     FIFOF#(DMem_write_data#(respwidth)) ff_write_data <-mkSizedFIFOF(2);
@@ -152,14 +155,14 @@ package victim;
       Bit#(tagbits) tag = addr[v_paddr-1:v_paddr-v_tagbits];
       Bit#(setbits) set = addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(TAdd#(tagbits,setbits)) t={tag,set};
-      Bit#( `size ) vb_hit=0;
-      Bit#(linewidth) data_t [ `size ];
-      for (Integer i=0; i<`size ; i=i+1) begin
+      Bit#( size ) vb_hit=0;
+      Bit#(linewidth) data_t [ v_size ];
+      for (Integer i=0; i<v_size ; i=i+1) begin
         vb_hit[i]=pack( vb_valid[i]==1 && vb_tagbits[i]==t );
         data_t[i]=duplicate(vb_hit[i])&vb_datalines[i];
       end
       Bit#(linewidth) hitline=0;
-      for(Integer i=0; i<`size ;i=i+1)
+      for(Integer i=0; i<v_size ;i=i+1)
         hitline=hitline|data_t[i];
       rg_response<=tuple2(unpack(|vb_hit),truncate(hitline>>block_offset));
     endmethod
@@ -172,7 +175,7 @@ package victim;
       ff_write_data.deq;
       return ff_write_data.first;
     endmethod
-    method Action store_from_core (Bit#(TLog#( `size) ) index, Bit#(respwidth) data, Bit#(2) access_size,
+    method Action store_from_core (Bit#(TLog#( size) ) index, Bit#(respwidth) data, Bit#(2) access_size,
                                    Bit#(TAdd#(TLog#(wordsize),TLog#(blocksize))) offset);
       Bit#(respwidth) m=(access_size==0)?'hFF:
                             (access_size=='b01)?'hFFFF:'hFFFFFFFF;
@@ -188,7 +191,7 @@ package victim;
 
   (*synthesize*)
   (*conflict_free="line_from_cache,store_from_core"*)
-  module mkvictim_buffer(Ifc_victim#(4 , 8 , 64 , 4 ,32, 32 ));
+  module mkvictim_buffer(Ifc_victim#(4 , 8 , 64 , 4 ,32, 32, 4 ));
     let ifc();
     mkvictim _temp(ifc);
     return (ifc);
