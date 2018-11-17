@@ -51,7 +51,7 @@ package victim_afterL1;
                       numeric type size
                       );
 
-    method Action req_frm_cache ( Bit#(paddr) read_req ,
+    method Action req_frm_cache ( Tuple2#(Bit#(paddr),Bool) read_req ,
                                   Tuple2#(Bit#(paddr),Bool) evict_req);
     method Action data_from_cache(Tuple2#(Bit#(TMul#(wordsize,8)),Bool) wdata);
     method ActionValue#(DMem_read_response#(TMul#(wordsize,8))) response_to_cache;
@@ -245,9 +245,9 @@ package victim_afterL1;
     // This method checks if the request from the cache is a hit in the VB, if so, then capture the
     // hit line and initiate the response to the cache. This method also identifies the index in the
     // VB where a new dirty line from the cache should be placed.
-    method Action req_frm_cache (Bit#(paddr) read_req ,
+    method Action req_frm_cache (Tuple2#(Bit#(paddr),Bool) read_req ,
                                 Tuple2#(Bit#(paddr),Bool) evict_req)if(!full && !rg_perform_empty);
-      let read_addr= read_req;
+      let {read_addr, isRead}  = read_req;
       let {evict_addr,isEvict} = evict_req;
 
       Bit#(tagbits) read_tag = read_addr[v_paddr-1:v_paddr-v_tagbits];
@@ -271,21 +271,22 @@ package victim_afterL1;
         end          
       end
       
-      if(|vb_hit == 1 && rg_enable_vb)begin
-        ff_hit_line.enq(hitline); // this is the line that needs to be responded to the cache
-        ff_resp_type.enq(RespondFromVB);
-      end
-      else begin // There is a miss in the VB for requested line. send request to memory.
-        ff_read_request.enq(tuple3(read_addr,fromInteger(valueOf(blocksize)-1),
-                fromInteger(valueOf(TLog#(wordsize))) ));
-        ff_resp_type.enq(RespondFromMemory);
-      end
-      
+      if(isRead)begin
+        if(|vb_hit == 1 && rg_enable_vb)begin
+          ff_hit_line.enq(hitline); // this is the line that needs to be responded to the cache
+          ff_resp_type.enq(RespondFromVB);
+        end
+        else begin // There is a miss in the VB for requested line. send request to memory.
+          ff_read_request.enq(tuple3(read_addr,fromInteger(valueOf(blocksize)-1),
+                  fromInteger(valueOf(TLog#(wordsize))) ));
+          ff_resp_type.enq(RespondFromMemory);
+        end
+      end      
       Bit#(tagbits) evict_tag = evict_addr[v_paddr-1:v_paddr-v_tagbits];
       Bit#(setbits) evict_set = evict_addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       if(isEvict && rg_enable_vb) begin // If there is an eviction request from cache
         Bit#(TLog#(size)) evict_index=rg_enq;
-        if(|vb_hit == 1) // This will cause a swap
+        if(|vb_hit == 1 && isRead) // This will cause a swap
           evict_index=truncate(pack(countZerosLSB(vb_hit)));
         else // Else allocate a new line to fill the VB.
           rg_enq<=rg_enq+1;
