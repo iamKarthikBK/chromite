@@ -25,3 +25,4 @@ THREADS=1
 
 # DebugOptions
 RTLDUMP=True
+ASSERTIONS=enable

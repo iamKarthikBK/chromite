@@ -92,6 +92,9 @@ endif
 ifeq ($(SUPERVISOR),  True)
   define_macros += -D supervisor=True
 endif
+ifeq ($(ASSERTIONS), enable)
+  define_macros += -D ASSERT=True
+endif
 
 
 ifeq ($(COVERAGE), none)
@@ -184,7 +187,7 @@ generate_verilog: check-restore check-env
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ./verilog/
 	@cp src/common_verilog/bram_1r1w.v ./verilog/
-	@cp src/common_verilog/BRAM1.v ./verilog/
+	@cp src/common_verilog/bram_1rw.v ./verilog/
 	@cp src/common_verilog/BRAM1Load.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO2.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO1.v ./verilog/
