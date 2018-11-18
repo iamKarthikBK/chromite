@@ -31,6 +31,7 @@ TODO:
 2. dirty bit and handling fence.
 3. store_buffer
 4. store in fill_buffer
+5. performance counters
 
 --------------------------------------------------------------------------------------------------
 */
