@@ -20,7 +20,7 @@
 //
 
 module bram_1rw(
-             clka
+             clka,
              ena,
              wea,
              addra,
