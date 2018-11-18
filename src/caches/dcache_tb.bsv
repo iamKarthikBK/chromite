@@ -36,7 +36,8 @@ package dcache_tb;
   import BRAMCore::*;
   import FIFO::*;
   import GetPut::*;
-  import dcache_nway::*;
+  //import dcache_nway::*;
+  import l1dcache::*;
   import test_caches::*;
   //import icache_dm::*;
   import cache_types::*;
@@ -50,8 +51,8 @@ package dcache_tb;
   `define word_size 4
   `define block_size 8
   `define addr_width 32
-  `define ways 4
-  `define repl PLRU
+  `define ways 1
+  `define repl RANDOM
 
   function Bool isIO(Bit#(`addr_width ) addr, Bool cacheable);
     if(!cacheable)
@@ -63,17 +64,6 @@ package dcache_tb;
   endfunction
 
 
-  (*synthesize*)
-  (*conflict_free="core_req_put,deq_lb"*)
-  (*conflict_free="upd_data_into_cache,core_req_put"*)
-//  (*preempts="check_hit_or_miss,core_req_put"*) // this is only required is single port rams are instantiated
-  module mkdcache(Ifc_dcache_dm#(`word_size , `block_size , `sets , `ways ,32,`addr_width ));
-    let ifc();
-    mkdcache_dm#(isIO,  False, "PLRU", False, "dual") _temp(ifc);
-    return (ifc);
-  endmodule
-
-  
   (*synthesize*)
   module mktest(Ifc_test_caches#(`word_size , `block_size , `sets , `ways ,32,`addr_width ));
     let ifc();
@@ -102,9 +92,9 @@ package dcache_tb;
   Reg#(Bit#(32)) rg_test_count <- mkReg(1);
 
   FIFOF#(Bit#(TAdd#(TAdd#(TMul#(`word_size, 8), 8), `addr_width ) )) ff_req <- mkSizedFIFOF(32);
-  `ifdef simulate
-    FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(32);
-  `endif
+//  `ifdef simulate
+//    FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(32);
+//  `endif
 
     
   let verbosity=`VERBOSITY;
@@ -133,15 +123,15 @@ package dcache_tb;
 
       if(request!=0) begin // // not end of simulation
         if(request!='1 && delay==0)
-          dcache.core_req.put(tuple7(truncate(req),unpack(fence),0, False, readwrite, size, writedata));
+          dcache.core_req.put(tuple6(truncate(req),unpack(fence),0, readwrite, size, writedata));
         index<=index+1;
         $display($time,"\tTB: Sending core request for addr: %h",req);
       end
       if((fence==0 && delay==0) || request=='1)begin // if not a fence instruction
         ff_req.enq(req);
-        `ifdef simulate
-          ff_meta.enq(e_meta.sub(truncate(index)));
-        `endif
+//        `ifdef simulate
+//          ff_meta.enq(e_meta.sub(truncate(index)));
+//        `endif
       end
     end
   endrule
@@ -160,7 +150,7 @@ package dcache_tb;
 
   rule checkout_request(ff_req.first[39:0]=='1);
     ff_req.deq;
-    ff_meta.deq;
+//    ff_meta.deq;
     rg_test_count<=rg_test_count+1;
     $display($time,"\tTB: ********** Test:%d PASSED****",rg_test_count);
   endrule
@@ -182,14 +172,14 @@ package dcache_tb;
     Bool datafail=False;
   
     `ifdef simulate
-      let meta <- dcache.meta.get();
-      let expected_meta=ff_meta.first();
-      ff_meta.deq();
-      if(expected_meta!=meta)begin
-        $display($time,"\tTB: Meta does not match for Req: %h",req);
-        $display($time,"\tTB: Expected Meta: %b Received Meta:%b", expected_meta,meta);
-        metafail=True;
-    end
+//      let meta <- dcache.meta.get();
+//      let expected_meta=ff_meta.first();
+//      ff_meta.deq();
+ //     if(expected_meta!=meta)begin
+ //       $display($time,"\tTB: Meta does not match for Req: %h",req);
+ //       $display($time,"\tTB: Expected Meta: %b Received Meta:%b", expected_meta,meta);
+ //       metafail=True;
+ //     end
     `endif
     if(expected_data!=tpl_1(resp))begin
         $display($time,"\tTB: Output from cache is wrong for Req: %h",req);
@@ -225,41 +215,41 @@ package dcache_tb;
     let v_wordbits = valueOf(TLog#(`word_size));
     Bit#(19) index = truncate(addr>>v_wordbits);
     let dat=data.sub(truncate(index));
-    dcache.read_mem_resp.put(tuple2(dat,False));
+    dcache.read_mem_resp.put(tuple3(dat,rg_read_burst_count==burst,False));
     $display($time,"\tTB: Memory Read index: %d responding with: %h ",index,dat);
   endrule
   
-  rule write_mem_request(write_mem_req matches tagged Invalid);
-    let req<- dcache.write_mem_req.get;
-    write_mem_req<=tagged Valid req;
-    $display($time,"\tTB: Memory Write request",fshow(req));
-  endrule
-
-  rule write_mem_resp(write_mem_req matches tagged Valid .req);
-    let {addr, burst, size, writedata}=req;
-    if(rg_write_burst_count == burst) begin
-      rg_write_burst_count<=0;
-      write_mem_req<=tagged Invalid;
-      dcache.write_mem_resp.put(False);
-    end
-    else begin
-      rg_write_burst_count<=rg_write_burst_count+1;
-      let nextdata=writedata>>32;
-      write_mem_req <= tagged Valid tuple4(axi4burst_addrgen(burst,size,2,addr),burst,size,nextdata); // parameterize
-    end
-    
-    let v_wordbits = valueOf(TLog#(`word_size));
-    Bit#(19) index = truncate(addr>>v_wordbits);
-    let loaded_data=data.sub(index);
-
-    Bit#(32) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:'1;
-    Bit#(TLog#(`word_size)) shift_amt=addr[v_wordbits-1:0];
-    mask= mask<<shift_amt;
-
-    Bit#(32) write_word=~mask&loaded_data|mask&truncate(writedata);
-    data.upd(index,write_word);
-    $display($time,"\tTB: Updating Memory index: %d with: %h ",index,write_word);
-  endrule
+//  rule write_mem_request(write_mem_req matches tagged Invalid);
+//    let req<- dcache.write_mem_req.get;
+//    write_mem_req<=tagged Valid req;
+//    $display($time,"\tTB: Memory Write request",fshow(req));
+//  endrule
+//
+//  rule write_mem_resp(write_mem_req matches tagged Valid .req);
+//    let {addr, burst, size, writedata}=req;
+//    if(rg_write_burst_count == burst) begin
+//      rg_write_burst_count<=0;
+//      write_mem_req<=tagged Invalid;
+//      dcache.write_mem_resp.put(False);
+//    end
+//    else begin
+//      rg_write_burst_count<=rg_write_burst_count+1;
+//      let nextdata=writedata>>32;
+//      write_mem_req <= tagged Valid tuple4(axi4burst_addrgen(burst,size,2,addr),burst,size,nextdata); // parameterize
+//    end
+//    
+//    let v_wordbits = valueOf(TLog#(`word_size));
+//    Bit#(19) index = truncate(addr>>v_wordbits);
+//    let loaded_data=data.sub(index);
+//
+//    Bit#(32) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:'1;
+//    Bit#(TLog#(`word_size)) shift_amt=addr[v_wordbits-1:0];
+//    mask= mask<<shift_amt;
+//
+//    Bit#(32) write_word=~mask&loaded_data|mask&truncate(writedata);
+//    data.upd(index,write_word);
+//    $display($time,"\tTB: Updating Memory index: %d with: %h ",index,write_word);
+//  endrule
 
 
   rule extra_line;
