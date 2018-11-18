@@ -140,7 +140,7 @@ package mem_config;
     method Action write_request(Bit#(TLog#(n_entries)) address,  Bit#(datawidth) data);
       for(Integer i=0;i<valueOf(banks);i=i+1)begin
         if (porttype=="single")
-          ram_single[i].put(data[i*bits_per_bank+bits_per_bank-1:i*bits_per_bank], address, 1);
+          ram_single[i].request(data[i*bits_per_bank+bits_per_bank-1:i*bits_per_bank], address, 1);
         else
           ram_double[i].write(data[i*bits_per_bank+bits_per_bank-1:i*bits_per_bank], address, 1);
       end
