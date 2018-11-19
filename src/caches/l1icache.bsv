@@ -35,7 +35,7 @@ TODO:
 
 --------------------------------------------------------------------------------------------------
 */
-package l1dcache;
+package l1icache;
   import Vector::*;
   import FIFOF::*;
   import DReg::*;
@@ -50,7 +50,7 @@ package l1dcache;
   import mem_config::*;
   import replacement::*;
   
-  interface Ifc_l1dcache#( numeric type wordsize, 
+  interface Ifc_l1icache#( numeric type wordsize, 
                            numeric type blocksize,  
                            numeric type sets,
                            numeric type ways,
@@ -78,8 +78,8 @@ package l1dcache;
   (*conflict_free="request_to_memory,fence_operation"*)
   (*conflict_free="request_to_memory,release_from_FB"*)
   (*conflict_free="respond_to_core,release_from_FB"*)
-  module mkl1dcache#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable))
-    (Ifc_l1dcache#(wordsize,blocksize,sets,ways,paddr,fbsize)) 
+  module mkl1icache#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable))
+    (Ifc_l1icache#(wordsize,blocksize,sets,ways,paddr,fbsize)) 
     provisos(
           Mul#(wordsize, 8, respwidth),        // respwidth is the total bits in a word
           Mul#(blocksize, respwidth,linewidth),// linewidth is the total bits in a cache line
@@ -226,7 +226,7 @@ package l1dcache;
       if(verbosity!=0)begin
         $display($time,"\tDACHE: fb_full: %b fb_empty: %b rg_fbwriteback: %d rg_fbmissallocate: %d\
  rg_fbbeingfilled:%d",fb_full,fb_empty,rg_fbwriteback,rg_fbmissallocate,rg_fbbeingfilled);
-        $display($time,"\tDCACHE: ff_core_response.notFull: %b rg_fence_stall: %b",
+        $display($time,"\tICACHE: ff_core_response.notFull: %b rg_fence_stall: %b",
           ff_core_response.notFull,rg_fence_stall);
       end
     endrule
@@ -240,12 +240,10 @@ package l1dcache;
         rg_valid[i]<=0;
       fb_valid<=0;
       rg_fence_stall<=False;
-      //ff_core_response.enq(tuple3(?,False,tpl_3(ff_core_request.first))); //TODO uncomment this
-      //for dcache
-      ff_core_request.deq;
+      ff_core_request.deq; // TODO depends on how fence should be handled.
       repl.reset_repl;
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: Fence operation in progress");
+        $display($time,"\tICACHE: Fence operation in progress");
       end
     endrule
     
@@ -284,7 +282,7 @@ package l1dcache;
           'b110: zeroExtend(word[31:0]);
           default: word;
         endcase;
-      $display($time,"\tDCACHE: Sending response to core. Word: %d for address: %h",word,addr);
+      $display($time,"\tICACHE: Sending response to core. Word: %d for address: %h",word,addr);
       ff_core_response.enq(tuple3(word,err,epoch));
       ff_core_request.deq;
       `ifdef ASSERT
@@ -349,7 +347,7 @@ package l1dcache;
       end
 
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: TAGMATCH: addr:%h hit: %b hitline: %h",addr,hit,hitline);
+        $display($time,"\tICACHE: TAGMATCH: addr:%h hit: %b hitline: %h",addr,hit,hitline);
       end
 
       `ifdef ASSERT
@@ -407,7 +405,7 @@ package l1dcache;
       wr_fb_word<=truncate(hitline>>block_offset); 
 
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: Polling addr: %h linehit: %b wordhit: %b rg_polling: %b",
+        $display($time,"\tICACHE: Polling addr: %h linehit: %b wordhit: %b rg_polling: %b",
             addr,linehit,wordhit,rg_polling);
       end
 
@@ -448,8 +446,8 @@ package l1dcache;
       fb_enables[rg_fbmissallocate]<=0;
       
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: Sending memory request. Addr: %h",addr);
-        $display($time,"\tDCACHE: Allocating FB line: %d",rg_fbmissallocate);
+        $display($time,"\tICACHE: Sending memory request. Addr: %h",addr);
+        $display($time,"\tICACHE: Allocating FB line: %d",rg_fbmissallocate);
       end
 
     endrule
@@ -479,7 +477,7 @@ package l1dcache;
         rg_fbbeingfilled<=rg_fbbeingfilled+1;
 
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: Filling up FB. rg_fbbeingfilled: %d fb_addr: %h fb_dataline: %h \
+        $display($time,"\tICACHE: Filling up FB. rg_fbbeingfilled: %d fb_addr: %h fb_dataline: %h \
 fb_enables: %h",rg_fbbeingfilled,fb_addr[rg_fbbeingfilled],fb_dataline[rg_fbbeingfilled],
 fb_enables[rg_fbbeingfilled]);
       end
@@ -541,8 +539,8 @@ fb_enables[rg_fbbeingfilled]);
       if(fb_full && fillindex==rg_latest_index)
         rg_replaylatest<=True;
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: release from FB firing");
-        $display($time,"\tDCACHE: rg_fbwriteback: %d fb_valid: %b fb_enables: %b setindex: %d \
+        $display($time,"\tICACHE: release from FB firing");
+        $display($time,"\tICACHE: rg_fbwriteback: %d fb_valid: %b fb_enables: %b setindex: %d \
 addr:%h way: %d",
          rg_fbwriteback,fb_valid[rg_fbwriteback],fb_enables[rg_fbwriteback],set_index,
          fb_addr[rg_fbwriteback], waynum);
@@ -556,7 +554,7 @@ addr:%h way: %d",
         tag_arr[i].read_request(rg_latest_index);
       end
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: replaying last request to index: %d maintain sync",rg_latest_index);
+        $display($time,"\tICACHE: replaying last request to index: %d maintain sync",rg_latest_index);
       end
     endrule
 
@@ -573,7 +571,7 @@ addr:%h way: %d",
         end
         wr_takingrequest<=True;
         if (verbosity!=0) begin
-		      $display($time,"\tDCACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d \
+		      $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d \
 access: %d size: %b data:%h", addr, fence, epoch, set_index,  access,  size,  data); 
         end
         rg_latest_index<=set_index;
@@ -636,9 +634,9 @@ access: %d size: %b data:%h", addr, fence, epoch, set_index,  access,  size,  da
 
 
   (*synthesize*)
-  module mkdcache(Ifc_l1dcache#(4, 8, 64, 4 ,32,8));
+  module mkicache(Ifc_l1icache#(4, 16, 64, 1 ,32,1));
     let ifc();
-    mkl1dcache#(isIO) _temp(ifc);
+    mkl1icache#(isIO) _temp(ifc);
     return (ifc);
   endmodule
 endpackage
