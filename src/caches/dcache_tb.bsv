@@ -51,17 +51,8 @@ package dcache_tb;
   `define word_size 4
   `define block_size 8
   `define addr_width 32
-  `define ways 1
-  `define repl RANDOM
-
-  function Bool isIO(Bit#(`addr_width ) addr, Bool cacheable);
-    if(!cacheable)
-      return True;
-    else if( addr < 4096)
-      return True;
-    else
-      return False;    
-  endfunction
+  `define ways 4
+  `define repl RROBIN
 
 
   (*synthesize*)
@@ -92,9 +83,9 @@ package dcache_tb;
   Reg#(Bit#(32)) rg_test_count <- mkReg(1);
 
   FIFOF#(Bit#(TAdd#(TAdd#(TMul#(`word_size, 8), 8), `addr_width ) )) ff_req <- mkSizedFIFOF(32);
-//  `ifdef simulate
-//    FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(32);
-//  `endif
+  `ifdef simulate
+    FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(32);
+  `endif
 
     
   let verbosity=`VERBOSITY;
@@ -108,9 +99,13 @@ package dcache_tb;
   endrule
   `endif
 
+  rule enable_disable_cache;
+    dcache.cache_enable(True);
+  endrule
+
   rule core_req;
     let stime<-$stime;
-    if(stime>=(`sets * `ways * 10 + 20)) begin
+    if(stime>=(20)) begin
       let req=stim.sub(truncate(index));
       // read/write : delay/nodelay : Fence/noFence : Null 
       Bit#(8) control = req[`addr_width + 7: `addr_width ];
@@ -129,9 +124,9 @@ package dcache_tb;
       end
       if((fence==0 && delay==0) || request=='1)begin // if not a fence instruction
         ff_req.enq(req);
-//        `ifdef simulate
-//          ff_meta.enq(e_meta.sub(truncate(index)));
-//        `endif
+        `ifdef simulate
+          ff_meta.enq(e_meta.sub(truncate(index)));
+        `endif
       end
     end
   endrule
@@ -150,7 +145,7 @@ package dcache_tb;
 
   rule checkout_request(ff_req.first[39:0]=='1);
     ff_req.deq;
-//    ff_meta.deq;
+    ff_meta.deq;
     rg_test_count<=rg_test_count+1;
     $display($time,"\tTB: ********** Test:%d PASSED****",rg_test_count);
   endrule
@@ -172,14 +167,14 @@ package dcache_tb;
     Bool datafail=False;
   
     `ifdef simulate
-//      let meta <- dcache.meta.get();
-//      let expected_meta=ff_meta.first();
-//      ff_meta.deq();
- //     if(expected_meta!=meta)begin
- //       $display($time,"\tTB: Meta does not match for Req: %h",req);
- //       $display($time,"\tTB: Expected Meta: %b Received Meta:%b", expected_meta,meta);
- //       metafail=True;
- //     end
+     let meta <- dcache.meta.get();
+     let expected_meta=ff_meta.first();
+     ff_meta.deq();
+     if(expected_meta!=meta)begin
+       $display($time,"\tTB: Meta does not match for Req: %h",req);
+       $display($time,"\tTB: Expected Meta: %b Received Meta:%b", expected_meta,meta);
+       metafail=True;
+     end
     `endif
     if(expected_data!=tpl_1(resp))begin
         $display($time,"\tTB: Output from cache is wrong for Req: %h",req);
