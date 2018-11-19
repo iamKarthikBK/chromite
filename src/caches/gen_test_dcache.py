@@ -4,7 +4,7 @@ import math
 import random
 # parameters:
 
-tbfile=open('icache_tb.bsv','r')
+tbfile=open('dcache_tb.bsv','r')
 
 for lineno,line in enumerate(tbfile):
     if '`define' in line:
@@ -423,10 +423,10 @@ def test10():
     address=4096+(word_size*block_size*sets) # request to old line 2, should be a miss
     write_to_file(address,read,word,unsigned,nodelay,nofence)
     if repl=="PLRU" :
-        gold_file.write(miss)
+        gold_file.write(hit)
         entrycount=entrycount+1
     if repl=="RROBIN" :
-        gold_file.write(miss)
+        gold_file.write(hit)
         entrycount=entrycount+1
 
     address=4096+(word_size*block_size*sets*(ways-1)) # request to old line 0, should be a miss 
@@ -517,9 +517,14 @@ def test12():
     write_to_file(address,read,word,unsigned,nodelay,nofence)
     gold_file.write(hit)
     entrycount=entrycount+1
-    write_to_file(address,read,word,unsigned,nodelay,nofence)
-    gold_file.write(hit)
-    entrycount=entrycount+1
+    if repl=="PLRU":
+      write_to_file(address,read,word,unsigned,nodelay,nofence)
+      gold_file.write(hit)
+      entrycount=entrycount+1
+    elif repl=="RROBIN":
+      write_to_file(address,read,word,unsigned,nodelay,nofence)
+      gold_file.write(miss)
+      entrycount=entrycount+1
 
    
     address=4096+(word_size*block_size) # miss to make lb write back to cache
@@ -530,10 +535,10 @@ def test12():
     address=4096 # request to old line 3
     write_to_file(address,read,word,unsigned,nodelay,nofence)
     if repl=="PLRU" :
-        gold_file.write(miss)
+        gold_file.write(hit)
         entrycount=entrycount+1
     if repl=="RROBIN" :
-        gold_file.write(miss)
+        gold_file.write(hit)
         entrycount=entrycount+1
     
     write_to_file(maxaddr,atomic,dword,unsigned,delay,fence)
@@ -901,28 +906,62 @@ def test19():
     entrycount=entrycount+1
     return 0
 
+# This test will thrash a single set with requests which is equal to the number
+# of the fill-buffer entries and then generate a new request to the first line.
+# This continuous thrashing will cause the fill-buffer to become full and threby
+# cause a fill of the first line into the cache. This should also trigger a
+# replay of the request
+def test20():
+    global entrycount
+    write_to_file(0,read,word,unsigned,nodelay,fence)
+    gold_file.write(miss)
+    entrycount=entrycount+1
+    address=4096
+    for i in range(8):
+        write_to_file(address,read,word,unsigned,nodelay,nofence)
+        gold_file.write(miss)
+        entrycount=entrycount+1
+        address=address+(word_size*block_size*sets)
+
+#    for i in range(40):
+#      write_to_file(address,read,word,unsigned,delay,nofence)
+#      gold_file.write(miss)
+#      entrycount=entrycount+1
+
+    
+    address=4096
+    write_to_file(address,read,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+    
+    
+    write_to_file(maxaddr,atomic,dword,unsigned,delay,fence)
+    gold_file.write(miss)
+    entrycount=entrycount+1
+    return 0
 
 
-test1()
-test2()
-test3()
-test4()
-test5()
-#test6() 
-test7()
-test8()
-test9()
-test10()
-test11()
-test12()
-test13()
-test14a()
-test14b()
+#test1()
+#test2()
+#test3()
+#test4()
+#test5()
+##test6() 
+#test7()
+#test8()
+#test9()
+#test10()
+#test11()
+#test12()
+#test13()
+#test14a()
+#test14b()
 #test15()
 #test16()
 #test17()
 #test18()
 #test19()
+test20()
 write_to_file(0,endsim,byte,signed,nodelay,nofence)
 gold_file.write(miss)
 entrycount=entrycount+1
