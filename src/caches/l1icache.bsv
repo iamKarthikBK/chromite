@@ -26,12 +26,7 @@ Author: Neel Gala
 Email id: neelgala@gmail.com
 Details:
 TODO: 
-1.  isIO request handling
-1.2 make this i-cache and test with e-class.
-2.  dirty bit and handling fence.
-3.  store_buffer
-4.  store in fill_buffer
-5.  performance counters
+1.  performance counters
 
 --------------------------------------------------------------------------------------------------
 */
@@ -156,8 +151,8 @@ package l1icache;
     Ifc_mem_config#(sets, linewidth, 1) data_arr [v_ways]; // data array
     Ifc_mem_config#(sets, tagbits, 1) tag_arr [v_ways];// one extra valid bit
     for(Integer i=0;i<v_ways;i=i+1)begin
-      data_arr[i]<-mkmem_config_h(False, "single"); // TODO parameterize arguments
-      tag_arr[i]<-mkmem_config_h(False, "single");
+      data_arr[i]<-mkmem_config_h(False, "dual"); // TODO parameterize arguments
+      tag_arr[i]<-mkmem_config_h(False, "dual");
     end
     Ifc_replace#(sets,ways) repl <- mkreplace(alg);
     Reg#(Bit#(ways)) rg_valid[v_sets];

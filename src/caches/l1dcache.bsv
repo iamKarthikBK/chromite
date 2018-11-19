@@ -26,8 +26,6 @@ Author: Neel Gala
 Email id: neelgala@gmail.com
 Details:
 TODO: 
-1.  isIO request handling
-1.2 make this i-cache and test with e-class.
 2.  dirty bit and handling fence.
 3.  store_buffer
 4.  store in fill_buffer
