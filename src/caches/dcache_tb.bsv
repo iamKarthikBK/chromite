@@ -122,7 +122,8 @@ package dcache_tb;
         index<=index+1;
         $display($time,"\tTB: Sending core request for addr: %h",req);
       end
-      if((fence==0 && delay==0) || request=='1)begin // if not a fence instruction
+      if((delay==0) || request=='1)begin // if not a fence instruction
+        $display($time,"\tTB: Enquiing request: %h",req);
         ff_req.enq(req);
         `ifdef simulate
           ff_meta.enq(e_meta.sub(truncate(index)));
@@ -153,42 +154,43 @@ package dcache_tb;
 
   rule core_resp(ff_req.first[39:0]!='1);
     let resp <- dcache.core_resp.get();
+    let meta <- dcache.meta.get();
     let req = ff_req.first;
+    let expected_meta=ff_meta.first();
     ff_req.deq();
-      Bit#(8) control = req[`addr_width + 7: `addr_width ];
-      Bit#(2) readwrite=control[7:6];
-      Bit#(3) size=control[5:3];
-      Bit#(1) delay=control[2];
-      Bit#(1) fence=control[1];
-      Bit#(TMul#(`word_size, 8)) writedata=truncateLSB(req);
+    ff_meta.deq();
+    Bit#(8) control = req[`addr_width + 7: `addr_width ];
+    Bit#(2) readwrite=control[7:6];
+    Bit#(3) size=control[5:3];
+    Bit#(1) delay=control[2];
+    Bit#(1) fence=control[1];
+    Bit#(TMul#(`word_size, 8)) writedata=truncateLSB(req);
 
-    let expected_data<-testcache.memory_operation(truncate(req),readwrite,size,writedata);
-    Bool metafail=False;
-    Bool datafail=False;
+    if(fence==0)begin
+      let expected_data<-testcache.memory_operation(truncate(req),readwrite,size,writedata);
+      Bool metafail=False;
+      Bool datafail=False;
   
-    `ifdef simulate
-     let meta <- dcache.meta.get();
-     let expected_meta=ff_meta.first();
-     ff_meta.deq();
-     if(expected_meta!=meta)begin
-       $display($time,"\tTB: Meta does not match for Req: %h",req);
-       $display($time,"\tTB: Expected Meta: %b Received Meta:%b", expected_meta,meta);
-       metafail=True;
-     end
-    `endif
-    if(expected_data!=tpl_1(resp))begin
-        $display($time,"\tTB: Output from cache is wrong for Req: %h",req);
-        $display($time,"\tTB: Expected: %h, Received: %h",expected_data,tpl_1(resp));
-        datafail=True;
-    end
+      `ifdef simulate
+       if(expected_meta!=meta)begin
+         $display($time,"\tTB: Meta does not match for Req: %h",req);
+         $display($time,"\tTB: Expected Meta: %b Received Meta:%b", expected_meta,meta);
+         metafail=True;
+       end
+      `endif
+      if(expected_data!=tpl_1(resp))begin
+          $display($time,"\tTB: Output from cache is wrong for Req: %h",req);
+          $display($time,"\tTB: Expected: %h, Received: %h",expected_data,tpl_1(resp));
+          datafail=True;
+      end
 
-    if(metafail||datafail)begin
-      $display($time,"\tTB: Test: %d Failed",rg_test_count);
-      $finish(0);
+      if(metafail||datafail)begin
+        $display($time,"\tTB: Test: %d Failed",rg_test_count);
+        $finish(0);
+      end
+      else
+        $display($time,"\tTB: Core received correct response: ",fshow(resp)," For req: %h",req);
     end
-    else
-      $display($time,"\tTB: Core received correct response: ",fshow(resp)," For req: %h",req);
-
   endrule
 
   rule read_mem_request(read_mem_req matches tagged Invalid);
@@ -214,37 +216,37 @@ package dcache_tb;
     $display($time,"\tTB: Memory Read index: %d responding with: %h ",index,dat);
   endrule
   
-//  rule write_mem_request(write_mem_req matches tagged Invalid);
-//    let req<- dcache.write_mem_req.get;
-//    write_mem_req<=tagged Valid req;
-//    $display($time,"\tTB: Memory Write request",fshow(req));
-//  endrule
-//
-//  rule write_mem_resp(write_mem_req matches tagged Valid .req);
-//    let {addr, burst, size, writedata}=req;
-//    if(rg_write_burst_count == burst) begin
-//      rg_write_burst_count<=0;
-//      write_mem_req<=tagged Invalid;
-//      dcache.write_mem_resp.put(False);
-//    end
-//    else begin
-//      rg_write_burst_count<=rg_write_burst_count+1;
-//      let nextdata=writedata>>32;
-//      write_mem_req <= tagged Valid tuple4(axi4burst_addrgen(burst,size,2,addr),burst,size,nextdata); // parameterize
-//    end
-//    
-//    let v_wordbits = valueOf(TLog#(`word_size));
-//    Bit#(19) index = truncate(addr>>v_wordbits);
-//    let loaded_data=data.sub(index);
-//
-//    Bit#(32) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:'1;
-//    Bit#(TLog#(`word_size)) shift_amt=addr[v_wordbits-1:0];
-//    mask= mask<<shift_amt;
-//
-//    Bit#(32) write_word=~mask&loaded_data|mask&truncate(writedata);
-//    data.upd(index,write_word);
-//    $display($time,"\tTB: Updating Memory index: %d with: %h ",index,write_word);
-//  endrule
+  rule write_mem_request(write_mem_req matches tagged Invalid);
+    let req<- dcache.write_mem_req.get;
+    write_mem_req<=tagged Valid req;
+    $display($time,"\tTB: Memory Write request",fshow(req));
+  endrule
+
+  rule write_mem_resp(write_mem_req matches tagged Valid .req);
+    let {addr, burst, size, writedata}=req;
+    if(rg_write_burst_count == burst) begin
+      rg_write_burst_count<=0;
+      write_mem_req<=tagged Invalid;
+      dcache.write_mem_resp.put(False);
+    end
+    else begin
+      rg_write_burst_count<=rg_write_burst_count+1;
+      let nextdata=writedata>>32;
+      write_mem_req <= tagged Valid tuple4(axi4burst_addrgen(burst,size,2,addr),burst,size,nextdata); // parameterize
+    end
+    
+    let v_wordbits = valueOf(TLog#(`word_size));
+    Bit#(19) index = truncate(addr>>v_wordbits);
+    let loaded_data=data.sub(index);
+
+    Bit#(32) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:'1;
+    Bit#(TLog#(`word_size)) shift_amt=addr[v_wordbits-1:0];
+    mask= mask<<shift_amt;
+
+    Bit#(32) write_word=~mask&loaded_data|mask&truncate(writedata);
+    data.upd(index,write_word);
+    $display($time,"\tTB: Updating Memory index: %d with: %h ",index,write_word);
+  endrule
 
 
   rule extra_line;
