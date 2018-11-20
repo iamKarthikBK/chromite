@@ -62,12 +62,15 @@ package l1dcache;
     interface Put#(DMem_read_response#(TMul#(wordsize,8))) read_mem_resp;
     interface Get#(DMem_read_request#(paddr)) io_read_req;
     interface Put#(DMem_read_response#(TMul#(wordsize,8))) io_read_resp;
+    
+    interface Get#(DMem_write_request#(paddr,TMul#(blocksize,TMul#(wordsize,8)))) write_mem_req;
+    interface Put#(DMem_write_response) write_mem_resp;
     `ifdef simulate
       interface Get#(Bit#(1)) meta;
     `endif
-//    `ifdef perf
-//      method Bit#(5) perf_counters;
-//    `endif
+    `ifdef perf
+      method Bit#(5) perf_counters;
+    `endif
     method Action cache_enable(Bool c);
   endinterface
 
@@ -142,10 +145,22 @@ package l1dcache;
     FIFOF#(DMem_read_request#(paddr)) ff_io_read_request    <- mkSizedFIFOF(2);
     // This fifo stores the response from the next level memory.
     FIFOF#(DMem_read_response#(respwidth)) ff_io_read_response  <- mkSizedBypassFIFOF(1);
+    
+    FIFOF#(DMem_write_request#(paddr,TMul#(blocksize,TMul#(wordsize,8)))) ff_write_mem_request    
+                                                                              <- mkSizedFIFOF(2);
+    FIFOF#(DMem_write_response) ff_write_mem_response  <- mkSizedFIFOF(2);
+
     Wire#(Bool) wr_takingrequest <- mkDWire(False);
     Wire#(Bool) wr_cache_enable<-mkWire();
     `ifdef simulate
       FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(2);
+    `endif
+    `ifdef perf
+      Wire#(Bit#(1)) wr_total_access <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_cache_hits <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_fb_hits <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_io <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_fbfills <- mkDWire(0);
     `endif
     // ------------------------------------------------------------------------------------------//
 
@@ -159,10 +174,10 @@ package l1dcache;
     end
     Ifc_replace#(sets,ways) repl <- mkreplace(alg);
     Reg#(Bit#(ways)) rg_valid[v_sets];
-//    Reg#(Bit#(ways)) rg_dirty[v_sets];
+    Reg#(Bit#(ways)) rg_dirty[v_sets];
     for(Integer i=0;i<v_sets;i=i+1)begin
       rg_valid[i]<-mkReg(0);
-//      rg_dirty[i]<-mkReg(0);
+      rg_dirty[i]<-mkReg(0);
     end
     Wire#(RespState) wr_cache_response <- mkDWire(None);
     Wire#(Bit#(respwidth)) wr_cache_hitword <-mkDWire(0);
@@ -182,7 +197,7 @@ package l1dcache;
     Reg#(Bit#(linewidth)) fb_dataline [v_fbsize];
     Reg#(Bit#(paddr)) fb_addr [v_fbsize];
     Reg#(Bit#(blocksize)) fb_enables [v_fbsize];
-//    Reg#(Bit#(fbsize)) fb_dirty <-mkReg(0);
+    Reg#(Bit#(fbsize)) fb_dirty <-mkReg(0);
     Reg#(Bit#(fbsize)) fb_valid <-mkReg(0);
     for(Integer i=0;i<v_fbsize;i=i+1)begin
       fb_dataline[i]<-mkReg(0);
@@ -220,6 +235,14 @@ package l1dcache;
          /*countOnes(fb_valid)>0 &&*/ (fillindex!=rg_latest_index);
     // ------------------------------------------------------------------------------------------//
 
+    // ----------------------------- structures for fence operation -----------------------------//
+    Reg#(Bit#(ways)) rg_way_select<-mkReg(1);
+    Reg#(Bit#(TLog#(sets))) rg_set_select <-mkReg(0);
+    Reg#(Bool) rg_fence_pending <- mkReg(False);
+    Reg#(Bool) rg_globaldirty <- mkReg(False);
+    Reg#(Bool) rg_fenceinit <-mkReg(True);
+    // ------------------------------------------------------------------------------------------//
+
     rule display_stuff;
       if(verbosity!=0)begin
         $display($time,"\tDACHE: fb_full: %b fb_empty: %b rg_fbwriteback: %d rg_fbmissallocate: %d\
@@ -234,16 +257,68 @@ package l1dcache;
     // which can be reset in one-shot. The replacement policies for each set should also be reset.
     // Since they too are implemented as array of registers it can be done in a single cycle.
     rule fence_operation(tpl_2(ff_core_request.first) && rg_fence_stall && fb_empty);
-      for(Integer i=0;i<v_sets;i=i+1)
-        rg_valid[i]<=0;
-      fb_valid<=0;
-      rg_fence_stall<=False;
-      //ff_core_response.enq(tuple3(?,False,tpl_3(ff_core_request.first))); //TODO uncomment this
-      //for dcache
-      ff_core_request.deq;
-      repl.reset_repl;
+      Bit#(linewidth) dataline [v_ways];
+      Bit#(tagbits) tag [v_ways];
+      Bit#(linewidth) temp [v_ways];
+      Bit#(linewidth) final_line =0;
+      Bit#(TLog#(ways)) waynum = truncate(pack(countZerosLSB(rg_way_select)));
+      Bit#(TSub#(paddr,TAdd#(tagbits,setbits))) zeros='d0;
+      
+      Bit#(TAdd#(1,TLog#(sets))) next_set={1'b0,rg_set_select}+1;
+      Bit#(TLog#(sets)) index=rg_set_select;
+
+      Bit#(1) dirty_and_valid = rg_dirty[rg_set_select][waynum]&rg_valid[rg_set_select][waynum];
+      for(Integer i=0;i<v_ways;i=i+1)begin
+        dataline[i]<-data_arr[i].read_response();
+        tag[i]<-tag_arr[i].read_response();
+      end
+
+      for(Integer i=0;i<v_ways;i=i+1)begin
+        temp[i]=duplicate( dirty_and_valid & rg_way_select[i]) & dataline[i] ;
+        final_line=final_line|temp[i];
+      end
+      Bit#(paddr) final_address={tag[waynum],rg_set_select,zeros};
+
+      if(!rg_globaldirty && !rg_fenceinit)begin
+        rg_way_select<=rotateBitsBy(rg_way_select,1);
+        rg_set_select<=index;
+        if(rg_way_select[v_ways-1]==1 || rg_dirty[rg_set_select]==0)begin
+          index=truncate(next_set);
+        end
+        if(unpack(dirty_and_valid))begin
+          $display($time,"\tDCACHE: Fence Sending line for addr: %h data: %h",final_address,final_line);
+          ff_write_mem_request.enq(tuple4(final_address,fromInteger(valueOf(blocksize)-1),
+                                fromInteger(valueOf(TLog#(wordsize))),final_line));
+        end
+
+      end
+      for(Integer i=0;i<v_ways;i=i+1)begin
+        tag_arr[i].read_request(index);
+        data_arr[i].read_request(index);// send request to all ways a set.
+      end
+
+      if (next_set==fromInteger(v_sets) || !rg_globaldirty)begin
+        for(Integer i=0;i<v_sets;i=i+1)begin
+          rg_valid[i]<=0;
+          rg_dirty[i]<=0;
+        end
+        rg_fenceinit<=True;
+        fb_valid<=0;
+        rg_fence_stall<=False;
+        ff_core_request.deq;
+        rg_globaldirty<=False;
+        repl.reset_repl;
+        ff_core_response.enq(tuple3(?,False,tpl_3(ff_core_request.first)));
+        `ifdef simulate
+          ff_meta.enq(0);
+        `endif
+      end
+      else
+        rg_fenceinit<=False;
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: Fence operation in progress");
+        $display($time,"\tDCACHE: Fence operation in progress globaldirty: %b",rg_globaldirty);
+        $display($time,"\tDCACHE: rg_way_select: %b rg_set_select: %d index: %d next_set: %d",
+            rg_way_select,rg_set_select,index,next_set);
       end
     endrule
     
@@ -260,14 +335,25 @@ package l1dcache;
           wr_cache_hitindex<=tagged Valid set_index;
           repl.update_set(set_index, wr_hitway);//wr_replace_line); // TODO update for PLRU should happen here
         end
+        `ifdef perf
+          wr_total_cache_hits<=1;
+        `endif
       end
       else if(wr_fb_response==Hit)begin
         word=wr_fb_word;
         err=rg_fb_err;
+        `ifdef perf
+          // Only when the hit in the LB is not because of a miss should the counter be enabled.
+          if(!rg_miss_ongoing)
+            wr_total_fb_hits<=1;
+        `endif
       end
       else if(wr_io_response==Hit)begin
         word=wr_io_word;
         err=wr_io_err;
+        `ifdef perf
+          wr_total_io<=1;
+        `endif
       end
       rg_miss_ongoing<=False;
       // depending onthe request made by the core, the word is either sigextended/zeroextend and
@@ -414,6 +500,7 @@ package l1dcache;
       `endif
     endrule
 
+
     `ifdef simulate
       rule put_meta;
         if(wr_cache_response==Hit)
@@ -514,7 +601,7 @@ fb_enables[rg_fbbeingfilled]);
     // requested by the core (present in the ff_core_request). Writing this line would cause a
     // replay of the latest request. This would cause another cycle delay which would eventually be
     // a hit in the cache RAMS. 
-    rule release_from_FB((fb_full || fill_oppurtunity) && !rg_replaylatest &&
+    rule release_from_FB((fb_full || fill_oppurtunity || rg_fence_stall) && !rg_replaylatest &&
               !fb_empty && fb_valid[rg_fbwriteback]==1 && (&fb_enables[rg_fbwriteback])==1);
       // if line is valid and is completely filled.
       let addr=fb_addr[rg_fbwriteback];
@@ -532,12 +619,16 @@ fb_enables[rg_fbbeingfilled]);
         end
       end
       rg_valid[set_index][waynum]<=1'b1;
+      rg_dirty[set_index][waynum]<=fb_dirty[rg_fbwriteback];
       tag_arr[waynum].write_request(set_index,tag);
       data_arr[waynum].write_request(set_index,fb_dataline[rg_fbwriteback]);
       rg_fbwriteback<=rg_fbwriteback+1;
       fb_valid[rg_fbwriteback]<=0;
       if(fb_full && fillindex==rg_latest_index)
         rg_replaylatest<=True;
+      `ifdef perf
+        wr_total_fbfills<=1;
+      `endif
       if(verbosity!=0)begin
         $display($time,"\tDCACHE: release from FB firing");
         $display($time,"\tDCACHE: rg_fbwriteback: %d fb_valid: %b fb_enables: %b setindex: %d \
@@ -547,7 +638,7 @@ addr:%h way: %d",
       end
     endrule
 
-    rule replay_latest_request(rg_replaylatest);
+    rule replay_latest_request(rg_replaylatest && !rg_fence_stall);
       rg_replaylatest<=False;
       for(Integer i=0;i<v_ways;i=i+1)begin
         data_arr[i].read_request(rg_latest_index);
@@ -561,6 +652,9 @@ addr:%h way: %d",
     interface core_req=interface Put
       method Action put(DCore_request#(paddr,respwidth) req)if( ff_core_response.notFull &&
                                 !rg_replaylatest &&  !rg_fence_stall && !fb_full);
+        `ifdef perf
+          wr_total_access<=1;
+        `endif
         let {addr, fence, epoch, access, size, data} =req;
         Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
         ff_core_request.enq(req);
@@ -621,6 +715,24 @@ access: %d size: %b data:%h", addr, fence, epoch, set_index,  access,  size,  da
     method Action cache_enable(Bool c);
       wr_cache_enable<=c;
     endmethod
+    `ifdef perf
+      method Bit#(5) perf_counters;
+        return {wr_total_fbfills,wr_total_io,wr_total_fb_hits,wr_total_cache_hits,wr_total_access};
+      endmethod
+    `endif
+    interface write_mem_req = interface Get
+      method ActionValue#(DMem_write_request#(paddr,TMul#(blocksize,TMul#(wordsize,8)))) get;
+        ff_write_mem_request.deq;
+        return ff_write_mem_request.first;
+      endmethod
+    endinterface;
+
+    interface write_mem_resp= interface Put
+     method Action put(DMem_write_response resp);
+        ff_write_mem_response.enq(resp);
+     endmethod
+    endinterface;
+
   endmodule
  
   function Bool isIO(Bit#(32) addr, Bool cacheable);
@@ -634,7 +746,7 @@ access: %d size: %b data:%h", addr, fence, epoch, set_index,  access,  size,  da
 
 
   (*synthesize*)
-  module mkdcache(Ifc_l1dcache#(4, 8, 64, 4 ,32,8));
+  module mkdcache(Ifc_l1dcache#(4, 8, 64, 4 ,32,1));
     let ifc();
     mkl1dcache#(isIO) _temp(ifc);
     return (ifc);
