@@ -25,8 +25,13 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Author: Neel Gala
 Email id: neelgala@gmail.com
 Details:
-TODO: 
-1.  performance counters
+  list of performance counters:
+  0. Total accesses
+  1. Total Hits in Cache
+  2. Total Hits in LB
+  3. Total IO requests
+  4. Total Fills from FB to Cache
+  
 
 --------------------------------------------------------------------------------------------------
 */
@@ -53,18 +58,18 @@ package l1icache;
                            numeric type fbsize
                            );
 
-    interface Put#(DCore_request#(paddr,TMul#(wordsize,8))) core_req;
-    interface Get#(DCore_response#(TMul#(wordsize,8))) core_resp;
-    interface Get#(DMem_read_request#(paddr)) read_mem_req;
-    interface Put#(DMem_read_response#(TMul#(wordsize,8))) read_mem_resp;
-    interface Get#(DMem_read_request#(paddr)) io_read_req;
-    interface Put#(DMem_read_response#(TMul#(wordsize,8))) io_read_resp;
-    `ifdef simulate
-      interface Get#(Bit#(1)) meta;
-    `endif
-//    `ifdef perf
-//      method Bit#(5) perf_counters;
+    interface Put#(ICore_request#(paddr)) core_req;
+    interface Get#(ICore_response#(TMul#(wordsize,8))) core_resp;
+    interface Get#(IMem_request#(paddr)) read_mem_req;
+    interface Put#(IMem_response#(TMul#(wordsize,8))) read_mem_resp;
+    interface Get#(IMem_request#(paddr)) io_read_req;
+    interface Put#(IMem_response#(TMul#(wordsize,8))) io_read_resp;
+//    `ifdef simulate
+//      interface Get#(Bit#(1)) meta;
 //    `endif
+    `ifdef perf
+      method Bit#(5) perf_counters;
+    `endif
     method Action cache_enable(Bool c);
   endinterface
 
@@ -128,21 +133,28 @@ package l1icache;
 
     // ----------------------- FIFOs to interact with interface of the design -------------------//
     // This fifo stores the request from the core.
-    FIFOF#(DCore_request#(paddr,respwidth)) ff_core_request <- mkSizedFIFOF(2); 
+    FIFOF#(ICore_request#(paddr)) ff_core_request <- mkSizedFIFOF(2); 
     // This fifo stores the response that needs to be sent back to the core.
-    FIFOF#(DCore_response#(respwidth))ff_core_response <- mkSizedFIFOF(2);
+    FIFOF#(ICore_response#(respwidth))ff_core_response <- mkSizedFIFOF(2);
     // this fifo stores the read request that needs to be sent to the next memory level.
-    FIFOF#(DMem_read_request#(paddr)) ff_read_mem_request    <- mkSizedFIFOF(2);
+    FIFOF#(IMem_request#(paddr)) ff_read_mem_request    <- mkSizedFIFOF(2);
     // This fifo stores the response from the next level memory.
-    FIFOF#(DMem_read_response#(respwidth)) ff_read_mem_response  <- mkSizedBypassFIFOF(1);
+    FIFOF#(IMem_response#(respwidth)) ff_read_mem_response  <- mkSizedBypassFIFOF(1);
     
-    FIFOF#(DMem_read_request#(paddr)) ff_io_read_request    <- mkSizedFIFOF(2);
+    FIFOF#(IMem_request#(paddr)) ff_io_read_request    <- mkSizedFIFOF(2);
     // This fifo stores the response from the next level memory.
-    FIFOF#(DMem_read_response#(respwidth)) ff_io_read_response  <- mkSizedBypassFIFOF(1);
+    FIFOF#(IMem_response#(respwidth)) ff_io_read_response  <- mkSizedBypassFIFOF(1);
     Wire#(Bool) wr_takingrequest <- mkDWire(False);
     Wire#(Bool) wr_cache_enable<-mkWire();
-    `ifdef simulate
-      FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(2);
+//    `ifdef simulate
+//      FIFOF#(Bit#(1)) ff_meta <- mkSizedFIFOF(2);
+//    `endif
+    `ifdef perf
+      Wire#(Bit#(1)) wr_total_access <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_cache_hits <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_fb_hits <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_io <- mkDWire(0);
+      Wire#(Bit#(1)) wr_total_fbfills <- mkDWire(0);
     `endif
     // ------------------------------------------------------------------------------------------//
 
@@ -245,7 +257,7 @@ package l1icache;
     // This rule is fired when there is a hit in the cache. The word received is further modified
     // depending on the request made by the core.
     rule respond_to_core(wr_cache_response==Hit || wr_fb_response==Hit);
-      let {addr, fence, epoch, access, size, data} =ff_core_request.first();
+      let {addr, fence, epoch, prefetch} =ff_core_request.first();
       Bit#(respwidth) word=0;
       Bool err=False;
       let set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -255,28 +267,29 @@ package l1icache;
           wr_cache_hitindex<=tagged Valid set_index;
           repl.update_set(set_index, wr_hitway);//wr_replace_line); // TODO update for PLRU should happen here
         end
+        `ifdef perf
+          wr_total_cache_hits<=1;
+        `endif
       end
       else if(wr_fb_response==Hit)begin
         word=wr_fb_word;
         err=rg_fb_err;
+        `ifdef perf
+          // Only when the hit in the LB is not because of a miss should the counter be enabled.
+          if(!rg_miss_ongoing)
+            wr_total_fb_hits<=1;
+        `endif
       end
       else if(wr_io_response==Hit)begin
         word=wr_io_word;
         err=wr_io_err;
+        `ifdef perf
+          wr_total_io<=1;
+        `endif
       end
       rg_miss_ongoing<=False;
       // depending onthe request made by the core, the word is either sigextended/zeroextend and
       // truncated if necessary.
-      word=
-        case (size)
-          'b000: signExtend(word[7:0]);
-          'b001: signExtend(word[15:0]);
-          'b010: signExtend(word[31:0]);
-          'b100: zeroExtend(word[7:0]);
-          'b101: zeroExtend(word[15:0]);
-          'b110: zeroExtend(word[31:0]);
-          default: word;
-        endcase;
       $display($time,"\tICACHE: Sending response to core. Word: %d for address: %h",word,addr);
       ff_core_response.enq(tuple3(word,err,epoch));
       ff_core_request.deq;
@@ -295,7 +308,7 @@ package l1icache;
     // address is forwarded to the rule request_to_memory;
     rule tag_match(ff_core_response.notFull && !rg_miss_ongoing && !rg_polling &&
           !tpl_2(ff_core_request.first()) );
-      let {addr, fence, epoch, access, size, data} =ff_core_request.first();
+      let {addr, fence, epoch, prefetch} =ff_core_request.first();
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset={addr[v_blockbits+v_wordbits-1:0],3'b0};
       Bit#(blockbits) word_index= addr[v_blockbits+v_wordbits-1:v_wordbits];
       Bit#(tagbits) request_tag = addr[v_paddr-1:v_paddr-v_tagbits];
@@ -357,7 +370,7 @@ package l1icache;
     // is being filled by the lower level memory.
     rule check_fb_for_corerequest(ff_core_response.notFull && !tpl_2(ff_core_request.first));
       Bool wordhit=False;
-      let {addr, fence, epoch, access, size, data} =ff_core_request.first();
+      let {addr, fence, epoch, prefetch} =ff_core_request.first();
       Bit#(tagbits) read_tag = addr[v_paddr-1:v_paddr-v_tagbits];
       Bit#(setbits) read_set = addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits)))block_offset={addr[v_blockbits+v_wordbits-1:0],3'b0};
@@ -408,15 +421,15 @@ package l1icache;
         dynamicAssert(countOnes(fbhit)<=1,"More than one line in FB is hit");
       `endif
     endrule
-
-    `ifdef simulate
-      rule put_meta;
-        if(wr_cache_response==Hit)
-          ff_meta.enq(1);
-        else if(wr_fb_response==Hit)
-          ff_meta.enq(pack(!wrpolling));
-      endrule
-    `endif
+//
+//    `ifdef simulate
+//      rule put_meta;
+//        if(wr_cache_response==Hit)
+//          ff_meta.enq(1);
+//        else if(wr_fb_response==Hit)
+//          ff_meta.enq(pack(!wrpolling));
+//      endrule
+//    `endif
 
     // This rule will generate a miss request to the next level memory. The address from the core
     // cannot be directly sent to the bus. The address will have to made word-aligned before sending
@@ -431,7 +444,7 @@ package l1icache;
     rule request_to_memory(wr_cache_response==Miss && !rg_miss_ongoing && wr_fb_response==Miss
                                                                                         &&!fb_full);
                                                                                         
-      let {addr, fence, epoch, access, size, data} =ff_core_request.first();
+      let {addr, fence, epoch, prefetch} =ff_core_request.first();
       addr= (addr>>v_wordbits)<<v_wordbits; // align the address to be one word aligned.
       ff_read_mem_request.enq(tuple3(addr,fromInteger(v_blocksize-1),fromInteger(v_wordbits)));
       rg_miss_ongoing<=True;
@@ -533,6 +546,9 @@ fb_enables[rg_fbbeingfilled]);
       fb_valid[rg_fbwriteback]<=0;
       if(fb_full && fillindex==rg_latest_index)
         rg_replaylatest<=True;
+      `ifdef perf
+        wr_total_fbfills<=1;
+      `endif
       if(verbosity!=0)begin
         $display($time,"\tICACHE: release from FB firing");
         $display($time,"\tICACHE: rg_fbwriteback: %d fb_valid: %b fb_enables: %b setindex: %d \
@@ -554,9 +570,12 @@ addr:%h way: %d",
     endrule
 
     interface core_req=interface Put
-      method Action put(DCore_request#(paddr,respwidth) req)if( ff_core_response.notFull &&
+      method Action put(ICore_request#(paddr) req)if( ff_core_response.notFull &&
                                 !rg_replaylatest &&  !rg_fence_stall && !fb_full);
-        let {addr, fence, epoch, access, size, data} =req;
+        `ifdef perf
+          wr_total_access<=1;
+        `endif
+        let {addr, fence, epoch, prefetch} =req;
         Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
         ff_core_request.enq(req);
         rg_fence_stall<=fence;
@@ -566,56 +585,61 @@ addr:%h way: %d",
         end
         wr_takingrequest<=True;
         if (verbosity!=0) begin
-		      $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: %d \
-access: %d size: %b data:%h", addr, fence, epoch, set_index,  access,  size,  data); 
+		      $display($time,"\tICACHE: Receiving request to address:%h Fence: %b epoch: %b index: $d",
+          addr, fence, epoch, set_index); 
         end
         rg_latest_index<=set_index;
       endmethod
     endinterface;
 
     interface core_resp = interface Get
-      method ActionValue#(DCore_response#(respwidth)) get();
+      method ActionValue#(ICore_response#(respwidth)) get();
         ff_core_response.deq;
         return ff_core_response.first;
       endmethod
     endinterface;
     
     interface read_mem_req = interface Get
-      method ActionValue#(DMem_read_request#(paddr)) get;
+      method ActionValue#(IMem_request#(paddr)) get;
         ff_read_mem_request.deq;
         return ff_read_mem_request.first;
       endmethod
     endinterface;
 
     interface read_mem_resp= interface Put
-     method Action put(DMem_read_response#(respwidth) resp);
+     method Action put(IMem_response#(respwidth) resp);
         ff_read_mem_response.enq(resp);
      endmethod
     endinterface;
     
     interface io_read_req = interface Get
-      method ActionValue#(DMem_read_request#(paddr)) get;
+      method ActionValue#(IMem_request#(paddr)) get;
         ff_io_read_request.deq;
         return ff_io_read_request.first;
       endmethod
     endinterface;
 
     interface io_read_resp= interface Put
-     method Action put(DMem_read_response#(respwidth) resp);
+     method Action put(IMem_response#(respwidth) resp);
         ff_io_read_response.enq(resp);
      endmethod
     endinterface;
-    `ifdef simulate 
-      interface meta = interface Get
-        method ActionValue#(Bit#(1)) get();
-          ff_meta.deq;
-          return ff_meta.first;
-        endmethod
-      endinterface;
-    `endif 
+//    `ifdef simulate 
+//      interface meta = interface Get
+//        method ActionValue#(Bit#(1)) get();
+//          ff_meta.deq;
+//          return ff_meta.first;
+//        endmethod
+//      endinterface;
+//    `endif 
     method Action cache_enable(Bool c);
       wr_cache_enable<=c;
     endmethod
+    `ifdef perf
+      method Bit#(5) perf_counters;
+        return {wr_total_fbfills,wr_total_io,wr_total_fb_hits,wr_total_cache_hits,wr_total_access};
+      endmethod
+    `endif
   endmodule
  
   function Bool isIO(Bit#(32) addr, Bool cacheable);

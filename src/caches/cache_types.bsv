@@ -36,7 +36,8 @@ package cache_types;
   typedef Tuple3#(Bit#(data), Bool, Bit#(1)) ICore_response#(numeric type data);
                 // addr ,  burst len, burst_size 
   typedef Tuple3#(Bit#(addr),  Bit#(8), Bit#(3)) IMem_request#(numeric type addr);
-  typedef Tuple2#(Bit#(data), Bool) IMem_response#(numeric type data);
+                    // data,  last , err
+  typedef Tuple3#(Bit#(data), Bool, Bool) IMem_response#(numeric type data);
 
   typedef enum {Hit, Miss, None} RespState deriving(Eq,Bits,FShow);
 
