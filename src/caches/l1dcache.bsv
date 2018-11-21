@@ -25,8 +25,13 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Author: Neel Gala
 Email id: neelgala@gmail.com
 Details:
+conditions to account for:
+--> DONE 1. when store-hit in cache, transfer dirty bit.
+2. when store-hit in cache invalidate transfered line.
+--> DONE 3. when you have memory response filling up FB, and there are subsequent store hits which fill
+entries in the FB rg_fbbeingfilled should be appropriately incremented.
+
 TODO: 
-2.  dirty bit and handling fence.
 3.  store_buffer
 4.  store in fill_buffer
 5.  performance counters
@@ -79,6 +84,8 @@ package l1dcache;
   (*conflict_free="request_to_memory,fence_operation"*)
   (*conflict_free="request_to_memory,release_from_FB"*)
   (*conflict_free="respond_to_core,release_from_FB"*)
+  (*conflict_free="respond_to_core,update_fb_with_memory_response"*)
+  (*conflict_free="release_from_FB,update_fb_with_memory_response"*)
   module mkl1dcache#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable))
     (Ifc_l1dcache#(wordsize,blocksize,sets,ways,paddr,fbsize)) 
     provisos(
@@ -173,15 +180,18 @@ package l1dcache;
       tag_arr[i]<-mkmem_config_h(False, "single");
     end
     Ifc_replace#(sets,ways) repl <- mkreplace(alg);
-    Reg#(Bit#(ways)) rg_valid[v_sets];
+//    Reg#(Bit#(ways)) rg_valid[v_sets];
+    Vector#(sets,Reg#(Bit#(ways))) rg_valid<-replicateM(mkReg(0));
     Reg#(Bit#(ways)) rg_dirty[v_sets];
     for(Integer i=0;i<v_sets;i=i+1)begin
-      rg_valid[i]<-mkReg(0);
+  //    rg_valid[i]<-mkReg(0);
       rg_dirty[i]<-mkReg(0);
     end
     Wire#(RespState) wr_cache_response <- mkDWire(None);
     Wire#(Bit#(respwidth)) wr_cache_hitword <-mkDWire(0);
     Wire#(Bit#(TLog#(ways))) wr_hitway <-mkDWire(0);
+    Wire#(Bit#(1)) wr_hitdirty<-mkDWire(0);
+    Wire#(Bit#(ways)) wr_newvalid<-mkDWire(0);
     Reg#(Bool) rg_miss_ongoing <- mkReg(False);
     Reg#(Bool) rg_fence_stall <- mkReg(False);
     Wire#(Maybe#(Bit#(TLog#(sets)))) wr_cache_hitindex <-mkDWire(tagged Invalid);
@@ -190,19 +200,28 @@ package l1dcache;
     Wire#(RespState) wr_io_response <- mkDWire(None);
     Wire#(Bit#(respwidth)) wr_io_word <-mkDWire(0);
     Wire#(Bool) wr_io_err <-mkDWire(False);
+    Wire#(Bit#(linewidth)) wr_hitline <-mkDWire(0);
     // ------------------------------------------------------------------------------------------//
 
+    function Bool isTrue(Bool a);
+      return a;
+    endfunction
+    function Bool isOne(Bit#(1) a);
+      return unpack(a);
+    endfunction
 
     // ----------------- Fill buffer structures -------------------------------------------------//
     Reg#(Bit#(linewidth)) fb_dataline [v_fbsize];
     Reg#(Bit#(paddr)) fb_addr [v_fbsize];
     Reg#(Bit#(blocksize)) fb_enables [v_fbsize];
-    Reg#(Bit#(fbsize)) fb_dirty <-mkReg(0);
-    Reg#(Bit#(fbsize)) fb_valid <-mkReg(0);
+    Reg#(Bit#(1)) fb_dirty [v_fbsize] ;
+    Vector#(fbsize,Reg#(Bool)) fb_valid <-replicateM(mkReg(False));
     for(Integer i=0;i<v_fbsize;i=i+1)begin
       fb_dataline[i]<-mkReg(0);
       fb_addr[i]<-mkReg(0);
       fb_enables[i]<-mkReg(0);
+      fb_dataline[i]<-mkReg(0);
+      fb_dirty[i]<-mkReg(0);
     end
     Wire#(RespState) wr_fb_response <- mkDWire(None);
     Wire#(Bit#(respwidth)) wr_fb_word <-mkDWire(0);
@@ -227,8 +246,8 @@ package l1dcache;
     Reg#(Bit#(TLog#(fbsize))) rg_fbwriteback <-mkReg(0);
     Reg#(Bit#(blocksize))     rg_fbfillenable <- mkReg(0);
 
-    Bool fb_full=unpack(&fb_valid);
-    Bool fb_empty=!unpack(|fb_valid);
+    Bool fb_full= (all(isTrue,readVReg(fb_valid)));
+    Bool fb_empty=!(any(isTrue,readVReg(fb_valid)));
     Bit#(TLog#(sets)) fillindex=fb_addr[rg_fbwriteback][v_setbits+v_blockbits+v_wordbits-1:
                                                                           v_blockbits+v_wordbits];
     Bool fill_oppurtunity=(!ff_core_request.notEmpty || !wr_takingrequest) && !fb_empty &&
@@ -259,7 +278,8 @@ package l1dcache;
     // Since they too are implemented as array of registers it can be done in a single cycle.
     // Additionaly, any set that has no dirty lines is immediately skipped. This improves fence
     // performance.
-    rule fence_operation(tpl_2(ff_core_request.first) && rg_fence_stall && fb_empty);
+    rule fence_operation(tpl_2(ff_core_request.first) && rg_fence_stall && fb_empty &&
+                                                                            !rg_fence_pending);
       Bit#(linewidth) dataline [v_ways];
       Bit#(tagbits) tag [v_ways];
       Bit#(linewidth) temp [v_ways];
@@ -290,6 +310,7 @@ package l1dcache;
           $display($time,"\tDCACHE: Fence Sending line for addr: %h data: %h",final_address,final_line);
           ff_write_mem_request.enq(tuple4(final_address,fromInteger(valueOf(blocksize)-1),
                                 fromInteger(valueOf(TLog#(wordsize))),final_line));
+          rg_fence_pending<=True;
         end
         rg_set_select<=truncate(index);
         if(rg_dirty[rg_set_select]!=0)
@@ -306,8 +327,11 @@ package l1dcache;
           rg_valid[i]<=0;
           rg_dirty[i]<=0;
         end
+        for(Integer j=0;j<v_fbsize;j=j+1)begin
+          fb_enables[j]<=0;
+          fb_valid[j]<=False;
+        end
         rg_fenceinit<=True;
-        fb_valid<=0;
         rg_fence_stall<=False;
         ff_core_request.deq;
         rg_globaldirty<=False;
@@ -326,64 +350,11 @@ package l1dcache;
             rg_way_select,rg_set_select,index,next_set);
       end
     endrule
-    
-    // This rule is fired when there is a hit in the cache. The word received is further modified
-    // depending on the request made by the core.
-    rule respond_to_core(wr_cache_response==Hit || wr_fb_response==Hit);
-      let {addr, fence, epoch, access, size, data} =ff_core_request.first();
-      Bit#(respwidth) word=0;
-      Bool err=False;
-      let set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
-      if(wr_cache_response==Hit)begin
-        word=wr_cache_hitword;
-        if(alg=="PLRU") begin
-          wr_cache_hitindex<=tagged Valid set_index;
-          repl.update_set(set_index, wr_hitway);//wr_replace_line); // TODO update for PLRU should happen here
-        end
-        `ifdef perf
-          wr_total_cache_hits<=1;
-        `endif
-      end
-      else if(wr_fb_response==Hit)begin
-        word=wr_fb_word;
-        err=rg_fb_err;
-        `ifdef perf
-          // Only when the hit in the LB is not because of a miss should the counter be enabled.
-          if(!rg_miss_ongoing)
-            wr_total_fb_hits<=1;
-        `endif
-      end
-      else if(wr_io_response==Hit)begin
-        word=wr_io_word;
-        err=wr_io_err;
-        `ifdef perf
-          wr_total_io<=1;
-        `endif
-      end
-      rg_miss_ongoing<=False;
-      // depending onthe request made by the core, the word is either sigextended/zeroextend and
-      // truncated if necessary.
-      word=
-        case (size)
-          'b000: signExtend(word[7:0]);
-          'b001: signExtend(word[15:0]);
-          'b010: signExtend(word[31:0]);
-          'b100: zeroExtend(word[7:0]);
-          'b101: zeroExtend(word[15:0]);
-          'b110: zeroExtend(word[31:0]);
-          default: word;
-        endcase;
-      $display($time,"\tDCACHE: Sending response to core. Word: %d for address: %h",word,addr);
-      ff_core_response.enq(tuple3(word,err,epoch));
-      ff_core_request.deq;
-      `ifdef ASSERT
-        dynamicAssert(!(wr_cache_response==Hit && wr_fb_response==Hit),
-                                                  "Cache and FB both are hit simultaneously");
-        dynamicAssert(!(wr_io_response==Hit && wr_fb_response==Hit),
-                                                  "IO and FB both are hit simultaneously");
-        dynamicAssert(!(wr_cache_response==Hit && wr_io_response==Hit),
-                                                  "Cache and IO both are hit simultaneously");
-      `endif
+
+    rule receive_memory_response(rg_fence_pending && tpl_2(ff_core_response.first));
+      let x=ff_write_mem_response.first;
+      ff_write_mem_response.deq;
+      rg_fence_pending<=False;
     endrule
 
     // This rule will perform the check on the tags from the cache and detect is there is a hit or a
@@ -424,6 +395,9 @@ package l1dcache;
       end
       Bool cache_hit=unpack(|(hit));
       wr_hitway<=truncate(pack(countZerosLSB(hit)));
+      wr_hitline<=hitline;
+      wr_hitdirty<=|(rg_dirty[set_index]&hit);
+      wr_newvalid<=~hit&rg_valid[set_index];
       Bit#(respwidth) response_word=truncate(hitline>>block_offset);
       if(is_IO(addr,wr_cache_enable))begin // TODO make this programmable;
         wr_cache_response<=None;
@@ -476,7 +450,7 @@ package l1dcache;
       
       for (Integer i=0;i<v_fbsize;i=i+1)begin
         // we use truncateLSB because we need to match only the tag and set bits
-        if( truncateLSB(fb_addr[i])==t && fb_valid[i]==1)begin
+        if( truncateLSB(fb_addr[i])==t && fb_valid[i])begin
           hitline=fb_dataline[i];
           fbhit[i]=1;
           if(fb_enables[i][word_index]==1'b1) begin
@@ -505,6 +479,79 @@ package l1dcache;
       `endif
     endrule
 
+    
+    // This rule is fired when there is a hit in the cache. The word received is further modified
+    // depending on the request made by the core.
+    rule respond_to_core(wr_cache_response==Hit || wr_fb_response==Hit || wr_io_response==Hit);
+      let {addr, fence, epoch, access, size, data} =ff_core_request.first();
+      Bit#(respwidth) word=0;
+      Bool err=False;
+      Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
+      if(wr_cache_response==Hit)begin
+        word=wr_cache_hitword;
+        if(alg=="PLRU") begin
+          wr_cache_hitindex<=tagged Valid set_index;
+          repl.update_set(set_index, wr_hitway);//wr_replace_line); // TODO update for PLRU should happen here
+        end
+        `ifdef perf
+          wr_total_cache_hits<=1;
+        `endif
+      end
+      else if(wr_fb_response==Hit)begin
+        word=wr_fb_word;
+        err=rg_fb_err;
+        `ifdef perf
+          // Only when the hit in the LB is not because of a miss should the counter be enabled.
+          if(!rg_miss_ongoing)
+            wr_total_fb_hits<=1;
+        `endif
+      end
+      else if(wr_io_response==Hit)begin
+        word=wr_io_word;
+        err=wr_io_err;
+        `ifdef perf
+          wr_total_io<=1;
+        `endif
+      end
+      if(access!=1 && (wr_fb_response==Hit || wr_cache_response==Hit))begin
+        rg_globaldirty<=True;
+      end
+
+      // This captures a line from the cache RAMS into the Fill buffer on a store/atomic hit.
+      if(access!=1 && wr_cache_response==Hit)begin
+        rg_fbmissallocate<=rg_fbmissallocate+1;
+        fb_valid[rg_fbmissallocate]<=True;
+        fb_addr[rg_fbmissallocate]<=addr;
+        fb_enables[rg_fbmissallocate]<='1;
+        fb_dataline[rg_fbmissallocate]<=wr_hitline;
+        fb_dirty[rg_fbmissallocate]<=wr_hitdirty;
+        rg_valid[set_index]<=wr_newvalid; // TODO
+      end
+      rg_miss_ongoing<=False;
+      // depending onthe request made by the core, the word is either sigextended/zeroextend and
+      // truncated if necessary.
+      word=
+        case (size)
+          'b000: signExtend(word[7:0]);
+          'b001: signExtend(word[15:0]);
+          'b010: signExtend(word[31:0]);
+          'b100: zeroExtend(word[7:0]);
+          'b101: zeroExtend(word[15:0]);
+          'b110: zeroExtend(word[31:0]);
+          default: word;
+        endcase;
+      $display($time,"\tDCACHE: Sending response to core. Word: %d for address: %h",word,addr);
+      ff_core_response.enq(tuple3(word,err,epoch));
+      ff_core_request.deq;
+      `ifdef ASSERT
+        dynamicAssert(!(wr_cache_response==Hit && wr_fb_response==Hit),
+                                                  "Cache and FB both are hit simultaneously");
+        dynamicAssert(!(wr_io_response==Hit && wr_fb_response==Hit),
+                                                  "IO and FB both are hit simultaneously");
+        dynamicAssert(!(wr_cache_response==Hit && wr_io_response==Hit),
+                                                  "Cache and IO both are hit simultaneously");
+      `endif
+    endrule
 
     `ifdef simulate
       rule put_meta;
@@ -526,14 +573,14 @@ package l1dcache;
     // It is not possible at any point of time for rg_fbmissallocate and rg_fbbeingfilled to update
     // the same entry in the FB.
     rule request_to_memory(wr_cache_response==Miss && !rg_miss_ongoing && wr_fb_response==Miss
-                                                                                        &&!fb_full);
+                                                                  && wr_io_response!=Hit &&!fb_full);
                                                                                         
       let {addr, fence, epoch, access, size, data} =ff_core_request.first();
       addr= (addr>>v_wordbits)<<v_wordbits; // align the address to be one word aligned.
       ff_read_mem_request.enq(tuple3(addr,fromInteger(v_blocksize-1),fromInteger(v_wordbits)));
       rg_miss_ongoing<=True;
       rg_fbmissallocate<=rg_fbmissallocate+1;
-      fb_valid[rg_fbmissallocate]<=1'b1;
+      fb_valid[rg_fbmissallocate]<=True;
       fb_addr[rg_fbmissallocate]<=addr;
       fb_enables[rg_fbmissallocate]<=0;
       
@@ -546,7 +593,7 @@ package l1dcache;
 
     // This rule will update an entry pointed by the register rg_fbbeingfilled with the incoming
     // response from the lower memory level.
-    rule update_fb_with_memory_response;
+    rule update_fb_with_memory_response(!fb_empty);
       let {word,last,err}=ff_read_mem_response.first();
       rg_fb_err<=err;
       ff_read_mem_response.deq;
@@ -565,14 +612,25 @@ package l1dcache;
         mask[i*v_respwidth+v_respwidth-1:i*v_respwidth]=we;
       end
       fb_dataline[rg_fbbeingfilled]<=(~mask&fb_dataline[rg_fbbeingfilled])|(mask&duplicate(word));
-      if(last)
-        rg_fbbeingfilled<=rg_fbbeingfilled+1;
-
+      if(last) begin
+        if(v_fbsize>1)begin
+          if((rg_fbbeingfilled==rg_fbmissallocate || (rg_fbbeingfilled+1) ==rg_fbmissallocate) ||
+              (rg_fbbeingfilled+2==rg_fbmissallocate))
+            rg_fbbeingfilled<=rg_fbbeingfilled+1;
+          else
+            rg_fbbeingfilled<=rg_fbmissallocate-1;
+        end
+        else
+          rg_fbbeingfilled<=~rg_fbbeingfilled;
+      end
       if(verbosity!=0)begin
         $display($time,"\tDCACHE: Filling up FB. rg_fbbeingfilled: %d fb_addr: %h fb_dataline: %h \
 fb_enables: %h",rg_fbbeingfilled,fb_addr[rg_fbbeingfilled],fb_dataline[rg_fbbeingfilled],
 fb_enables[rg_fbbeingfilled]);
       end
+      `ifdef ASSERT
+        dynamicAssert(fb_enables[rg_fbbeingfilled]!='1,"Filling FB with already filled line");
+      `endif
         
     endrule
 
@@ -592,8 +650,6 @@ fb_enables[rg_fbbeingfilled]);
         dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1
         || rg_fbbeingfilled==rg_fbmissallocate-2,
             "rg_fbbeingfilled and rg_fbmissallocate are too far apart");
-        dynamicAssert(fb_valid[rg_fbmissallocate]==0 || &fb_valid==1,
-          "rg_fbmissallocate points to  non-empty entry even though one exists in the FB");
       endrule
     `endif
 
@@ -607,7 +663,7 @@ fb_enables[rg_fbbeingfilled]);
     // replay of the latest request. This would cause another cycle delay which would eventually be
     // a hit in the cache RAMS. 
     rule release_from_FB((fb_full || fill_oppurtunity || rg_fence_stall) && !rg_replaylatest &&
-              !fb_empty && fb_valid[rg_fbwriteback]==1 && (&fb_enables[rg_fbwriteback])==1);
+              !fb_empty && fb_valid[rg_fbwriteback] && (&fb_enables[rg_fbwriteback])==1);
       // if line is valid and is completely filled.
       let addr=fb_addr[rg_fbwriteback];
       Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -628,7 +684,7 @@ fb_enables[rg_fbbeingfilled]);
       tag_arr[waynum].write_request(set_index,tag);
       data_arr[waynum].write_request(set_index,fb_dataline[rg_fbwriteback]);
       rg_fbwriteback<=rg_fbwriteback+1;
-      fb_valid[rg_fbwriteback]<=0;
+      fb_valid[rg_fbwriteback]<=False;
       if(fb_full && fillindex==rg_latest_index)
         rg_replaylatest<=True;
       `ifdef perf
@@ -751,7 +807,7 @@ access: %d size: %b data:%h", addr, fence, epoch, set_index,  access,  size,  da
 
 
   (*synthesize*)
-  module mkdcache(Ifc_l1dcache#(4, 8, 64, 4 ,32,1));
+  module mkdcache(Ifc_l1dcache#(4, 8, 64, 4 ,32,8));
     let ifc();
     mkl1dcache#(isIO) _temp(ifc);
     return (ifc);
