@@ -252,10 +252,13 @@ package l1dcache;
       end
     endrule
 
-    // This rull fires when the fence operation is signalled by the core. For the i-cache this rule
+    // This rull fires when the fence operation is signalled by the core and the FB is empty.
+    // if the rg_global_dirty is not set then the dcache 
     // will take only a single cycle since all the valid signals in the cache and FB are registers
     // which can be reset in one-shot. The replacement policies for each set should also be reset.
     // Since they too are implemented as array of registers it can be done in a single cycle.
+    // Additionaly, any set that has no dirty lines is immediately skipped. This improves fence
+    // performance.
     rule fence_operation(tpl_2(ff_core_request.first) && rg_fence_stall && fb_empty);
       Bit#(linewidth) dataline [v_ways];
       Bit#(tagbits) tag [v_ways];
@@ -265,7 +268,7 @@ package l1dcache;
       Bit#(TSub#(paddr,TAdd#(tagbits,setbits))) zeros='d0;
       
       Bit#(TAdd#(1,TLog#(sets))) next_set={1'b0,rg_set_select}+1;
-      Bit#(TLog#(sets)) index=rg_set_select;
+      Bit#(TAdd#(1,TLog#(sets))) index={1'b0,rg_set_select};
 
       Bit#(1) dirty_and_valid = rg_dirty[rg_set_select][waynum]&rg_valid[rg_set_select][waynum];
       for(Integer i=0;i<v_ways;i=i+1)begin
@@ -279,25 +282,26 @@ package l1dcache;
       end
       Bit#(paddr) final_address={tag[waynum],rg_set_select,zeros};
 
-      if(!rg_globaldirty && !rg_fenceinit)begin
-        rg_way_select<=rotateBitsBy(rg_way_select,1);
-        rg_set_select<=index;
+      if(!rg_fenceinit && !rg_globaldirty)begin
         if(rg_way_select[v_ways-1]==1 || rg_dirty[rg_set_select]==0)begin
-          index=truncate(next_set);
+          index=next_set;
         end
         if(unpack(dirty_and_valid))begin
           $display($time,"\tDCACHE: Fence Sending line for addr: %h data: %h",final_address,final_line);
           ff_write_mem_request.enq(tuple4(final_address,fromInteger(valueOf(blocksize)-1),
                                 fromInteger(valueOf(TLog#(wordsize))),final_line));
         end
-
+        rg_set_select<=truncate(index);
+        if(rg_dirty[rg_set_select]!=0)
+          rg_way_select<=rotateBitsBy(rg_way_select,1);
       end
       for(Integer i=0;i<v_ways;i=i+1)begin
-        tag_arr[i].read_request(index);
-        data_arr[i].read_request(index);// send request to all ways a set.
+        tag_arr[i].read_request(truncate(index));
+        data_arr[i].read_request(truncate(index));// send request to all ways a set.
       end
 
-      if (next_set==fromInteger(v_sets) || !rg_globaldirty)begin
+      if ( (next_set==fromInteger(v_sets) && (rg_way_select[v_ways-1]==1 ||
+              rg_dirty[rg_set_select]==0)) || !rg_globaldirty )begin
         for(Integer i=0;i<v_sets;i=i+1)begin
           rg_valid[i]<=0;
           rg_dirty[i]<=0;
@@ -316,7 +320,8 @@ package l1dcache;
       else
         rg_fenceinit<=False;
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: Fence operation in progress globaldirty: %b",rg_globaldirty);
+        $display($time,"\tDCACHE: Fence operation in progress globaldirty: %b rg_fenceinit: %b",
+                    rg_globaldirty,rg_fenceinit);
         $display($time,"\tDCACHE: rg_way_select: %b rg_set_select: %d index: %d next_set: %d",
             rg_way_select,rg_set_select,index,next_set);
       end
