@@ -146,7 +146,9 @@ package dcache_tb;
 
   rule checkout_request(ff_req.first[39:0]=='1);
     ff_req.deq;
-    ff_meta.deq;
+    `ifdef simulate
+      ff_meta.deq;
+    `endif
     rg_test_count<=rg_test_count+1;
     $display($time,"\tTB: ********** Test:%d PASSED****",rg_test_count);
   endrule
@@ -154,11 +156,13 @@ package dcache_tb;
 
   rule core_resp(ff_req.first[39:0]!='1);
     let resp <- dcache.core_resp.get();
-    let meta <- dcache.meta.get();
     let req = ff_req.first;
-    let expected_meta=ff_meta.first();
+    `ifdef simulate  
+      let meta <- dcache.meta.get();
+      let expected_meta=ff_meta.first();
+      ff_meta.deq();
+    `endif
     ff_req.deq();
-    ff_meta.deq();
     Bit#(8) control = req[`addr_width + 7: `addr_width ];
     Bit#(2) readwrite=control[7:6];
     Bit#(3) size=control[5:3];
