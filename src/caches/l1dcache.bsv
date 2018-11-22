@@ -51,7 +51,7 @@ package l1dcache;
 
   import cache_types::*;
   import mem_config::*;
-  import replacement::*;
+  import replacement_dcache::*;
   
   interface Ifc_l1dcache#( numeric type wordsize, 
                            numeric type blocksize,  
@@ -190,8 +190,6 @@ package l1dcache;
     Wire#(RespState) wr_cache_response <- mkDWire(None);
     Wire#(Bit#(respwidth)) wr_cache_hitword <-mkDWire(0);
     Wire#(Bit#(TLog#(ways))) wr_hitway <-mkDWire(0);
-    Wire#(Bit#(1)) wr_hitdirty<-mkDWire(0);
-    Wire#(Bit#(ways)) wr_newvalid<-mkDWire(0);
     Reg#(Bool) rg_miss_ongoing <- mkReg(False);
     Reg#(Bool) rg_fence_stall <- mkReg(False);
     Wire#(Maybe#(Bit#(TLog#(sets)))) wr_cache_hitindex <-mkDWire(tagged Invalid);
@@ -245,6 +243,7 @@ package l1dcache;
     // whenever possible.
     Reg#(Bit#(TLog#(fbsize))) rg_fbwriteback <-mkReg(0);
     Reg#(Bit#(blocksize))     rg_fbfillenable <- mkReg(0);
+    Reg#(Bool) rg_readdone <-mkDReg(False);
 
     Bool fb_full= (all(isTrue,readVReg(fb_valid)));
     Bool fb_empty=!(any(isTrue,readVReg(fb_valid)));
@@ -351,10 +350,14 @@ package l1dcache;
       end
     endrule
 
-    rule receive_memory_response(rg_fence_pending && tpl_2(ff_core_response.first));
+    rule receive_memory_response(rg_fence_pending && ff_write_mem_response.notEmpty &&
+                                                                    tpl_2(ff_core_response.first));
+        rg_fence_pending<=False;
+    endrule
+
+    rule deque_write_memory_response;
       let x=ff_write_mem_response.first;
       ff_write_mem_response.deq;
-      rg_fence_pending<=False;
     endrule
 
     // This rule will perform the check on the tags from the cache and detect is there is a hit or a
@@ -396,8 +399,6 @@ package l1dcache;
       Bool cache_hit=unpack(|(hit));
       wr_hitway<=truncate(pack(countZerosLSB(hit)));
       wr_hitline<=hitline;
-      wr_hitdirty<=|(rg_dirty[set_index]&hit);
-      wr_newvalid<=~hit&rg_valid[set_index];
       Bit#(respwidth) response_word=truncate(hitline>>block_offset);
       if(is_IO(addr,wr_cache_enable))begin // TODO make this programmable;
         wr_cache_response<=None;
@@ -524,8 +525,8 @@ package l1dcache;
         fb_addr[rg_fbmissallocate]<=addr;
         fb_enables[rg_fbmissallocate]<='1;
         fb_dataline[rg_fbmissallocate]<=wr_hitline;
-        fb_dirty[rg_fbmissallocate]<=wr_hitdirty;
-        rg_valid[set_index]<=wr_newvalid; // TODO
+        fb_dirty[rg_fbmissallocate]<=rg_dirty[set_index][wr_hitway];
+        rg_valid[set_index][wr_hitway]<=1'b0; // TODO
       end
       rg_miss_ongoing<=False;
       // depending onthe request made by the core, the word is either sigextended/zeroextend and
@@ -614,8 +615,7 @@ package l1dcache;
       fb_dataline[rg_fbbeingfilled]<=(~mask&fb_dataline[rg_fbbeingfilled])|(mask&duplicate(word));
       if(last) begin
         if(v_fbsize>1)begin
-          if((rg_fbbeingfilled==rg_fbmissallocate || (rg_fbbeingfilled+1) ==rg_fbmissallocate) ||
-              (rg_fbbeingfilled+2==rg_fbmissallocate))
+          if(((rg_fbbeingfilled+1) ==rg_fbmissallocate) ||(rg_fbbeingfilled+2==rg_fbmissallocate))
             rg_fbbeingfilled<=rg_fbbeingfilled+1;
           else
             rg_fbbeingfilled<=rg_fbmissallocate-1;
@@ -668,25 +668,42 @@ fb_enables[rg_fbbeingfilled]);
       let addr=fb_addr[rg_fbwriteback];
       Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(tagbits) tag = addr[v_paddr-1:v_paddr-v_tagbits];
-      let waynum<-repl.line_replace(set_index, rg_valid[set_index]);
-      if(&(rg_valid[set_index])==1)begin
-        if(alg!="PLRU")
-          repl.update_set(set_index,waynum);
-        else begin
-          if(wr_cache_hitindex matches tagged Valid .i &&& i==set_index)begin
-          end
-          else
+      let waynum<-repl.line_replace(set_index, rg_valid[set_index], rg_dirty[set_index]);
+
+      // the line being replaced is dirty then evict it.
+      if(rg_dirty[set_index][waynum]==1 && !rg_readdone)begin
+        tag_arr[waynum].read_request(set_index);
+        data_arr[waynum].read_request(set_index);
+        rg_readdone<=True;
+      end
+      else if(rg_dirty[set_index][waynum]!=1 || rg_readdone)begin
+        Bit#(TSub#(paddr,TAdd#(tagbits,setbits))) zeros='d0;
+        let dirtytag<-tag_arr[waynum].read_response;
+        let dirtydata<-data_arr[waynum].read_response;
+        Bit#(paddr) final_address={dirtytag,set_index,zeros};
+        if(rg_readdone)begin
+          ff_write_mem_request.enq(tuple4(final_address,fromInteger(valueOf(blocksize)-1),
+                                fromInteger(valueOf(TLog#(wordsize))),dirtydata));
+        end
+        rg_valid[set_index][waynum]<=1'b1;
+        rg_dirty[set_index][waynum]<=fb_dirty[rg_fbwriteback];
+        tag_arr[waynum].write_request(set_index,tag);
+        data_arr[waynum].write_request(set_index,fb_dataline[rg_fbwriteback]);
+        rg_fbwriteback<=rg_fbwriteback+1;
+        fb_valid[rg_fbwriteback]<=False;
+        if((fb_full && fillindex==rg_latest_index) || rg_dirty[set_index][waynum]==1)
+          rg_replaylatest<=True;
+        if(&(rg_valid[set_index])==1)begin
+          if(alg!="PLRU")
             repl.update_set(set_index,waynum);
+          else begin
+            if(wr_cache_hitindex matches tagged Valid .i &&& i==set_index)begin
+            end
+            else
+              repl.update_set(set_index,waynum);
+          end
         end
       end
-      rg_valid[set_index][waynum]<=1'b1;
-      rg_dirty[set_index][waynum]<=fb_dirty[rg_fbwriteback];
-      tag_arr[waynum].write_request(set_index,tag);
-      data_arr[waynum].write_request(set_index,fb_dataline[rg_fbwriteback]);
-      rg_fbwriteback<=rg_fbwriteback+1;
-      fb_valid[rg_fbwriteback]<=False;
-      if(fb_full && fillindex==rg_latest_index)
-        rg_replaylatest<=True;
       `ifdef perf
         wr_total_fbfills<=1;
       `endif
