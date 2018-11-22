@@ -136,6 +136,13 @@ package l1dcache;
        write_enable[word_index]=1;
        return write_enable;
     endfunction
+    function Bool isTrue(Bool a);
+      return a;
+    endfunction
+    function Bool isOne(Bit#(1) a);
+      return unpack(a);
+    endfunction
+
   
     String alg ="RROBIN";
 
@@ -173,18 +180,16 @@ package l1dcache;
 
    
     // ------------------------ Structures required for cache RAMS ------------------------------//
-    Ifc_mem_config#(sets, linewidth, 1) data_arr [v_ways]; // data array
-    Ifc_mem_config#(sets, tagbits, 1) tag_arr [v_ways];// one extra valid bit
+    Ifc_mem_config1rw#(sets, linewidth, 1) data_arr [v_ways]; // data array
+    Ifc_mem_config1rw#(sets, tagbits, 1) tag_arr [v_ways];// one extra valid bit
     for(Integer i=0;i<v_ways;i=i+1)begin
-      data_arr[i]<-mkmem_config_h(False, "single"); // TODO parameterize arguments
-      tag_arr[i]<-mkmem_config_h(False, "single");
+      data_arr[i]<-mkmem_config1rw(False, "single"); // TODO parameterize arguments
+      tag_arr[i]<-mkmem_config1rw(False, "single");
     end
     Ifc_replace#(sets,ways) repl <- mkreplace(alg);
-//    Reg#(Bit#(ways)) rg_valid[v_sets];
     Vector#(sets,Reg#(Bit#(ways))) rg_valid<-replicateM(mkReg(0));
     Reg#(Bit#(ways)) rg_dirty[v_sets];
     for(Integer i=0;i<v_sets;i=i+1)begin
-  //    rg_valid[i]<-mkReg(0);
       rg_dirty[i]<-mkReg(0);
     end
     Wire#(RespState) wr_cache_response <- mkDWire(None);
@@ -200,13 +205,6 @@ package l1dcache;
     Wire#(Bool) wr_io_err <-mkDWire(False);
     Wire#(Bit#(linewidth)) wr_hitline <-mkDWire(0);
     // ------------------------------------------------------------------------------------------//
-
-    function Bool isTrue(Bool a);
-      return a;
-    endfunction
-    function Bool isOne(Bit#(1) a);
-      return unpack(a);
-    endfunction
 
     // ----------------- Fill buffer structures -------------------------------------------------//
     Reg#(Bit#(linewidth)) fb_dataline [v_fbsize];
@@ -244,6 +242,9 @@ package l1dcache;
     Reg#(Bit#(TLog#(fbsize))) rg_fbwriteback <-mkReg(0);
     Reg#(Bit#(blocksize))     rg_fbfillenable <- mkReg(0);
     Reg#(Bool) rg_readdone <-mkDReg(False);
+    
+    Bit#(tagbits) writetag=fb_addr[rg_fbwriteback][v_paddr-1:v_paddr-v_tagbits];
+    Bit#(linewidth) writedata=fb_dataline[rg_fbwriteback];
 
     Bool fb_full= (all(isTrue,readVReg(fb_valid)));
     Bool fb_empty=!(any(isTrue,readVReg(fb_valid)));
@@ -259,6 +260,10 @@ package l1dcache;
     Reg#(Bool) rg_fence_pending <- mkReg(False);
     Reg#(Bool) rg_globaldirty <- mkReg(False);
     Reg#(Bool) rg_fenceinit <-mkReg(True);
+    // ------------------------------------------------------------------------------------------//
+
+    // -------------------------- Structures for store-buffer -----------------------------------//
+
     // ------------------------------------------------------------------------------------------//
 
     rule display_stuff;
@@ -316,8 +321,8 @@ package l1dcache;
           rg_way_select<=rotateBitsBy(rg_way_select,1);
       end
       for(Integer i=0;i<v_ways;i=i+1)begin
-        tag_arr[i].read_request(truncate(index));
-        data_arr[i].read_request(truncate(index));// send request to all ways a set.
+        tag_arr[i].request(0,truncate(index),writetag);
+        data_arr[i].request(0,truncate(index),writedata);// send request to all ways a set.
       end
 
       if ( (next_set==fromInteger(v_sets) && (rg_way_select[v_ways-1]==1 ||
@@ -467,7 +472,9 @@ package l1dcache;
         wr_fb_response<=Miss;
       // setting this register will prevent the rule tag_match from firing when polling is expected.
       rg_polling<=(linehit && !wordhit);
-      wrpolling<=rg_polling;
+      `ifdef simulate
+        wrpolling<=rg_polling;
+      `endif
       wr_fb_word<=truncate(hitline>>block_offset); 
 
       if(verbosity!=0)begin
@@ -662,6 +669,13 @@ fb_enables[rg_fbbeingfilled]);
     // requested by the core (present in the ff_core_request). Writing this line would cause a
     // replay of the latest request. This would cause another cycle delay which would eventually be
     // a hit in the cache RAMS. 
+    // 4. If while filling the RAM, it is found that the line being filled is dirty then a read
+    // request for that line is sent. In the next cycle the read line is sent to memory and the line
+    // from the FB is written into the RAM. Also in the next cycle a read-request for the latest
+    // read from the core is replayed again.
+    // 5. If the line being filled in the RAM is not dirty, then the FB line simply ovrwrites the
+    // line in one=cycle. The latest request from the core is replayed if the replacement was to the
+    // same index.
     rule release_from_FB((fb_full || fill_oppurtunity || rg_fence_stall) && !rg_replaylatest &&
               !fb_empty && fb_valid[rg_fbwriteback] && (&fb_enables[rg_fbwriteback])==1);
       // if line is valid and is completely filled.
@@ -671,12 +685,12 @@ fb_enables[rg_fbbeingfilled]);
       let waynum<-repl.line_replace(set_index, rg_valid[set_index], rg_dirty[set_index]);
 
       // the line being replaced is dirty then evict it.
-      if(rg_dirty[set_index][waynum]==1 && !rg_readdone)begin
-        tag_arr[waynum].read_request(set_index);
-        data_arr[waynum].read_request(set_index);
+      if((rg_valid[set_index][waynum]&rg_dirty[set_index][waynum])==1 && !rg_readdone)begin
+        tag_arr[waynum].request(0,set_index,writetag);
+        data_arr[waynum].request(0,set_index,writedata);
         rg_readdone<=True;
       end
-      else if(rg_dirty[set_index][waynum]!=1 || rg_readdone)begin
+      else if((rg_valid[set_index][waynum]&rg_dirty[set_index][waynum])!=1 || rg_readdone)begin
         Bit#(TSub#(paddr,TAdd#(tagbits,setbits))) zeros='d0;
         let dirtytag<-tag_arr[waynum].read_response;
         let dirtydata<-data_arr[waynum].read_response;
@@ -687,8 +701,8 @@ fb_enables[rg_fbbeingfilled]);
         end
         rg_valid[set_index][waynum]<=1'b1;
         rg_dirty[set_index][waynum]<=fb_dirty[rg_fbwriteback];
-        tag_arr[waynum].write_request(set_index,tag);
-        data_arr[waynum].write_request(set_index,fb_dataline[rg_fbwriteback]);
+        tag_arr[waynum].request(1,set_index,writetag);
+        data_arr[waynum].request(1,set_index,writedata);
         rg_fbwriteback<=rg_fbwriteback+1;
         fb_valid[rg_fbwriteback]<=False;
         if((fb_full && fillindex==rg_latest_index) || rg_dirty[set_index][waynum]==1)
@@ -719,8 +733,8 @@ addr:%h way: %d",
     rule replay_latest_request(rg_replaylatest && !rg_fence_stall);
       rg_replaylatest<=False;
       for(Integer i=0;i<v_ways;i=i+1)begin
-        data_arr[i].read_request(rg_latest_index);
-        tag_arr[i].read_request(rg_latest_index);
+        data_arr[i].request(0,rg_latest_index,writedata);
+        tag_arr[i].request(0,rg_latest_index,writetag);
       end
       if(verbosity!=0)begin
         $display($time,"\tDCACHE: replaying last request to index: %d maintain sync",rg_latest_index);
@@ -738,8 +752,8 @@ addr:%h way: %d",
         ff_core_request.enq(req);
         rg_fence_stall<=fence;
         for(Integer i=0;i<v_ways;i=i+1)begin
-          data_arr[i].read_request(set_index);
-          tag_arr[i].read_request(set_index);
+          data_arr[i].request(0,set_index,writedata);
+          tag_arr[i].request(0,set_index,writetag);
         end
         wr_takingrequest<=True;
         if (verbosity!=0) begin
