@@ -621,7 +621,7 @@ package l1dcache;
       end
       fb_dataline[rg_fbbeingfilled]<=(~mask&fb_dataline[rg_fbbeingfilled])|(mask&duplicate(word));
       if(last) begin
-        if(v_fbsize>1)begin
+        if(v_fbsize>2)begin
           if(((rg_fbbeingfilled+1) ==rg_fbmissallocate) ||(rg_fbbeingfilled+2==rg_fbmissallocate))
             rg_fbbeingfilled<=rg_fbbeingfilled+1;
           else
@@ -654,8 +654,12 @@ fb_enables[rg_fbbeingfilled]);
 
     `ifdef ASSERT
       rule assertions;
-        dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1
+        if(v_fbsize>2)
+          dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1
         || rg_fbbeingfilled==rg_fbmissallocate-2,
+            "rg_fbbeingfilled and rg_fbmissallocate are too far apart");
+        else
+          dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1,
             "rg_fbbeingfilled and rg_fbmissallocate are too far apart");
       endrule
     `endif
@@ -683,9 +687,14 @@ fb_enables[rg_fbbeingfilled]);
       Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(tagbits) tag = addr[v_paddr-1:v_paddr-v_tagbits];
       let waynum<-repl.line_replace(set_index, rg_valid[set_index], rg_dirty[set_index]);
-
+      $display($time,"\tDCACHE: rg_valid: %b rg_dirty: %b waynum: %d", 
+          rg_valid[set_index],rg_dirty[set_index],waynum);
       // the line being replaced is dirty then evict it.
       if((rg_valid[set_index][waynum]&rg_dirty[set_index][waynum])==1 && !rg_readdone)begin
+        if(verbosity!=0)begin
+          $display($time,"\tDCACHE: release. Read request for dirty line. way: %d set_index: %d", 
+              waynum,set_index);
+        end
         tag_arr[waynum].request(0,set_index,writetag);
         data_arr[waynum].request(0,set_index,writedata);
         rg_readdone<=True;
@@ -696,6 +705,10 @@ fb_enables[rg_fbbeingfilled]);
         let dirtydata<-data_arr[waynum].read_response;
         Bit#(paddr) final_address={dirtytag,set_index,zeros};
         if(rg_readdone)begin
+          if(verbosity!=0)begin
+            $display($time,"\tDCACHE: release. Write to mem. addr: %h data: %h", 
+                final_address,dirtydata);
+          end
           ff_write_mem_request.enq(tuple4(final_address,fromInteger(valueOf(blocksize)-1),
                                 fromInteger(valueOf(TLog#(wordsize))),dirtydata));
         end
@@ -717,17 +730,17 @@ fb_enables[rg_fbbeingfilled]);
               repl.update_set(set_index,waynum);
           end
         end
+        if(verbosity!=0)begin
+          $display($time,"\tDCACHE: release from FB firing");
+          $display($time,"\tDCACHE: rg_fbwriteback: %d fb_valid: %b fb_enables: %b setindex: %d \
+ addr: %h way: %d fb_dataline: %h",
+           rg_fbwriteback,fb_valid[rg_fbwriteback],fb_enables[rg_fbwriteback],set_index,
+           fb_addr[rg_fbwriteback], waynum,fb_dataline[rg_fbwriteback]);
+        end
       end
       `ifdef perf
         wr_total_fbfills<=1;
       `endif
-      if(verbosity!=0)begin
-        $display($time,"\tDCACHE: release from FB firing");
-        $display($time,"\tDCACHE: rg_fbwriteback: %d fb_valid: %b fb_enables: %b setindex: %d \
-addr:%h way: %d",
-         rg_fbwriteback,fb_valid[rg_fbwriteback],fb_enables[rg_fbwriteback],set_index,
-         fb_addr[rg_fbwriteback], waynum);
-      end
     endrule
 
     rule replay_latest_request(rg_replaylatest && !rg_fence_stall);
