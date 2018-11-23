@@ -393,14 +393,11 @@ package l1dcache;
       end
     endrule
 
-    rule receive_memory_response(rg_fence_pending && ff_write_mem_response.notEmpty &&
-                                                                    tpl_2(ff_core_response.first));
-        rg_fence_pending<=False;
-    endrule
-
-    rule deque_write_memory_response;
+    rule receive_memory_response(rg_fence_pending && tpl_2(ff_core_request.first));
+      rg_fence_pending<=False;
       let x=ff_write_mem_response.first;
       ff_write_mem_response.deq;
+      $display($time,"\tDCACHE: dequeing write memory response");
     endrule
 
     // This rule will perform the check on the tags from the cache and detect is there is a hit or a

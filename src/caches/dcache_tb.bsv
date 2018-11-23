@@ -234,6 +234,7 @@ package dcache_tb;
       rg_write_burst_count<=0;
       write_mem_req<=tagged Invalid;
       dcache.write_mem_resp.put(False);
+      $display($time,"\tTB: Sending write response back");
     end
     else begin
       rg_write_burst_count<=rg_write_burst_count+1;
@@ -251,7 +252,8 @@ package dcache_tb;
 
     Bit#(32) write_word=~mask&loaded_data|mask&truncate(writedata);
     data.upd(index,write_word);
-    $display($time,"\tTB: Updating Memory index: %d with: %h ",index,write_word);
+    $display($time,"\tTB: Updating Memory index: %d with: %h burst_count: %d burst: %d", 
+      index,write_word,rg_write_burst_count,burst);
   endrule
 
 
