@@ -171,6 +171,8 @@ package dcache_tb;
     Bit#(TMul#(`word_size, 8)) writedata=truncateLSB(req);
 
     if(fence==0)begin
+      if (readwrite==2)
+        dcache.perform_store;
       let expected_data<-testcache.memory_operation(truncate(req),readwrite,size,writedata);
       Bool metafail=False;
       Bool datafail=False;

@@ -78,6 +78,7 @@ package l1dcache;
       method Bit#(5) perf_counters;
     `endif
     method Action cache_enable(Bool c);
+    method Action perform_store;
   endinterface
 
   (*conflict_free="request_to_memory,update_fb_with_memory_response"*)
@@ -87,6 +88,9 @@ package l1dcache;
   (*conflict_free="respond_to_core,release_from_FB"*)
   (*conflict_free="respond_to_core,update_fb_with_memory_response"*)
   (*conflict_free="release_from_FB,update_fb_with_memory_response"*)
+  (*conflict_free="respond_to_core,update_store_inFB"*)
+  (*conflict_free="update_fb_with_memory_response,update_store_inFB"*)
+  (*conflict_free="update_storebuffer_onhit,update_store_inFB"*)
   module mkl1dcache#(function Bool is_IO(Bit#(paddr) addr, Bool cacheable))
     (Ifc_l1dcache#(wordsize,blocksize,sets,ways,paddr,fbsize,sbsize)) 
     provisos(
@@ -243,6 +247,7 @@ package l1dcache;
     // This register follows the rg_fbmissallocate register but is updated when the last word of a
     // line is filled in the FB on a miss.
     Reg#(Bit#(TLog#(fbsize))) rg_fbbeingfilled <-mkReg(0);
+    Wire#(Maybe#(Bit#(TLog#(fbsize)))) wr_fbbeingfilled <-mkDWire(tagged Invalid);
 
     // This register points to the entry in the FB which needs to be written back to the cache
     // whenever possible.
@@ -290,9 +295,11 @@ package l1dcache;
     end
     Reg#(Bit#(TLog#(sbsize))) rg_storehead <-mkReg(0);
     Reg#(Bit#(TLog#(sbsize))) rg_storetail <- mkReg(0);
-    Wire#(Bit#(linewidth)) wr_storemask <- mkDWire(0);
-    Wire#(Bit#(linewidth)) wr_storedata <- mkDWire(0);
+    Wire#(Bit#(linewidth)) wr_upd_fillingdata <-mkDWire(0);
+    Wire#(Bit#(linewidth)) wr_upd_fillingmask <-mkDWire(0);
+    Wire#(Bool) wr_perform_store <-mkDWire(False);
     Bool sb_full= (all(isTrue,readVReg(store_valid)));
+    Bool sb_empty=!(any(isTrue,readVReg(store_valid)));
     // ------------------------------------------------------------------------------------------//
 
     rule display_stuff;
@@ -301,6 +308,7 @@ package l1dcache;
  rg_fbbeingfilled:%d",fb_full,fb_empty,rg_fbwriteback,rg_fbmissallocate,rg_fbbeingfilled);
         $display($time,"\tDCACHE: ff_core_response.notFull: %b rg_fence_stall: %b",
           ff_core_response.notFull,rg_fence_stall);
+        $display($time,"\tDCACHE: sb_empty: %b sb_full: %b store_valid: %h",sb_empty,sb_full,readVReg(store_valid));
       end
     endrule
 
@@ -312,7 +320,7 @@ package l1dcache;
     // Additionaly, any set that has no dirty lines is immediately skipped. This improves fence
     // performance.
     rule fence_operation(tpl_2(ff_core_request.first) && rg_fence_stall && fb_empty &&
-                                                                            !rg_fence_pending);
+                                                                     sb_empty && !rg_fence_pending);
       Bit#(linewidth) dataline [v_ways];
       Bit#(tagbits) tag [v_ways];
       Bit#(linewidth) temp [v_ways];
@@ -334,8 +342,9 @@ package l1dcache;
         final_line=final_line|temp[i];
       end
       Bit#(paddr) final_address={tag[waynum],rg_set_select,zeros};
-
-      if(!rg_fenceinit && !rg_globaldirty)begin
+      $display($time,"\tDCACHE: Fence. rg_set_select: %d rg_dirty: %h",
+      rg_set_select,rg_dirty[rg_set_select]);
+      if(!rg_fenceinit && rg_globaldirty)begin
         if(rg_way_select[v_ways-1]==1 || rg_dirty[rg_set_select]==0)begin
           index=next_set;
         end
@@ -542,7 +551,7 @@ package l1dcache;
     endrule
 
     rule update_storebuffer_onhit(tpl_4(ff_core_request.first)!=1 && (wr_cache_response==Hit || 
-        wr_fb_response==Hit || wr_sb_response==Hit));
+        wr_fb_response==Hit || wr_sb_response==Hit) && !tpl_2(ff_core_request.first()));
       let {addr, fence, epoch, access, size, data} =ff_core_request.first();
       Bit#(respwidth) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:'1;
       Bit#(TAdd#(3,wordbits)) wordoffset={addr[v_wordbits-1:0],3'b0};
@@ -582,7 +591,8 @@ package l1dcache;
       else begin
         store_data[sbindex]<=finalword;
       end
-      $display($time,"\tDCACHE: Updating SB. sbindex: %d data: %h addr: %h",sbindex,data,addr);
+      $display($time,"\tDCACHE: Updating SB. sbindex: %d data: %h addr: %h fbindex: %d",
+        sbindex,data,addr,fbindex);
     endrule
     
     // This rule is fired when there is a hit in the cache. The word received is further modified
@@ -722,7 +732,12 @@ package l1dcache;
         Bit#(respwidth) we=duplicate(temp[i]);
         mask[i*v_respwidth+v_respwidth-1:i*v_respwidth]=we;
       end
-      fb_dataline[rg_fbbeingfilled]<=(~mask&fb_dataline[rg_fbbeingfilled])|(mask&duplicate(word));
+      
+      Bit#(linewidth) final_mask = mask|wr_upd_fillingmask;
+      Bit#(linewidth) final_data = (wr_upd_fillingmask&wr_upd_fillingdata)|(mask&duplicate(word));
+      Bit#(linewidth) x=(~final_mask&fb_dataline[rg_fbbeingfilled]) | (final_mask&final_data);
+      $display(" m: %h\n w: %h\n f: %h\n d: %h\n w: %h",mask,wr_upd_fillingmask,final_mask,wr_upd_fillingdata,word);
+      fb_dataline[rg_fbbeingfilled]<=x;
       if(last) begin
         if(v_fbsize>2)begin
           if(((rg_fbbeingfilled+1) ==rg_fbmissallocate) ||(rg_fbbeingfilled+2==rg_fbmissallocate))
@@ -741,9 +756,11 @@ fb_enables[rg_fbbeingfilled]);
       `ifdef ASSERT
         dynamicAssert(fb_enables[rg_fbbeingfilled]!='1,"Filling FB with already filled line");
       `endif
-        
     endrule
-
+    rule forward_fbbeingfilled_index(!fb_empty);
+      let {word,last,err}=ff_read_mem_response.first();    
+      wr_fbbeingfilled<=tagged Valid rg_fbbeingfilled;
+    endrule
     rule receive_io_response;
       let {word,last,err}=ff_io_read_response.first;
       ff_io_read_response.deq;
@@ -784,7 +801,7 @@ fb_enables[rg_fbbeingfilled]);
     // line in one=cycle. The latest request from the core is replayed if the replacement was to the
     // same index.
     rule release_from_FB((fb_full || fill_oppurtunity || rg_fence_stall) && !rg_replaylatest &&
-              !fb_empty && fb_valid[rg_fbwriteback] && (&fb_enables[rg_fbwriteback])==1);
+              !fb_empty && fb_valid[rg_fbwriteback] && (&fb_enables[rg_fbwriteback])==1 && sb_empty);
       // if line is valid and is completely filled.
       let addr=fb_addr[rg_fbwriteback];
       Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
@@ -857,6 +874,32 @@ fb_enables[rg_fbbeingfilled]);
       end
     endrule
 
+    rule update_store_inFB(wr_perform_store && !sb_empty);
+      let fbindex=store_fbindex[rg_storehead];
+      let addr = store_addr[rg_storehead];
+      let data = store_data[rg_storehead];
+      let valid = store_valid[rg_storehead];
+      let size = store_size[rg_storehead];
+      Bit#(linewidth) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:'1;
+      Bit#(wordbits) zeros=0;
+      Bit#(TAdd#(3,TAdd#(wordbits,blockbits))) block_offset=
+                                    {addr[v_blockbits+v_wordbits-1:v_wordbits],zeros,3'b0};
+      mask=mask<<block_offset;
+      if(wr_fbbeingfilled matches tagged Valid .fbi &&& fbindex==fbi)begin
+        wr_upd_fillingmask<=mask;
+        wr_upd_fillingdata<=duplicate(data);
+        $display($time,"\tDCACHE: Store to FB being filled. mask: %h data: %h",mask,data);
+      end
+      else begin
+        $display($time,"\tDCACHE: Store to FB index: %d. mask: %h data: %h",fbindex,mask,data);
+        fb_dataline[fbindex]<= (mask&duplicate(data)) |(~mask&fb_dataline[fbindex]);
+      end
+      $display($time,"\tDCACHE: Store to FB. rg_storehead: %d",rg_storehead);
+      rg_storehead<=rg_storehead+1;
+      store_valid[rg_storehead]<=False;
+    endrule
+
+
     interface core_req=interface Put
       method Action put(DCore_request#(paddr,respwidth) req)if( ff_core_response.notFull &&
                                 !rg_replaylatest &&  !rg_fence_stall && !fb_full);
@@ -922,6 +965,10 @@ access: %d size: %b data:%h", addr, fence, epoch, set_index,  access,  size,  da
     `endif 
     method Action cache_enable(Bool c);
       wr_cache_enable<=c;
+    endmethod
+
+    method Action perform_store;
+      wr_perform_store <= True;
     endmethod
     `ifdef perf
       method Bit#(5) perf_counters;
