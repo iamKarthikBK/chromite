@@ -897,6 +897,7 @@ fb_enables[rg_fbbeingfilled]);
       $display($time,"\tDCACHE: Store to FB. rg_storehead: %d",rg_storehead);
       rg_storehead<=rg_storehead+1;
       store_valid[rg_storehead]<=False;
+      fb_dirty[fbindex]<=1'b1;
     endrule
 
 
