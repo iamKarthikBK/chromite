@@ -777,7 +777,7 @@ def test17():
     address=address+(word_size*block_size)-1
     write_to_file(address,write,byte,unsigned,nodelay,nofence)
     entrycount=entrycount+1
-    gold_file.write(hit)
+    gold_file.write(miss)
 
     address=4096
     write_to_file(address,read,hword,unsigned,nodelay,nofence)
