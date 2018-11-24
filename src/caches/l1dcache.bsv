@@ -769,17 +769,17 @@ fb_enables[rg_fbbeingfilled]);
       `endif
     endrule
 
-    `ifdef ASSERT
-      rule assertions;
-        if(v_fbsize>2)
-          dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1
-        || rg_fbbeingfilled==rg_fbmissallocate-2,
-            "rg_fbbeingfilled and rg_fbmissallocate are too far apart");
-        else
-          dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1,
-            "rg_fbbeingfilled and rg_fbmissallocate are too far apart");
-      endrule
-    `endif
+//    `ifdef ASSERT
+//      rule assertions;
+//        if(v_fbsize>2)
+//          dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1
+//        || rg_fbbeingfilled==rg_fbmissallocate-2,
+//            "rg_fbbeingfilled and rg_fbmissallocate are too far apart");
+//        else
+//          dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1,
+//            "rg_fbbeingfilled and rg_fbmissallocate are too far apart");
+//      endrule
+//    `endif
 
     // This rule will evict an entry from the fill-buffer and update it in the cache RAMS. Multiple
     // conditions under which this rule can fire:
