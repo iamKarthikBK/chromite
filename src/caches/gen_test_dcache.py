@@ -908,6 +908,16 @@ def test19():
     entrycount=entrycount+1
     gold_file.write(hit)
 
+    address=4128
+    write_to_file(address,read,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(miss)
+
+    address=4096
+    write_to_file(address,read,word,unsigned,nodelay,nofence)
+    entrycount=entrycount+1
+    gold_file.write(hit)
+    
     write_to_file(maxaddr,atomic,dword,unsigned,delay,fence)
     gold_file.write(miss)
     entrycount=entrycount+1
@@ -986,28 +996,28 @@ def test21():
     entrycount=entrycount+1
     return 0
 
-#test1()
-#test2()
-#test3()
-#test4()
-#test5()
-##test6() 
-#test7()
-#test8()
-#test9()
-#test10()
-#test11()
-#test12()
-#test13()
-#test14a()
-#test14b()
+test1()
+test2()
+test3()
+test4()
+test5()
+#test6() 
+test7()
+test8()
+test9()
+test10()
+test11()
+test12()
+test13()
+test14a()
+test14b()
 #test15()
 test16()
-#test17()
-#test18()
-#test19()
-#test20()
-#test21()
+test17()
+test18()
+test19()
+test20()
+test21()
 write_to_file(0,endsim,byte,signed,nodelay,nofence)
 gold_file.write(miss)
 entrycount=entrycount+1
