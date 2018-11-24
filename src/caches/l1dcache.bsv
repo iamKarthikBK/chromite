@@ -237,7 +237,7 @@ package l1dcache;
 
     // This register follows the rg_fbmissallocate register but is updated when the last word of a
     // line is filled in the FB on a miss.
-    Reg#(Bit#(TLog#(fbsize))) rg_fbbeingfilled <-mkReg(0);
+    FIFOF#(Bit#(TLog#(fbsize))) ff_fb_fillindex <-mkSizedFIFOF(2);
     Wire#(Maybe#(Bit#(TLog#(fbsize)))) wr_fbbeingfilled <-mkDWire(tagged Invalid);
 
     // This register points to the entry in the FB which needs to be written back to the cache
@@ -298,11 +298,13 @@ package l1dcache;
 
     rule display_stuff;
       if(verbosity!=0)begin
-        $display($time,"\tDACHE: fb_full: %b fb_empty: %b rg_fbwriteback: %d rg_fbmissallocate: %d\
- rg_fbbeingfilled:%d",fb_full,fb_empty,rg_fbwriteback,rg_fbmissallocate,rg_fbbeingfilled);
+        $display($time,"\tDACHE: fb_full: %b fb_empty: %b rg_fbwriteback: %d rg_fbmissallocate: :%d"
+          ,fb_full,fb_empty,rg_fbwriteback,rg_fbmissallocate);
         $display($time,"\tDCACHE: ff_core_response.notFull: %b rg_fence_stall: %b",
           ff_core_response.notFull,rg_fence_stall);
         $display($time,"\tDCACHE: sb_empty: %b sb_full: %b store_valid: %h",sb_empty,sb_full,readVReg(store_valid));
+        $display($time,"\tDCACHE: fb_enables[wr]: %h rg_replaylatest: %b fb_valid[wr]",
+        fb_enables[rg_fbwriteback],rg_replaylatest, fb_valid[rg_fbwriteback]);
       end
     endrule
 
@@ -314,7 +316,7 @@ package l1dcache;
     // Additionaly, any set that has no dirty lines is immediately skipped. This improves fence
     // performance.
     rule fence_operation(tpl_2(ff_core_request.first) && rg_fence_stall && fb_empty &&
-                                                                     sb_empty && !rg_fence_pending);
+                                                !rg_replaylatest &&   sb_empty && !rg_fence_pending);
       Bit#(linewidth) dataline [v_ways];
       Bit#(tagbits) tag [v_ways];
       Bit#(linewidth) temp [v_ways];
@@ -681,10 +683,8 @@ package l1dcache;
     // Here as soon as a miss is detected we allocate a line in the fill buffer for the requested
     // access. The line-allocation is done using rg_fbmissallocate register which follows a
     // round-robin mechanism for now. 
-    // the register rg_fbbeingfilled follows the rg_fbmissallocate but gets updated only when the
-    // entire line in the FB has been filled.
-    // It is not possible at any point of time for rg_fbmissallocate and rg_fbbeingfilled to update
-    // the same entry in the FB.
+    // the line to be filled is further enqued into the ff_fb_fillindex which is used to identify
+    // which line is the memory response to fill in the FB
     rule request_to_memory(wr_cache_response==Miss && !rg_miss_ongoing && wr_fb_response==Miss
                                          && wr_sb_response==Miss && wr_io_response!=Hit &&!fb_full);
                                                                                         
@@ -696,6 +696,7 @@ package l1dcache;
       fb_valid[rg_fbmissallocate]<=True;
       fb_addr[rg_fbmissallocate]<=addr;
       fb_enables[rg_fbmissallocate]<=0;
+      ff_fb_fillindex.enq(rg_fbmissallocate);
       
       if(verbosity!=0)begin
         $display($time,"\tDCACHE: Sending memory request. Addr: %h",addr);
@@ -704,19 +705,20 @@ package l1dcache;
 
     endrule
 
-    // This rule will update an entry pointed by the register rg_fbbeingfilled with the incoming
+    // This rule will update an entry pointed by the entry in ff_fb_fillindex with the incoming
     // response from the lower memory level.
     rule update_fb_with_memory_response(!fb_empty);
       let {word,last,err}=ff_read_mem_response.first();
+      let fbindex=ff_fb_fillindex.first();
       rg_fb_err<=err;
       ff_read_mem_response.deq;
       Bit#(blocksize) temp=0;
-      Bit#(blockbits) word_index=fb_addr[rg_fbbeingfilled][v_blockbits+v_wordbits-1:v_wordbits];
-      if(fb_enables[rg_fbbeingfilled]==0)
+      Bit#(blockbits) word_index=fb_addr[fbindex][v_blockbits+v_wordbits-1:v_wordbits];
+      if(fb_enables[fbindex]==0)
         temp=fn_enable(word_index);
       else
         temp=rg_fbfillenable;
-      fb_enables[rg_fbbeingfilled]<=fb_enables[rg_fbbeingfilled]|temp;
+      fb_enables[fbindex]<=fb_enables[fbindex]|temp;
       rg_fbfillenable <= {temp[valueOf(blocksize)-2:0],temp[valueOf(blocksize)-1]};
 
       Bit#(linewidth) mask=0;
@@ -727,27 +729,19 @@ package l1dcache;
       
       Bit#(linewidth) final_mask = mask|wr_upd_fillingmask;
       Bit#(linewidth) final_data = (wr_upd_fillingmask&wr_upd_fillingdata)|(mask&duplicate(word));
-      Bit#(linewidth) x=(~final_mask&fb_dataline[rg_fbbeingfilled]) | (final_mask&final_data);
-      fb_dataline[rg_fbbeingfilled]<=x;
+      Bit#(linewidth) x=(~final_mask&fb_dataline[fbindex]) | (final_mask&final_data);
+      fb_dataline[fbindex]<=x;
       if(last) begin
-        if(v_fbsize>2)begin
-          if(((rg_fbbeingfilled+1) ==rg_fbmissallocate) ||(rg_fbbeingfilled+2==rg_fbmissallocate))
-            rg_fbbeingfilled<=rg_fbbeingfilled+1;
-          else
-            rg_fbbeingfilled<=rg_fbmissallocate-1;
-        end
-        else
-          rg_fbbeingfilled<=~rg_fbbeingfilled;
+        ff_fb_fillindex.deq();
       end
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: Filling up FB. rg_fbbeingfilled: %d fb_addr: %h fb_dataline: %h \
-fb_enables: %h",rg_fbbeingfilled,fb_addr[rg_fbbeingfilled],fb_dataline[rg_fbbeingfilled],
-fb_enables[rg_fbbeingfilled]);
+        $display($time,"\tDCACHE: Filling up FB. fbindex: %d fb_addr: %h fb_dataline: %h \
+fb_enables: %h",fbindex,fb_addr[fbindex],fb_dataline[fbindex],fb_enables[fbindex]);
       end
       `ifdef ASSERT
-        dynamicAssert(fb_enables[rg_fbbeingfilled]!='1,"Filling FB with already filled line");
+        dynamicAssert(fb_enables[fbindex]!='1,"Filling FB with already filled line");
       `endif
-      wr_fbbeingfilled<=tagged Valid rg_fbbeingfilled;
+      wr_fbbeingfilled<=tagged Valid fbindex;
     endrule
     rule receive_io_response;
       let {word,last,err}=ff_io_read_response.first;
@@ -759,19 +753,7 @@ fb_enables[rg_fbbeingfilled]);
         dynamicAssert(last,"Why is IO response a burst");
       `endif
     endrule
-
-//    `ifdef ASSERT
-//      rule assertions;
-//        if(v_fbsize>2)
-//          dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1
-//        || rg_fbbeingfilled==rg_fbmissallocate-2,
-//            "rg_fbbeingfilled and rg_fbmissallocate are too far apart");
-//        else
-//          dynamicAssert(rg_fbbeingfilled==rg_fbmissallocate || rg_fbbeingfilled==rg_fbmissallocate-1,
-//            "rg_fbbeingfilled and rg_fbmissallocate are too far apart");
-//      endrule
-//    `endif
-
+    
     // This rule will evict an entry from the fill-buffer and update it in the cache RAMS. Multiple
     // conditions under which this rule can fire:
     // 1. when the FB is full
@@ -851,7 +833,7 @@ fb_enables[rg_fbbeingfilled]);
       `endif
     endrule
 
-    rule replay_latest_request(rg_replaylatest && !rg_fence_stall);
+    rule replay_latest_request(rg_replaylatest);
       rg_replaylatest<=False;
       for(Integer i=0;i<v_ways;i=i+1)begin
         data_arr[i].request(0,rg_latest_index,writedata);
