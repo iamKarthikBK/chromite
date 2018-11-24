@@ -747,9 +747,6 @@ fb_enables[rg_fbbeingfilled]);
       `ifdef ASSERT
         dynamicAssert(fb_enables[rg_fbbeingfilled]!='1,"Filling FB with already filled line");
       `endif
-    endrule
-    rule forward_fbbeingfilled_index(!fb_empty);
-      let {word,last,err}=ff_read_mem_response.first();    
       wr_fbbeingfilled<=tagged Valid rg_fbbeingfilled;
     endrule
     rule receive_io_response;
