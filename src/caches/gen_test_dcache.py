@@ -746,7 +746,10 @@ def test16():
     for i in range(block_size):
       write_to_file(address,read,word,unsigned,nodelay,nofence)
       entrycount=entrycount+1
-      gold_file.write(hit)
+      if i == 0:
+        gold_file.write(miss)
+      else:
+        gold_file.write(hit)
       address=address+word_size
 
     write_to_file(maxaddr,atomic,dword,unsigned,delay,fence)
