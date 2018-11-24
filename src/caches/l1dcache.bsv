@@ -97,6 +97,7 @@ package l1dcache;
           `ifdef ASSERT
           Add#(1, e__, TLog#(TAdd#(1, fbsize))),
           Add#(1, f__, TLog#(TAdd#(1, ways))),
+          Add#(1, o__, TLog#(TAdd#(1, sbsize))),
           `endif
 
           Add#(a__, respwidth, linewidth),
@@ -338,14 +339,11 @@ package l1dcache;
         final_line=final_line|temp[i];
       end
       Bit#(paddr) final_address={tag[waynum],rg_set_select,zeros};
-      $display($time,"\tDCACHE: Fence. rg_set_select: %d rg_dirty: %h",
-      rg_set_select,rg_dirty[rg_set_select]);
       if(!rg_fenceinit && rg_globaldirty)begin
         if(rg_way_select[v_ways-1]==1 || rg_dirty[rg_set_select]==0)begin
           index=next_set;
         end
         if(unpack(dirty_and_valid))begin
-          $display($time,"\tDCACHE: Fence Sending line for addr: %h data: %h",final_address,final_line);
           ff_write_mem_request.enq(tuple4(final_address,fromInteger(valueOf(blocksize)-1),
                                 fromInteger(valueOf(TLog#(wordsize))),final_line));
           rg_fence_pending<=True;
@@ -393,7 +391,6 @@ package l1dcache;
       rg_fence_pending<=False;
       let x=ff_write_mem_response.first;
       ff_write_mem_response.deq;
-      $display($time,"\tDCACHE: dequeing write memory response");
     endrule
 
     // This rule will perform the check on the tags from the cache and detect is there is a hit or a
@@ -449,7 +446,8 @@ package l1dcache;
       end
 
       if(verbosity!=0)begin
-        $display($time,"\tDCACHE: TAGMATCH: addr:%h hit: %b hitline: %h",addr,hit,hitline);
+        $display($time,"\tDCACHE: TAGMATCH: addr:%h hit: %b hitline: %h access: %d size: %b",
+            addr,hit,hitline,access,size);
       end
 
       `ifdef ASSERT
@@ -537,10 +535,14 @@ package l1dcache;
       wr_sb_hitword1<=word;
       Bit#(TAdd#(wordbits,3)) wordoffset={addr[v_wordbits-1:0],3'b0};
       Bit#(respwidth) coreword=word>>wordoffset;
-      $display($time,"\tDCACHE: sbhit: %b word: %h store_addr: %h wordoffset: %d coreword: %h", 
-          sbhit, word, compareaddr, wordoffset,coreword);
+      if(verbosity!=0)
+        $display($time,"\tDCACHE: sbhit: %b word: %h store_addr: %h wordoffset: %d coreword: %h", 
+                                                      sbhit, word, compareaddr, wordoffset,coreword);
       wr_sb_hitword<=coreword;
       wr_sbindexhit<=truncate(pack(countZerosLSB(sbhit)));
+      `ifdef ASSERT
+        dynamicAssert(countOnes(sbhit)<=1,"More than one line in SB is hit");
+      `endif
     endrule
 
     rule update_storebuffer_onhit(tpl_4(ff_core_request.first)!=1 && (wr_cache_response==Hit || 
@@ -573,7 +575,6 @@ package l1dcache;
         rg_storetail<=rg_storetail+1;
       end
       Bit#(respwidth) finalword=(mask&data)|(~mask&hitword);
-      $display($time,"\tDCACHE: mask: %h data: %h hitword: %h",mask,data,hitword);
       if(wr_sb_response!=Hit)begin
         store_data[sbindex]<=finalword;
         store_valid[sbindex]<=True;
@@ -585,8 +586,9 @@ package l1dcache;
         store_data[sbindex]<=finalword;
       end
       store_epoch[sbindex]<=epoch;
-      $display($time,"\tDCACHE: Updating SB. sbindex: %d data: %h addr: %h fbindex: %d",
-        sbindex,data,addr,fbindex);
+      if(verbosity!=0)
+        $display($time,"\tDCACHE: Updating SB. sbindex: %d data: %h addr: %h fbindex: %d",
+            sbindex,data,addr,fbindex);
     endrule
     
     // This rule is fired when there is a hit in the cache. The word received is further modified
@@ -655,16 +657,28 @@ package l1dcache;
           'b110: zeroExtend(word[31:0]);
           default: word;
         endcase;
-      $display($time,"\tDCACHE: Sending response to core. Word: %d for address: %h",word,addr);
+      if(verbosity!=0)
+        $display($time,"\tDCACHE: Sending response to core. Word: %d for address: %h",word,addr);
       ff_core_response.enq(tuple3(word,err,epoch));
       ff_core_request.deq;
       `ifdef ASSERT
-        dynamicAssert(!(wr_cache_response==Hit && wr_fb_response==Hit),
-                                                  "Cache and FB both are hit simultaneously");
-        dynamicAssert(!(wr_io_response==Hit && wr_fb_response==Hit),
-                                                  "IO and FB both are hit simultaneously");
-        dynamicAssert(!(wr_cache_response==Hit && wr_io_response==Hit),
-                                                  "Cache and IO both are hit simultaneously");
+        Bit#(3) temp=0;
+        Bit#(3) temp1=0;
+        if(wr_cache_response==Hit)begin
+          temp[0]=1;
+          temp1[0]=1;
+        end
+        if(wr_fb_response==Hit)begin
+          temp[1]=1;
+        end
+        if(wr_io_response==Hit)begin
+          temp[2]=1;
+          temp1[2]=1;
+        end
+        if(wr_sb_response==Hit)
+          temp1[1]=1;
+        dynamicAssert(countOnes(temp)<=1, "More than one data structure shows a hit");
+        dynamicAssert(countOnes(temp1)<=1, "More than one data structure shows a hit");
       `endif
     endrule
 
@@ -777,8 +791,6 @@ fb_enables: %h",fbindex,fb_addr[fbindex],fb_dataline[fbindex],fb_enables[fbindex
       Bit#(setbits) set_index=addr[v_setbits+v_blockbits+v_wordbits-1:v_blockbits+v_wordbits];
       Bit#(tagbits) tag = addr[v_paddr-1:v_paddr-v_tagbits];
       let waynum<-repl.line_replace(set_index, rg_valid[set_index], rg_dirty[set_index]);
-      $display($time,"\tDCACHE: rg_valid: %b rg_dirty: %b waynum: %d", 
-          rg_valid[set_index],rg_dirty[set_index],waynum);
       // the line being replaced is dirty then evict it.
       if((rg_valid[set_index][waynum]&rg_dirty[set_index][waynum])==1 && !rg_readdone)begin
         if(verbosity!=0)begin
@@ -860,19 +872,24 @@ fb_enables: %h",fbindex,fb_addr[fbindex],fb_dataline[fbindex],fb_enables[fbindex
         if(wr_fbbeingfilled matches tagged Valid .fbi &&& fbindex==fbi)begin
           wr_upd_fillingmask<=mask;
           wr_upd_fillingdata<=duplicate(data);
-          $display($time,"\tDCACHE: Store to FB being filled. mask: %h data: %h",mask,data);
+          if(verbosity!=0)
+            $display($time,"\tDCACHE: Store to FB being filled. mask: %h data: %h",mask,data);
         end
         else begin
-          $display($time,"\tDCACHE: Store to FB index: %d. mask: %h data: %h",fbindex,mask,data);
+          if(verbosity!=0)
+            $display($time,"\tDCACHE: Store to FB index: %d. mask: %h data: %h",fbindex,mask,data);
           fb_dataline[fbindex]<= (mask&duplicate(data)) |(~mask&fb_dataline[fbindex]);
         end
         $display($time,"\tDCACHE: Store to FB. rg_storehead: %d",rg_storehead);
         fb_dirty[fbindex]<=1'b1;
       end
-      else 
+      else if(verbosity!=0)
         $display($time,"\tDCACHE: Dropping Store for addr: %h store_head: %d",addr,rg_storehead);
       rg_storehead<=rg_storehead+1;
       store_valid[rg_storehead]<=False;
+      `ifdef ASSERT
+        dynamicAssert(store_valid[rg_storehead],"Performing Store on invalid entry in SB");
+      `endif
     endrule
 
 
