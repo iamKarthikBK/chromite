@@ -25,16 +25,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Author: Neel Gala
 Email id: neelgala@gmail.com
 Details:
-conditions to account for:
---> DONE 1. when store-hit in cache, transfer dirty bit.
-2. when store-hit in cache invalidate transfered line.
---> DONE 3. when you have memory response filling up FB, and there are subsequent store hits which fill
-entries in the FB rg_fbbeingfilled should be appropriately incremented.
-
-TODO: 
-3.  store_buffer
-4.  store in fill_buffer
-5.  performance counters
+TODO:  performance counters
 
 --------------------------------------------------------------------------------------------------
 */
@@ -78,7 +69,7 @@ package l1dcache;
       method Bit#(5) perf_counters;
     `endif
     method Action cache_enable(Bool c);
-    method Action perform_store;
+    method Action perform_store(Bit#(1) currepoch);
   endinterface
 
   (*conflict_free="request_to_memory,update_fb_with_memory_response"*)
@@ -286,18 +277,21 @@ package l1dcache;
     Reg#(Bit#(3)) store_size [v_sbsize];
     Reg#(Bit#(paddr)) store_addr [v_sbsize];
     Reg#(Bit#(TLog#(fbsize))) store_fbindex [v_sbsize];
+    Reg#(Bit#(1)) store_epoch [v_sbsize];
     for (Integer i=0;i<v_sbsize;i=i+1)begin
       store_data[i]<-mkReg(0);
       store_valid[i]<-mkReg(False);
       store_size[i]<-mkReg(0);
       store_addr[i]<-mkReg(0);
       store_fbindex[i]<-mkReg(0);
+      store_epoch[i]<-mkReg(0);
     end
     Reg#(Bit#(TLog#(sbsize))) rg_storehead <-mkReg(0);
     Reg#(Bit#(TLog#(sbsize))) rg_storetail <- mkReg(0);
     Wire#(Bit#(linewidth)) wr_upd_fillingdata <-mkDWire(0);
     Wire#(Bit#(linewidth)) wr_upd_fillingmask <-mkDWire(0);
     Wire#(Bool) wr_perform_store <-mkDWire(False);
+    Wire#(Bit#(1)) wr_currepoch <-mkDWire(0);
     Bool sb_full= (all(isTrue,readVReg(store_valid)));
     Bool sb_empty=!(any(isTrue,readVReg(store_valid)));
     // ------------------------------------------------------------------------------------------//
@@ -588,6 +582,7 @@ package l1dcache;
       else begin
         store_data[sbindex]<=finalword;
       end
+      store_epoch[sbindex]<=epoch;
       $display($time,"\tDCACHE: Updating SB. sbindex: %d data: %h addr: %h fbindex: %d",
         sbindex,data,addr,fbindex);
     endrule
@@ -733,7 +728,6 @@ package l1dcache;
       Bit#(linewidth) final_mask = mask|wr_upd_fillingmask;
       Bit#(linewidth) final_data = (wr_upd_fillingmask&wr_upd_fillingdata)|(mask&duplicate(word));
       Bit#(linewidth) x=(~final_mask&fb_dataline[rg_fbbeingfilled]) | (final_mask&final_data);
-      $display(" m: %h\n w: %h\n f: %h\n d: %h\n w: %h",mask,wr_upd_fillingmask,final_mask,wr_upd_fillingdata,word);
       fb_dataline[rg_fbbeingfilled]<=x;
       if(last) begin
         if(v_fbsize>2)begin
@@ -877,24 +871,29 @@ fb_enables[rg_fbbeingfilled]);
       let data = store_data[rg_storehead];
       let valid = store_valid[rg_storehead];
       let size = store_size[rg_storehead];
+      let epoch = store_epoch[rg_storehead];
       Bit#(linewidth) mask = size[1:0]==0?'hFF:size[1:0]==1?'hFFFF:size[1:0]==2?'hFFFFFFFF:'1;
       Bit#(wordbits) zeros=0;
       Bit#(TAdd#(3,TAdd#(wordbits,blockbits))) block_offset=
-                                    {addr[v_blockbits+v_wordbits-1:v_wordbits],zeros,3'b0};
+                                    {addr[v_blockbits+v_wordbits-1:0],3'b0};
       mask=mask<<block_offset;
-      if(wr_fbbeingfilled matches tagged Valid .fbi &&& fbindex==fbi)begin
-        wr_upd_fillingmask<=mask;
-        wr_upd_fillingdata<=duplicate(data);
-        $display($time,"\tDCACHE: Store to FB being filled. mask: %h data: %h",mask,data);
+      if(epoch==wr_currepoch)begin
+        if(wr_fbbeingfilled matches tagged Valid .fbi &&& fbindex==fbi)begin
+          wr_upd_fillingmask<=mask;
+          wr_upd_fillingdata<=duplicate(data);
+          $display($time,"\tDCACHE: Store to FB being filled. mask: %h data: %h",mask,data);
+        end
+        else begin
+          $display($time,"\tDCACHE: Store to FB index: %d. mask: %h data: %h",fbindex,mask,data);
+          fb_dataline[fbindex]<= (mask&duplicate(data)) |(~mask&fb_dataline[fbindex]);
+        end
+        $display($time,"\tDCACHE: Store to FB. rg_storehead: %d",rg_storehead);
+        fb_dirty[fbindex]<=1'b1;
       end
-      else begin
-        $display($time,"\tDCACHE: Store to FB index: %d. mask: %h data: %h",fbindex,mask,data);
-        fb_dataline[fbindex]<= (mask&duplicate(data)) |(~mask&fb_dataline[fbindex]);
-      end
-      $display($time,"\tDCACHE: Store to FB. rg_storehead: %d",rg_storehead);
+      else 
+        $display($time,"\tDCACHE: Dropping Store for addr: %h store_head: %d",addr,rg_storehead);
       rg_storehead<=rg_storehead+1;
       store_valid[rg_storehead]<=False;
-      fb_dirty[fbindex]<=1'b1;
     endrule
 
 
@@ -965,8 +964,9 @@ access: %d size: %b data:%h", addr, fence, epoch, set_index,  access,  size,  da
       wr_cache_enable<=c;
     endmethod
 
-    method Action perform_store;
+    method Action perform_store(Bit#(1) currepoch);
       wr_perform_store <= True;
+      wr_currepoch<=currepoch;
     endmethod
     `ifdef perf
       method Bit#(5) perf_counters;
