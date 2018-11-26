@@ -18,13 +18,13 @@ SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
 define presim_config
-	@cd src/caches/;python3 gen_test_dcache.py
-	@ln -fs src/caches/*.mem .
+#	@cd src/caches/;python3 gen_test_dcache.py
+#	@ln -fs src/caches/*.mem .
 endef
 
-TOP_MODULE:=mkdcache_tb
-TOP_FILE:=dcache_tb.bsv
-TOP_DIR:=./src/caches
+TOP_MODULE:=mkTbSoC
+TOP_FILE:=TbSoC.bsv
+TOP_DIR:=./src/testbench
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))
@@ -180,7 +180,7 @@ generate_verilog: check-restore check-env
 	@mkdir -p $(BSVBUILDDIR); 
 	@mkdir -p $(VERILOGDIR); 
 	@echo "old_define_macros = $(define_macros)" > old_vars
-	bsc -u -verilog +RTS -K10000M -RTS -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
+	bsc -u -verilog +RTS -K40000M -RTS -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
   $(define_macros) -D verilog=True $(BSVCOMPILEOPTS) $(VERILOG_FILTER) \
   -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1) 
 	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ./verilog/  
