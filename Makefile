@@ -185,6 +185,7 @@ generate_verilog: check-restore check-env
   -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1) 
 	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ./verilog/  
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ./verilog/
+	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BE.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ./verilog/
 	@cp src/common_verilog/bram_1r1w.v ./verilog/
 	@cp src/common_verilog/bram_1rw.v ./verilog/
