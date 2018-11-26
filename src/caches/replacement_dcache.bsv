@@ -28,13 +28,14 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package replacement;
+package replacement_dcache;
   import Vector::*;
   import LFSR::*;
   import Assert::*;
 
   interface Ifc_replace#(numeric type sets, numeric type ways);
-    method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
+    method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets))
+        index, Bit#(ways) valid, Bit#(ways) dirty);
     method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way);
     method Action reset_repl;
   endinterface
@@ -54,14 +55,24 @@ package replacement;
         rg_init<=False;
       endrule
 
-      method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
-        if (&(valid)==1)begin // if all lines are valid choose one to randomly replace
+    method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets))
+            index, Bit#(ways) valid, Bit#(ways) dirty);
+        if (&(valid)==1 && &(dirty)==1)begin // if all lines are valid and dirty choose one to randomly replace
           return truncate(random.value());
         end
-        else begin // if any line empty then send that
+        else if(&(valid)!=1) begin // if any line is not valid
           Bit#(TLog#(ways)) temp=0;
           for(Bit#(TAdd#(1,TLog#(ways))) i=0;i<fromInteger(v_ways);i=i+1) begin
             if(valid[i]==0)begin
+              temp=truncate(i);
+            end
+          end
+          return temp;
+        end
+        else begin // if any non-dirty line
+          Bit#(TLog#(ways)) temp=0;
+          for(Bit#(TAdd#(1,TLog#(ways))) i=0;i<fromInteger(v_ways);i=i+1) begin
+            if(dirty[i]==0)begin
               temp=truncate(i);
             end
           end
@@ -77,18 +88,28 @@ package replacement;
     end
     else if(alg=="RROBIN")begin
       Vector#(sets,Reg#(Bit#(TLog#(ways)))) v_count <- replicateM(mkReg(fromInteger(v_ways-1)));
-      method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
+    method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets))
+            index, Bit#(ways) valid, Bit#(ways) dirty);
         if (verbosity>1)
           $display("valid: %b index: %d",valid,index);
-        if (&(valid)==1)begin // if all lines are valid choose one to randomly replace
+        if (&(valid)==1 && &(dirty)==1)begin // if all lines are valid choose one to randomly replace
           if (verbosity>1)
             $display("replacing line :%d ",readVReg(v_count)[index]);
           return readVReg(v_count)[index];
         end
-        else begin // if any line empty then send that
+        else if(&(valid)!=1) begin // if any line empty then send that
           Bit#(TLog#(ways)) temp=0;
           for(Bit#(TAdd#(1,TLog#(ways))) i=0;i<fromInteger(v_ways);i=i+1) begin
             if(valid[i]==0)begin
+              temp=truncate(i);
+            end
+          end
+          return temp;
+        end
+        else begin // if any line empty then send that
+          Bit#(TLog#(ways)) temp=0;
+          for(Bit#(TAdd#(1,TLog#(ways))) i=0;i<fromInteger(v_ways);i=i+1) begin
+            if(dirty[i]==0)begin
               temp=truncate(i);
             end
           end
@@ -107,8 +128,9 @@ package replacement;
     end
     else if(alg=="PLRU")begin
       Vector#(sets,Reg#(Bit#(TSub#(ways,1)))) v_count <- replicateM(mkReg(5));
-      method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
-        if (&(valid)==1)begin // if all lines are valid choose one to randomly replace
+    method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets))
+            index, Bit#(ways) valid, Bit#(ways) dirty);
+        if (&(valid)==1 && &(dirty)==1)begin // if all lines are valid choose one to randomly replace
           case (v_count[index]) matches
             'b?00: begin if(verbosity>1) $display($time,"\tREPL: Replacing line: 0"); return 0;end 
             'b?10: begin if(verbosity>1) $display($time,"\tREPL: Replacing line: 1"); return 1;end
@@ -116,10 +138,19 @@ package replacement;
             default: begin if(verbosity>1) $display($time,"\tREPL: Replacing line: 3"); return 3; end
           endcase
         end
-        else begin // if any line empty then send that
+        else if(&(valid)!=1) begin // if any line empty then send that
           Bit#(TLog#(ways)) temp=0;
           for(Bit#(TAdd#(1,TLog#(ways))) i=0;i<fromInteger(v_ways);i=i+1) begin
             if(valid[i]==0)begin
+              temp=truncate(i);
+            end
+          end
+          return temp;
+        end
+        else begin // if any line empty then send that
+          Bit#(TLog#(ways)) temp=0;
+          for(Bit#(TAdd#(1,TLog#(ways))) i=0;i<fromInteger(v_ways);i=i+1) begin
+            if(dirty[i]==0)begin
               temp=truncate(i);
             end
           end
@@ -145,7 +176,8 @@ package replacement;
       endmethod
     end
     else begin
-      method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets)) index, Bit#(ways) valid);
+    method ActionValue#(Bit#(TLog#(ways))) line_replace (Bit#(TLog#(sets))
+            index, Bit#(ways) valid, Bit#(ways) dirty);
         return ?;
       endmethod
       method Action update_set (Bit#(TLog#(sets)) index, Bit#(TLog#(ways)) way);

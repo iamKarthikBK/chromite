@@ -18,69 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 //
-// $Revision$
-// $Date$
 
-`ifdef BSV_ASSIGNMENT_DELAY
-`else
- `define BSV_ASSIGNMENT_DELAY
-`endif
-
-// Single-Ported BRAM
-module BRAM1(CLK,
-             EN,
-             WE,
-             ADDR,
-             DI,
-             DO
+module bram_1rw(
+             clka,
+             ena,
+             wea,
+             addra,
+             dina,
+             douta
              );
 
-   parameter                      PIPELINED  = 0;
    parameter                      ADDR_WIDTH = 1;
    parameter                      DATA_WIDTH = 1;
    parameter                      MEMSIZE    = 1;
 
-   input                          CLK;
-   input                          EN;
-   input                          WE;
-   input [ADDR_WIDTH-1:0]         ADDR;
-   input [DATA_WIDTH-1:0]         DI;
-   output [DATA_WIDTH-1:0]        DO;
+   input                          clka;
+   input                          ena;
+   input                          wea;
+   input [ADDR_WIDTH-1:0]         addra;
+   input [DATA_WIDTH-1:0]         dina;
+   output [DATA_WIDTH-1:0]        douta;
 
    (* RAM_STYLE = "BLOCK" *)
-   reg [DATA_WIDTH-1:0]           RAM[0:MEMSIZE-1];
-   reg [DATA_WIDTH-1:0]           DO_R;
-   reg [DATA_WIDTH-1:0]           DO_R2;
+   reg [DATA_WIDTH-1:0]           ram[0:MEMSIZE-1];
+   reg [DATA_WIDTH-1:0]           out_reg;
 
-`ifdef BSV_NO_INITIAL_BLOCKS
-`else
    // synopsys translate_off
    integer                        i;
    initial
    begin : init_block
       for (i = 0; i < MEMSIZE; i = i + 1) begin
-         RAM[i] = { ((DATA_WIDTH+1)/2) { 2'b10 } };
+         ram[i] = { ((DATA_WIDTH+1)/2) { 2'b10 } };
       end
-      DO_R  = { ((DATA_WIDTH+1)/2) { 2'b10 } };
-      DO_R2 = { ((DATA_WIDTH+1)/2) { 2'b10 } };
+      out_reg  = { ((DATA_WIDTH+1)/2) { 2'b10 } };
    end
    // synopsys translate_on
-`endif // !`ifdef BSV_NO_INITIAL_BLOCKS
 
-   always @(posedge CLK) begin
-      if (EN) begin
-         if (WE) begin
-            RAM[ADDR] <= `BSV_ASSIGNMENT_DELAY DI;
-//            DO_R <= `BSV_ASSIGNMENT_DELAY DI;
+   always @(posedge clka) begin
+      if (ena) begin
+         if (wea) begin
+            ram[addra] <= dina;
          end
          else begin
-            DO_R <= `BSV_ASSIGNMENT_DELAY RAM[ADDR];
+            out_reg <= ram[addra];
          end
       end
-      DO_R2 <= `BSV_ASSIGNMENT_DELAY DO_R;
    end
 
    // Output driver
-   assign DO = (PIPELINED) ? DO_R2 : DO_R;
+   assign douta=out_reg;
 
-endmodule // BRAM1
+endmodule

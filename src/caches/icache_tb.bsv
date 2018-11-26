@@ -37,7 +37,7 @@ package icache_tb;
 
   import icache_nway::*;
   //import icache_dm::*;
-  import icache_types::*;
+  import cache_types::*;
   import mem_config::*;
   import GetPut::*;
   import FIFOF::*;

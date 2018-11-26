@@ -18,7 +18,7 @@ SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
 define presim_config
-#	@cd src/caches/;python3 gen_test.py
+#	@cd src/caches/;python3 gen_test_dcache.py
 #	@ln -fs src/caches/*.mem .
 endef
 
@@ -91,6 +91,9 @@ ifeq ($(RTLDUMP), True)
 endif
 ifeq ($(SUPERVISOR),  True)
   define_macros += -D supervisor=True
+endif
+ifeq ($(ASSERTIONS), enable)
+  define_macros += -D ASSERT=True
 endif
 
 
@@ -177,14 +180,14 @@ generate_verilog: check-restore check-env
 	@mkdir -p $(BSVBUILDDIR); 
 	@mkdir -p $(VERILOGDIR); 
 	@echo "old_define_macros = $(define_macros)" > old_vars
-	bsc -u -verilog -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
+	bsc -u -verilog +RTS -K40000M -RTS -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
   $(define_macros) -D verilog=True $(BSVCOMPILEOPTS) $(VERILOG_FILTER) \
   -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1) 
 	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ./verilog/  
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BE.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ./verilog/
-	@cp src/common_verilog/BRAM1.v ./verilog/
+	@cp src/common_verilog/bram_1r1w.v ./verilog/
+	@cp src/common_verilog/bram_1rw.v ./verilog/
 	@cp src/common_verilog/BRAM1Load.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO2.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO1.v ./verilog/
