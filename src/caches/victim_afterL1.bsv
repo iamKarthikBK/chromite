@@ -37,7 +37,7 @@ package victim_afterL1;
   import FIFO::*;
   import BUtils::*;
 
-  import dcache_types::*;
+  import cache_types::*;
 
  
   typedef enum {RespondFromVB, RespondFromMemory} RespType deriving(Eq,Bits,FShow);

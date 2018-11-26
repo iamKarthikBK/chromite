@@ -37,7 +37,7 @@ package victim;
   import FIFO::*;
   import BUtils::*;
 
-  import dcache_types::*;
+  import cache_types::*;
 
   `define size 2
   
