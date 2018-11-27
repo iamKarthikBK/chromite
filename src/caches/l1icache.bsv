@@ -266,7 +266,7 @@ package l1icache;
     
     // This rule is fired when there is a hit in the cache. The word received is further modified
     // depending on the request made by the core.
-    rule respond_to_core(wr_cache_response==Hit || wr_fb_response==Hit);
+    rule respond_to_core(wr_cache_response==Hit || wr_fb_response==Hit || wr_io_response==Hit);
       let {addr, fence, epoch, prefetch} =ff_core_request.first();
       Bit#(respwidth) word=0;
       Bool err=False;
@@ -523,7 +523,7 @@ package l1icache;
     // requested by the core (present in the ff_core_request). Writing this line would cause a
     // replay of the latest request. This would cause another cycle delay which would eventually be
     // a hit in the cache RAMS. 
-    rule release_from_FB((fb_full || fill_oppurtunity) && !rg_replaylatest &&
+    rule release_from_FB((fb_full || fill_oppurtunity || rg_fence_stall) && !rg_replaylatest &&
               !fb_empty && fb_valid[rg_fbwriteback] && (&fb_enables[rg_fbwriteback])==1);
       // if line is valid and is completely filled.
       let addr=fb_addr[rg_fbwriteback];
