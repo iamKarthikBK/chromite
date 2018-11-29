@@ -61,11 +61,8 @@ package stage1;
     // instruction along with other results to be sent to the next stage
     interface TXe#(PIPE1) to_stage2;
 
-    // flush from the write-back stage. indicates is fence is required.
-    method Action flush_from_wb(Bit#(VADDR) newpc, Bool fence);
-
-    // flush frmo the execute stage.
-    method Action flush_from_exe;
+    // flush from the write-back or exe stage.
+    method Action flush(Bit#(VADDR) newpc, Bool fence, Bool exe_wb); //fence integration
 
     // csrs from the csrfile.
     method Action csrs (CSRtoDecode csr);
@@ -225,7 +222,7 @@ package stage1;
     // Explicit Conditions: None
     // Implicit Conditions: None
     // Schedule Conflicts: This method will not fire if there is flush from the write-back stage. A
-    // flush from the write-back stage will cause a change in the rg_icache_request and rg_fence,
+    // flush from any lower stages will cause a change in the rg_icache_request and rg_fence,
     // both of which are being updated in this method as well. This conflict is acceptable since we
     // do not wish to populate the cache with an unwanted request and initiate a new request asap.
     interface inst_request=interface Get
@@ -249,14 +246,17 @@ package stage1;
     
 		interface to_stage2 = tostage2.e;
 
-    // This method will fire when a flush from the write back stage is initiated.
+    // This method will fire when a flush from the write back stage or execute stage is initiated.
     // Explicit Conditions: None
     // Implicit Conditions: None
-    method Action flush_from_wb( Bit#(VADDR) newpc, Bool fence); //fence integration
+    method Action flush(Bit#(VADDR) newpc, Bool fence, Bool exe_wb); //fence integration
 		  if(fence)
 		  	rg_fence<=True;
       rg_pc<=newpc;
-      rg_wEpoch<=~rg_wEpoch;
+      if(exe_wb)
+        rg_wEpoch<=~rg_wEpoch;
+      else
+        rg_eEpoch<=~rg_eEpoch;
       rg_icache_request<={truncateLSB(newpc),2'b0};
       if(newpc[1:0]!=0)
         rg_discard_lower<=True;
@@ -264,14 +264,10 @@ package stage1;
         $display($time, "\tSTAGE1: Received Flush. PC: %h Flush: ",newpc); 
       ff_memory_response.clear();
     endmethod
-
+    
     // This method captures the csrs from the csrfile
     method Action csrs (CSRtoDecode csr);
       wr_csr <= csr;
-    endmethod
-    // This method is fired when there is a flush initiated from the execute stage.
-    method Action flush_from_exe;
-      rg_eEpoch<=~rg_eEpoch;
     endmethod
   endmodule
 endpackage
