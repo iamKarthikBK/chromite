@@ -22,7 +22,7 @@ IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISI
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
-Author: Neel Gala
+Author: Neel Gala, Vipul, Deepa
 Email id: neelgala@gmail.com
 Details:
 This module will interact with the memory subsystem to fetch relevant instructions from memory. The
