@@ -88,7 +88,7 @@ package riscv;
     Ifc_stage3 stage3 <- mkstage3();
     Ifc_stage4 stage4 <- mkstage4();
 
-    FIFOF#(IF_ID_type) pipe1 <-mkSizedFIFOF(2);
+    FIFOF#(PIPE1) pipe1 <-mkSizedFIFOF(2);
     FIFOF#(PIPE2) pipe2 <- mkSizedFIFOF(2);
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
 

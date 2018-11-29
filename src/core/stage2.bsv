@@ -93,7 +93,7 @@ package stage2;
 	interface Ifc_stage2;
 		method Action commit_rd (Maybe#(CommitData) commit);
 		/* ===== pipe connections ========= */
-		interface RXe#(IF_ID_type) rx_in;
+		interface RXe#(PIPE1) rx_in;
     (*always_ready*)
 		interface TXe#(PIPE2) tx_out;
 		/*================================= */
@@ -116,7 +116,7 @@ package stage2;
   module mkstage2(Ifc_stage2);
 
     Ifc_registerfile registerfile <-mkregisterfile();
-		RX#(IF_ID_type) rx <-mkRX;
+		RX#(PIPE1) rx <-mkRX;
 		TX#(PIPE2) tx <-mkTX;
       
     let verbosity = `VERBOSITY ;

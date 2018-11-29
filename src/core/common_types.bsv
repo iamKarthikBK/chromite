@@ -291,14 +291,14 @@ typedef struct {
   	`ifdef atomic Bit#(5) atomic_op; `endif
   	}Memrequest deriving(Bits,Eq,FShow);
   
-  // the data stucture for the pipeline FIFO between fetch and decode.
+  // -- structure of the first pipeline stage -----------------//
   typedef struct{
   	Bit#(VADDR) program_counter;
   	Bit#(32) instruction;
   	Bit#(2) prediction;
   	Bit#(2) epochs;
     Bit#(2) accesserr_pagefault;
-  }IF_ID_type deriving (Bits,Eq);
+  }PIPE1 deriving (Bits,Eq);
   
   // ---------- Tuples for the second Pipeline Stage -----------//
   `ifdef spfpu

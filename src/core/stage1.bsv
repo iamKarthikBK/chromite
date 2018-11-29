@@ -59,7 +59,7 @@ package stage1;
     interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
 
     // instruction along with other results to be sent to the next stage
-    interface TXe#(IF_ID_type) to_stage2;
+    interface TXe#(PIPE1) to_stage2;
 
     // flush from the write-back stage. indicates is fence is required.
     method Action flush_from_wb(Bit#(VADDR) newpc, Bool fence);
@@ -109,7 +109,7 @@ package stage1;
     FIFOF#(Tuple3#(Bit#(32),Bool,Bit#(3))) ff_memory_response<-mkSizedFIFOF(2);
 
     // FIFO to interface with the next pipeline stage
-		TX#(IF_ID_type) tostage2<-mkTX;
+		TX#(PIPE1) tostage2<-mkTX;
     
     // RuleName: process_instruction
     // Explicit Conditions: None
@@ -199,7 +199,7 @@ package stage1;
             rg_action<=None;
           end
         end
-				let pipedata=IF_ID_type{program_counter:rg_pc,
+				let pipedata=PIPE1{program_counter:rg_pc,
                       instruction:final_instruction,
                       prediction:0, // TODO derive this from BPU
                       accesserr_pagefault:{pack(err),1'b0}, // TODO cache should send 2 error bits.
