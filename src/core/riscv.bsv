@@ -31,7 +31,7 @@ package riscv;
   import GetPut::*;
   /*========================= */
   
-  import fetch_stage::*;
+  import stage1::*;
   import stage2::*;
   import stage3::*;
   import stage4::*;
@@ -40,12 +40,10 @@ package riscv;
   
   interface Ifc_riscv;
     
-    interface Get#(Tuple5#(Bit#(2),Bit#(VADDR),Bit#(VADDR),Bool,Bit#(3))) request_to_imem;
-    method Action
-    instruction_response_from_imem(Maybe#(Tuple7#(Bit#(VADDR),Bit#(2),Bit#(VADDR),Bit#(32),
-    Trap_type, Bit#(PERFMONITORS),Bit#(3))) x);
-    interface Put#(Tuple4#(Bit#(3),Bit#(VADDR),Bit#(VADDR),Bit#(2))) prediction_response;
-    interface Get#(Tuple2#(Bit#(3),Bit#(VADDR))) send_prediction_request;
+  	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
+    interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
+    //interface Put#(Tuple4#(Bit#(3),Bit#(VADDR),Bit#(VADDR),Bit#(2))) prediction_response;
+    //interface Get#(Tuple2#(Bit#(3),Bit#(VADDR))) send_prediction_request;
     interface Get#(Tuple2#(Memrequest,Bit#(1))) to_dmem;
     `ifdef bpu
       method Maybe#(Training_data#(VADDR)) training_data;
@@ -83,7 +81,7 @@ package riscv;
       Wire#(Fence_VMA_type#(VADDR)) wr_sfence_vma  <- mkWire();
     `endif
 
-    Ifc_fetch stage1 <- mkfetch('h1000);
+    Ifc_stage1 stage1 <- mkstage1();
     Ifc_stage2 stage2 <- mkstage2();
     Ifc_stage3 stage3 <- mkstage3();
     Ifc_stage4 stage4 <- mkstage4();
@@ -92,7 +90,7 @@ package riscv;
     FIFOF#(PIPE2) pipe2 <- mkSizedFIFOF(2);
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
 
-    mkConnection(stage1.tx_out, pipe1);
+    mkConnection(stage1.to_stage2, pipe1);
     mkConnection(pipe1, stage2.rx_in);
     mkConnection(stage2.tx_out, pipe2);
     mkConnection(pipe2, stage3.rx_in);
@@ -126,9 +124,9 @@ package riscv;
     mkConnection(stage3.fwd_from_mem, stage4.fwd_from_mem);
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
       if(flush_from_wb)
-        stage1.flush(flushpc_from_wb, Regular);
+        stage1.flush(flushpc_from_wb, False ,True); // TODO second field indicates a fence.
       else
-        stage1.flush(flushpc_from_exe, flush_from_exe);
+        stage1.flush(flushpc_from_exe, False, False); // can never send a fence request.
     endrule
     rule connect_csrs;
       stage2.csrs(stage4.csrs_to_decode);
@@ -141,16 +139,15 @@ package riscv;
     endrule
     rule upd_stage2eEpoch(flush_from_exe!=None);
       stage2.update_eEpoch();
-      stage1.update_eEpoch();
     endrule
     rule upd_stage2wEpoch(flush_from_wb);
-      stage1.update_wEpoch();
       stage2.update_wEpoch();
       stage3.update_wEpoch();
     endrule
-    rule ras_push_connect;
-      stage1.push_ras(stage3.ras_push);
-    endrule
+    // TODO RAS support will enable the following rule.
+//    rule ras_push_connect;
+//      stage1.push_ras(stage3.ras_push);
+//    endrule
     `ifdef RV64
       rule connect_inferred_xlen;
         stage3.inferred_xlen(stage4.inferred_xlen);
@@ -176,12 +173,10 @@ package riscv;
 //  		method Bit#(3) roundingmode; TODO
 //    `endif
 
-    interface request_to_imem=stage1.request_to_imem;
-    method Action
-    instruction_response_from_imem(Maybe#(Tuple7#(Bit#(VADDR),Bit#(2),Bit#(VADDR),Bit#(32),
-    Trap_type, Bit#(PERFMONITORS),Bit#(3))) x)=stage1.instruction_response_from_imem(x);
-    interface prediction_response =stage1.prediction_response;
-    interface send_prediction_request=stage1.send_prediction_request;
+    interface inst_request=stage1.inst_request;
+    interface inst_response=stage1.inst_response;
+//    interface prediction_response =stage1.prediction_response; // TODO BPU support
+//    interface send_prediction_request=stage1.send_prediction_request; // TODO support
     `ifdef Debug
       method ActionValue#(Bit#(XLEN)) read_write_gprs(Bit#(5) r, Bit#(XLEN) data 
             `ifdef spfpu ,Op3type rfselect `endif ) = stage2.read_write_gprs(r, data `ifdef spfpu
