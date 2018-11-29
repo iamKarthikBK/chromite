@@ -200,10 +200,10 @@ package stage1;
           end
         end
 				let pipedata=IF_ID_type{program_counter:rg_pc,
-										            instruction:final_instruction,
-          										  prediction:0, // TODO derive this from BPU
-          										  accesserr_pagefault:{pack(err),1'b0}, // TODO cache should send 2 error bits.
-          										  epochs:{rg_eEpoch,rg_wEpoch}};
+                      instruction:final_instruction,
+                      prediction:0, // TODO derive this from BPU
+                      accesserr_pagefault:{pack(err),1'b0}, // TODO cache should send 2 error bits.
+                      epochs:{rg_eEpoch,rg_wEpoch}};
         if(compressed  && enque_instruction && misa[2]==1)begin
           rg_pc<=rg_pc+2;
         end
