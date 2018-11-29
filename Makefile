@@ -24,7 +24,7 @@ endef
 
 TOP_MODULE:=mkTbSoC
 TOP_FILE:=TbSoC.bsv
-TOP_DIR:=./src/testbench
+TOP_DIR:=./src/testbench/
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))

@@ -37,7 +37,7 @@ package SoC;
 	import AXI4_Lite_Fabric:: *;
   import Tilelink_lite_Types::*;
   import Tilelink_lite::*;
-  import cclass:: * ;
+  import cclass_bare:: * ;
   import common_types:: * ;
   `include "common_params.bsv"
   `include "SoC.defines"
@@ -126,7 +126,7 @@ package SoC;
 
   	mkConnection(fabric.v_to_slaves[`Memory_slave_num ],main_memory.slave);
 		mkConnection (fabric.v_to_slaves [`BootRom_slave_num ],bootrom.slave);
- 	mkConnection (fabric.v_to_slaves [`Uart_slave_num ],uart.slave);
+ 	  mkConnection (fabric.v_to_slaves [`Uart_slave_num ],uart.slave);
   	mkConnection (fabric.v_to_slaves [`Clint_slave_num ],clint.slave);
     mkConnection (fabric.v_to_slaves [`Sign_slave_num ] , signature.slave);
 

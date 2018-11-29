@@ -42,12 +42,12 @@ package riscv;
     
   	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
     interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
-    interface Get#(Tuple2#(Memrequest,Bit#(1))) to_dmem;
+    interface Get#(Tuple2#(Memrequest,Bit#(1))) memory_request;
     interface Put#(Maybe#(MemoryResponse)) memory_response;
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);
     method Action clint_mtime(Bit#(XLEN) c_mtime);
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i);
+	  method Action set_external_interrupt(Bit#(1) ex_i);
     `ifdef simulate
       interface Get#(DumpType) dump;
     `endif
@@ -140,7 +140,7 @@ package riscv;
 
     interface inst_request=stage1.inst_request;
     interface inst_response=stage1.inst_response;
-    interface to_dmem=stage3.to_dmem;
+    interface memory_request=stage3.to_dmem;
     method Action clint_msip(Bit#(1) intrpt)=stage4.clint_msip(intrpt);
     method Action clint_mtip(Bit#(1) intrpt)=stage4.clint_mtip(intrpt);
     method Action clint_mtime(Bit#(XLEN) c_mtime)=stage4.clint_mtime(c_mtime);
@@ -148,8 +148,7 @@ package riscv;
       interface dump=stage4.dump;
     `endif
     interface memory_response=stage4.memory_response;
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool)
-                                                        ex_i)=stage4.set_external_interrupt(ex_i);
+	  method Action set_external_interrupt(Bit#(1) ex_i)=stage4.set_external_interrupt(ex_i);
   endmodule
 
 endpackage

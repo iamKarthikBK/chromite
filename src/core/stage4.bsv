@@ -63,7 +63,7 @@ package stage4;
     `ifdef spfpu
   		method Bit#(3) roundingmode;
     `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i);
+	  method Action set_external_interrupt(Bit#(1) ex_i);
   endinterface
 
   (*synthesize*)
@@ -299,6 +299,6 @@ package stage4;
     `ifdef spfpu
   		method roundingmode=csr.roundingmode;
     `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i)=csr.set_external_interrupt(ex_i);
+	  method Action set_external_interrupt(Bit#(1) ex_i)=csr.set_external_interrupt(ex_i);
   endmodule
 endpackage

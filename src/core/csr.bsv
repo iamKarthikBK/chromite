@@ -62,7 +62,7 @@ package csr;
   		method Bit#(3) roundingmode;
       method Action update_fflags(Bit#(5) flags);
     `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i);
+	  method Action set_external_interrupt(Bit#(1) ex_i);
   endinterface:Ifc_csr
 
 
@@ -173,7 +173,6 @@ package csr;
         csrfile.update_fflags(flags);
       endmethod
     `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool)
-                                                        ex_i)=csrfile.set_external_interrupt(ex_i);
+	  method Action set_external_interrupt(Bit#(1) ex_i)=csrfile.set_external_interrupt(ex_i);
   endmodule
 endpackage

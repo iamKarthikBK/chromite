@@ -284,7 +284,7 @@ typedef struct {
     } Training_data#(numeric type addr_width) deriving (Bits, Eq);
 
   typedef struct{
-  	Bit#(XLEN) address;
+  	Bit#(PADDR) address;
   	Bit#(XLEN) memory_data; // data to be written in the memory
   	Bit#(2) transfer_size; // 0 -8 bits, 1- 16 bits, 2 -32 bits 3 - 64-bits;
   	Bit#(1) signextend; // whether the loaded value has to be signextended

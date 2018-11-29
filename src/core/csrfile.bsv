@@ -56,7 +56,7 @@ package csrfile;
   		method Bit#(3) roundingmode;
       method Action update_fflags(Bit#(5) flags);
     `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i);
+	  method Action set_external_interrupt(Bit#(1) ex_i);
   endinterface
 
   function Reg#(Bit#(a)) extInterruptReg(Reg#(Bit#(a)) r1, Reg#(Bit#(a)) r2);
@@ -849,19 +849,18 @@ package csrfile;
         end
       endmethod
     `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i);
-	  	let {i,j} = ex_i;
+	  method Action set_external_interrupt(Bit#(1) ex_i);
 	  	if(rg_prv == Machine) begin
-	  		rg_meip <= pack(i);
+	  		rg_meip <= pack(ex_i);
 	  	end
       `ifdef supervisor
   	  	else if(rg_prv == Supervisor) begin
-	    		ext_seip <= pack(i);
+	    		ext_seip <= pack(ex_i);
 	    	end
       `endif
       `ifdef usertraps
   	  	else if(rg_prv == User) begin
-	    		ext_ueip <= pack(i);
+	    		ext_ueip <= pack(ex_i);
 	    	end
       `endif
 	  endmethod

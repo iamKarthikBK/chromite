@@ -300,7 +300,7 @@ package stage3;
             out=signExtend(addr); // TODO avoid is mux and re-assignment. This is for passing the
 //            badadress
           if(cmtype==MEMORY &&& trap1 matches tagged None)begin
-            ff_memory_request.enq(tuple2(Memrequest{address:zeroExtend(addr), memory_data:x2, 
+            ff_memory_request.enq(tuple2(Memrequest{address:truncate(addr), memory_data:x2, 
                   transfer_size: funct3[1:0], signextend: ~funct3[2], mem_type: memaccess
                   `ifdef atomic , atomic_op: {pack(word32),fn} `endif }, epochs[0]));
           end
