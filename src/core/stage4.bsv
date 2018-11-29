@@ -41,11 +41,7 @@ package stage4;
 
   interface Ifc_stage4;
     interface RXe#(PIPE3) rx_in;
-    `ifdef supervisor // TODO make the following into a common structure
-      interface Put#(Maybe#(Tuple4#(Bit#(XLEN), Bool, Bool, Access_type))) memory_response;
-    `else
-      interface Put#(Maybe#(Tuple3#(Bit#(XLEN), Bool, Access_type))) memory_response;
-    `endif
+    interface Put#(Maybe#(MemoryResponse)) memory_response;
     method Maybe#(CommitData) commit_rd;
     interface Get#(Tuple2#(Bit#(XLEN), Bit#(3))) fwd_from_mem;
     method Tuple2#(Bool, Bit#(VADDR)) flush;
@@ -80,11 +76,7 @@ package stage4;
     Wire#(Bool) wr_csr_updated <- mkDWire(False);
 
     // wire that captures the response coming from the external memory or cache.
-    `ifdef supervisor
-      Wire#(Maybe#(Tuple4#(Bit#(XLEN), Bool, Bool, Access_type))) wr_memory_response <- mkDWire(tagged Invalid);
-    `else
-      Wire#(Maybe#(Tuple3#(Bit#(XLEN), Bool,  Access_type))) wr_memory_response <- mkDWire(tagged Invalid);
-    `endif 
+    Wire#(Maybe#(MemoryResponse)) wr_memory_response <- mkDWire(tagged Invalid);
 
     // wire that carriues the information for operand forwarding
     Wire#(Maybe#(Tuple2#(Bit#(XLEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
@@ -148,12 +140,8 @@ package stage4;
           if (wr_memory_response matches tagged Valid .resp)begin
             if(verbosity>1)
               $display($time, "\tWBMEM: Got response from the Memory: ",fshow(resp));
-            `ifdef supervisor
-              let {data, err, fault, access_type}=resp;
-            `else
-              let {data, err, access_type}=resp;
-            `endif
-            if(!err `ifdef supervisor && !fault `endif )begin // no bus error
+            let {data, err_fault, access_type}=resp;
+            if(err_fault==0 )begin // no bus error
             `ifdef spfpu
               if(nanboxing==1)
                 data[63:32]='1;
@@ -178,12 +166,12 @@ package stage4;
               if(verbosity>1)
                 $display($time, "\tWBMEM: Received Exception from Memory: ", fshow(resp));
               `ifdef supervisor
-                if(fault)
+                if(err_fault[0]==1)
                   if(access_type==Load)
                     trap = tagged Exception Load_pagefault;
                   else
                     trap = tagged Exception Store_pagefault;
-                else if(err)
+                else if(err_fault[1]==1)
               `endif
                 if(access_type == Load)
                   trap = tagged Exception Load_access_fault;
@@ -262,11 +250,7 @@ package stage4;
     endrule
 
     interface  memory_response= interface Put
-    `ifdef supervisor
-      method Action put (Maybe#(Tuple4#(Bit#(XLEN), Bool, Bool, Access_type)) response);
-    `else
-      method Action put (Maybe#(Tuple3#(Bit#(XLEN), Bool,  Access_type)) response);
-    `endif
+      method Action put (Maybe#(MemoryResponse) response);
         wr_memory_response <= response;
       endmethod
     endinterface;
