@@ -43,8 +43,7 @@ package csr;
 	
   interface Ifc_csr;
 	  method ActionValue#(Tuple3#(Bool, Bit#(VADDR), Bit#(XLEN))) system_instruction(
-            Bit#(12) csr_address, Bit#(5) rs1_addr, Bit#(XLEN) op1, Bit#(3) funct3
-            `ifdef supervisor ,Bit#(VADDR) pc `endif );
+            Bit#(12) csr_address, Bit#(5) rs1_addr, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(VADDR) pc);
     method CSRtoDecode csrs_to_decode;
     method ActionValue#(Bit#(VADDR)) take_trap(Trap_type trap, Bit#(VADDR) pc, Bit#(VADDR) badaddr);
 	  method Action clint_msip(Bit#(1) intrpt);
@@ -76,8 +75,7 @@ package csr;
       Wire#(Bool) wr_sfence_command <- mkDWire(False);
     `endif 
 	  method ActionValue#(Tuple3#(Bool, Bit#(VADDR), Bit#(XLEN))) system_instruction(
-            Bit#(12) csr_address, Bit#(5) rs1_addr, Bit#(XLEN) op1, Bit#(3) funct3
-            `ifdef supervisor ,Bit#(VADDR) pc `endif );
+         Bit#(12) csr_address, Bit#(5) rs1_addr, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(VADDR) pc);
       Bool flush = False;
       Bit#(VADDR) jump_add=0;
 	  	let csrread<-csrfile.read_csr(csr_address);

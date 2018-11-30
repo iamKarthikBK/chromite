@@ -187,8 +187,7 @@ package stage4;
         end
         else if(committype == SYSTEM_INSTR)begin
           let {drain, newpc, dest}<-csr.system_instruction(csrfield[11:0], 
-                                              csrfield[16:12], rd, csrfield[19:17]
-                                              `ifdef supervisor , pc `endif );
+                                              csrfield[16:12], rd, csrfield[19:17], pc);
           jump_address=newpc;
           fl=drain;
           `ifdef spfpu
