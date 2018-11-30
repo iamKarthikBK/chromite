@@ -150,9 +150,115 @@ package decoder;
 		return tuple2(ret, resume_wfi);
 	endfunction
 
+  typedef enum {Q0='b00, Q1='b01, Q2='b10} Quadrant deriving(Bits,Eq,FShow);
+
+  function ActionValue#(DecodeOut) decoder_func(Bit#(16) inst, Bit#(2) err, CSRtoDecode csrs)=
+    actionvalue
+    
+    let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
+    Quadrant quad =unpack(inst[1:0]);
+    Bit#(3) funt3 = inst(15:13];
+
+    //----------------------------------- inferring rs1 and rs1type
+    Bit#(5) rs1={2'b01,inst[9:7]};
+    Op1type rs1type=IntegerRF;
+    if (`ifdef RV32 (quad==Q1 && funct3=='b001) || `endif //C.JAL
+        (quad==Q2 && funct3=='b100 && inst[6:2]==0) || // C.J
+        (quad==Q0 && funct3!='b000 && funct3!='b100) || // C.Loads C.Store
+        (quad==Q2 && (funct3=='b001 || funct3=='b010 || funct3=='b011 || funct3='b101 ||
+            funct3=='b110 || funct3=='b111))
+      )
+      rs1type=PC;
+
+
+    if(quad=Q0)begin
+      if(funct3==0 && inst[12:5]!=0 ) // ADDI4SPN
+        rs1=2;
+      // for 'b100 rs1 doesn't matter since it will be an illegal instruction
+    end
+    if(quad==Q1)begin
+      case (funct3)
+        'b000: rs1[4:3]=inst[11:10]; // C.NOP, C.ADDI
+        'b001: `ifdef RV32 rs1=0; `else rs1[4:3]=inst[11:10]; `endif //C.JAL, C.ADDIW
+        'b010: rs1=0; // C.LI
+        'b011: if (inst[11:7]!=0 && inst[11:7]!=2) rs1=0; else rs1[4:3]=inst[11:10]; // C.ADDI16SP, C.LUI
+        'b101: rs1=0; // C.J
+      endcase
+    end
+    if(quad=Q2)begin
+      case (funct3)
+        'b000: rs1[4:3]=inst[11:10]; //C.SLLI
+        'b001, 'b010, 'b011: rs1=2; // 
+        'b100: if(inst[12]==0 && inst[6:2]==0) rs1=0; else rs1[4:3]=inst[11:10]; //C.MV 
+        default: rs1=2; // C.FSDSP, C.SWSP, C.FSWSP,C.SDSP
+      endcase
+    end
+
+    //----------------------------------- inferring rs2 and rs2type
+    Bit#(5) rs2=0;
+    Op2type rs2=IntegerRF;
+    if (`ifdef RV32 (quad==Q1 && funct3=='b001) || `endif (quad==Q2 && funct3==100 && inst[6:2]==0))
+      rs2type=Constant2;
+    else if(funct3=='b00 || (quad==Q1 && inst[15]=='b0) || (quad==Q1 && funct3=='b100 &&
+                                                              inst[11:10]!='b11) )
+      rs2type=Immediate;
+    `ifdef spfpu
+      else if ( (quad==Q0 && funct3=='b110) 
+          `ifdef dpfpu || (quad==Q0 && funct3=='b101) `endif
+          `ifdef RV32  || (quad==Q0 || funct3=='b111) `endif 
+          )
+        rs2type=FloatingRF;
+    `endif
+    if(quad=Q0)begin
+      case (funct3)
+        'b101,'b110,'b111: rs2=(2'b01,inst[4:2]); // C.FSD, C.SW, C.FSW, C.SD
+      endcase
+    end
+    if(quad==Q1)begin
+      if(funct3=='b100 && inst[11:10]==2'b11) // C.SUB, C.XOR, C.OR, C.AND, C.SUBW, C.ADDW
+        rs2=(2'b01,inst[4:2]);
+    end
+    if(quad==Q2)begin
+      if(funct3=='b100)
+        rs2=inst[6:2];
+    end
+
+    //----------------------------------- inferring rd
+    Bit#(5) rd=inst[11:7];
+  	Op3type rdtype=IRF;
+    if( (quad==Q0 && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
+        
+      )
+      rdtype==FRF;
+
+    if(quad==Q0)begin
+      case(funct3) 
+        'b000,'b001,'b010,'b011: rd={2'b0,inst[4:2]};//C.ADDI4SPN,FLD,LW,FLW,LD
+      endcase
+    end
+    if(quad==Q1)begin
+      case(funct3)
+        `ifdef RV32 'b001: rd=0; `endif //C.JAL
+        'b100: rd[4:3]=2'b01; //C.SRLI,SRAI,ANDI,SUB,XOR,OR,AND,SUBW,ADDW
+        'b101,'b110,'b111: rd=0; //C.J,C.BEQZ,C.BNEZ
+      endcase
+    end
+    if(quad==Q2)begin
+      case(funct3)
+        'b100: if(inst[12]==0 && inst[6:2]==0) rd=0;
+        'b101,'b110,'b111: rd=0;
+      endcase
+    end
+    Bit#(5) rs3=0;
+    Op3type rs3type=IRF;
+
+
+  endactionvalue;
+
+
   //(*noinline*)
-  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, `ifdef supervisor Bit#(2) err, `else Bit#(1) err, 
-      `endif CSRtoDecode csrs) = actionvalue
+  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs) = 
+    actionvalue
     let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
 
     // ------- Default declarations of all local variables -----------//
