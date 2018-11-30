@@ -41,7 +41,7 @@ package cclass_bare;
   import riscv:: * ;
   import common_types:: * ;
   import FIFOF::*;
-  import l1icache::*;
+//  import l1icache::*;
   `include "common_params.bsv"
 
   `define Mem_master_num 0
@@ -59,11 +59,6 @@ package cclass_bare;
 	`define repl PLRU
   `define fbsize 4
 
-  export Ifc_cclass_axi4    (..);
-  export mkcclass_axi4;
-  export DumpType (..);
-
-  
  // function Bool isIO(Bit#(PADDR) addr, Bool cacheable);
  //   if(!cacheable)
  // 	  return True;
