@@ -89,7 +89,7 @@ endif
 ifeq ($(RTLDUMP), True)
   define_macros += -D rtldump=True
 endif
-ifeq ($(SUPERVISOR),  True)
+ifeq ($(SUPERVISOR),  enable)
   define_macros += -D supervisor=True
 endif
 ifeq ($(ASSERTIONS), enable)
