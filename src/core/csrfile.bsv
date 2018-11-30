@@ -142,7 +142,11 @@ package csrfile;
     `ifdef supervisor
       Reg#(Bit#(1)) misa_s <- mkReg(1);
     `else
-      Bit#(1) misa_s =0;
+      `ifdef rtldump
+        Bit#(1) misa_s =1;
+      `else
+        Bit#(1) misa_s =0;
+      `endif
     `endif
     `ifdef user
       Reg#(Bit#(1)) misa_u <- mkReg(1);
