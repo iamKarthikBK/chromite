@@ -96,7 +96,7 @@ package SoC;
   `endif
 
   interface Ifc_SoC;
-    `ifdef simulate
+    `ifdef rtldump
       interface Get#(DumpType) io_dump;
     `endif
     `ifdef EXTERNAL
@@ -135,7 +135,7 @@ package SoC;
     mkConnection(cclass.sb_clint_mtip,clint.sb_clint_mtip);
     mkConnection(cclass.sb_clint_mtime,clint.sb_clint_mtime);
 
-    `ifdef simulate
+    `ifdef rtldump
       interface io_dump= cclass.io_dump;
     `endif
     interface uart_io=uart.io;

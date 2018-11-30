@@ -51,7 +51,7 @@ package stage4;
 		method Action clint_mtime(Bit#(XLEN) c_mtime);
     method Bool csr_updated;
     method Bool interrupt;
-    `ifdef simulate
+    `ifdef rtldump
       interface Get#(DumpType) dump;
     `endif
     `ifdef RV64 method Bool inferred_xlen; `endif // False-32bit,  True-64bit 
@@ -281,7 +281,7 @@ package stage4;
 		method Action clint_mtime(Bit#(XLEN) c_mtime);
       csr.clint_mtime(c_mtime);
     endmethod
-    `ifdef simulate
+    `ifdef rtldump
       interface dump = interface Get
         method ActionValue#(DumpType) get ;
           dump_ff.deq;
