@@ -136,7 +136,7 @@ package stage2;
 	    let epochs=rx.u.first.epochs;
       let err=rx.u.first.accesserr_pagefault;
       `ifdef spfpu
-        let {opdecode, meta, trap, resume_wfi, rdtype} <- decoder_func(inst, err, wr_csrs);
+        let {opdecode, meta, trap, resume_wfi, rdtype} <- decoder_func(inst, truncateLSB(err), wr_csrs);
       `else
         let {opdecode, meta, trap, resume_wfi} <- decoder_func(inst, err, wr_csrs);
       `endif
