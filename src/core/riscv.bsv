@@ -108,6 +108,7 @@ package riscv;
     endrule
     rule connect_csrs;
       stage2.csrs(stage4.csrs_to_decode);
+      stage1.csrs(stage4.csrs_to_decode);
     endrule
     rule clear_stall_in_decode_stage(flush_from_exe != None || flush_from_wb);
       stage2.csr_updated(True);
