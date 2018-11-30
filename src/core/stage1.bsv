@@ -72,14 +72,14 @@ package stage1;
   (*synthesize*)
   module mkstage1(Ifc_stage1);
 
-    let verbosity = `VERBOSITY;
+    let verbosity = `VERBOSITY ;
     
     // this wire carries the current values of certain csrs.
     Wire#(CSRtoDecode) wr_csr <-mkWire();
     // This register holds the request address to be sent to the cache.
-    Reg#(Bit#(VADDR)) rg_icache_request <- mkReg('h1004);
+    Reg#(Bit#(VADDR)) rg_icache_request <- mkReg('h1000);
     // This register holds the PC value that needs to be sent to the next stage in the pipe.
-    Reg#(Bit#(VADDR)) rg_pc <- mkReg('h1004);
+    Reg#(Bit#(VADDR)) rg_pc <- mkReg('h1000);
     // This register indicates if a fence of the i-cache was requested and is set during a flush
     // from the write back stage. Once the fence request is sent this is register is de-asserted.
     Reg#(Bool) rg_fence <-mkReg(False);
@@ -231,6 +231,8 @@ package stage1;
 			    rg_fence<=False; // reset fence once the command is sent
         else
           rg_icache_request<=rg_icache_request+4;
+        if(verbosity>1)
+          $display($time,"\tSTAGE1: Sending Request for Addr: %h to Memory",rg_icache_request);
         return tuple4(rg_icache_request,rg_fence,{rg_iEpoch,rg_eEpoch,rg_wEpoch},False);
       endmethod
     endinterface;
@@ -240,6 +242,8 @@ package stage1;
     // Implicit Conditions: ff_memory_response.notFull
 		interface inst_response= interface Put
 			method Action put (Tuple3#(Bit#(32),Bool,Bit#(3)) resp);
+        if(verbosity>1)
+          $display($time,"\tSTAGE1: Recevied response from the Memory: ",fshow(resp));
         ff_memory_response.enq(resp);
 			endmethod
     endinterface;
