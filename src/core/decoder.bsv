@@ -149,15 +149,62 @@ package decoder;
 		end
 		return tuple2(ret, resume_wfi);
 	endfunction
+  
+  function Bit#(3) gen_funct3(Bit #(16) inst);
+    Bit#(5) opcode={inst[1:0],inst[15:13]};
+    Bit #(3) funct3 =3'b000;
+    
+    
+    case (opcode)
+    
+    5'b00000:funct3=3'b000;
+    5'b01000:funct3=3'b000;
+    5'b10000:funct3=3'b001;
+    5'b01001:funct3=3'b000;
+    5'b00010:funct3=3'b010;
+    5'b01010:funct3=3'b000;
+    5'b10010:funct3=3'b010;
+    5'b00011:funct3=3'b011;
+    5'b01011:funct3=3'b000;
+    5'b10011:funct3=3'b011;
+    5'b01100:
+            if((inst[11:10]==2'b00)||(inst[11:10]==2'b01))
+                funct3=3'b101;//SRLI,SRAI
+            else if(inst[11:10]==2'b10)
+                funct3=3'b111;//ANDI
+            else if(inst[11:10]==2'b11)
+            case({inst[6:5]})
+                2'b00:funct3=3'b000;
+                2'b01:if(inst[12]==1'b1)
+                          funct3=3'b000;
+                      else
+                          funct3=3'b100;
+                2'b10:funct3=3'b110;
+                2'b11:funct3=3'b111;
+              endcase
+    5'b10100:funct3=3'b000;
+    5'b00110:funct3=3'b010;
+    5'b01110:funct3=3'b000;
+    5'b10110:funct3=3'b010;
+    5'b10111:funct3=3'b011;
+    5'b00111:funct3=3'b011;
+    5'b01111:funct3=3'b001;
+    default:funct3=3'b000;
+    endcase
+    
+    return funct3;
+
+ endfunction
 
   typedef enum {Q0='b00, Q1='b01, Q2='b10} Quadrant deriving(Bits,Eq,FShow);
 
-  function ActionValue#(DecodeOut) decoder_func(Bit#(16) inst, Bit#(2) err, CSRtoDecode csrs)=
-    actionvalue
+  function DecodeOut decoder_func_16(Bit#(16) inst, Bit#(2) err, CSRtoDecode csrs);
     
     let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
+    Trap_type exception = tagged None;
+    let {interrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
     Quadrant quad =unpack(inst[1:0]);
-    Bit#(3) funt3 = inst(15:13];
+    Bit#(3) funct3 = inst[15:13];
 
     //----------------------------------- inferring rs1 and rs1type
     Bit#(5) rs1={2'b01,inst[9:7]};
@@ -165,13 +212,13 @@ package decoder;
     if (`ifdef RV32 (quad==Q1 && funct3=='b001) || `endif //C.JAL
         (quad==Q2 && funct3=='b100 && inst[6:2]==0) || // C.J
         (quad==Q0 && funct3!='b000 && funct3!='b100) || // C.Loads C.Store
-        (quad==Q2 && (funct3=='b001 || funct3=='b010 || funct3=='b011 || funct3='b101 ||
+        (quad==Q2 && (funct3=='b001 || funct3=='b010 || funct3=='b011 || funct3=='b101 ||
             funct3=='b110 || funct3=='b111))
       )
       rs1type=PC;
 
 
-    if(quad=Q0)begin
+    if(quad==Q0)begin
       if(funct3==0 && inst[12:5]!=0 ) // ADDI4SPN
         rs1=2;
       // for 'b100 rs1 doesn't matter since it will be an illegal instruction
@@ -185,7 +232,7 @@ package decoder;
         'b101: rs1=0; // C.J
       endcase
     end
-    if(quad=Q2)begin
+    if(quad==Q2)begin
       case (funct3)
         'b000: rs1[4:3]=inst[11:10]; //C.SLLI
         'b001, 'b010, 'b011: rs1=2; // 
@@ -196,27 +243,27 @@ package decoder;
 
     //----------------------------------- inferring rs2 and rs2type
     Bit#(5) rs2=0;
-    Op2type rs2=IntegerRF;
-    if (`ifdef RV32 (quad==Q1 && funct3=='b001) || `endif (quad==Q2 && funct3==100 && inst[6:2]==0))
+    Op2type rs2type=IntegerRF;
+    if (`ifdef RV32 (quad==Q1 && funct3=='b001) || `endif (quad==Q2 && funct3=='b100 && inst[6:2]==0))
       rs2type=Constant2;
     else if(funct3=='b00 || (quad==Q1 && inst[15]=='b0) || (quad==Q1 && funct3=='b100 &&
                                                               inst[11:10]!='b11) )
       rs2type=Immediate;
     `ifdef spfpu
       else if ( (quad==Q0 && funct3=='b110) 
-          `ifdef dpfpu || (quad==Q0 && funct3=='b101) `endif
-          `ifdef RV32  || (quad==Q0 || funct3=='b111) `endif 
+           || ( (quad==Q0 || quad==Q2) && funct3=='b101 && misa[3]==1) 
+          `ifdef RV32  || ( (quad==Q0 || quad==Q2) && funct3=='b111) `endif 
           )
         rs2type=FloatingRF;
     `endif
-    if(quad=Q0)begin
+    if(quad==Q0)begin
       case (funct3)
-        'b101,'b110,'b111: rs2=(2'b01,inst[4:2]); // C.FSD, C.SW, C.FSW, C.SD
+        'b101,'b110,'b111: rs2=({2'b01,inst[4:2]}); // C.FSD, C.SW, C.FSW, C.SD
       endcase
     end
     if(quad==Q1)begin
       if(funct3=='b100 && inst[11:10]==2'b11) // C.SUB, C.XOR, C.OR, C.AND, C.SUBW, C.ADDW
-        rs2=(2'b01,inst[4:2]);
+        rs2=({2'b01,inst[4:2]});
     end
     if(quad==Q2)begin
       if(funct3=='b100)
@@ -226,10 +273,8 @@ package decoder;
     //----------------------------------- inferring rd
     Bit#(5) rd=inst[11:7];
   	Op3type rdtype=IRF;
-    if( (quad==Q0 && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
-        
-      )
-      rdtype==FRF;
+    if( (quad==Q0||quad==Q2) && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
+      rdtype=FRF;
 
     if(quad==Q0)begin
       case(funct3) 
@@ -251,14 +296,158 @@ package decoder;
     end
     Bit#(5) rs3=0;
     Op3type rs3type=IRF;
+	
+    // --- capturing memory access type.Only valid are Load/Store
+    Access_type mem_access=Load;
+		if( ((quad==Q0 || quad==Q2) && (funct3=='b110 || funct3=='b101 || funct3=='b111)) )
+			mem_access=Store;
+
+    // --- deriving fn bits
+    Bit#(4) fn=0;
+		if(quad==Q1 && funct3[2:1]=='b11) begin // C.BEQZ C.BNEZ
+		  fn={2'b0,funct3[1:0]};
+		end
+    // C.ADDI, C.ADDIW, C.LI, C.ADDI4SPN, C.ADDI16SPN, C.LUI - all require fn=0;
+    else if(quad==Q1 && funct3=='b100 && inst[11:10]!=2'b11)begin // C.SRAI, C.SRLI, C.ANDI
+      case(inst[11:10])
+        'b00: fn= 'b0101 ;//C.SRLI
+        'b01: fn= 'b1011 ;//C.SRAI
+        'b10: fn= 'b0111 ;//C.ANDI
+      endcase
+    end  
+    else if(quad==Q2 && funct3=='b000)
+      fn='b0001; // C.SLLI
+    else if(quad == Q1 && funct3=='b100 && inst[11:10]==2'b11) begin // Reg ARITH(W)
+      case(inst[6:5])
+        'b00: fn='b1010; // C.SUB C.SUBW
+        'b01: if(inst[12]==0) fn='b0100; // C.XOR
+        'b10: fn = 'b0110; // C.OR
+        'b11: fn = 'b0111; // C.AND
+      endcase
+    end
+
+    // -- deriving inst_type
+    Instruction_type inst_type=ALU;
+    if( quad==Q0 || (quad==Q2 && funct3!='b100 && funct3!='b000)) 
+      inst_type=MEMORY;
+    else if (quad==Q2 && funct3=='b100 && inst[11:7]!=0 && inst[6:2]==0) //C.JALR C.JR
+      inst_type=JALR;
+    else if (quad==Q1 && (funct3=='b101  `ifdef RV32 || funct3=='b001 `endif )) //C.J C.JAL
+      inst_type=JAL;
+    else if (quad==Q1 && (funct3=='b110 || funct3=='b111)) //C.BEQZ C.BNEZ
+      inst_type=BRANCH;
+
+    // Deriving word32
+    Bool word32=False;
+    `ifdef RV64
+      if( quad ==Q1 && (funct3=='b001 || (funct3=='b100 && inst[12:10]=='b111 && inst[6]=='b0)))
+        word32=True;
+    `endif
+
+    Bit#(18) imm_value=
+    case (quad) matches
+      Q0: case(funct3)
+        'b000:zeroExtend({inst[10:7],inst[12:11],inst[3:2],2'b0});
+        'b001:(zeroExtend({inst[6:5],inst[12:10],3'b0}) & duplicate(misa[3]));
+        'b010:zeroExtend({inst[5],inst[12:3],inst[6],2'b00});
+        'b011:`ifdef RV32 
+                zeroExtend({inst[5],inst[12:3],inst[6],2'b00}); 
+              `else 
+                zeroExtend({inst[6:5],inst[12:10],3'b0});   
+              `endif
+        'b101:(zeroExtend({inst[6:5],inst[12:10],3'b0}) & duplicate(misa[3]));
+        'b110:zeroExtend({inst[5],inst[12:3],inst[6],2'b00}); 
+        'b111: `ifdef RV32
+                zeroExtend({inst[5],inst[12:3],inst[6],2'b00}); 
+              `else 
+                zeroExtend({inst[6:5],inst[12:10],3'b0});   
+              `endif
+        default:0;
+      endcase
+      Q1: case(funct3)
+        'b000,'b010:signExtend({inst[12],inst[6:2]});
+        'b001:`ifdef RV32 
+          signExtend(inst[12],inst[8],inst[10:9],inst[6],inst[7],inst[2],inst[11],inst[5:3],1'b0});
+              `else
+          signExtend({inst[12],inst[6:2]});
+              `endif
+        'b011: if (inst[11:7]==2) 
+                signExtend({inst[12],inst[4:3],inst[5],inst[2],inst[6],4'b0});
+              else
+                {inst[12],inst[6:2],12'b0};
+        'b100:if(inst[11]==0) 
+                zeroExtend({inst[12],inst[6:2]});
+              else
+                signExtend({inst[12],inst[6:2]});
+        'b101:signExtend({inst[12],inst[8],inst[10:9],inst[6],inst[7],inst[2],inst[11],inst[5:3],1'b0});
+        'b110,'b111:signExtend({inst[12],inst[6:5],inst[2],inst[11:10],inst[4:3],1'b0});
+        default:0;
+      endcase
+      Q2:case(funct3)
+        'b000:zeroExtend({inst[12],inst[6:2]});
+        'b001:(zeroExtend({inst[4:2],inst[12],inst[6:5],3'b0}) & duplicate(misa[3]) ); 
+        'b010:zeroExtend({inst[3:2],inst[12],inst[6:4],2'b0});
+        'b011:`ifdef RV32 
+          zeroExtend({inst[3:2],inst[12],inst[6:4],2'b0});
+              `else
+          zeroExtend({inst[4:2],inst[12],inst[6:5],3'b0});
+              `endif
+        'b101:(zeroExtend({inst[9:7],inst[12:10],3'b0}) & duplicate(misa[3])); 
+        'b110:zeroExtend({inst[8:7],inst[12:9],2'b0});
+        'b111:`ifdef RV32
+          zeroExtend({inst[8:7],inst[12:9],2'b0});
+              `else
+          zeroExtend({inst[9:7],inst[12:10],3'b0});
+              `endif
+        default:0;
+      endcase
+      default:0;
+    endcase;
+    Bit#(32) immediate_value=signExtend(imm_value);
+    Bit#(3) f3=gen_funct3(inst);
+
+    if(err[0]==1)
+      exception = tagged Exception Inst_access_fault;
+    else if(err[1]==1 && misa[18]==1) // supervisor enabled.
+      exception = tagged Exception Inst_pagefault;
+    else if(quad==Q2 && funct3=='b100 && inst[12]==1 && inst[11:2]==0)
+      exception = tagged Exception Breakpoint;
+    else if(inst==0 || (quad==Q0 && funct3=='b100) || 
+            (quad==Q1 && inst[15:10]=='b100111 && inst[6]==1))
+      exception=tagged Exception Illegal_inst;
+    else if(imm_value!=0 && ((quad==Q0 && funct3=='b000) || //ADDI4SPN
+            (quad==Q1 && (funct3=='b000 || funct3=='b011)) || // NOP ADDI ADDI16SPN LUI
+            (quad==Q1 && funct3=='b100 && inst[11:10]<2) || // SRLI SRAI
+            (quad==Q2 && funct3=='b000)  )) // SLLI
+      exception = tagged Exception Illegal_inst;
+
+    if(interrupt matches tagged None)
+      interrupt=exception;
 
 
-  endactionvalue;
+    `ifdef spfpu
+      OpDecode t1 = tuple7(rs1, rs2, rd, rs3, rs1type, rs2type, rs3type);
+    `else
+      OpDecode t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
+    `endif
+
+    `ifdef RV64
+      DecodeMeta t2 = tuple7(fn, inst_type, mem_access, immediate_value, f3, False, word32);
+    `else
+      DecodeMeta t2 = tuple6(fn, inst_type, mem_access, immediate_value, f3, False);
+    `endif
+
+    `ifdef spfpu
+      return tuple5(t1, t2, interrupt, resume_wfi, rdtype);
+    `else
+      return tuple4(t1, t2, interrupt, resume_wfi);
+    `endif
+
+  endfunction
 
 
   //(*noinline*)
-  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs) = 
-    actionvalue
+  function DecodeOut decoder_func_32(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs);
     let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
 
     // ------- Default declarations of all local variables -----------//
@@ -287,7 +476,7 @@ package decoder;
     //---------------- Decoding the immediate values-------------------------------------
 
     // Identify the type of intruction first
-    Bool stype= (opcode=='b01000 `ifdef spfpu || opcode=='b01001 `endif );
+    Bool stype= (opcode=='b01000 || (opcode=='b01001 && misa[5]==1) );
     Bool btype= (opcode=='b11000);
     Bool utype= (opcode=='b01101 || opcode=='b00101);
     Bool jtype= (opcode=='b11011);
@@ -602,5 +791,14 @@ package decoder;
     `else
       return tuple4(t1, t2, interrupt, resume_wfi);
     `endif
+  endfunction
+  
+  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs) = 
+    actionvalue
+      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
+      if(inst[1:0]!='b11 && misa[2]==1)
+        return decoder_func_16(truncate(inst),err,csrs);
+      else
+        return decoder_func_32(inst,err,csrs);
   endactionvalue;
 endpackage
