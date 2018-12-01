@@ -195,7 +195,7 @@ package cclass_bare;
     
 	// Rule to handle memory response of Load and Atomic type instr 
     rule handle_memoryRead_response(memory_state == Response && (tpl_2(memory_request) == Load 
-                                                                || tpl_2(memory_request) ==Atomic));
+                                      `ifdef atomic || tpl_2(memory_request) ==Atomic `endif ));
       let {address, access, size, sign}=  memory_request;
 			let response <- pop_o (memory_xactor.o_rd_data);	
 			let bus_error = !(response.rresp==AXI4_OKAY);
