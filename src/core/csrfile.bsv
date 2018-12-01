@@ -293,7 +293,7 @@ package csrfile;
 	  Reg#(Bit#(5)) rg_mcause   <- mkReg(0);
     
 	  Reg#(Bit#(3)) rg_mcounteren<-mkReg(0);
-	  Reg#(Bit#(XLEN)) rg_clint_mtime <-mkReg(0);
+	  Reg#(Bit#(64)) rg_clint_mtime <-mkReg(0);
 	  //////////////////////////////////////////////////////////////////////////////////////////
 	  //////////////////////////////// SUPERVISOR LEVEL CSRs ///////////////////////////////////
     `ifdef supervisor

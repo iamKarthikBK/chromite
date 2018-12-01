@@ -48,7 +48,7 @@ package csr;
     method ActionValue#(Bit#(VADDR)) take_trap(Trap_type trap, Bit#(VADDR) pc, Bit#(VADDR) badaddr);
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
-		method Action clint_mtime(Bit#(XLEN) c_mtime);
+		method Action clint_mtime(Bit#(64) c_mtime);
     method Action incr_minstret;
     method Bool interrupt;
     `ifdef RV64 method Bool inferred_xlen; `endif // False-32bit,  True-64bit 
@@ -154,7 +154,7 @@ package csr;
 	  method Action clint_mtip(Bit#(1) intrpt);
 	  	csrfile.clint_mtip(intrpt);
 	  endmethod
-	  method Action clint_mtime(Bit#(XLEN) c_mtime);
+	  method Action clint_mtime(Bit#(64) c_mtime);
 	  	csrfile.clint_mtime(c_mtime);
 	  endmethod
     method incr_minstret=csrfile.incr_minstret;
