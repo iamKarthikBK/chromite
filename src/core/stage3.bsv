@@ -339,7 +339,11 @@ package stage3;
       else begin
         rx.u.deq; 
         Bit#(XLEN) res=signExtend(pc); // badaddress
-        check_rpc<= tuple3(None, 0, nextpc);
+        `ifdef bpu
+          check_rpc<= tuple3(None, 0, nextpc);
+        `else
+          check_rpc<= tuple2(None, 0);
+        `endif
         `ifdef spfpu
           ExecOut t1 = (tuple8(REGULAR, res, 0, pc, ?, epochs[0], trap, rdtype));
         `else
@@ -409,7 +413,11 @@ package stage3;
     method Action update_wEpoch;
       wEpoch<= ~wEpoch;
       wr_flush_from_wb<= True;
+      `ifdef bpu
         check_rpc<= tuple3(None, ?, ?);
+      `else
+        check_rpc<= tuple2(None,?);
+      `endif
     endmethod
     method flush_from_exe=tuple2(wr_flush_from_exe, wr_redirect_pc);
     interface fwd_from_mem= interface Put
