@@ -150,6 +150,7 @@ package stage2;
         let {fn, instrType, memaccess, imm, funct3, wfi, word32}=meta;
       `else
         let {fn, instrType, memaccess, imm, funct3, wfi}=meta;
+        Bool word32=False; // TODO word32 from Metadata type should be removed
       `endif
       
       if(!wfi && {eEpoch, wEpoch}==epochs)begin
