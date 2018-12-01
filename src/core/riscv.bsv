@@ -46,7 +46,7 @@ package riscv;
     interface Put#(Maybe#(MemoryResponse)) memory_response;
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);
-    method Action clint_mtime(Bit#(XLEN) c_mtime);
+    method Action clint_mtime(Bit#(64) c_mtime);
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     `ifdef rtldump
       interface Get#(DumpType) dump;
@@ -144,7 +144,7 @@ package riscv;
     interface memory_request=stage3.to_dmem;
     method Action clint_msip(Bit#(1) intrpt)=stage4.clint_msip(intrpt);
     method Action clint_mtip(Bit#(1) intrpt)=stage4.clint_mtip(intrpt);
-    method Action clint_mtime(Bit#(XLEN) c_mtime)=stage4.clint_mtime(c_mtime);
+    method Action clint_mtime(Bit#(64) c_mtime)=stage4.clint_mtime(c_mtime);
     `ifdef rtldump
       interface dump=stage4.dump;
     `endif
