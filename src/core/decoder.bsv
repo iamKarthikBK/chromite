@@ -367,7 +367,7 @@ package decoder;
       Q1: case(funct3)
         'b000,'b010:signExtend({inst[12],inst[6:2]});
         'b001:`ifdef RV32 
-          signExtend(inst[12],inst[8],inst[10:9],inst[6],inst[7],inst[2],inst[11],inst[5:3],1'b0});
+          signExtend({inst[12],inst[8],inst[10:9],inst[6],inst[7],inst[2],inst[11],inst[5:3],1'b0});
               `else
           signExtend({inst[12],inst[6:2]});
               `endif
