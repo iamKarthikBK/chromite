@@ -243,15 +243,11 @@ typedef struct {
 		Store_addr_misaligned=6,
 		Store_access_fault=7,
 		Ecall_from_user=8,
-    `ifdef supervisor
-      Ecall_from_supervisor=9,
-    `endif
-		Ecall_from_machine=11
-    `ifdef supervisor
-      , Inst_pagefault=12
-      , Load_pagefault=13
-      , Store_pagefault=15
-    `endif
+    Ecall_from_supervisor=9,
+		Ecall_from_machine=11,
+    Inst_pagefault=12,
+    Load_pagefault=13,
+    Store_pagefault=15
 	} Exception_cause deriving (Bits,Eq,FShow);
 
 	typedef enum{
