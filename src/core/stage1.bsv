@@ -199,7 +199,7 @@ package stage1;
 				let pipedata=PIPE1{program_counter:rg_pc,
                       instruction:final_instruction,
                       prediction:0, // TODO derive this from BPU
-                      accesserr_pagefault:{pack(err),1'b0}, // TODO cache should send 2 error bits.
+                      accesserr_pagefault:{1'b0,pack(err)}, // TODO cache should send 2 error bits.
                       epochs:{rg_eEpoch,rg_wEpoch}};
         if(compressed  && enque_instruction && misa[2]==1)begin
           rg_pc<=rg_pc+2;
