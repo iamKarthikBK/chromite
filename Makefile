@@ -53,6 +53,9 @@ ifneq (,$(findstring D,$(ISA)))
   define_macros += -D dpfpu=True
   FLOAT=--float
 endif
+ifneq (,$(findstring C,$(ISA)))
+  define_macros += -D compressed=True
+endif
 ifeq ($(BPU),enable)
   define_macros += -D bpu=True
 endif
