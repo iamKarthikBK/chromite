@@ -52,29 +52,6 @@ package cclass_bare;
   import GetPut:: *;
   import BUtils::*;
 
-  `define sets 64
-  `define wordsize 4
-  `define blocksize 8
-	`define ways 4
-	`define repl PLRU
-  `define fbsize 4
-
- // function Bool isIO(Bit#(PADDR) addr, Bool cacheable);
- //   if(!cacheable)
- // 	  return True;
- //   else
- // 	  return False;
- // endfunction
-
-
-//  (*synthesize*)
-//  module mkicache(Ifc_l1icache#(`wordsize, `blocksize, `sets, `ways, PADDR, `fbsize, 3 ));
-//     let ifc();
-//	 mkl1icache#(isIO,"RANDOM") _temp(ifc);
-//	 return (ifc);
-//  endmodule
-
-  
   typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
   interface Ifc_cclass_axi4;
 		interface AXI4_Master_IFC#(PADDR, XLEN, USERSPACE) master_d;
@@ -100,33 +77,7 @@ package cclass_bare;
     FIFOF#(Bit#(3))  ff_epoch <-mkFIFOF;
     Integer verbosity = `VERBOSITY ;
 
-//	  let icache<-mkicache;
-//	  mkConnection(riscv.inst_request, icache.core_req); //icache integration
-//	  mkConnection(icache.core_resp, riscv.inst_response); // icache integration
-//    
-//    rule drive_constants;
-//      icache.cache_enable(True);
-//    endrule
-//
-//	  rule handle_icache_request;
-//	  	let {inst_addr, burst_len, burst_size} <- icache.read_mem_req.get;
-//	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: inst_addr , aruser: ?, arlen: 7, 
-//	  	arsize: 2, arburst: 'b10, arid:`Fetch_master_num};
-//	    fetch_xactor.i_rd_addr.enq(icache_request);
-//	  	if(verbosity!=0)
-//	  	  $display($time, "\ticache: icache Requesting ", fshow(icache_request));
-//	  endrule
-//
-//	  rule handle_fabric_resp;
-//	    let fab_resp <- pop_o (fetch_xactor.o_rd_data);
-//	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
-//      icache.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
-//	  	if(verbosity!=0)
-//	  	  $display($time, "\ticache: icache receiving Response ", fshow(fab_resp));
-//	  endrule	 
-	
-
-     rule handle_fetch_request(fetch_state == Request) ;
+    rule handle_fetch_request(fetch_state == Request) ;
 	    let {inst_addr, fence, epoch, prefetch} <- riscv.inst_request.get;
 			AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(inst_addr), aruser: ?, 
             arlen: 0, arsize: 2, arburst: 'b01, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
