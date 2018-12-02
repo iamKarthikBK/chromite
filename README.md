@@ -28,11 +28,19 @@ The SHAKTI team is currently hiring for full-time positions. The work would prim
 ### Setting up environment variables ###
 
 Follow the below steps before using the code-line:
-    
-              $ git clone https://gitlab.com/shaktiproject/cores/c-class.git --recursive
-              $ make patch
-              
+``` 
+        git clone https://gitlab.com/shaktiproject/cores/c-class.git --recursive
+        make patch
+```
 
+Install DTC 1.4.7:
+```
+        sudo wget https://git.kernel.org/pub/scm/utils/dtc/dtc.git/snapshot/dtc-1.4.7.tar.gz
+        sudo tar -xvzf dtc-1.4.7.tar.gz
+        cd dtc-1.4.7/
+        sudo make NO_PYTHON=1 PREFIX=/usr/
+        sudo make install NO_PYTHON=1 PREFIX=/usr/             
+```
 ### Directory Structure ###
 
 * src - holds the bluespec source code of the core, uncore, peripherals and other related files
