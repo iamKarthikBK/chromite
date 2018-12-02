@@ -490,7 +490,6 @@ package decoder;
     Bool utype= (opcode=='b01101 || opcode=='b00101);
     Bool jtype= (opcode=='b11011);
     Bool r4type= (opcode[4:2]=='b100);
-    Bool fencetype=(opcode=='b00011);
     Bool atomictype=(opcode=='b01011);
 
     // refer to section 2.3 (Immediate Encoding Variants) of the risc-v iser spec for more details
@@ -566,17 +565,19 @@ package decoder;
     //memory access type
 		Access_type mem_access=Load;
 		if(stype)
-			mem_access=Store;
-    if(fencetype)begin
-      if(funct3[0]==0)
-        mem_access=Fence;
-      else
-        mem_access=FenceI;
-    end
-    `ifdef atomic
-      else if(opcode=='b01011)
-        mem_access=Atomic;
-    `endif
+		mem_access=Store;
+  `ifdef dcache
+    if(funct3[0]==0 && opcode=='b00011)
+      mem_access=Fence;
+  `endif
+  `ifdef icache
+    if(funct3[0]==1 && opcode=='b00011)
+      mem_access=FenceI;
+  `endif
+  `ifdef atomic
+    if(opcode=='b01011)
+      mem_access=Atomic;
+  `endif
     
 
     // Following table describes what the ALU will need for some critical operations. Based on this
@@ -683,7 +684,15 @@ package decoder;
     end 
     else if(opcode[4:3]=='b00)begin // Immediate,  Loads,  Fence,  Fence.i
     	case(opcode[2:0])
-    		'b000, 'b011: `ifdef RV32 if(funct3!='b011) `endif inst_type=MEMORY;
+    		'b000: `ifdef RV32 if(funct3!='b011) `endif inst_type=MEMORY;
+        'b011: begin 
+            `ifdef dcache 
+              inst_type=MEMORY; // FENCE or FENCE.I only if DCACHE is present
+            `endif
+            `ifdef icache
+              if(funct3[0]==1) inst_type=MEMORY; // FENCE.I only if DCACHE is present
+            `endif
+        end
         `ifdef spfpu
           'b001: if(funct3==2 `ifdef dpfpu || funct3==3 `endif ) inst_type=MEMORY; // FLoad
         `endif
