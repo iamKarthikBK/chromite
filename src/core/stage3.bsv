@@ -84,7 +84,7 @@ package stage3;
 		interface RXe#(PIPE2) rx_in;
 		interface TXe#(PIPE3) tx_out;
     method Action update_wEpoch;
-    method Tuple2#(Flush_type2, Bit#(VADDR)) flush_from_exe;
+    method Tuple2#(Flush_type, Bit#(VADDR)) flush_from_exe;
     interface Put#(Tuple2#(Bit#(XLEN), Bit#(TLog#(PRFDEPTH)))) fwd_from_mem;
     method Action invalidate_index(Bit#(TLog#(PRFDEPTH)) ind);
     `ifdef bpu
@@ -135,7 +135,7 @@ package stage3;
     Ifc_fwding fwding <- mkfwding();
 		Reg#(Bit#(1)) eEpoch <-mkReg(0);
 		Reg#(Bit#(1)) wEpoch <-mkReg(0);
-    Reg#(Flush_type2) wr_flush_from_exe <- mkDReg(None);
+    Reg#(Flush_type) wr_flush_from_exe <- mkDReg(None);
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDReg(0);
 		FIFOF#(Tuple2#(Memrequest,Bit#(1))) ff_memory_request <-mkBypassFIFOF;
@@ -143,7 +143,6 @@ package stage3;
 
     rule flush_mapping(wr_flush_from_exe!=None||wr_flush_from_wb);
       fwding.flush_mapping;
-      ff_memory_request.clear;
     endrule
 
     rule execute_operation `ifdef multicycle (!rg_stall) `endif ;
@@ -188,6 +187,7 @@ package stage3;
       end
       let {redirect_result, redirect_pc `ifdef bpu , npc `endif }=check_rpc;
       Bit#(VADDR) nextpc=pc+ 4;
+      // We first check Epochs only then process the instruction
       if(!execute_instruction)begin
         rx.u.deq;
         if(verbosity>1)
@@ -199,7 +199,7 @@ package stage3;
       else if(redirect_result==CheckRPC && pc!=redirect_pc `ifdef bpu || 
                                                redirect_result==CheckNPC && pc!=npc `endif )begin
           // generate flush here
-        wr_flush_from_exe<=Regular;
+        wr_flush_from_exe<=CheckRPC;
         if(redirect_result==CheckRPC)begin
           if(verbosity>0)
             $display($time, "\tEXECUTE: Raising a flush due to pc mismatch. New PC: %h", 
@@ -246,6 +246,7 @@ package stage3;
           `else
             let {cmtype, out, addr, trap1, redirect} = fn_alu(fn, new_op1, x2, t3, truncate(x4), 
                       instrtype, funct3, pc, memaccess, word32 `ifdef bpu ,pred `endif , wr_misa_c);
+            Bool done=True;
           `endif
           if(verbosity>1)begin
             $display($time, "\tEXECUTE: cmtype: ", fshow(cmtype), " out: %h addr: %h trap:", out,
@@ -253,12 +254,10 @@ package stage3;
             $display($time, "\tEXECUTE: x1: %h,  x2: %h,  op3: %h, x4: %h", new_op1, x2, t3, x4);
           end
 
-          `ifdef multicycle
-            if(done)begin
-          `endif
+          if(done)begin
             rx.u.deq;
 
-          `ifdef bpu
+        `ifdef bpu
             // in case of bimodal branch predictor we need to train the bpu and write new status
             // bits. The following logic calculates the next set of status bits depending on
             // whether the branch was actually taken or not.
@@ -286,77 +285,69 @@ package stage3;
             if((instrtype==JALR || instrtype==JAL)  &&& rd matches 'b00?01 &&& trap1 matches
                                                                                       tagged None)
               wr_ras_push<=tagged Valid nextpc; 
-          `else
+        `else
             check_rpc<= tuple2(redirect, addr);
-          `endif
-          if(redirect==Fence)begin
-            wr_flush_from_exe<=Fence;
-            wr_redirect_pc<=truncate(out);
-            eEpoch<= ~eEpoch;
-          end
-          `ifdef spfpu
+        `endif
+        `ifdef spfpu
             Bit#(1) nanboxing=pack(cmtype==MEMORY && funct3[1:0]==2 && rdtype==FRF);
-          `endif
-          if(cmtype==REGULAR)
-            fwding.fwd_from_exe(out, rd_index);
-          if(cmtype==MEMORY)
-            out=signExtend(addr); // TODO avoid is mux and re-assignment. This is for passing the
-//            badadress
-          if(cmtype==MEMORY &&& trap1 matches tagged None)begin
-            ff_memory_request.enq(tuple2(Memrequest{address:truncate(addr), memory_data:x2, 
-                  transfer_size: funct3[1:0], signextend: ~funct3[2], mem_type: memaccess
-                  `ifdef atomic , atomic_op: {pack(word32),fn} `endif }, epochs[0]));
-          end
+        `endif
+            if(cmtype==REGULAR)
+              fwding.fwd_from_exe(out, rd_index);
+            if(cmtype==MEMORY)
+              out=signExtend(addr); // TODO avoid is mux and re-assignment. This is for passing the badadress
+            if(cmtype==MEMORY &&& trap1 matches tagged None)begin
+              ff_memory_request.enq(tuple2(Memrequest{address:truncate(addr), memory_data:x2, 
+                    transfer_size: funct3[1:0], signextend: ~funct3[2], mem_type: memaccess
+                    `ifdef atomic , atomic_op: {pack(word32),fn} `endif }, epochs[0]));
+            end
 
-	      	`ifdef simulate
+	      `ifdef simulate
 	      		if(instrtype==BRANCH &&& trap1 matches tagged None)
 	      			out=0;
-	      	`endif
+	      `endif
 
-          `ifdef spfpu
+        `ifdef spfpu
             ExecOut t1 = (tuple8(cmtype, out, {rd,'d0, nanboxing}, pc, truncate(addr), epochs[0], 
                                                                                   trap1, rdtype));
-          `else
+        `else
             ExecOut t1 = (tuple7(cmtype, out, rd, pc, truncate(addr), epochs[0], trap1));
-          `endif
+        `endif
 
-          `ifdef simulate
+        `ifdef simulate
             tx.u.enq(tuple3(t1, rd_index, instruction));
-          `else
+        `else
             tx.u.enq(tuple2(t1, rd_index));
-          `endif
+        `endif
           // if the operation is a multicycle one,  then go to stall state.
-          `ifdef multicycle
-            end
-            else begin
-              `ifdef bpu
-                check_rpc<= tuple3(None, addr, nextpc);
-              `else
-                check_rpc<= tuple2(None, 0);
-              `endif
-              rg_stall<= True;
-            end
-          `endif
+          end
+          else begin
+        `ifdef bpu
+            check_rpc<= tuple3(None, addr, nextpc);
+        `else
+            check_rpc<= tuple2(None, 0);
+        `endif
+            rg_stall<= True;
+          end
         end
       end
       else begin
         rx.u.deq; 
         Bit#(XLEN) res=signExtend(pc); // badaddress
-        `ifdef bpu
-          check_rpc<= tuple3(None, 0, nextpc);
-        `else
-          check_rpc<= tuple2(None, 0);
-        `endif
-        `ifdef spfpu
-          ExecOut t1 = (tuple8(REGULAR, res, 0, pc, ?, epochs[0], trap, rdtype));
-        `else
-          ExecOut t1 = (tuple7(REGULAR, res, 0, pc, ?, epochs[0], trap));
-        `endif
-        `ifdef simulate
-          tx.u.enq(tuple3(t1, rd_index, instruction));
-        `else
-          tx.u.enq(tuple2(t1, rd_index));
-        `endif
+      `ifdef bpu
+        check_rpc<= tuple3(None, 0, nextpc);
+      `else
+        check_rpc<= tuple2(None, 0);
+      `endif
+      `ifdef spfpu
+        ExecOut t1 = (tuple8(REGULAR, res, 0, pc, ?, epochs[0], trap, rdtype));
+      `else
+        ExecOut t1 = (tuple7(REGULAR, res, 0, pc, ?, epochs[0], trap));
+      `endif
+      `ifdef simulate
+        tx.u.enq(tuple3(t1, rd_index, instruction));
+      `else
+        tx.u.enq(tuple2(t1, rd_index));
+      `endif
         // else you need to simply drop the execution since epochs have changed.
       end
     endrule

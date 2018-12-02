@@ -59,11 +59,11 @@ package common_types;
 	typedef enum {Load=0, Store=1,  Fence=3 , FenceI=4 `ifdef atomic ,Atomic=2 `endif } Access_type 
                                                                         deriving (Bits, Eq, FShow);
   `ifdef bpu                                                                     
-  	typedef enum {CheckNPC, CheckRPC, Fence, None} Flush_type deriving (Bits, Eq, FShow);
+  	typedef enum {CheckNPC, CheckRPC, None} Flush_type deriving (Bits, Eq, FShow);
   `else
-  	typedef enum {CheckRPC, Fence, None} Flush_type deriving (Bits, Eq, FShow);
+  	typedef enum {CheckRPC, None} Flush_type deriving (Bits, Eq, FShow);
   `endif
-  typedef enum {Fence, Regular, None} Flush_type2 deriving (Bits, Eq, FShow);
+  typedef enum {Regular, None} Flush_type2 deriving (Bits, Eq, FShow);
 	typedef enum {`ifdef spfpu FloatingRF, `endif IntegerRF, PC} Op1type deriving(Bits, Eq, FShow);
 	typedef enum {`ifdef spfpu FloatingRF, `endif IntegerRF, Immediate, Constant4, Constant2} 
                                                                   Op2type deriving(Bits, Eq, FShow);

@@ -145,14 +145,10 @@ package alu;
         else if(final_output[0]==0) // actuall not-taken but predicted taken.
           flush=CheckNPC;
       end
-      else if(inst_type==MEMORY && (memaccess==FenceI))
-        flush=Fence;
     `else
   		if((inst_type==BRANCH && final_output[0]==1) || inst_type==JALR || inst_type==JAL )begin
 	  		flush=CheckRPC;
 		  end
-      else if(inst_type==MEMORY && (memaccess==FenceI))
-        flush=Fence;
     `endif
 		
     // generate the effective address to jump to 
@@ -165,9 +161,9 @@ package alu;
         effective_address[1]!=0 && misa_c==0 ) begin
 	  	exception=tagged Exception Inst_addr_misaligned;
     end
-    else if(inst_type==MEMORY && ((funct3[1:0]==1 && effective_address[0]!=0) || 
-                                  (funct3[1:0]==2 && effective_address[1:0]!=0)
-                      `ifdef RV64 || (funct3[1:0]==3 && effective_address[2:0]!=0) `endif ))begin
+    if(inst_type==MEMORY && ((funct3[1:0]==1 && effective_address[0]!=0) || 
+                            (funct3[1:0]==2 && effective_address[1:0]!=0)
+             `ifdef RV64 || (funct3[1:0]==3 && effective_address[2:0]!=0) `endif ))begin
       exception = memaccess==Load? tagged Exception Load_addr_misaligned: 
                                                           tagged Exception Store_addr_misaligned;
     end
