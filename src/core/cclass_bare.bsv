@@ -71,12 +71,12 @@ package cclass_bare;
 		AXI4_Master_Xactor_IFC #(PADDR, XLEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
 		AXI4_Master_Xactor_IFC #(PADDR, XLEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
     Reg#(TxnState) fetch_state<- mkReg(Request);
-    Reg#(TxnState) memory_state<- mkReg(Request);
-    Reg#(CoreRequest) memory_request <- mkReg(unpack(0));
+    FIFOF#(Tuple2#(Bit#(3),Bit#(1))) ff_rd_epochs <- mkSizedFIFOF(6);
 
     FIFOF#(Bit#(3))  ff_epoch <-mkFIFOF;
     Integer verbosity = `VERBOSITY ;
-
+  
+    // TODO get rid of the fetch_State. It will work faster without this blocking state-machine
     rule handle_fetch_request(fetch_state == Request) ;
 	    let {inst_addr, fence, epoch, prefetch} <- riscv.inst_request.get;
 			AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(inst_addr), aruser: ?, 
@@ -97,58 +97,22 @@ package cclass_bare;
         $display($time, "\tCORE: Fetch Response ", fshow(response));
     endrule
 
-    
-    // if its a fence instruction, the request is simply stored in memory_request register and is not
-	  // latched on to the bus. This is done because we are only concerned about access_type being 
-	  // propagated to mem_wb stage.
-    rule handle_memory_request(memory_state ==  Request);
-      //let {address, data, access, size, sign}<- riscv.memory_request.get;
-      let {req,epoch}<- riscv.memory_request.get;
-      let address=req.address;
-      let data=req.memory_data;
-      let access=req.mem_type;
-      let size=req.transfer_size;
-      let sign=req.signextend;
-      memory_request<= tuple4(address, access, size, sign);
-	    if(access != Fence && access != FenceI) begin
-        if(size==0)
-          data=duplicate(data[7:0]);
-        else if(size==1)
-          data=duplicate(data[15:0]);
-        else if(size==2)
-          data=duplicate(data[31:0]);
-		  	Bit#(TDiv#(XLEN, 8)) write_strobe=size==0?'b1:size==1?'b11:size==2?'hf:'1;
-        Bit#(TAdd#(1, TDiv#(XLEN, 32))) byte_offset = truncate(address);
-		  	if(size!=3)begin			// 8-bit write;
-		  		write_strobe=write_strobe<<byte_offset;
-		  	end
-        if(access != Store) begin
-          AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(address), aruser: 0, arlen: 0, 
-              arsize: zeroExtend(size), arburst:'b01, arid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
-   	     		memory_xactor.i_rd_addr.enq(read_request);	
-          if(verbosity!=0)
-            $display($time, "\tCORE: Memory Read Request ", fshow(read_request));
-        end
-        else begin
-		  	   AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(address), awuser:0, awlen: 0, 
-              awsize: zeroExtend(size), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
-  	  		let w  = AXI4_Wr_Data {wdata: data, wstrb: write_strobe, wlast:True, wid:`Mem_master_num};
-          if(verbosity!=0)begin
-            $display($time, "\tCORE: Memory write Request ", fshow(aw));
-            $display($time, "\tCORE: Memory write Request ", fshow(w));
-          end
-	    		memory_xactor.i_wr_addr.enq(aw);
-		    	memory_xactor.i_wr_data.enq(w);
-        end
-      end
-      memory_state<= Response;
+    rule handle_memory_read_request;
+      let {addr,epoch,access}<- riscv.memory_read_request.get;
+      ff_rd_epochs.enq(tuple2(access,epoch));
+      AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(addr), aruser: 0, arlen: 0, 
+        arsize: zeroExtend(access), arburst:'b01, arid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
+      if(verbosity!=0)
+        $display($time, "\tCORE: Memory Read Request ", fshow(read_request));
+   	  memory_xactor.i_rd_addr.enq(read_request);	
     endrule
-    
-	// Rule to handle memory response of Load and Atomic type instr 
-    rule handle_memoryRead_response(memory_state == Response && (tpl_2(memory_request) == Load 
-                                      `ifdef atomic || tpl_2(memory_request) ==Atomic `endif ));
-      let {address, access, size, sign}=  memory_request;
+
+    rule handle_memory_read_response;
 			let response <- pop_o (memory_xactor.o_rd_data);	
+      let {access,epoch}=ff_rd_epochs.first();
+      ff_rd_epochs.deq;
+      Bit#(2) size=truncate(access);
+      Bit#(1) sign=truncateLSB(access);
 			let bus_error = !(response.rresp==AXI4_OKAY);
       let rdata=response.rdata;
       if(size==0)
@@ -157,34 +121,79 @@ package cclass_bare;
           rdata=sign==1?signExtend(rdata[15:0]):zeroExtend(rdata[15:0]);
       else if(size==2)
           rdata=sign==1?signExtend(rdata[31:0]):zeroExtend(rdata[31:0]);
-  		riscv.memory_response.put(tagged Valid tuple3(rdata, {pack(bus_error),0}, access));
+  		riscv.memory_read_response.put(tagged Valid tuple3(rdata, {pack(bus_error),0}, epoch));
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Read Response ", fshow(response));
-      memory_state<= Request;
     endrule
 
-
-	  // Rule to hande memory response of Store type instr
-	  rule handle_memoryWrite_response(memory_state == Response && tpl_2(memory_request) == Store);
-      let {address, access, size, sign}=  memory_request;
-	  	let response<-pop_o(memory_xactor.o_wr_resp);
-	  	let bus_error = !(response.bresp==AXI4_OKAY);
-	  	riscv.memory_response.put(tagged Valid tuple3(0,  {pack(bus_error),0}, access));
-      if(verbosity!=0)
-        $display($time, "\tCORE: Memory Write Response ", fshow(response));
-      memory_state<= Request;
-    endrule
-
-      
-	  // rule to handle fence reponse.Contents of memory_request is sent back. 
-	  rule handle_fence_response(memory_state == Response && (tpl_2(memory_request) == Fence ||
-                                                                  tpl_2(memory_request) == FenceI));
-	  	let {address, access, size, sign}=  memory_request;
-	  	riscv.memory_response.put(tagged Valid tuple3(0, 0, access)); // data is dont care, bus error is false.
-	  	memory_state <= Request;
-	  	if(verbosity!=0)
-	  		$display($time, "\tCORE: Data memory serviced fence request");
-	  endrule
+//    rule handle_memory_write_request;
+//	    if(access != Fence && access != FenceI) begin
+//        if(size==0)
+//          data=duplicate(data[7:0]);
+//        else if(size==1)
+//          data=duplicate(data[15:0]);
+//        else if(size==2)
+//          data=duplicate(data[31:0]);
+//		  	Bit#(TDiv#(XLEN, 8)) write_strobe=size==0?'b1:size==1?'b11:size==2?'hf:'1;
+//        Bit#(TAdd#(1, TDiv#(XLEN, 32))) byte_offset = truncate(address);
+//		  	if(size!=3)begin			// 8-bit write;
+//		  		write_strobe=write_strobe<<byte_offset;
+//		  	end
+//        if(access != Store) begin
+//        end
+//        else begin
+//		  	   AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(address), awuser:0, awlen: 0, 
+//              awsize: zeroExtend(size), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
+//  	  		let w  = AXI4_Wr_Data {wdata: data, wstrb: write_strobe, wlast:True, wid:`Mem_master_num};
+//          if(verbosity!=0)begin
+//            $display($time, "\tCORE: Memory write Request ", fshow(aw));
+//            $display($time, "\tCORE: Memory write Request ", fshow(w));
+//          end
+//	    		memory_xactor.i_wr_addr.enq(aw);
+//		    	memory_xactor.i_wr_data.enq(w);
+//        end
+//      end
+//      memory_state<= Response;
+//    endrule
+//    
+//	// Rule to handle memory response of Load and Atomic type instr 
+//    rule handle_memoryRead_response(memory_state == Response && (tpl_2(memory_request) == Load 
+//                                      `ifdef atomic || tpl_2(memory_request) ==Atomic `endif ));
+//      let {address, access, size, sign}=  memory_request;
+//			let response <- pop_o (memory_xactor.o_rd_data);	
+//			let bus_error = !(response.rresp==AXI4_OKAY);
+//      let rdata=response.rdata;
+//      if(size==0)
+//          rdata=sign==1?signExtend(rdata[7:0]):zeroExtend(rdata[7:0]);
+//      else if(size==1)
+//          rdata=sign==1?signExtend(rdata[15:0]):zeroExtend(rdata[15:0]);
+//      else if(size==2)
+//          rdata=sign==1?signExtend(rdata[31:0]):zeroExtend(rdata[31:0]);
+//      memory_state<= Request;
+//    endrule
+//
+//
+//	  // Rule to hande memory response of Store type instr
+//	  rule handle_memoryWrite_response(memory_state == Response && tpl_2(memory_request) == Store);
+//      let {address, access, size, sign}=  memory_request;
+//	  	let response<-pop_o(memory_xactor.o_wr_resp);
+//	  	let bus_error = !(response.bresp==AXI4_OKAY);
+//	  	riscv.memory_response.put(tagged Valid tuple3(0,  {pack(bus_error),0}, access));
+//      if(verbosity!=0)
+//        $display($time, "\tCORE: Memory Write Response ", fshow(response));
+//      memory_state<= Request;
+//    endrule
+//
+//      
+//	  // rule to handle fence reponse.Contents of memory_request is sent back. 
+//	  rule handle_fence_response(memory_state == Response && (tpl_2(memory_request) == Fence ||
+//                                                                  tpl_2(memory_request) == FenceI));
+//	  	let {address, access, size, sign}=  memory_request;
+//	  	riscv.memory_response.put(tagged Valid tuple3(0, 0, access)); // data is dont care, bus error is false.
+//	  	memory_state <= Request;
+//	  	if(verbosity!=0)
+//	  		$display($time, "\tCORE: Data memory serviced fence request");
+//	  endrule
 
     interface sb_clint_msip = interface Put
   	  method Action put(Bit#(1) intrpt);

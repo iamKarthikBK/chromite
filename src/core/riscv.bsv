@@ -34,7 +34,7 @@ package riscv;
   import stage1::*;
   import stage2::*;
   import stage3::*;
-  import stage4::*;
+  import stage5::*;
   import common_types::*;
   `include "common_params.bsv"
   
@@ -42,8 +42,8 @@ package riscv;
     
   	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
     interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
-    interface Get#(Tuple2#(Memrequest,Bit#(1))) memory_request;
-    interface Put#(Maybe#(MemoryResponse)) memory_response;
+    interface Get#(MemoryReadReq#(PADDR,1)) memory_read_request;
+    interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);
     method Action clint_mtime(Bit#(64) c_mtime);
@@ -61,7 +61,7 @@ package riscv;
     Ifc_stage1 stage1 <- mkstage1();
     Ifc_stage2 stage2 <- mkstage2();
     Ifc_stage3 stage3 <- mkstage3();
-    Ifc_stage4 stage4 <- mkstage4();
+    Ifc_stage5 stage5 <- mkstage5();
 
     FIFOF#(PIPE1) pipe1 <-mkSizedFIFOF(2);
     FIFOF#(PIPE2) pipe2 <- mkSizedFIFOF(2);
@@ -72,24 +72,24 @@ package riscv;
     mkConnection(stage2.tx_out, pipe2);
     mkConnection(pipe2, stage3.rx_in);
     mkConnection(stage3.tx_out, pipe3);
-    mkConnection(pipe3, stage4.rx_in);
+    mkConnection(pipe3, stage5.rx_in);
 
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
-    let {flush_from_wb, flushpc_from_wb}=stage4.flush; // TODO also get fence info from WB.
+    let {flush_from_wb, flushpc_from_wb}=stage5.flush; // TODO also get fence info from WB.
     let {decode_firing, rd_index}=stage2.fetch_rd_index;
 
     rule flush_rename_mapping(flush_from_exe!=None || flush_from_wb);
       stage2.reset_renaming;
     endrule
     rule commit_instruction;
-      stage2.commit_rd(stage4.commit_rd);
+      stage2.commit_rd(stage5.commit_rd);
     endrule
 
     rule connect_get_index(decode_firing);
       stage3.invalidate_index(rd_index);
     endrule
 
-    mkConnection(stage3.fwd_from_mem, stage4.fwd_from_mem);
+    mkConnection(stage3.fwd_from_mem, stage5.fwd_from_mem);
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
       if(flush_from_wb)
         stage1.flush(flushpc_from_wb, False ,True); // TODO second field indicates a fence.
@@ -97,15 +97,15 @@ package riscv;
         stage1.flush(flushpc_from_exe, False, False); // can never send a fence request.
     endrule
     rule connect_csrs;
-      stage2.csrs(stage4.csrs_to_decode);
-      stage1.csrs(stage4.csrs_to_decode);
-      stage3.csr_misa_c(stage4.csr_misa_c);
+      stage2.csrs(stage5.csrs_to_decode);
+      stage1.csrs(stage5.csrs_to_decode);
+      stage3.csr_misa_c(stage5.csr_misa_c);
     endrule
     rule clear_stall_in_decode_stage(flush_from_exe != None || flush_from_wb);
       stage2.csr_updated(True);
     endrule
     rule check_csr_update(!(flush_from_exe != None || flush_from_wb));
-      stage2.csr_updated(stage4.csr_updated);
+      stage2.csr_updated(stage5.csr_updated);
     endrule
     rule upd_stage2eEpoch(flush_from_exe!=None);
       stage2.update_eEpoch();
@@ -120,27 +120,27 @@ package riscv;
 //    endrule
     `ifdef RV64
       rule connect_inferred_xlen;
-        stage3.inferred_xlen(stage4.inferred_xlen);
+        stage3.inferred_xlen(stage5.inferred_xlen);
       endrule
     `endif
     `ifdef spfpu
       rule connect_roundingmode;
-        stage3.roundingmode(stage4.roundingmode);
+        stage3.roundingmode(stage5.roundingmode);
       endrule
     `endif
     ///////////////////////////////////////////
 
     interface inst_request=stage1.inst_request;
     interface inst_response=stage1.inst_response;
-    interface memory_request=stage3.to_dmem;
-    method Action clint_msip(Bit#(1) intrpt)=stage4.clint_msip(intrpt);
-    method Action clint_mtip(Bit#(1) intrpt)=stage4.clint_mtip(intrpt);
-    method Action clint_mtime(Bit#(64) c_mtime)=stage4.clint_mtime(c_mtime);
+    interface memory_read_request=stage3.memory_read_request;
+    method Action clint_msip(Bit#(1) intrpt)=stage5.clint_msip(intrpt);
+    method Action clint_mtip(Bit#(1) intrpt)=stage5.clint_mtip(intrpt);
+    method Action clint_mtime(Bit#(64) c_mtime)=stage5.clint_mtime(c_mtime);
     `ifdef rtldump
-      interface dump=stage4.dump;
+      interface dump=stage5.dump;
     `endif
-    interface memory_response=stage4.memory_response;
-	  method Action set_external_interrupt(Bit#(1) ex_i)=stage4.set_external_interrupt(ex_i);
+    interface memory_read_response=stage5.memory_read_response;
+	  method Action set_external_interrupt(Bit#(1) ex_i)=stage5.set_external_interrupt(ex_i);
   endmodule
 
 endpackage

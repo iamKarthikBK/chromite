@@ -100,7 +100,7 @@ package stage3;
     `ifdef supervisor
       method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
     `endif
-		interface Get#(Tuple2#(Memrequest,Bit#(1))) to_dmem;
+		interface Get#(MemoryReadReq#(PADDR,1)) memory_read_request;
     method Action csr_misa_c (Bit#(1) m);
   endinterface
 
@@ -138,7 +138,7 @@ package stage3;
     Reg#(Flush_type) wr_flush_from_exe <- mkDReg(None);
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDReg(0);
-		FIFOF#(Tuple2#(Memrequest,Bit#(1))) ff_memory_request <-mkBypassFIFOF;
+		FIFOF#(MemoryReadReq#(PADDR,1)) ff_memory_request <-mkBypassFIFOF;
     Wire#(Bit#(1)) wr_misa_c<-mkWire();
 
     rule flush_mapping(wr_flush_from_exe!=None||wr_flush_from_wb);
@@ -295,10 +295,8 @@ package stage3;
               fwding.fwd_from_exe(out, rd_index);
             if(cmtype==MEMORY)
               out=signExtend(addr); // TODO avoid is mux and re-assignment. This is for passing the badadress
-            if(cmtype==MEMORY &&& trap1 matches tagged None)begin
-              ff_memory_request.enq(tuple2(Memrequest{address:truncate(addr), memory_data:x2, 
-                    transfer_size: funct3[1:0], signextend: ~funct3[2], mem_type: memaccess
-                    `ifdef atomic , atomic_op: {pack(word32),fn} `endif }, epochs[0]));
+            if(cmtype==MEMORY &&& trap1 matches tagged None &&& memaccess!=Store)begin
+              ff_memory_request.enq(tuple3(truncate(addr), epochs[0], funct3));
             end
 
 	      `ifdef simulate
@@ -430,8 +428,8 @@ package stage3;
         wr_roundingmode<= rm;
       endmethod
     `endif
-		interface to_dmem = interface Get 
-			method ActionValue#(Tuple2#(Memrequest,Bit#(1))) get ;
+		interface memory_read_request = interface Get 
+			method ActionValue#(MemoryReadReq#(PADDR,1)) get ;
 				ff_memory_request.deq;
 				return ff_memory_request.first;
 			endmethod

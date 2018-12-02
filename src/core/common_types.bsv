@@ -119,7 +119,6 @@ package common_types;
   typedef Tuple5#(Commit_type, Bit#(XLEN), Bit#(VADDR), Trap_type, Flush_type) ALU_OUT;
   
   typedef Tuple5#(Bit#(PADDR), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
-  typedef Tuple3#(Bit#(XLEN), Bit#(2), Access_type) MemoryResponse;
   typedef Tuple4#(Bit#(PADDR), Access_type, Bit#(2), Bit#(1)) CoreRequest;
 
   typedef Tuple3#(Bit#(5), Bool, Bit#(XLEN)) OpFwding;
@@ -179,16 +178,15 @@ package common_types;
   	Bit#(addr_width) branch_address;
   	Bit#(2) state;
     } Training_data#(numeric type addr_width) deriving (Bits, Eq);
-
-  typedef struct{
-  	Bit#(PADDR) address;
-  	Bit#(XLEN) memory_data; // data to be written in the memory
-  	Bit#(2) transfer_size; // 0 -8 bits, 1- 16 bits, 2 -32 bits 3 - 64-bits;
-  	Bit#(1) signextend; // whether the loaded value has to be signextended
-  	Access_type mem_type; // STORE or AMO or LOAD or FENCE
-  	`ifdef atomic Bit#(5) atomic_op; `endif
-  	}Memrequest deriving(Bits,Eq,FShow);
   
+  typedef Tuple3#(
+    Bit#(addr), // ADDR
+    Bit#(esize),// epoch
+    Bit#(3))    // access_size
+    MemoryReadReq#(numeric type addr, numeric type esize);
+                    // data , err    , eopch size
+  typedef Tuple3#(Bit#(XLEN), Bit#(2), Bit#(esize)) MemoryReadResp#(numeric type esize);
+
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
   	Bit#(VADDR) program_counter;

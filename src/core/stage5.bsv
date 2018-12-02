@@ -28,7 +28,7 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package stage4;
+package stage5;
   import TxRx::*;
   import GetPut::*;
   import common_types::*;
@@ -39,9 +39,9 @@ package stage4;
   import csr::*;
   import csrfile::*;
 
-  interface Ifc_stage4;
+  interface Ifc_stage5;
     interface RXe#(PIPE3) rx_in;
-    interface Put#(Maybe#(MemoryResponse)) memory_response;
+    interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
     method Maybe#(CommitData) commit_rd;
     interface Get#(Tuple2#(Bit#(XLEN), Bit#(3))) fwd_from_mem;
     method Tuple2#(Bool, Bit#(VADDR)) flush;
@@ -68,7 +68,7 @@ package stage4;
   endinterface
 
   (*synthesize*)
-  module mkstage4(Ifc_stage4);
+  module mkstage5(Ifc_stage5);
 
     let verbosity = `VERBOSITY ;
 
@@ -77,7 +77,7 @@ package stage4;
     Wire#(Bool) wr_csr_updated <- mkDWire(False);
 
     // wire that captures the response coming from the external memory or cache.
-    Wire#(Maybe#(MemoryResponse)) wr_memory_response <- mkDWire(tagged Invalid);
+    Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
 
     // wire that carriues the information for operand forwarding
     Wire#(Maybe#(Tuple2#(Bit#(XLEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
@@ -113,24 +113,23 @@ package stage4;
       `endif
       Bit#(VADDR) jump_address=0;
       Bool fl = False;
-      // continue commit only if epochs match. Else deque the ex fifo
       if(verbosity>0)begin
         $display($time, "\tWBMEM: PC: %h Epoch: %b CurrEpoch: %b", pc, epoch, rg_epoch);
         $display($time, "\tWBMEM: Rd: %d Value: %h committype: ", rdaddr, rd, fshow(committype));
         $display($time, "\tWBMEM: CSRField: %h trap: ", csrfield, fshow(trap));
       end
-      if(trap matches tagged Interrupt .in)begin
-        let newpc<-  csr.take_trap(trap, pc, ?);
-        wr_flush<=tuple2(True, newpc);
-        rg_epoch <= ~rg_epoch;
-        rx.u.deq;
-        if(verbosity>0)
-          $display($time, "\tWBMEM: Received Interrupt: ", fshow(trap));
-      end
-      else if(rg_epoch==epoch)begin
+      if(rg_epoch==epoch)begin
+        if(trap matches tagged Interrupt .in)begin
+          let newpc<-  csr.take_trap(trap, pc, ?);
+          fl=True;
+          jump_address=newpc;
+          rx.u.deq;
+          if(verbosity>0)
+            $display($time, "\tWBMEM: Received Interrupt: ", fshow(trap));
+        end
         // in case of a flush also flip the local epoch register.
         // if instruction is of memory type then wait for response from memory
-        if(trap matches tagged Exception .ex)begin
+        else if(trap matches tagged Exception .ex)begin
           jump_address<- csr.take_trap(trap, pc, truncate(rd));
           fl= True;
           rx.u.deq;
@@ -141,7 +140,7 @@ package stage4;
           if (wr_memory_response matches tagged Valid .resp)begin
             if(verbosity>1)
               $display($time, "\tWBMEM: Got response from the Memory: ",fshow(resp));
-            let {data, err_fault, access_type}=resp;
+            let {data, err_fault, epochs}=resp;
             if(err_fault==0 )begin // no bus error
             `ifdef dpfpu
               if(nanboxing==1)
@@ -166,18 +165,18 @@ package stage4;
             else begin
               if(verbosity>1)
                 $display($time, "\tWBMEM: Received Exception from Memory: ", fshow(resp));
-              `ifdef supervisor
-                if(err_fault[0]==1)
-                  if(access_type==Load)
-                    trap = tagged Exception Load_pagefault;
-                  else
-                    trap = tagged Exception Store_pagefault;
-                else if(err_fault[1]==1)
-              `endif
-                if(access_type == Load)
-                  trap = tagged Exception Load_access_fault;
-                else
-                  trap = tagged Exception Store_access_fault;
+//              `ifdef supervisor
+//                if(err_fault[0]==1)
+//                  if(access_type==Load)
+//                    trap = tagged Exception Load_pagefault;
+//                  else
+//                    trap = tagged Exception Store_pagefault;
+//                else if(err_fault[1]==1)
+//              `endif
+//                if(access_type == Load)
+//                  trap = tagged Exception Load_access_fault;
+//                else
+//                  trap = tagged Exception Store_access_fault;
               jump_address<- csr.take_trap(trap, pc, truncate(rd));
               fl= True;
             end
@@ -249,8 +248,8 @@ package stage4;
       csr.incr_minstret;
     endrule
 
-    interface  memory_response= interface Put
-      method Action put (Maybe#(MemoryResponse) response);
+    interface  memory_read_response= interface Put
+      method Action put (Maybe#(MemoryReadResp#(1)) response);
         wr_memory_response <= response;
       endmethod
     endinterface;
