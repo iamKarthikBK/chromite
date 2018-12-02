@@ -2,13 +2,6 @@
 `define SDRAMMemBase	'h80000000	
 `define SDRAMMemEnd  'h8FFFFFFF // 1GB
 
-`ifdef spfpu
-	`define FLEN 32
-`endif
-`ifdef dpfpu
-	`define FLEN 64
-`endif
-
 `ifdef verilog
 	`define Addr_space 22	//since we are leaving off the lower 2 bits of address(byte addressable memory), we have to 
 `else

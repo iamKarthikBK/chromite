@@ -143,7 +143,7 @@ package stage4;
               $display($time, "\tWBMEM: Got response from the Memory: ",fshow(resp));
             let {data, err_fault, access_type}=resp;
             if(err_fault==0 )begin // no bus error
-            `ifdef spfpu
+            `ifdef dpfpu
               if(nanboxing==1)
                 data[63:32]='1;
             `endif

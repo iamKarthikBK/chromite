@@ -109,6 +109,7 @@ module mkfpu_sp_to_int(Ifc_fpu_sp_to_int);
                end
             end
         end
+        `ifdef RV64
         else begin
             if(convert_unsigned == 0) begin //FCVT.L.S
                 Bit#(63) all_ones = '1;
@@ -156,61 +157,67 @@ module mkfpu_sp_to_int(Ifc_fpu_sp_to_int);
                     final_result = '0;
                end
             end
-
         end
+        `endif 
 
-		bit lv_guard = lv_mantissa[22];	        //MSB of the already shifted mantissa is guard bit
+		  bit lv_guard = lv_mantissa[22];	        //MSB of the already shifted mantissa is guard bit
     	bit lv_round = lv_mantissa[21];	        //next bit is round bit
     	bit lv_sticky = |(lv_mantissa<<2);		//remaining bits determine the sticky bit
 	    bit lv_round_up = 0;
     	bit lv_inexact1 = lv_guard | lv_round | lv_sticky;
-        if(to_round) begin
-	    if(rounding_mode == 'b000) 		lv_round_up = lv_guard & (final_result[0] | lv_round | lv_sticky);	//Round to nearest ties to even
-	    else if(rmm) lv_round_up = lv_guard; //& (lv_round | lv_sticky | ~lv_sign);			//Round to nearest ties to max magnitude
-	    else if(rdn) lv_round_up = lv_inexact1 & (lv_sign);								//Round down to -infinity
-	    else if(rup) lv_round_up = lv_inexact1 & (~lv_sign);								//Round up to +infinity
+      if(to_round) begin
+	      if(rounding_mode == 'b000) 		
+          lv_round_up = lv_guard & (final_result[0] | lv_round | lv_sticky);	//Round to nearest ties to even
+	      else if(rmm) 
+          lv_round_up = lv_guard; //& (lv_round | lv_sticky | ~lv_sign);			//Round to nearest ties to max magnitude
+	      else if(rdn) 
+          lv_round_up = lv_inexact1 & (lv_sign);								//Round down to -infinity
+	      else if(rup) 
+          lv_round_up = lv_inexact1 & (~lv_sign);								//Round up to +infinity
+        
         lv_inexact = lv_inexact | lv_inexact1;
         if(lv_round_up == 1) begin //Should set the overflow flag here right? 
-                lv_invalid = 1;
-				if(convert_long == 0 && convert_unsigned == 0 && lv_original_exponent == 30 && final_result[30:0] == '1 && lv_sign == 0)  //Overflow..  Beyond representable number after rounding
-                        final_result = 64'h7fffffff;
-                else if(convert_long == 0 && convert_unsigned == 1 && lv_original_exponent == 31 && final_result[31:0] == '1 && lv_sign == 0)
-                    final_result = 64'hffffffffffffffff;
-                else if(convert_long == 1 && convert_unsigned == 0 && lv_original_exponent == 62 && final_result[62:0] == '1 && lv_sign == 0)  //Overflow..  Beyond representable number after rounding
-                        final_result = 64'h7fffffffffffffff;
-                else if(convert_long == 1 && convert_unsigned == 1 && lv_original_exponent == 63 && final_result[63:0] == '1 && lv_sign == 0)
-                    final_result = 64'hffffffffffffffff;                
-                else begin
-                lv_invalid = 0;
-                final_result = final_result + 1;
-                if(convert_long == 0 && final_result[31]==1)
-                    final_result = signExtend(final_result[31:0]);
-                end
+          lv_invalid = 1;
+				  if(convert_long == 0 && convert_unsigned == 0 && lv_original_exponent == 30 && 
+                                                          final_result[30:0] == '1 && lv_sign == 0)  //Overflow..  Beyond representable number after rounding
+            final_result = 'h7fffffff;
+          else if(convert_long == 0 && convert_unsigned == 1 && lv_original_exponent == 31 && final_result[31:0] == '1 && lv_sign == 0)
+            final_result = '1;
+        `ifdef RV64
+          else if(convert_long == 1 && convert_unsigned == 0 && lv_original_exponent == 62 && final_result[62:0] == '1 && lv_sign == 0)  //Overflow..  Beyond representable number after rounding
+            final_result = 64'h7fffffffffffffff;
+          else if(convert_long == 1 && convert_unsigned == 1 && lv_original_exponent == 63 && final_result[63:0] == '1 && lv_sign == 0)
+            final_result = 64'hffffffffffffffff;                
+        `endif
+          else begin
+            lv_invalid = 0;
+            final_result = final_result + 1;
+            if(convert_long == 0 && final_result[31]==1)
+              final_result = signExtend(final_result[31:0]);
+          end
         end
         `ifdef verbose $display("rounding_mode == %b",rounding_mode);`endif
-		`ifdef verbose $display("round_up = %b", lv_round_up);`endif
+		    `ifdef verbose $display("round_up = %b", lv_round_up);`endif
 
-			if(convert_unsigned == 0 && lv_sign == 1)begin		//Negating the output if floating point number is negative and converted to signed word/long
-				final_result = ~final_result + 1;
-                if(convert_long == 0 && final_result[31] == 1)
-                    final_result = signExtend(final_result[31:0]);
-				`ifdef verbose $display("Negating output final_result : %b", final_result);`endif
-			end
-            else if(convert_unsigned == 1 && lv_sign == 1) begin
-				final_result = 0;
-                lv_invalid = 1;
-            end
-		end
-        if((lv_invalid|lv_infinity) == 1) begin  //What about Quiet NaN?? What does the Spec Say?
-            lv_overflow = 0;
-            lv_inexact = 0;
+			  if(convert_unsigned == 0 && lv_sign == 1)begin		//Negating the output if floating point number is negative and converted to signed word/long
+				  final_result = ~final_result + 1;
+          if(convert_long == 0 && final_result[31] == 1)
+            final_result = signExtend(final_result[31:0]);
+				  `ifdef verbose $display("Negating output final_result : %b", final_result);`endif
+			  end
+        else if(convert_unsigned == 1 && lv_sign == 1) begin
+				  final_result = 0;
+          lv_invalid = 1;
         end
-    Bit#(5) fflags={lv_invalid|lv_infinity,1'b0,lv_overflow,1'b0,lv_inexact};
-		return Floating_output{
+		  end
+      if((lv_invalid|lv_infinity) == 1) begin  //What about Quiet NaN?? What does the Spec Say?
+        lv_overflow = 0;
+        lv_inexact = 0;
+      end
+      Bit#(5) fflags={lv_invalid|lv_infinity,1'b0,lv_overflow,1'b0,lv_inexact};
+		  return Floating_output{
 										final_result: final_result,
 										fflags: fflags};
-
-
     endmethod
 endmodule
 module mkTb(Empty);

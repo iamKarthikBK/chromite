@@ -38,6 +38,13 @@ package common_types;
     typedef 32 XLEN;
     typedef 32 VADDR ;
   `endif
+  `ifdef spfpu
+    `ifdef dpfpu
+      typedef 64 FLEN;
+    `else
+      typedef 32 FLEN;
+    `endif
+  `endif 
 	typedef 32 PADDR ;
 	typedef Bit #(3)  Funct3;
   typedef 5 PRFDEPTH;

@@ -13,12 +13,14 @@ package fpu;
 import common_types::*;
 import fpu_compare_min_max::*;						
 import fpu_int_to_sp::*;
-import fpu_int_to_dp::*;
 import fpu_sign_injection::*;	
 import fpu_divider::*;
 import fpu_sqrt::*;
 import fpu_sp_to_int::*;
-import fpu_dp_to_int::*;
+`ifdef dpfpu
+  import fpu_dp_to_int::*;
+  import fpu_int_to_dp::*;
+`endif
 import fpu_fm_add_sub::*;
 import fpu_convert_sp_dp::*;
 import fpu_fclass::*;
@@ -34,15 +36,15 @@ import Clocks::*;
 /*========================= */
 
 interface Ifc_fpu;							//interface to module mk_fpu
-	method Action _start(Bit#(`FLEN) operand1, Bit#(`FLEN) operand2, Bit#(`FLEN) operand3, Bit#(4) opcode, Bit#(7) funct7, Bit#(3) funct3, Bit#(2) imm,  Bit#(3) fsr, Bool issp); 
-	method ActionValue#(Floating_output#(`FLEN)) get_result;
+	method Action _start(Bit#(FLEN) operand1, Bit#(FLEN) operand2, Bit#(FLEN) operand3, Bit#(4) opcode, Bit#(7) funct7, Bit#(3) funct3, Bit#(2) imm,  Bit#(3) fsr, Bool issp); 
+	method ActionValue#(Floating_output#(FLEN)) get_result;
 	method Action flush;
 endinterface
 
 typedef struct{
-        Bit#(`FLEN) operand1;
-        Bit#(`FLEN) operand2;
-        Bit#(`FLEN) operand3;
+        Bit#(FLEN) operand1;
+        Bit#(FLEN) operand2;
+        Bit#(FLEN) operand3;
         Bit#(4) opcode;
         Bit#(7) funct7;
         Bit#(3) funct3;
@@ -57,7 +59,7 @@ module mkfpu(Ifc_fpu);
   //  Decode and Maintenance Registers
   // ============================================
   let verbosity=`VERBOSITY;
-	FIFO# (Floating_output#(`FLEN)) ff_result <- mkFIFO1;
+	FIFO# (Floating_output#(FLEN)) ff_result <- mkFIFO1;
     FIFO# (Input_Packet) ff_input <- mkFIFO1;
 	Wire#(Bool) wr_flush<-mkDWire(False);
   // =============================================
@@ -100,10 +102,11 @@ module mkfpu(Ifc_fpu);
          Ifc_fpu_sp_to_int						    inst_spfp_to_int   <- mkfpu_sp_to_int();						// No Flush
          Ifc_fpu_convert_sp_dp						inst_spfpu_cnvt    <- mkfpu_convert_sp_dp();				// No Flush 
          Ifc_fpu_int_to_sp							inst_fpu_int_to_fp <- mkfpu_int_to_sp();				  // No Flush
-         
-         Ifc_fpu_dp_to_int						    inst_dpfp_to_int     <- mkfpu_dp_to_int();						// No Flush
-         Ifc_fpu_convert_dp_sp						inst_dpfpu_cnvt      <- mkfpu_convert_dp_sp();				// No Flush
-         Ifc_fpu_int_to_dp							inst_dpfpu_int_to_fp <- mkfpu_int_to_dp();				 // No Flush 
+        `ifdef dpfpu
+           Ifc_fpu_dp_to_int						    inst_dpfp_to_int     <- mkfpu_dp_to_int();						// No Flush
+           Ifc_fpu_convert_dp_sp						inst_dpfpu_cnvt      <- mkfpu_convert_dp_sp();				// No Flush
+           Ifc_fpu_int_to_dp							inst_dpfpu_int_to_fp <- mkfpu_int_to_dp();				 // No Flush 
+        `endif
 
 
 // ==============================================
@@ -190,9 +193,9 @@ module mkfpu(Ifc_fpu);
  rule start_stage;
 ///		Bool issp = (funct7[0] == 0);     
         let input_packet = ff_input.first;
-        Bit#(`FLEN) operand1 = input_packet.operand1;
-        Bit#(`FLEN) operand2 = input_packet.operand2;
-        Bit#(`FLEN) operand3 = input_packet.operand3;
+        Bit#(FLEN) operand1 = input_packet.operand1;
+        Bit#(FLEN) operand2 = input_packet.operand2;
+        Bit#(FLEN) operand3 = input_packet.operand3;
         Bit#(4) opcode       = input_packet.opcode;
         Bit#(7) funct7       = input_packet.funct7;
         Bit#(3) funct3       = input_packet.funct3;
@@ -292,7 +295,7 @@ module mkfpu(Ifc_fpu);
 				let {exp1,exp2,exp3}     <- getExp32.func(op1, 0,0);
 				let {x1,x2,x3}           <- condFlags32.func(tuple2(man1,exp1),tuple2(0,0),tuple2(0,0));
 				let x<-inst_spfpu_fclass._start(op1[31],man1,exp1,x1);
-				Floating_output#(`FLEN) y = Floating_output{final_result:zeroExtend(x.final_result),fflags:x.fflags};
+				Floating_output#(FLEN) y = Floating_output{final_result:zeroExtend(x.final_result),fflags:x.fflags};
 				ff_result.enq(y);
        end
        else begin
@@ -332,7 +335,7 @@ module mkfpu(Ifc_fpu);
 		end
 		else if(((funct7 == `FMV_X_S_f7 || funct7 == `FMV_S_X_f7) && funct3 == 'b000) && opcode == `FP_OPCODE)begin
 			`ifdef verbose $display($time,"\tGiving inputs to FMV"); `endif
-			Bit#(`FLEN) final_result=0;
+			Bit#(FLEN) final_result=0;
 			if(funct7==`FMV_X_S_f7) // sp to integer FMV.X.W
 				final_result = signExtend(operand1[31:0]);
   	 		else // integer to sp FMV.W.X
@@ -345,7 +348,7 @@ module mkfpu(Ifc_fpu);
 		end
 		else if(((funct7 == `FMV_X_D_f7 || funct7 == `FMV_D_X_f7) && funct3 == 'b000) && opcode == `FP_OPCODE)begin // TODO merge with above condition
 			`ifdef verbose $display($time,"\tGiving inputs to FMV"); `endif
-			Bit#(`FLEN) final_result=0;
+			Bit#(FLEN) final_result=0;
 			if(funct7==`FMV_X_D_f7) // sp to integer FMV.X.W
 				final_result = operand1;
 			else // integer to sp FMV.W.X
@@ -464,7 +467,7 @@ module mkfpu(Ifc_fpu);
   rule rl_get_output_from_spfpu_divider(!wr_flush && rg_multicycle_op);
     `ifdef verbose $display($time,"\tGot output from spfpu divider");  `endif
     let x= inst_spfpu_divider.final_result_;
-    Floating_output#(`FLEN) y=?;
+    Floating_output#(FLEN) y=?;
     y.fflags=x.fflags;
     `ifdef dpfpu
         y.final_result={'1,x.final_result};
@@ -479,7 +482,7 @@ module mkfpu(Ifc_fpu);
   rule rl_get_output_from_dpfpu_divider(!wr_flush && rg_multicycle_op);
     `ifdef verbose $display($time,"\tGot output from spfpu divider");  `endif
     let x= inst_dpfpu_divider.final_result_;
-    Floating_output#(`FLEN) y=?;
+    Floating_output#(FLEN) y=?;
     y.fflags=x.fflags;
     y.final_result=x.final_result;
     ff_result.enq(y);
@@ -492,7 +495,7 @@ module mkfpu(Ifc_fpu);
   rule rl_get_output_from_spfpu_sqrt(inst_spfpu_sqrt.get_result matches tagged Valid .res &&& !wr_flush &&& rg_multicycle_op); // TODO check for inexact and underflow
     `ifdef verbose $display($time,"\tGot output from spfpu sqrt");  `endif
     let x = res;
-		Floating_output#(`FLEN) y=?;
+		Floating_output#(FLEN) y=?;
 		y.fflags=x.fflags;
 		`ifdef dpfpu
 			y.final_result={'1,x.final_result};
@@ -507,7 +510,7 @@ module mkfpu(Ifc_fpu);
  rule rl_get_output_from_dpfpu_sqrt(inst_dpfpu_sqrt.get_result matches tagged Valid .res &&& !wr_flush &&& rg_multicycle_op); // TODO check for inexact and underflow
     `ifdef verbose $display($time,"\tGot output from spfpu sqrt");  `endif
     let x = res;
-	Floating_output#(`FLEN) y=?;
+	Floating_output#(FLEN) y=?;
 	y.fflags=x.fflags;
 	y.final_result=x.final_result;
 	ff_result.enq(y);
@@ -519,7 +522,7 @@ module mkfpu(Ifc_fpu);
 	 rule rl_get_output_from_fm_add_sub(!wr_flush && rg_multicycle_op);
 		`ifdef verbose $display($time,"\tGot output from sp fused multiple add conversion Module"); `endif
 		let x= inst_spfm_add_sub.get_result;
-		Floating_output#(`FLEN) y=?;
+		Floating_output#(FLEN) y=?;
 		y.fflags=x.fflags;
 		`ifdef dpfpu
 			y.final_result={'hffffffff,x.final_result[31:0]};
@@ -535,7 +538,7 @@ module mkfpu(Ifc_fpu);
 	 rule rl_get_output_from_dpfm_add_sub(!wr_flush && rg_multicycle_op);
 		`ifdef verbose $display($time,"\tGot output from sp fused multiple add conversion Module"); `endif
 		let x= inst_dpfm_add_sub.get_result;
-		Floating_output#(`FLEN) y=?;
+		Floating_output#(FLEN) y=?;
 		y.fflags=x.fflags;
 		y.final_result=x.final_result;
 		ff_result.enq(y);
@@ -551,7 +554,7 @@ module mkfpu(Ifc_fpu);
 
 	// input method to start the floating point operation
 
-	method Action _start(Bit#(`FLEN) operand1, Bit#(`FLEN) operand2, Bit#(`FLEN) operand3, Bit#(4) opcode, Bit#(7) funct7, Bit#(3) funct3, Bit#(2) imm,  Bit#(3) fsr, Bool issp) if(!rg_multicycle_op); 
+	method Action _start(Bit#(FLEN) operand1, Bit#(FLEN) operand2, Bit#(FLEN) operand3, Bit#(4) opcode, Bit#(7) funct7, Bit#(3) funct3, Bit#(2) imm,  Bit#(3) fsr, Bool issp) if(!rg_multicycle_op); 
 	    ff_input.enq ( Input_Packet {
                                         operand1 : operand1,
                                         operand2 : operand2,
@@ -570,7 +573,7 @@ module mkfpu(Ifc_fpu);
       end
     endmethod
  
-	method ActionValue#(Floating_output#(`FLEN)) get_result;
+	method ActionValue#(Floating_output#(FLEN)) get_result;
 		ff_result.deq;
 		return ff_result.first;
 	endmethod
