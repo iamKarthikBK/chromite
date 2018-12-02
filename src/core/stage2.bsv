@@ -130,6 +130,7 @@ package stage2;
     Wire#(Bit#(TLog#(PRFDEPTH))) wr_rd_index <- mkDWire(0);
 
     rule decode_and_fetch(!rg_stall);
+      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=wr_csrs;
 	    let pc=rx.u.first.program_counter;
 	    let inst=rx.u.first.instruction;
 	    let pred=rx.u.first.prediction;
@@ -167,7 +168,8 @@ package stage2;
             `ifdef spfpu , rs1type, rs2type, rs3addr, rs3type, rdtype `endif );
 
       Bit#(XLEN) op1=(rs1type==PC)?signExtend(pc):rs1;
-      Bit#(XLEN) op2=(rs2type==Constant4)?'d4:(rs2type==Immediate)?signExtend(imm):rs2;
+      Bit#(XLEN) op2=(rs2type==Constant2 && misa[2]==1)?'d2:(rs2type==Constant4)?'d4:
+                                                          (rs2type==Immediate)?signExtend(imm):rs2;
       Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
       Bool traptaken=True;
       if(trap matches tagged None)begin
