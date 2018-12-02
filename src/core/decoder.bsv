@@ -236,7 +236,7 @@ package decoder;
       case (funct3)
         'b000: rs1[4:3]=inst[11:10]; //C.SLLI
         'b001, 'b010, 'b011: rs1=2; // 
-        'b100: if(inst[12]==0 && inst[6:2]==0) rs1=0; else rs1[4:3]=inst[11:10]; //C.MV 
+        'b100: if(inst[12]==0 && inst[6:2]!=0) rs1=0; else rs1[4:3]=inst[11:10]; //C.MV 
         default: rs1=2; // C.FSDSP, C.SWSP, C.FSWSP,C.SDSP
       endcase
     end
@@ -244,7 +244,8 @@ package decoder;
     //----------------------------------- inferring rs2 and rs2type
     Bit#(5) rs2=0;
     Op2type rs2type=IntegerRF;
-    if (`ifdef RV32 (quad==Q1 && funct3=='b001) || `endif (quad==Q2 && funct3=='b100 && inst[6:2]==0))
+    if (`ifdef RV32 (quad==Q1 && funct3=='b001) || `endif 
+                    (quad==Q2 && funct3=='b100 && inst[6:2]==0))
       rs2type=Constant2;
     else if(funct3=='b00 || (quad==Q1 && inst[15]=='b0) || (quad==Q1 && funct3=='b100 &&
                                                               inst[11:10]!='b11) )
@@ -266,8 +267,9 @@ package decoder;
         rs2=({2'b01,inst[4:2]});
     end
     if(quad==Q2)begin
-      if(funct3=='b100)
-        rs2=inst[6:2];
+      case(funct3[2])
+      'b1:rs2=inst[6:2];
+      endcase
     end
 
     //----------------------------------- inferring rd
@@ -277,20 +279,27 @@ package decoder;
       rdtype=FRF;
 
     if(quad==Q0)begin
-      case(funct3) 
-        'b000,'b001,'b010,'b011: rd={2'b0,inst[4:2]};//C.ADDI4SPN,FLD,LW,FLW,LD
+      case(funct3[2]) 
+        'b0: rd={2'b01,inst[4:2]};//C.ADDI4SPN,FLD,LW,FLW,LD
+        'b1: rd=0;
       endcase
     end
     if(quad==Q1)begin
       case(funct3)
-        `ifdef RV32 'b001: rd=0; `endif //C.JAL
+        `ifdef RV32 'b001: rd=1; `endif //C.JAL
         'b100: rd[4:3]=2'b01; //C.SRLI,SRAI,ANDI,SUB,XOR,OR,AND,SUBW,ADDW
         'b101,'b110,'b111: rd=0; //C.J,C.BEQZ,C.BNEZ
       endcase
     end
     if(quad==Q2)begin
       case(funct3)
-        'b100: if(inst[12]==0 && inst[6:2]==0) rd=0;
+        'b100: 
+          if(inst[12]==0 && inst[6:2]==0)  // C.JR
+            rd=0;
+          else if(inst[12]==1 && inst[11:2]==0) // C.EBREAK
+            rd=0;
+          else if(inst[12]==1 && inst[11:7]!=0 && inst[6:2]==0) // C.JALR
+            rd=1;
         'b101,'b110,'b111: rd=0;
       endcase
     end
@@ -328,7 +337,7 @@ package decoder;
 
     // -- deriving inst_type
     Instruction_type inst_type=ALU;
-    if( quad==Q0 || (quad==Q2 && funct3!='b100 && funct3!='b000)) 
+    if( (quad==Q0 && funct3!=0)|| (quad==Q2 && funct3!='b100 && funct3!='b000)) 
       inst_type=MEMORY;
     else if (quad==Q2 && funct3=='b100 && inst[11:7]!=0 && inst[6:2]==0) //C.JALR C.JR
       inst_type=JALR;
@@ -347,18 +356,18 @@ package decoder;
     Bit#(18) imm_value=
     case (quad) matches
       Q0: case(funct3)
-        'b000:zeroExtend({inst[10:7],inst[12:11],inst[3:2],2'b0});
+        'b000:zeroExtend({inst[10:7],inst[12:11],inst[5],inst[6],2'b0});
         'b001:(zeroExtend({inst[6:5],inst[12:10],3'b0}) & duplicate(misa[3]));
-        'b010:zeroExtend({inst[5],inst[12:3],inst[6],2'b00});
+        'b010:zeroExtend({inst[5],inst[12:10],inst[6],2'b00});
         'b011:`ifdef RV32 
-                zeroExtend({inst[5],inst[12:3],inst[6],2'b00}); 
+                zeroExtend({inst[5],inst[12:10],inst[6],2'b00}); 
               `else 
                 zeroExtend({inst[6:5],inst[12:10],3'b0});   
               `endif
         'b101:(zeroExtend({inst[6:5],inst[12:10],3'b0}) & duplicate(misa[3]));
-        'b110:zeroExtend({inst[5],inst[12:3],inst[6],2'b00}); 
+        'b110:zeroExtend({inst[5],inst[12:10],inst[6],2'b00}); 
         'b111: `ifdef RV32
-                zeroExtend({inst[5],inst[12:3],inst[6],2'b00}); 
+                zeroExtend({inst[5],inst[12:10],inst[6],2'b00}); 
               `else 
                 zeroExtend({inst[6:5],inst[12:10],3'b0});   
               `endif
@@ -415,12 +424,12 @@ package decoder;
     else if(inst==0 || (quad==Q0 && funct3=='b100) || 
             (quad==Q1 && inst[15:10]=='b100111 && inst[6]==1))
       exception=tagged Exception Illegal_inst;
-    else if(imm_value!=0 && ((quad==Q0 && funct3=='b000) || //ADDI4SPN
-            (quad==Q1 && (funct3=='b000 || funct3=='b011)) || // NOP ADDI ADDI16SPN LUI
+    else if(imm_value==0 && ((quad==Q0 && funct3=='b000) || //ADDI4SPN
+            (quad==Q1 && ((funct3=='b000 && inst[11:7]!=0) || funct3=='b011)) || // NOP ADDI ADDI16SPN LUI
             (quad==Q1 && funct3=='b100 && inst[11:10]<2) || // SRLI SRAI
             (quad==Q2 && funct3=='b000)  )) // SLLI
       exception = tagged Exception Illegal_inst;
-
+    // TODO checks for reg!=0
     if(interrupt matches tagged None)
       interrupt=exception;
 
