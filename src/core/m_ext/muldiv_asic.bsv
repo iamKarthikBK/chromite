@@ -26,7 +26,7 @@ package muldiv_asic;
 
 	interface Ifc_muldiv;
 		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
-    funct3, Bool word_flag);
+    funct3 `ifdef RV64 , Bool word_flag `endif );
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 		method Action flush;
 	endinterface
@@ -78,6 +78,7 @@ package muldiv_asic;
 	module mkmuldiv(Ifc_muldiv);
 
     let xlen = valueOf(XLEN);
+    let verbosity=`VERBOSITY;
 		Wrapper2#(Bit#(73), Bit#(73), Bit#(73))   wrapper_add_1     <- mkUniqueWrapper2( \+ );
 		Wrapper2#(Bit#(9), Bit#(65), Bit#(73))   wrapper_mul_1      <- mkUniqueWrapper2( func_mult );
 		Wrapper2#(Bit#(56), Bit#(4), Bool)   wrapper_is_op_zero <- mkUniqueWrapper2( is_op_zero );
@@ -85,12 +86,16 @@ package muldiv_asic;
 		Reg#(Bit#(65)) multiplicand_divisor <-mkReg(0);				// operand2
 		Reg#(Bit#(137)) accumulator <-mkReg(0);  // holds the accumulated results over the iterations
 		FIFOF#(Bit#(64)) ff_muldiv_result <-mkBypassFIFOF();					// to hold the final result
-		FIFOF#(Tuple5#(Bit#(XLEN), Bit#(XLEN),Bit#(2), Bit#(1), Bit#(1))) ff_input <-mkLFIFOF();					// to hold the final result
+    `ifdef RV64
+	  	FIFOF#(Tuple5#(Bit#(XLEN), Bit#(XLEN),Bit#(2), Bit#(1), Bit#(1))) ff_input <-mkLFIFOF();
+    `else 
+  		FIFOF#(Tuple4#(Bit#(XLEN), Bit#(XLEN),Bit#(2),  Bit#(1))) ff_input <-mkLFIFOF();			
+    `endif
 		Reg#(Bit#(4)) rg_count[2]<-mkCReg(2,8);
 		Reg#(Bool) rg_signed<-mkReg(False);
 		Reg#(Bool) upper_bits<-mkReg(False);
 		Reg#(Bit#(1)) temp_multiplier_sign<-mkReg(0);
-		Reg#(Bit#(1)) rg_word_flag<-mkReg(0);
+		`ifdef RV64 Reg#(Bit#(1)) rg_word_flag<-mkReg(0);  `endif
 		Reg#(Bit#(1)) rg_result_sign<-mkReg(0);
 		Reg#(Bool) rg_is_mul <-mkReg(False);
 
@@ -112,15 +117,17 @@ package muldiv_asic;
 				earlyout<- wrapper_is_op_zero.func(accumulator[63:8],rg_count[1]);
 			else
 				earlyout<- wrapper_is_op_zero.func(accumulator[55:0],rg_count[1]);
-			`ifdef verbose $display($time,"\tAccumulator: %h Multiplicand: %h count: %d isHi: %b word: %b compl: %b sign: %b",x,multiplicand_divisor,rg_count[1],upper_bits, rg_word_flag, rg_signed,temp_multiplier_sign); `endif
-			`ifdef verbose $display($time,"\tx: %h y: %h",x,y); `endif
+			if(verbosity>1) $display($time,"\tAccumulator: %h Multiplicand: %h count: %d isHi: %b compl: %b sign: %b",x,multiplicand_divisor,rg_count[1],upper_bits, rg_signed,temp_multiplier_sign); 
+			if(verbosity>1) $display($time,"\tx: %h y: %h",x,y); 
 			if(rg_count[1]==0 || earlyout)begin
-				`ifdef verbose $display($time,"\tMUL/DIV: Ending Mul/Div operation"); `endif
+				if(verbosity>1) $display($time,"\tMUL/DIV: Ending Mul/Div operation"); 
 				y = unpack(x);
 				x=pack(y>>({2'b0,rg_count[1]}*8));
-				`ifdef verbose $display($time,"\tx: %h y: %h",x,y); `endif
-				if(rg_word_flag==1)
-					x=signExtend(x[31:0]);
+				if(verbosity>1) $display($time,"\tx: %h y: %h",x,y); 
+        `ifdef RV64 
+  				if(rg_word_flag==1)
+	  				x=signExtend(x[31:0]);
+        `endif
 				if(upper_bits)
 					ff_muldiv_result.enq(x[2*xlen-1:xlen]);
 				else
@@ -156,14 +163,18 @@ package muldiv_asic;
 				rg_state_counter[1]<=0;
 				rg_count[1]<='d8;
 				if(rg_funct3[1]==1) // REM/REMU
-					if(rg_word_flag==1)
-						remainder=signExtend(remainder[95:64]);
-					else
+          `ifdef RV64
+  					if(rg_word_flag==1)
+	  					remainder=signExtend(remainder[95:64]);
+		  			else
+          `endif
 						remainder=signExtend(remainder[127:64]);
 				else // DIV/DIVU
-					if(rg_word_flag==1)
-						remainder=signExtend(remainder[31:0]);
-					else
+          `ifdef RV64
+  					if(rg_word_flag==1)
+	  					remainder=signExtend(remainder[31:0]);
+		  			else
+          `endif
 						remainder=signExtend(remainder[63:0]);
 
 				if(rg_funct3[1]==0 && rg_signed) begin// DIVU
@@ -172,9 +183,11 @@ package muldiv_asic;
 				else if(rg_funct3[1:0]=='b10 && remainder[xlen-1]!=rg_result_sign) begin  // REMU/REM
 					remainder=~remainder+1;
 				end
-				if(rg_word_flag==1)
-					ff_muldiv_result.enq(signExtend(remainder[31:0]));	    
-				else
+        `ifdef RV64
+  				if(rg_word_flag==1)
+	  				ff_muldiv_result.enq(signExtend(remainder[31:0]));	    
+		  		else
+        `endif
 					ff_muldiv_result.enq(remainder[xlen-1:0]);	    
 			end
 			else begin
@@ -185,37 +198,43 @@ package muldiv_asic;
 
 		rule first_stage(rg_count[1]==8);
 			ff_input.deq;
-			let {in1,in2,funct3,word_flag,is_mul}=ff_input.first;
-			`ifdef verbose $display($time,"\tMUL/DIV: in1: %h in2: %h funct3: %h word_flag: %h is_mul: %b",in1,in2,funct3,word_flag, is_mul); `endif
-			Bit#(1) in2_sign=funct3[1:0]==1?word_flag==1?in2[31]:in2[63]:0;
-			Bit#(1) in1_sign=(funct3[1]^funct3[0]) & ((word_flag==1)?in1[31]:in1[63]);
+			let {in1,in2,funct3, `ifdef RV64 word_flag, `endif is_mul}=ff_input.first;
+			if(verbosity>1) $display($time,"\tMUL/DIV: in1: %h in2: %h funct3: %h is_mul: %b",in1,in2,funct3, is_mul); 
+			Bit#(1) in2_sign=funct3[1:0]==1? `ifdef RV64 word_flag==1?in2[31]: `endif in2[63]:0;
+			Bit#(1) in1_sign=(funct3[1]^funct3[0]) & (`ifdef RV64 (word_flag==1)?in1[31]: `endif in1[63]);
 
 			Bit#(TAdd#(XLEN,1)) op1;
 			Bit#(TAdd#(XLEN,1)) op2;
 			if(is_mul==1) begin
-				op1= word_flag==1? zeroExtend(in1[31:0]):{1'b0,in1};
-				op2= word_flag==1? zeroExtend(in2[31:0]):{1'b0,in2};
+				op1= `ifdef RV64 word_flag==1? zeroExtend(in1[31:0]): `endif {1'b0,in1};
+				op2= `ifdef RV64 word_flag==1? zeroExtend(in2[31:0]): `endif {1'b0,in2};
 			end
 			else begin
-				op1= word_flag==1? (funct3[0]==0?signExtend(in1[31:0]):zeroExtend(in1[31:0])): ({in1[63],in1[63:0]});
-                op2= word_flag==1?(funct3[0]==0?signExtend(in2[31:0]):zeroExtend(in2[31:0])):({in2[63],in2[63:0]});
+				op1= `ifdef RV64 word_flag==1? (funct3[0]==0?signExtend(in1[31:0]):zeroExtend(in1[31:0])): 
+          `endif ({in1[63],in1[63:0]});
+        op2= `ifdef RV64 word_flag==1?(funct3[0]==0?signExtend(in2[31:0]):zeroExtend(in2[31:0])):
+          `endif ({in2[63],in2[63:0]});
 
 				op1=(funct3[0]==0 && op1[xlen]==1)?~op1[xlen-1:0]+1:op1[xlen-1:0];
 				op2=(funct3[0]==0 && op2[xlen]==1)?~op2[xlen-1:0]+1:op2[xlen-1:0];
 			end
 
-			rg_word_flag<=word_flag;
+			`ifdef RV64 rg_word_flag<=word_flag; `endif
 			rg_is_mul<= unpack(is_mul);
 			Bool op1_31_to_0_is_zero= (op1[31:0]==0);
 			Bool op2_31_to_0_is_zero= (op2[31:0]==0);
-			Bool op1_is_zero= word_flag==1? op1_31_to_0_is_zero:(op1[63:0]==0 && op1_31_to_0_is_zero);
-			Bool op2_is_zero= word_flag==1? op2_31_to_0_is_zero:(op2[63:0]==0 && op2_31_to_0_is_zero);
+			Bool op1_is_zero= `ifdef RV64 word_flag==1? op1_31_to_0_is_zero: `endif (op1[63:0]==0 &&
+          op1_31_to_0_is_zero);
+			Bool op2_is_zero= `ifdef RV64 word_flag==1? op2_31_to_0_is_zero: `endif (op2[63:0]==0 &&
+          op2_31_to_0_is_zero);
 
 			if(is_mul==0 && op2_is_zero) begin
 				if(funct3[1]==1) begin	//REM/REMU operation
-					if(word_flag==1)
-						ff_muldiv_result.enq(signExtend(in1[31:0]));
-					else
+          `ifdef RV64
+  					if(word_flag==1)
+	  					ff_muldiv_result.enq(signExtend(in1[31:0]));
+		  			else
+          `endif
 						ff_muldiv_result.enq(in1);
 				end
 				else begin				//DIV/DIVU operation
@@ -261,14 +280,14 @@ package muldiv_asic;
 		endrule
 
 		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
-    funct3, Bool word_flag);
-			ff_input.enq(tuple5(in1,in2,funct3[1:0],pack(word_flag),~funct3[2]));
-      return tuple2(False, tuple5(REGULAR, '1, 0, tagged None, None));
+    funct3 `ifdef RV64 , Bool word_flag `endif );
+			ff_input.enq(tuple5(in1,in2,funct3[1:0], `ifdef RV64 pack(word_flag), `endif ~funct3[2]));
+      return tuple2(False, tuple4(REGULAR, '1, 0, tagged None));
 		endmethod
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 			ff_muldiv_result.deq;
       let default_out=ff_muldiv_result.first();
-      return tuple5(REGULAR, default_out, 0, tagged None, None);
+      return tuple4(REGULAR, default_out, 0, tagged None);
 		endmethod
 		method Action flush;
 			rg_count[0]<=8;

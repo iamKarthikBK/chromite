@@ -27,20 +27,24 @@ author name: Neel Gala
 Email id: neelgala@gmail.com
 */
 package muldiv_fpga;
+  `ifdef simulate
+    import muldiv_fpga_sim::*;
+  `else
   import multiplier::*;
+  `endif
   import restoring_div::*;
   import common_types::*;
   `include "common_params.bsv"
 
 	interface Ifc_muldiv;
 		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) operand1, Bit#(XLEN) operand2, 
-        Bit#(3) funct3, Bool word32);
+        Bit#(3) funct3 `ifdef RV64 , Bool word32 `endif );
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 	endinterface:Ifc_muldiv
 
   (*synthesize*)
 	module mkmuldiv(Ifc_muldiv);
-    let verbosity = `VERBOSITY ;
+    let verbosity = valueOf(`VERBOSITY);
     Ifc_multiplier#(XLEN) mult <- mkmultiplier;
 //    Ifc_divider#(XLEN) divider <- mkdivider;
     Ifc_restoring_div divider <-mkrestoring_div();
@@ -48,7 +52,7 @@ package muldiv_fpga;
     Reg#(Bool) mul_div <-mkReg(False); // False = Mul, True = Div.
     Reg#(Bool) rg_upperbits <- mkReg(False);
     Reg#(Bool) rg_complement <- mkReg(False);
-    Reg#(Bool) rg_word32 <- mkReg(False);
+    `ifdef RV64 Reg#(Bool) rg_word32 <- mkReg(False); `endif
     Reg#(Bit#(1)) rg_sign_op1 <- mkReg(0);
 
     rule increment_counter(rg_count!=0);
@@ -60,21 +64,22 @@ package muldiv_fpga;
       end
       else begin
         if(verbosity>1)
-          $display($time, "\tALU: Waiting for mul/div to respond. Count: %d word32: %b", rg_count,
-        rg_word32);
+          $display($time, "\tALU: Waiting for mul/div to respond. Count: %d", rg_count);
         rg_count<= rg_count+ 1;
       end
     endrule
 
 		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) operand1, Bit#(XLEN) operand2,
-        Bit#(3) funct3,  Bool word32) if(rg_count==0);
+        Bit#(3) funct3 `ifdef RV64 , Bool word32 `endif ) if(rg_count==0);
       // logic to choose the upper bits
       // in case of division,  this variable is set is the operation is a remainder operation
       mul_div<=unpack(funct3[2]);
-      if(word32)begin
-        operand1= funct3[0]==0? signExtend(operand1[31:0]): zeroExtend(operand1[31:0]);
-        operand2= funct3[0]==0? signExtend(operand2[31:0]): zeroExtend(operand2[31:0]);
-      end
+      `ifdef RV64
+        if(word32)begin
+          operand1=funct3[0]==0? signExtend(operand1[31:0]):zeroExtend(operand1[31:0]);
+          operand2=funct3[0]==0? signExtend(operand2[31:0]):zeroExtend(operand2[31:0]);
+        end
+      `endif
       Bool lv_upperbits = funct3[2]==0?unpack(|funct3[1:0]):unpack(funct3[1]);
 
       Bool invert_op1=False;
@@ -129,13 +134,15 @@ package muldiv_fpga;
         else
           divider.get_inputs(op1, op2, unpack(funct3[1])); // send inputs to the divider
       end
-      if(word32)
-        default_out=signExtend(default_out[31:0]);
-      if(((funct3[2]==0 && `MULSTAGES!=0) || (funct3[2]==1 && `DIVSTAGES!=0)) && !result_avail)begin
+      `ifdef RV64
+        if(word32)
+          default_out=signExtend(default_out[31:0]);
+      `endif
+      if((funct3[2]==0 && `MULSTAGES!=0) || (funct3[2]==1 && `DIVSTAGES!=0) && !result_avail)begin
         rg_count<= rg_count+ 1;
         rg_upperbits<= lv_upperbits;
         rg_complement<= lv_take_complement;
-        rg_word32<= word32;
+        `ifdef RV64 rg_word32<= word32; `endif
       end
       return tuple2(result_avail, tuple5(REGULAR, default_out, 0, tagged None, None));
     endmethod
@@ -145,29 +152,32 @@ package muldiv_fpga;
       if( (mul_div && rg_upperbits && rg_complement && reslt[valueOf(XLEN)-1]!=rg_sign_op1) || 
                       (mul_div && rg_complement && !rg_upperbits) ||(!mul_div && rg_complement))
         reslt=~reslt+ 1;
-      Bit#(XLEN) product=rg_word32?signExtend(reslt[31:0]):(!mul_div && rg_upperbits)?truncateLSB(reslt): 
-                                                                                    truncate(reslt);
+      Bit#(XLEN) product=`ifdef RV64 rg_word32?signExtend(reslt[31:0]): `endif 
+          (!mul_div && rg_upperbits)? truncateLSB(reslt): truncate(reslt);
       return tuple5(REGULAR, mul_div? ?/* div result*/: product, 0, tagged None, None); 
     endmethod
 	endmodule:mkmuldiv
-
-//  module mkTb(Empty);
-//    Ifc_muldiv muldiv <-mkmuldiv;
-//    Reg#(Bit#(32)) rg_count <- mkReg(0);
-//    rule increment_counter;
-//      rg_count<= rg_count+1;
-//      if(rg_count=='d100)
-//        $finish(0);
-//    endrule
-//    rule check(rg_count==20);
-//      let x<-muldiv.get_inputs(zeroExtend(rg_count), zeroExtend(rg_count), 0,  False);
-//      $display($time, "\t Giving inputs: %d", rg_count);
-//    endrule
-//    rule check_output;
-//      let {committype, out, paddr} <- muldiv.delayed_output;
-//      $display($time, "\tOutput: %d", out);
-//      $finish(0);
-//    endrule
-//  endmodule
+/*
+  module mkTb(Empty);
+    Ifc_muldiv muldiv <-mkmuldiv;
+    Reg#(Bit#(32)) rg_count <- mkReg(0);
+    rule increment_counter;
+      rg_count<= rg_count+1;
+      if(rg_count=='d100)
+        $finish(0);
+    endrule
+    rule check(rg_count==20);
+      let x<-muldiv.get_inputs(zeroExtend(rg_count), zeroExtend(rg_count), 0,  False);
+      if(verbosity>1)
+        $display($time, "\t Giving inputs: %d", rg_count);
+    endrule
+    rule check_output;
+      let {committype, out, paddr} <- muldiv.delayed_output;
+      if(verbosity>1)
+        $display($time, "\tOutput: %d", out);
+      $finish(0);
+    endrule
+  endmodule
+*/
 
 endpackage:muldiv_fpga
