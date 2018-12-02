@@ -251,7 +251,7 @@ package decoder;
                                                               inst[11:10]!='b11) )
       rs2type=Immediate;
     `ifdef spfpu
-      else if ( (quad==Q0 && funct3=='b110) 
+      else if ( (quad==Q0 && funct3=='b001) 
            || ( (quad==Q0 || quad==Q2) && funct3=='b101 && misa[3]==1) 
           `ifdef RV32  || ( (quad==Q0 || quad==Q2) && funct3=='b111) `endif 
           )
