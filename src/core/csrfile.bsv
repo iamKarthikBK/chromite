@@ -57,6 +57,7 @@ package csrfile;
       method Action update_fflags(Bit#(5) flags);
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
+    method Bit#(1) csr_misa_c;
   endinterface
 
   function Reg#(Bit#(a)) extInterruptReg(Reg#(Bit#(a)) r1, Reg#(Bit#(a)) r2);
@@ -878,5 +879,6 @@ package csrfile;
 	    	end
       `endif
 	  endmethod
+    method csr_misa_c=misa_c;
   endmodule
 endpackage

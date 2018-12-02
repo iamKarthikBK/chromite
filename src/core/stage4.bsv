@@ -64,6 +64,7 @@ package stage4;
   		method Bit#(3) roundingmode;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
+    method Bit#(1) csr_misa_c;
   endinterface
 
   (*synthesize*)
@@ -299,5 +300,6 @@ package stage4;
   		method roundingmode=csr.roundingmode;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=csr.set_external_interrupt(ex_i);
+    method csr_misa_c=csr.csr_misa_c;
   endmodule
 endpackage

@@ -62,6 +62,7 @@ package csr;
       method Action update_fflags(Bit#(5) flags);
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
+    method Bit#(1) csr_misa_c;
   endinterface:Ifc_csr
 
 
@@ -172,5 +173,6 @@ package csr;
       endmethod
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=csrfile.set_external_interrupt(ex_i);
+    method csr_misa_c=csrfile.csr_misa_c;
   endmodule
 endpackage

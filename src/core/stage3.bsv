@@ -101,6 +101,7 @@ package stage3;
       method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
     `endif
 		interface Get#(Tuple2#(Memrequest,Bit#(1))) to_dmem;
+    method Action csr_misa_c (Bit#(1) m);
   endinterface
 
   (*synthesize*)
@@ -138,6 +139,7 @@ package stage3;
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDReg(0);
 		FIFOF#(Tuple2#(Memrequest,Bit#(1))) ff_memory_request <-mkBypassFIFOF;
+    Wire#(Bit#(1)) wr_misa_c<-mkWire();
 
     rule flush_mapping(wr_flush_from_exe!=None||wr_flush_from_wb);
       fwding.flush_mapping;
@@ -235,14 +237,15 @@ package stage3;
           `ifdef multicycle
             `ifdef spfpu
               let {done, cmtype, out, addr, trap1, redirect} <- alu.get_inputs(fn, new_op1, x2, t3, 
-                x4, instrtype, funct3, pc, memaccess, word32 `ifdef bpu ,pred `endif );
+                x4, instrtype, funct3, pc, memaccess, word32 `ifdef bpu ,pred `endif , wr_misa_c );
             `else
               let {done, cmtype, out, addr, trap1, redirect} <- alu.get_inputs(fn, new_op1, x2, t3, 
-                truncate(x4), instrtype, funct3, pc, memaccess, word32 `ifdef bpu ,pred `endif );
+                truncate(x4), instrtype, funct3, pc, memaccess, word32 `ifdef bpu ,pred `endif ,
+                wr_misa_c);
             `endif
           `else
             let {cmtype, out, addr, trap1, redirect} = fn_alu(fn, new_op1, x2, t3, truncate(x4), 
-                              instrtype, funct3, pc, memaccess, word32 `ifdef bpu ,pred `endif );
+                      instrtype, funct3, pc, memaccess, word32 `ifdef bpu ,pred `endif , wr_misa_c);
           `endif
           if(verbosity>1)begin
             $display($time, "\tEXECUTE: cmtype: ", fshow(cmtype), " out: %h addr: %h trap:", out,
@@ -445,5 +448,8 @@ package stage3;
     `ifdef supervisor
       method sfence_operands= tuple2(sfence_rs1,sfence_rs2);
     `endif
+    method Action csr_misa_c (Bit#(1) m);
+      wr_misa_c <= m;
+    endmethod
   endmodule
 endpackage

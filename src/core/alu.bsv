@@ -76,9 +76,9 @@ package alu;
   `include "common_params.bsv"
 
 	(*noinline*)
-	function ALU_OUT fn_alu ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
-        Bit#(VADDR) imm_value, Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
-        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif );
+	function ALU_OUT fn_alu (Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
+      Bit#(VADDR) imm_value, Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc,
+      Access_type memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c);
 
 	  /*========= Perform all the arithmetic ===== */
 	  // ADD* ADDI* SUB* 
@@ -161,8 +161,8 @@ package alu;
       effective_address[0]=0;
 
 	  Trap_type exception=tagged None;
-	  if(((inst_type==JALR||inst_type==JAL) && effective_address[1]!=0) || (inst_type==BRANCH && final_output[0]==1 &&
-                                                             effective_address[1:0]!=0)) begin
+	  if( (inst_type==JALR || inst_type==JAL || (inst_type==BRANCH && final_output[0]==1)) && 
+        effective_address[1]!=0 && misa_c==0 ) begin
 	  	exception=tagged Exception Inst_addr_misaligned;
     end
     else if(inst_type==MEMORY && ((funct3[1:0]==1 && effective_address[0]!=0) || 
@@ -197,7 +197,7 @@ package alu;
 	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
         `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
-        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif );
+        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c );
 		method ActionValue#(ALU_OUT) delayed_output;
   endinterface:Ifc_alu
 
@@ -241,10 +241,10 @@ package alu;
 	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
         `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
-        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif );
+        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c);
       `ifdef muldiv
         if(inst_type==MULDIV)begin
-          let product <- muldiv.get_inputs(op1, op2, funct3, word32);
+          let product <- muldiv.get_inputs(op1, op2, funct3 `ifdef RV64 , word32 `endif );
           `ifdef muldiv
             `ifdef spfpu
               if(!tpl_1(product))
@@ -268,7 +268,7 @@ package alu;
         else
       `endif
           return tuple2(True, fn_alu(fn, op1, op2, op3, truncate(imm_value), inst_type, funct3, 
-                                            pc, memaccess, word32 `ifdef bpu , prediction `endif ));
+                        pc, memaccess, word32 `ifdef bpu , prediction `endif , misa_c ));
     endmethod
     `ifdef muldiv
       `ifndef spfpu
