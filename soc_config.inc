@@ -1,8 +1,8 @@
 ISA=RV64IMAFD
 MMU=enable
 AXI=enable
-BPU=enable
-MUL=sequential
+BPU=disable
+MUL=fpga
 PERF=enable
 COREFABRIC=AXI4
 SYNTH=SIM
