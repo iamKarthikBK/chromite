@@ -78,16 +78,6 @@ package riscv;
     let {flush_from_wb, flushpc_from_wb}=stage4.flush; // TODO also get fence info from WB.
     let {decode_firing, rd_index}=stage2.fetch_rd_index;
 
-//    rule flush_stage1_2(flush_from_exe != None || flush_from_wb);
-//      if(verbosity>1)
-//      $display($time, "\tRISCV: Clearing all FIFOs: flush_from_wb: %b flush_from_exe: ",
-//          flush_from_wb, fshow(flush_from_exe));
-//      pipe1.clear;
-//      pipe2.clear;
-//    endrule
-//    rule flush_stage3(flush_from_wb);
-//      pipe3.clear;
-//    endrule
     rule flush_rename_mapping(flush_from_exe!=None || flush_from_wb);
       stage2.reset_renaming;
     endrule
