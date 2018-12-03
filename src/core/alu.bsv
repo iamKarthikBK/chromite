@@ -188,9 +188,10 @@ package alu;
 	  return tuple5(committype, final_output, effaddr_csrdata, exception, flush);
 	endfunction
 
+
 `ifdef multicycle
   interface Ifc_alu;
-	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
+	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
         `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
         memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c );
@@ -234,13 +235,13 @@ package alu;
       `endif
     `endif
 
-	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
+	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
         `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
         memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c);
       `ifdef muldiv
         if(inst_type==MULDIV)begin
-          let product <- muldiv.get_inputs(op1, op2, funct3 `ifdef RV64 , word32 `endif );
+          let product <- muldiv.get_inputs(truncate(op1), truncate(op2), funct3 `ifdef RV64 , word32 `endif );
           `ifdef muldiv
             `ifdef spfpu
               if(!tpl_1(product))
@@ -263,7 +264,7 @@ package alu;
         end
         else
       `endif
-          return tuple2(True, fn_alu(fn, op1, op2, op3, truncate(imm_value), inst_type, funct3, 
+          return tuple2(True, fn_alu(fn, truncate(op1), truncate(op2), truncate(op3), truncate(imm_value), inst_type, funct3, 
                         pc, memaccess, word32 `ifdef bpu , prediction `endif , misa_c ));
     endmethod
     `ifdef muldiv

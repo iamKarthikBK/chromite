@@ -50,6 +50,7 @@ package common_types;
   typedef 5 PRFDEPTH;
   typedef 8 RAS_DEPTH;
   typedef 0 USERSPACE ;
+  typedef TMax#(XLEN, FLEN) ELEN;
 
 
   //------ The follwing contain common tuples across the stages ------------- 
@@ -116,7 +117,7 @@ package common_types;
   `endif
 
   // define all tuples here
-  typedef Tuple5#(Commit_type, Bit#(XLEN), Bit#(VADDR), Trap_type, Flush_type) ALU_OUT;
+  typedef Tuple5#(Commit_type, Bit#(ELEN), Bit#(VADDR), Trap_type, Flush_type) ALU_OUT;
   
   typedef Tuple5#(Bit#(PADDR), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
   typedef Tuple4#(Bit#(PADDR), Access_type, Bit#(2), Bit#(1)) CoreRequest;
