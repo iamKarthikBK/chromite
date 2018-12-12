@@ -159,66 +159,65 @@ package stage2;
         else
           rd_index<= rd_index+ 1;
         wr_rd_index<= rd_index;
-      end
 
-      let {rs1, rs2 `ifdef spfpu , rs3 `endif , rs1index, rs2index `ifdef spfpu , rs3index `endif }
-           <-registerfile.opaddress(rs1addr, rs2addr, rd, rd_index
-            `ifdef spfpu , rs1type, rs2type, rs3addr, rs3type, rdtype `endif );
+        let {rs1, rs2 `ifdef spfpu , rs3 `endif , rs1index, rs2index `ifdef spfpu , rs3index `endif }
+             <-registerfile.opaddress(rs1addr, rs2addr, rd, rd_index
+              `ifdef spfpu , rs1type, rs2type, rs3addr, rs3type, rdtype `endif );
 
-      Bit#(XLEN) op1=(rs1type==PC)?signExtend(pc):rs1;
-      Bit#(XLEN) op2=(rs2type==Constant4)?'d4:(rs2type==Immediate)?signExtend(imm):rs2;
-      Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
-      Bool traptaken=True;
-      if(trap matches tagged None)begin
-        traptaken=False;
-      end
-      if(traptaken)begin
-        op1=zeroExtend(inst); 
-        op3=zeroExtend(pc);
-      end
-      `ifdef spfpu
-        Bit#(XLEN) op4=(rs3type==FRF)?rs3:signExtend(imm);
-      `else
-        Bit#(VADDR) op4=signExtend(imm);
-      `endif
+        Bit#(XLEN) op1=(rs1type==PC)?signExtend(pc):rs1;
+        Bit#(XLEN) op2=(rs2type==Constant4)?'d4:(rs2type==Immediate)?signExtend(imm):rs2;
+        Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
+        Bool traptaken=True;
+        if(trap matches tagged None)begin
+          traptaken=False;
+        end
+        if(traptaken)begin
+          op1=zeroExtend(inst); 
+          op3=zeroExtend(pc);
+        end
+        `ifdef spfpu
+          Bit#(XLEN) op4=(rs3type==FRF)?rs3:signExtend(imm);
+        `else
+          Bit#(VADDR) op4=signExtend(imm);
+        `endif
 
-      OpData t2 =tuple4(op1, op2, op3, op4);
-      `ifdef spfpu
-        OpTypes t1 =tuple6(rs1index, rs2index, rs3index, rd_index, rdtype, instrType);
-      `else
-        OpTypes t1 =tuple4(rs1index, rs2index, rd_index, instrType);
-      `endif
+        OpData t2 =tuple4(op1, op2, op3, op4);
+        `ifdef spfpu
+          OpTypes t1 =tuple6(rs1index, rs2index, rs3index, rd_index, rdtype, instrType);
+        `else
+          OpTypes t1 =tuple4(rs1index, rs2index, rd_index, instrType);
+        `endif
 
-      `ifdef bpu
-        MetaData t3 = tuple8(rd, word32, memaccess, fn, funct3, pred, epochs, trap);
-      `else
-        MetaData t3 = tuple7(rd, word32, memaccess, fn, funct3, epochs, trap);
-      `endif
+        `ifdef bpu
+          MetaData t3 = tuple8(rd, word32, memaccess, fn, funct3, pred, epochs, trap);
+        `else
+          MetaData t3 = tuple7(rd, word32, memaccess, fn, funct3, epochs, trap);
+        `endif
 
-      if(verbosity>0)begin
-        $display($time, "\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpochs: %b WFI: %b ERR: %b", pc, inst, 
-            epochs, {eEpoch, wEpoch}, wfi, err);
-        $display($time, "\tDECODE: rs1addr: %d rs2addr: %d", rs1addr, rs2addr 
-            `ifdef spfpu ," rs3addr: %d",rs3addr `endif );
-        $display($time, "\tDECODE: rs1type: ", fshow(rs1type), " rs2type ", fshow(rs2type)
-          `ifdef spfpu ," rs3type: ",fshow(rs3type) `endif );
-        $display($time, "\tDECODE: rs1index: %d rs2index: %d rdindex: %d instrtype: ", rs1index,
-        rs2index, rd_index, fshow(instrType) `ifdef spfpu ,", rs3index:%d", rs3index `endif );
-        $display($time, "\tDECODE: op1: %h op2: %h op3: %h op4: %h", op1, op2, op3, op4);
-        $display($time, "\tDECODE: rd: %d, rdtype: ",rd, `ifdef spfpu fshow(rdtype), `endif 
-            " word32: %b, memaccess:",  word32, fshow(memaccess));
-        $display($time, "\tDECODE: fn: %b funt3: %b trap:", fn, funct3, fshow(trap) );
-      end
-
-      if(!wfi && {eEpoch, wEpoch}==epochs)
+        if(verbosity>0)begin
+          $display($time, "\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpochs: %b WFI: %b ERR: %b", pc, inst, 
+              epochs, {eEpoch, wEpoch}, wfi, err);
+          $display($time, "\tDECODE: rs1addr: %d rs2addr: %d", rs1addr, rs2addr 
+              `ifdef spfpu ," rs3addr: %d",rs3addr `endif );
+          $display($time, "\tDECODE: rs1type: ", fshow(rs1type), " rs2type ", fshow(rs2type)
+            `ifdef spfpu ," rs3type: ",fshow(rs3type) `endif );
+          $display($time, "\tDECODE: rs1index: %d rs2index: %d rdindex: %d instrtype: ", rs1index,
+          rs2index, rd_index, fshow(instrType) `ifdef spfpu ,", rs3index:%d", rs3index `endif );
+          $display($time, "\tDECODE: op1: %h op2: %h op3: %h op4: %h", op1, op2, op3, op4);
+          $display($time, "\tDECODE: rd: %d, rdtype: ",rd, `ifdef spfpu fshow(rdtype), `endif 
+              " word32: %b, memaccess:",  word32, fshow(memaccess));
+          $display($time, "\tDECODE: fn: %b funt3: %b trap:", fn, funct3, fshow(trap) );
+        end
 	      `ifdef simulate
 	        tx.u.enq(tuple4(t1, t2, t3, inst));
 	      `else
 	        tx.u.enq(tuple3(t1, t2, t3));
         `endif
+      end
       else
         if(verbosity>=1)
           $display($time,"\tDECODE: dropping instructions due to epoch mis-match");
+
       if((rg_wfi && resume_wfi) || (!rg_wfi))
         rx.u.deq; 
 
