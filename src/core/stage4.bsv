@@ -126,18 +126,23 @@ package stage4;
         $display($time, "\tWBMEM: Rd: %d Value: %h committype: ", rdaddr, rd, fshow(committype));
         $display($time, "\tWBMEM: CSRField: %h trap: ", csrfield, fshow(trap));
       end
-      if(trap matches tagged Interrupt .in)begin
-        let newpc<-  csr.take_trap(trap, pc, ?);
-        wr_flush<=tuple2(True, newpc);
-        rg_epoch <= ~rg_epoch;
+      if(rg_epoch!=epoch)begin
+        if(verbosity>1)
+          $display($time, "\tWBMEM: Dropping instruction");
         rx.u.deq;
-        if(verbosity>0)
-          $display($time, "\tWBMEM: Received Interrupt: ", fshow(trap));
       end
-      else if(rg_epoch==epoch)begin
+      else begin
+        if(trap matches tagged Interrupt .in)begin
+          let newpc<-  csr.take_trap(trap, pc, ?);
+          fl=True;
+          jump_address=newpc;
+          rx.u.deq;
+          if(verbosity>0)
+            $display($time, "\tWBMEM: Received Interrupt: ", fshow(trap));
+        end
         // in case of a flush also flip the local epoch register.
         // if instruction is of memory type then wait for response from memory
-        if(trap matches tagged Exception .ex)begin
+        else if(trap matches tagged Exception .ex)begin
           jump_address<- csr.take_trap(trap, pc, truncate(rd));
           fl= True;
           rx.u.deq;
@@ -249,11 +254,6 @@ package stage4;
         if(fl || committype==SYSTEM_INSTR)
           wr_csr_updated<= True;
 
-      end
-      else begin
-        if(verbosity>1)
-          $display($time, "\tWBMEM: Dropping instruction");
-        rx.u.deq;
       end
     endrule
 
