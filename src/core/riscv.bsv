@@ -63,12 +63,25 @@ package riscv;
     Ifc_stage3 stage3 <- mkstage3();
     Ifc_stage5 stage5 <- mkstage5();
 
-    FIFOF#(PIPE1) pipe1 <-mkSizedFIFOF(2);
+    FIFOF#(PIPE1_min) pipe1min <-mkSizedFIFOF(2);
+    FIFOF#(PIPE1_opt1) pipe1opt1 <-mkSizedFIFOF(2);
+    FIFOF#(PIPE1_opt2) pipe1opt2 <-mkSizedFIFOF(2);
+
     FIFOF#(PIPE2) pipe2 <- mkSizedFIFOF(2);
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
 
-    mkConnection(stage1.to_stage2, pipe1);
-    mkConnection(pipe1, stage2.rx_in);
+    mkConnection(stage1.tx_min, pipe1min);
+    mkConnection(pipe1min, stage2.rx_min);
+
+  `ifdef bpu
+    mkConnection(stage1.tx_opt1,pipeopt1);
+    mkConnection(pipeopt1,stage2.rx_opt1);
+  `endif
+  `ifdef supervisor
+    mkConnection(stage1.tx_opt2,pipeopt2);
+    mkConnection(pipeopt2,stage2.rx_opt2);
+  `endif
+
     mkConnection(stage2.tx_out, pipe2);
     mkConnection(pipe2, stage3.rx_in);
     mkConnection(stage3.tx_out, pipe3);

@@ -134,7 +134,7 @@ package decoder;
 		return ret;
 	endfunction
   
-	function Tuple2#(Trap_type, Bool) chk_interrupt(Privilege_mode prv, Bit#(12) mip, Bit#(12) csr_mie, 
+	function Tuple3#(Bit#(6), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(12) mip, Bit#(12) csr_mie, 
                                                         Bit#(12) mideleg,  Bit#(1) mie);
 		Bit#(12) pending_interrupts = (truncate(mip)) & truncate(csr_mie) ;
     Bool resume_wfi=unpack(|pending_interrupts);
@@ -143,11 +143,11 @@ package decoder;
 		pending_interrupts =	(machine_interrupts_enabled ? pending_machine_interrupts : 0);
     
 		// format pendingInterrupt value to return
-		Trap_type ret = tagged None;
+		Bool taketrap=False;
 		if (pending_interrupts != 0) begin
-			ret = tagged Interrupt unpack(zeroExtend(pack(countZerosLSB(pending_interrupts))));
+			taketrap=True;
 		end
-		return tuple2(ret, resume_wfi);
+		return tuple3(unpack(zeroExtend(pack(countZerosLSB(pending_interrupts)))), taketrap, resume_wfi);
 	endfunction
   
   function Bit#(3) gen_funct3(Bit #(16) inst);
@@ -201,8 +201,7 @@ package decoder;
   function DecodeOut decoder_func_16(Bit#(16) inst, Bit#(2) err, CSRtoDecode csrs);
     
     let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
-    Trap_type exception = tagged None;
-    let {interrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
+    let {icause, takeinterrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
     Quadrant quad =unpack(inst[1:0]);
     Bit#(3) funct3 = inst[15:13];
 
@@ -274,9 +273,9 @@ package decoder;
 
     //----------------------------------- inferring rd
     Bit#(5) rd=inst[11:7];
-  	Op3type rdtype=IRF;
-    if( (quad==Q0||quad==Q2) && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
-      rdtype=FRF;
+//  	Op3type rdtype=IRF;
+//    if( (quad==Q0||quad==Q2) && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
+//      rdtype=FRF;
 
     if(quad==Q0)begin
       case(funct3[2]) 
@@ -303,8 +302,8 @@ package decoder;
         'b101,'b110,'b111: rd=0;
       endcase
     end
-    Bit#(5) rs3=0;
-    Op3type rs3type=IRF;
+//    Bit#(5) rs3=0;
+//    Op3type rs3type=IRF;
 	
     // --- capturing memory access type.Only valid are Load/Store
     Access_type mem_access=Load;
@@ -346,12 +345,12 @@ package decoder;
     else if (quad==Q1 && (funct3=='b110 || funct3=='b111)) //C.BEQZ C.BNEZ
       inst_type=BRANCH;
 
-    // Deriving word32
-    Bool word32=False;
-    `ifdef RV64
-      if( quad ==Q1 && (funct3=='b001 || (funct3=='b100 && inst[12:10]=='b111 && inst[6]=='b0)))
-        word32=True;
-    `endif
+//    // Deriving word32
+//    Bool word32=False;
+//    `ifdef RV64
+//      if( quad ==Q1 && (funct3=='b001 || (funct3=='b100 && inst[12:10]=='b111 && inst[6]=='b0)))
+//        word32=True;
+//    `endif
 
     Bit#(18) imm_value=
     case (quad) matches
@@ -415,42 +414,46 @@ package decoder;
     Bit#(32) immediate_value=signExtend(imm_value);
     Bit#(3) f3=gen_funct3(inst);
 
-    if(err[0]==1)
-      exception = tagged Exception Inst_access_fault;
-    else if(err[1]==1 && misa[18]==1) // supervisor enabled.
-      exception = tagged Exception Inst_pagefault;
-    else if(quad==Q2 && funct3=='b100 && inst[12]==1 && inst[11:2]==0)
-      exception = tagged Exception Breakpoint;
+    Bit#(6) trapcause=0;
+    if(takeinterrupt)begin
+      trapcause=icause;
+      inst_type=TRAP;
+    end
+    if(err[0]==1)begin
+      inst_type=TRAP;
+      trapcause= `Inst_access_fault;
+    end
+    else if(err[1]==1 && misa[18]==1) begin // supervisor enabled.
+      inst_type=TRAP;
+      trapcause=`Inst_pagefault;
+    end
+    else if(quad==Q2 && funct3=='b100 && inst[12]==1 && inst[11:2]==0)begin
+      inst_type=TRAP;
+      trapcause = `Breakpoint;
+    end
     else if(inst==0 || (quad==Q0 && funct3=='b100) || 
-            (quad==Q1 && inst[15:10]=='b100111 && inst[6]==1))
-      exception=tagged Exception Illegal_inst;
+          (quad==Q1 && inst[15:10]=='b100111 && inst[6]==1)) begin
+      inst_type=TRAP;
+      trapcause=`Illegal_inst;
+    end
     else if(imm_value==0 && ((quad==Q0 && funct3=='b000) || //ADDI4SPN
             (quad==Q1 && ((funct3=='b000 && inst[11:7]!=0) || funct3=='b011)) || // NOP ADDI ADDI16SPN LUI
             (quad==Q1 && funct3=='b100 && inst[11:10]<2) || // SRLI SRAI
-            (quad==Q2 && funct3=='b000)  )) // SLLI
-      exception = tagged Exception Illegal_inst;
-    // TODO checks for reg!=0
-    if(interrupt matches tagged None)
-      interrupt=exception;
+            (quad==Q2 && funct3=='b000)  )) begin // SLLI
+      inst_type=TRAP;
+      trapcause = `Illegal_inst;
+    end
+    
+    Bit#(1) trap_type=pack(takeinterrupt);
+    Bit#(7) temp1 = {fn,f3};
+    if(inst_type==TRAP)
+      temp1={trap_type,trapcause};
 
+    
+    OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
+    DecodeMeta t2 = tuple4(temp1, inst_type, mem_access, immediate_value);
+    return tuple3(t1,t2,resume_wfi);
 
-    `ifdef spfpu
-      OpDecode t1 = tuple7(rs1, rs2, rd, rs3, rs1type, rs2type, rs3type);
-    `else
-      OpDecode t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
-    `endif
-
-    `ifdef RV64
-      DecodeMeta t2 = tuple7(fn, inst_type, mem_access, immediate_value, f3, False, word32);
-    `else
-      DecodeMeta t2 = tuple6(fn, inst_type, mem_access, immediate_value, f3, False);
-    `endif
-
-    `ifdef spfpu
-      return tuple5(t1, t2, interrupt, resume_wfi, rdtype);
-    `else
-      return tuple4(t1, t2, interrupt, resume_wfi);
-    `endif
 
   endfunction
 
@@ -461,7 +464,7 @@ package decoder;
 
     // ------- Default declarations of all local variables -----------//
     Trap_type exception = tagged None;
-    let {interrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
+    let {icause, takeinterrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
 
 		Bit#(5) rs1=inst[19:15];
 		Bit#(5) rs2=inst[24:20];
@@ -475,11 +478,6 @@ package decoder;
 		Op1type rs1type=IntegerRF;
 		Op2type rs2type=IntegerRF;
     
-    `ifdef spfpu
-      Bit#(5) rs3=inst[31:27];
-  		Op3type rs3type=FRF;
-  		Op3type rdtype=IRF;
-    `endif
     // ------------------------------------------------------------------
 
     //---------------- Decoding the immediate values-------------------------------------
@@ -604,8 +602,8 @@ package decoder;
 			rs1=0;
 		if ( (opcode==`SYSTEM_INSTR_op `ifdef supervisor && funct3!=0 && funct7!='b0001001 `endif ) 
           || opcode[4:2]=='b000 || opcode==`LUI_op // CSR ( and not SFENCE) or (Load) or LUI 
-  			  ||opcode[4:2] == 'b001 || opcode==`JAL_op || opcode==`JALR_op	// AUIPC or JAL or JALR
-         `ifdef spfpu || (opcode[4:2]=='b101 && funct7[5]==1) `endif )
+  			  ||opcode[4:2] == 'b001 || opcode==`JAL_op || opcode==`JALR_op	|| // AUIPC or JAL or JALR
+          (opcode[4:2]=='b101 && funct7[5]==1 && (misa[3]|misa[5])==1) )
 			rs2=0;
 		if (opcode==`BRANCH_op || opcode[4:1]=='b0100)	
 			rd=0;
@@ -628,90 +626,54 @@ package decoder;
       else if((opcode[4:2]=='b101 && funct7[5]!='b1) || opcode==`FSTORE_op || opcode[4:2]=='b100)                  
 	      rs2type=FloatingRF; 
 	  `endif
-
-    `ifdef spfpu
-      // if the instruction does not require rs3 then set it to point to integer register 0. This
-      // will avoid any stalls on instructions not using rs3.
-      if(!r4type)begin
-        rs3=0;
-        rs3type=IRF;
-      end
-      if(opcode=='b00001 || (opcode[4:2]=='b101 &&  
-         funct7[6:3]!='b1010 && funct7[6:3]!='b1100 && funct7[6:3]!='b1110 ) || opcode[4:2]=='b100) 
-        rdtype=FRF; 
-    `endif
-
-		//instructions which support word lenght operation in RV64 are to be added in Alu
-		//need to be edited according to the supported instruction
-    `ifdef RV64
-  		if(opcode==`IMM_ARITHW_op || opcode==`MULDIVW_op ||  opcode==`ARITHW_op ||
-          `ifdef spfpu (opcode[4:3]=='b10 && funct7[0]==0)|| `endif 
-          (opcode[4:1]=='b0101 && funct3[0]==0)) 
-      	word32=True;
-    `endif
-    			
     
     // The following instructions define the type of execution to be performed by the following
     // stages.
-    Instruction_type inst_type=ALU;
+    Instruction_type inst_type=TRAP;
     if(opcode[4:3]=='b11)begin // Jumps,  Branch and CSRs
     	case(opcode[2:0])
-    		'b001:inst_type=JALR; 
+    		'b001:if(funct3==0)inst_type=JALR; 
         'b011:inst_type=JAL;
-    		'b000:inst_type=BRANCH;
-    		'b100:inst_type=SYSTEM_INSTR;
-        default:exception = tagged Exception Illegal_inst;
+    		'b000:if(funct3!=2 && funct3!=3) inst_type=BRANCH;
+    		'b100:if(funct3==0 && inst[31:20]=='h105) inst_type=WFI; 
+              else if(funct3!=4) inst_type=SYSTEM_INSTR;
     	endcase
     end
     else if(opcode[4:3]=='b01)begin // Stores,  LUIs,  MulDiv,  Register Arithmetic
       case (opcode[2:0])  
-        'b000 `ifdef atomic ,'b011 `endif : `ifdef RV32 if(funct3!='b011) `endif 
-            inst_type=MEMORY; // STORE + Atomic
-        `ifdef spfpu
-          'b001: if(funct3==2 `ifdef dpfpu || funct3==3 `endif ) inst_type=MEMORY; // FStore
-        `endif
-        'b101:inst_type=ALU;      // LUI 
+        'b000 : if(funct3[2]==0 `ifdef RV32  && funct3[1:0]!='b11 `endif ) inst_type=MEMORY; // STORE 
+        'b010 : if(misa[0]==1 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Atomic
+        'b001 : if(fs!=0 && (funct3==2 && misa[5]==1) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FStore
+        'b101 : inst_type=ALU;      // LUI 
         'b100,'b110: begin 
           if(funct7[0]==0)
             inst_type=ALU;
-            `ifdef muldiv 
-              else
-                inst_type=MULDIV; 
-            `endif
+        `ifdef muldiv 
+          else if(misa[12]==1)
+            inst_type=MULDIV; 
+        `endif
           end
-        default:exception = tagged Exception Illegal_inst;
       endcase 
     end 
     else if(opcode[4:3]=='b00)begin // Immediate,  Loads,  Fence,  Fence.i
     	case(opcode[2:0])
-    		'b000: `ifdef RV32 if(funct3!='b011) `endif inst_type=MEMORY;
+    		'b000: if(funct3!='b111 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Loads
         'b011: begin 
             `ifdef dcache 
               inst_type=MEMORY; // FENCE or FENCE.I only if DCACHE is present
             `endif
             `ifdef icache
-              if(funct3[0]==1) inst_type=MEMORY; // FENCE.I only if DCACHE is present
+              if(funct3[0]==1) inst_type=MEMORY; // FENCE.I only if ICACHE is present
             `endif
         end
-        `ifdef spfpu
-          'b001: if(funct3==2 `ifdef dpfpu || funct3==3 `endif ) inst_type=MEMORY; // FLoad
-        `endif
+        'b001: if(fs!=0 && (misa[5]==1 && funct3==2) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FLoad
     		'b101,'b100,'b110:inst_type=ALU;
-//        'b011:inst_type=FENCE; 
-        default:exception = tagged Exception Illegal_inst;
     	endcase
     end
-    `ifdef spfpu
-      else if(opcode[4:3]=='b10)begin
-        inst_type=FLOAT;
-      end
-    `endif
-    // if the none of the supported instructions match then it is an illegal operation
-    else
-      exception = tagged Exception Illegal_inst;
-    Bool wfi=False;
-    if(inst_type==SYSTEM_INSTR && funct7=='b0001000 && inst[24:20]=='b00101 && funct3==0)
-      wfi=True;
+    else if(opcode[4:3]=='b10 && fs!=0 && ( (funct7[0]==0 && misa[5]==1) || (funct7[0]==1 &&
+        misa[3]==1)) )begin
+      inst_type=FLOAT;
+    end
 
     // --------- Function for ALU -------------
     // In case of Atomic operations as well,  the immediate portion will ensure the right opcode is
@@ -748,67 +710,112 @@ package decoder;
 				default:{1'b0,funct3};
 			endcase;
 		end
-    `ifdef spfpu
-  		else if(opcode[4:3]=='b10) // floating point instructions
+    else if(opcode[4:3]=='b10 && (misa[5]|misa[3])==1) // floating point instructions
 	  		fn=opcode[3:0];
-    `endif
     // ---------------------------------------
-
-		Bool address_is_valid=address_valid(inst[31:20]);
-		Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], prv);
-    if(err[0]==1)
-      exception = tagged Exception Inst_access_fault;
-    `ifdef supervisor
-      else if(err[1]==1)
-        exception = tagged Exception Inst_pagefault;
-    `endif
-    else if( `ifdef spfpu (inst_type==FLOAT && funct7[0]==0 && (misa[5]==0 || fs==0)) || `endif
-             `ifdef dpfpu (inst_type==FLOAT && funct7[0]==1 && (misa[3]==0 || fs==0)) || `endif
-             `ifdef atomic (inst_type==MEMORY && mem_access==Atomic && misa[0]==0) || `endif 
-             `ifdef muldiv (inst_type==MULDIV && misa[12]==0) || `endif
-             `ifdef spfpu (inst_type==MEMORY && (rdtype==FRF||rs1type==FloatingRF ||
-                                            rs2type==FloatingRF ) && fs==0) || `endif
-             (inst_type==ALU && misa[8]==0) ||
-              inst[1:0]!='b11 )
-      exception=tagged Exception Illegal_inst; 
-    else if(inst_type == SYSTEM_INSTR)begin
-      if(funct3 == 0)
-        case(inst[31:20])
-          'h000: exception = tagged Exception ((prv==User)?Ecall_from_user: 
-              `ifdef supervisor (prv==Supervisor)?Ecall_from_supervisor: `endif Ecall_from_machine);
-          'h001: exception = tagged Exception Breakpoint;
-          'h302: exception = (prv!=Machine)?tagged Exception Illegal_inst:tagged None;
-          default: exception = tagged None;
-        endcase
-      else begin // CSR read write operation
-  		  if(!(address_is_valid && access_is_valid))
-          exception = tagged Exception Illegal_inst;
-      end
-    end
 
     if(inst_type==SYSTEM_INSTR)
       immediate_value={'d0,inst[19:15],immediate_value[11:0]};// TODO fix this
 
-    if(interrupt matches tagged None)
-      interrupt =  exception;
+		Bool address_is_valid=address_valid(inst[31:20]);
+		Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], prv);
+    Bit#(6) trapcause=0;
+    if(takeinterrupt)begin
+      trapcause=icause;
+      inst_type=TRAP;
+    end
+    else if(err[0]==1) begin
+      inst_type=TRAP;
+      trapcause = `Inst_access_fault ;
+    end
+    else if(err[1]==1 && misa[18]==1) begin
+      inst_type=TRAP;
+      trapcause= `Inst_pagefault;
+    end
+    else if(inst[1:0]!='b11 )begin
+      inst_type=TRAP;
+      trapcause= `Illegal_inst; 
+    end
+    else if(inst_type == SYSTEM_INSTR)begin
+      if(funct3 == 0)begin
+        inst_type=TRAP;
+        case(inst[31:20])
+          'h000: trapcause = (misa[20]==1 && prv==User)?`Ecall_from_user: 
+                             (misa[18]==1 && prv==Supervisor)?`Ecall_from_supervisor: 
+                             `Ecall_from_machine;
+          'h001: trapcause = `Breakpoint;
+          'h102: if(misa[18]==0 || prv!=Supervisor) trapcause=`Illegal_inst;
+          'h302: if(prv!=Machine) trapcause=`Illegal_inst;
+        endcase
+      end
+      else begin // CSR read write operation
+        if(!(address_is_valid && access_is_valid))begin
+          inst_type=TRAP;
+          trapcause = `Illegal_inst;
+        end
+      end
+    end
 
-    `ifdef spfpu
-      OpDecode t1 = tuple7(rs1, rs2, rd, rs3, rs1type, rs2type, rs3type);
-    `else
-      OpDecode t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
-    `endif
+    Bit#(1) trap_type=pack(takeinterrupt);
+    Bit#(7) temp1 = {fn,funct3};
+    if(inst_type==TRAP)
+      temp1={trap_type,trapcause};
 
+    OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
+    DecodeMeta t2 = tuple4(temp1, inst_type, mem_access, immediate_value);
+    return tuple3(t1,t2,resume_wfi);
+
+  endfunction
+
+  function OpType_fpu decode_fpu_meta(Bit#(32) inst, Bit#(1) misa_c);
+    Bit#(5) rs3=inst[31:27];
+ 		Op3type rs3type=FRF;
+    Op3type rdtype=IRF;
+
+		Bit#(5) opcode= inst[6:2];
+    Bool r4type= (opcode[4:2]=='b100);
+    Bit#(7) funct7 = inst[31:25]; 
+    if(misa_c==1 && inst[1:0]!='b11)begin
+      Quadrant quad =unpack(inst[1:0]);
+      Bit#(3) funct3 = inst[15:13];
+      rs3=0;
+      rs3type=IRF;
+      if( (quad==Q0||quad==Q2) && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
+        rdtype=FRF;
+    end
+    else begin
+      if(opcode=='b00001 || (opcode[4:2]=='b101 &&  
+         funct7[6:3]!='b1010 && funct7[6:3]!='b1100 && funct7[6:3]!='b1110 ) || opcode[4:2]=='b100) 
+        rdtype=FRF; 
+      if(!r4type)begin
+        rs3=0;
+        rs3type=IRF;
+      end
+    end
+
+    return tuple3(rs3,rs3type,rdtype);
+  endfunction
+
+  function Bool decode_word32 (Bit#(32) inst, Bit#(1) misa_c);
+    Bool word32=False;
     `ifdef RV64
-      DecodeMeta t2 = tuple7(fn, inst_type, mem_access, immediate_value, funct3, wfi, word32);
-    `else
-      DecodeMeta t2 = tuple6(fn, inst_type, mem_access, immediate_value, funct3, wfi);
+		  Bit#(5) opcode= inst[6:2];
+      Bit#(7) funct7 = inst[31:25]; 
+      if(misa_c==1 && inst[1:0]!='b11)begin
+        Quadrant quad =unpack(inst[1:0]);
+        Bit#(3) funct3 = inst[15:13];
+        if( quad ==Q1 && (funct3=='b001 || (funct3=='b100 && inst[12:10]=='b111 && inst[6]=='b0)))
+          word32=True;
+      end
+      else begin
+		    Bit#(3) funct3= inst[14:12];
+  		  if(opcode==`IMM_ARITHW_op || opcode==`MULDIVW_op ||  opcode==`ARITHW_op ||
+            `ifdef spfpu (opcode[4:3]=='b10 && funct7[0]==0)|| `endif 
+            (opcode[4:1]=='b0101 && funct3[0]==0)) 
+      	word32=True;
+      end
     `endif
-
-    `ifdef spfpu
-      return tuple5(t1, t2, interrupt, resume_wfi, rdtype);
-    `else
-      return tuple4(t1, t2, interrupt, resume_wfi);
-    `endif
+    return word32;
   endfunction
   
   function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs) = 

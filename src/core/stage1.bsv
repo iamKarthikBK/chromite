@@ -59,7 +59,13 @@ package stage1;
     interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
 
     // instruction along with other results to be sent to the next stage
-    interface TXe#(PIPE1) to_stage2;
+    interface TXe#(PIPE1_min) tx_min;
+  `ifdef bpu
+    interface TXe#(PIPE1_opt1) tx_opt1;
+  `endif
+  `ifdef supervisor
+    interface TXe#(PIPE1_opt2) tx_opt2;
+  `endif
 
     // flush from the write-back or exe stage.
     method Action flush(Bit#(VADDR) newpc, Bool fence, Bool exe_wb); //fence integration
@@ -106,7 +112,13 @@ package stage1;
     FIFOF#(Tuple3#(Bit#(32),Bool,Bit#(3))) ff_memory_response<-mkSizedFIFOF(2);
 
     // FIFO to interface with the next pipeline stage
-		TX#(PIPE1) tostage2<-mkTX;
+		TX#(PIPE1_min) txmin<-mkTX;
+    `ifdef bpu
+  		TX#(PIPE1_opt1) txopt1<-mkTX;
+    `endif
+    `ifdef supervisor
+  		TX#(PIPE1_opt2) txopt2<-mkTX;
+    `endif
     
     // RuleName: process_instruction
     // Explicit Conditions: None
@@ -196,19 +208,25 @@ package stage1;
             rg_action<=None;
           end
         end
-				let pipedata=PIPE1{program_counter:rg_pc,
+				let pipedata=PIPE1_min{program_counter:rg_pc,
                       instruction:final_instruction,
-                      prediction:0, // TODO derive this from BPU
-                      accesserr_pagefault:{1'b0,pack(err)}, // TODO cache should send 2 error bits.
-                      epochs:{rg_eEpoch,rg_wEpoch}};
+                      epochs:{rg_eEpoch,rg_wEpoch},
+                      accesserr:pack(err)}; // TODO cache should send 2 error bits.
         if(compressed  && enque_instruction && misa[2]==1)begin
           rg_pc<=rg_pc+2;
         end
         else if(enque_instruction)begin
           rg_pc<=rg_pc+4;
         end
-        if(enque_instruction)
-          tostage2.u.enq(pipedata);
+        if(enque_instruction)begin
+          txmin.u.enq(pipedata);
+        `ifdef bpu
+          tx_opt1.enq(PIPE1_opt1{prediction:0});
+        `endif
+        `ifdef supervisor
+          tx_opt2.enq(PIPE1_opt2{pagefault:0});
+        `endif
+        end
         if(verbosity!=0) begin
           $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Epoch: %b", rg_pc, final_instruction,
                                                                                         err, epoch);
@@ -248,8 +266,13 @@ package stage1;
 			endmethod
     endinterface;
     
-		interface to_stage2 = tostage2.e;
-
+		interface tx_min = txmin.e;
+  `ifdef bpu
+		interface tx_opt1 = txopt1.e;
+  `endif
+  `ifdef supervisor
+		interface tx_opt2 = txopt2.e;
+  `endif
     // This method will fire when a flush from the write back stage or execute stage is initiated.
     // Explicit Conditions: None
     // Implicit Conditions: None

@@ -93,7 +93,13 @@ package stage2;
 	interface Ifc_stage2;
 		method Action commit_rd (Maybe#(CommitData) commit);
 		/* ===== pipe connections ========= */
-		interface RXe#(PIPE1) rx_in;
+		interface RXe#(PIPE1_min) rx_min;
+    `ifdef bpu
+  		interface RXe#(PIPE1_opt1) rx_opt1;
+    `endif
+    `ifdef supervisor
+  		interface RXe#(PIPE1_opt2) rx_opt2;
+    `endif
     (*always_ready*)
 		interface TXe#(PIPE2) tx_out;
 		/*================================= */
@@ -116,7 +122,13 @@ package stage2;
   module mkstage2(Ifc_stage2);
 
     Ifc_registerfile registerfile <-mkregisterfile();
-		RX#(PIPE1) rx <-mkRX;
+		RX#(PIPE1_min) rxmin <-mkRX;
+    `ifdef bpu
+  		RX#(PIPE1_opt1) rxopt1 <-mkRX;
+    `endif
+    `ifdef supervisor
+  		RX#(PIPE1_opt2) rxopt2 <-mkRX;
+    `endif
 		TX#(PIPE2) tx <-mkTX;
       
     let verbosity = `VERBOSITY ;
@@ -131,30 +143,27 @@ package stage2;
 
     rule decode_and_fetch(!rg_stall);
       let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=wr_csrs;
-	    let pc=rx.u.first.program_counter;
-	    let inst=rx.u.first.instruction;
-	    let pred=rx.u.first.prediction;
-	    let epochs=rx.u.first.epochs;
-      let err=rx.u.first.accesserr_pagefault;
-      `ifdef spfpu
-        let {opdecode, meta, trap, resume_wfi, rdtype} <- decoder_func(inst, truncateLSB(err), wr_csrs);
-      `else
-        let {opdecode, meta, trap, resume_wfi} <- decoder_func(inst, err, wr_csrs);
-      `endif
-      `ifdef spfpu
-        let {rs1addr, rs2addr, rd, rs3addr, rs1type, rs2type, rs3type}=opdecode;
-      `else
-        let {rs1addr, rs2addr, rd, rs1type, rs2type} = opdecode;
-      `endif
+	    let pc=rxmin.u.first.program_counter;
+	    let inst=rxmin.u.first.instruction;
+	    let epochs=rxmin.u.first.epochs;
+      let accesserr=rxmin.u.first.accesserr;
+      Bit#(2) err={1'b0,accesserr};
+    `ifdef bpu
+  	  let pred=rxopt1.u.first.prediction;
+    `endif
+    `ifdef supervisor
+      err[1]=rxopt2.u.first.pagefault;
+    `endif
+      let {optype, meta, resume_wfi}<-decoder_func(inst,err,wr_csrs);
+      let {rs1addr,rs2addr,rd,rs1type,rs2type}=optype;
+      let {func_cause, instrType, memaccess, imm}=meta;
+      Bit#(3) funct3=truncate(func_cause);
+      Bit#(4) fn=truncateLSB(func_cause);
 
-      `ifdef RV64
-        let {fn, instrType, memaccess, imm, funct3, wfi, word32}=meta;
-      `else
-        let {fn, instrType, memaccess, imm, funct3, wfi}=meta;
-        Bool word32=False; // TODO word32 from Metadata type should be removed
-      `endif
+      let word32 = decode_word32(inst,misa[2]);
+      let {rs3addr,rs3type,rdtype}=decode_fpu_meta(inst,misa[2]);
       
-      if(!wfi && {eEpoch, wEpoch}==epochs)begin
+      if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
         if(rd_index==4)
           rd_index<= 0;
@@ -170,11 +179,7 @@ package stage2;
         Bit#(XLEN) op2=(rs2type==Constant2 && misa[2]==1)?'d2:(rs2type==Constant4)?'d4:
                                                             (rs2type==Immediate)?signExtend(imm):rs2;
         Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
-        Bool traptaken=True;
-        if(trap matches tagged None)begin
-          traptaken=False;
-        end
-        if(traptaken)begin
+        if(instrType==TRAP)begin
           op1=zeroExtend(inst); 
           op3=zeroExtend(pc);
         end
@@ -192,14 +197,14 @@ package stage2;
         `endif
 
         `ifdef bpu
-          MetaData t3 = tuple8(rd, word32, memaccess, fn, funct3, pred, epochs, trap);
+          MetaData t3 = tuple8(rd, word32, memaccess, fn, funct3, pred, epochs, unpack(0)); // TODO
         `else
-          MetaData t3 = tuple7(rd, word32, memaccess, fn, funct3, epochs, trap);
+          MetaData t3 = tuple7(rd, word32, memaccess, fn, funct3, epochs, unpack(0)); // TODO
         `endif
 
         if(verbosity>0)begin
           $display($time, "\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpochs: %b WFI: %b ERR: %b", pc, inst, 
-              epochs, {eEpoch, wEpoch}, wfi, err);
+              epochs, {eEpoch, wEpoch}, instrType==WFI, err);
           $display($time, "\tDECODE: rs1addr: %d rs2addr: %d", rs1addr, rs2addr 
               `ifdef spfpu ," rs3addr: %d",rs3addr `endif );
           $display($time, "\tDECODE: rs1type: ", fshow(rs1type), " rs2type ", fshow(rs2type)
@@ -209,7 +214,7 @@ package stage2;
           $display($time, "\tDECODE: op1: %h op2: %h op3: %h op4: %h", op1, op2, op3, op4);
           $display($time, "\tDECODE: rd: %d, rdtype: ",rd, `ifdef spfpu fshow(rdtype), `endif 
               " word32: %b, memaccess:",  word32, fshow(memaccess));
-          $display($time, "\tDECODE: fn: %b funt3: %b trap:", fn, funct3, fshow(trap) );
+          $display($time, "\tDECODE: fn: %b funt3: %b trap:", fn, funct3 );
         end
 
 	      `ifdef simulate
@@ -221,18 +226,31 @@ package stage2;
       else
         if(verbosity>=1)
           $display($time,"\tDECODE: dropping instructions due to epoch mis-match");
-      if((rg_wfi && resume_wfi) || (!rg_wfi))
-        rx.u.deq; 
+      if((rg_wfi && resume_wfi) || (!rg_wfi))begin
+        rxmin.u.deq; 
+      `ifdef bpu
+        rxopt1.u.deq;
+      `endif
+      `ifdef supervisor
+        rxopt2.u.deq;
+      `endif
+      end
 
       if({eEpoch, wEpoch}==epochs)begin
         if(instrType==SYSTEM_INSTR)
           rg_stall<= True;
-       // rg_wfi<=wfi;
+       // rg_wfi<=pack(instrType==WFI);
       end  
     endrule
 
 		method tx_out=tx.e;
-		method rx_in=rx.e;
+		method rx_min=rxmin.e;
+  `ifdef bpu
+		method rx_opt1=rxopt1.e;
+  `endif
+  `ifdef supervisor
+		method rx_opt2=rxopt2.e;
+  `endif
     method Action csrs (CSRtoDecode csr);
       wr_csrs<= csr;
     endmethod

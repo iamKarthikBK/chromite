@@ -54,8 +54,8 @@ package common_types;
 
 
   //------ The follwing contain common tuples across the stages ------------- 
-	typedef enum {ALU, MEMORY, BRANCH, JAL, JALR, SYSTEM_INSTR, 
-      `ifdef spfpu FLOAT, `endif `ifdef muldiv MULDIV, `endif FENCE} Instruction_type 
+	typedef enum {ALU, MEMORY, BRANCH, JAL, JALR, SYSTEM_INSTR, TRAP, WFI
+      `ifdef spfpu ,FLOAT `endif `ifdef muldiv ,MULDIV `endif } Instruction_type 
       deriving(Bits, Eq, FShow); // the type of the decoded instruction.
 	typedef enum {Load=0, Store=1,  Fence=3 , FenceI=4 `ifdef atomic ,Atomic=2 `endif } Access_type 
                                                                         deriving (Bits, Eq, FShow);
@@ -81,33 +81,15 @@ package common_types;
   	void Absent;
   } FwdType#(numeric type width) deriving(Bits,Eq,FShow);
   
-  // Rdtype is not required here. The ALU or FPU unit can generate the rdtype at the respective
-  // stage and use it commit or perform operand forwarding. This will reduce one bit propagation in
-  // 2 stages and will also reduce decoding logic for the same.
-  `ifdef spfpu
-    // the following type is defined as:  rs1, rs2, rd, rs3, rs1type, rs2type, rs3type
-    typedef Tuple7#(Bit#(5), Bit#(5), Bit#(5), Bit#(5), Op1type, Op2type, Op3type)
-      OpDecode;
-  `else
-    typedef Tuple5#(Bit#(5), Bit#(5), Bit#(5), Op1type, Op2type) OpDecode;
-  `endif
+  //                  rs1,   rs2,      rd      op1 type , op2 type
+    typedef Tuple5#(Bit#(5), Bit#(5), Bit#(5), Op1type, Op2type) OpType_min;
+  //                {fn,f3}   instr-Type       mem-type     Imm
+    typedef Tuple4#(Bit#(7), Instruction_type, Access_type, Bit#(32)) DecodeMeta; 
+                                          // resume_wfi
+    typedef Tuple3#(OpType_min,DecodeMeta, Bool) DecodeOut;
 
-  `ifdef RV64
-    // the following type is defined as: fn, InstrType, MemAccesstype, Immediate, funct3, wfi, word32 
-    typedef Tuple7#(Bit#(4), Instruction_type, Access_type, Bit#(32), Bit#(3), Bool, Bool)
-        DecodeMeta;
-  `else
-    // the following type is defined as: fn, InstrType, MemAccesstype, Immediate, funct3, wfi 
-    typedef Tuple6#(Bit#(4), Instruction_type, Access_type, Bit#(32), Bit#(3), Bool)
-        DecodeMeta;
-  `endif
-
-  // the following type is defined as: Operand Data, Decode Meta data,  Trap, resume_wfi
-  `ifdef spfpu
-    typedef Tuple5#(OpDecode, DecodeMeta, Trap_type, Bool, Op3type) DecodeOut ;
-  `else
-    typedef Tuple4#(OpDecode, DecodeMeta, Trap_type, Bool) DecodeOut ;
-  `endif
+  //                 rs3     rs3 type , rd type
+    typedef Tuple3#(Bit#(5), Op3type, Op3type) OpType_fpu;
   // ------------------------------------------------------------------------------------------
 
   `ifdef spfpu
@@ -132,6 +114,7 @@ package common_types;
   `else
     typedef Tuple5#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(XLEN)) DumpType;
   `endif
+
 
 	typedef enum {
 		Inst_addr_misaligned=0,
@@ -192,10 +175,13 @@ package common_types;
   typedef struct{
   	Bit#(VADDR) program_counter;
   	Bit#(32) instruction;
-  	Bit#(2) prediction;
   	Bit#(2) epochs;
-    Bit#(2) accesserr_pagefault;
-  }PIPE1 deriving (Bits,Eq);
+    Bit#(1) accesserr;
+  }PIPE1_min deriving (Bits,Eq);
+
+  typedef struct{Bit#(2) prediction;} PIPE1_opt1 deriving(Bits,Eq,FShow);
+  typedef struct{Bit#(1) pagefault;} PIPE1_opt2 deriving(Bits,Eq,FShow);
+
   
   // ---------- Tuples for the second Pipeline Stage -----------//
   `ifdef spfpu

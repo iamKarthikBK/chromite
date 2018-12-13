@@ -117,3 +117,27 @@
 `ifdef simulate
   `define BAUD_RATE 5 //130 //
 `endif
+
+`define Inst_addr_misaligned  0 
+`define Inst_access_fault     1 
+`define Illegal_inst          2 
+`define Breakpoint            3 
+`define Load_addr_misaligned  4 
+`define Load_access_fault     5 
+`define Store_addr_misaligned 6 
+`define Store_access_fault    7 
+`define Ecall_from_user       8 
+`define Ecall_from_supervisor 9 
+`define Ecall_from_machine    11
+`define Inst_pagefault        12
+`define Load_pagefault        13
+`define Store_pagefault       15
+`define User_soft_int         0
+`define Supervisor_soft_int   1
+`define Machine_soft_int      3
+`define User_timer_int        4
+`define Supervisor_timer_int  5
+`define Machine_timer_int     7
+`define User_external_int     8
+`define Supervisor_external_int 9
+`define Machine_external_int  11
