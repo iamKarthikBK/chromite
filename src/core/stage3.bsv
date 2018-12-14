@@ -81,7 +81,16 @@ package stage3;
   import SpecialFIFOs::*;
 
   interface Ifc_stage3;
-		interface RXe#(PIPE2) rx_in;
+		interface RXe#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) rx_min;
+    `ifdef simulate
+      interface RXe#(Bit#(32)) rx_inst;
+    `endif
+    `ifdef bpu
+      interface RXe#(Bit#(2)) rx_bpu;
+    `endif
+    `ifdef spfpu
+      interface RXe#(OpFpu) rx_fpu;
+    `endif
 		interface TXe#(PIPE3) tx_out;
     method Action update_wEpoch;
     method Tuple2#(Flush_type, Bit#(VADDR)) flush_from_exe;
@@ -90,9 +99,6 @@ package stage3;
     `ifdef bpu
   		method Maybe#(Training_data#(VADDR)) training_data;
 		  method Maybe#(Bit#(VADDR)) ras_push;
-    `endif
-    `ifdef RV64
-      method Action inferred_xlen(Bool xlen);
     `endif
     `ifdef spfpu
       method Action roundingmode(Bit#(3) rm);
@@ -109,11 +115,17 @@ package stage3;
 
     let verbosity = `VERBOSITY ;
 
-		RX#(PIPE2) rx <-mkRX;								// receive from the decode stage
-		TX#(PIPE3) tx <-mkTX;							// send to the memory stage;
-    `ifdef RV64
-      Wire#(Bool) wr_inferred_xlen <- mkWire();
+		RX#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) rxmin <-mkRX;								// receive from the decode stage
+    `ifdef simulate
+      RX#(Bit#(32)) rxinst <- mkRX;
     `endif
+    `ifdef spfpu
+      RX#(OpFpu) rxfpu <- mkRX;
+    `endif
+    `ifdef bpu
+      RX#(Bit#(2)) rxbpu <-mkRX;
+    `endif
+		TX#(PIPE3) tx <-mkTX;							// send to the memory stage;
     `ifdef bpu
       Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(VADDR))) check_rpc <- mkReg(tuple3(None, 0, 0));
 		  Reg#(Maybe#(Training_data#(VADDR))) wr_training_data <-mkDReg(tagged Invalid);
@@ -146,26 +158,23 @@ package stage3;
     endrule
 
     rule execute_operation `ifdef multicycle (!rg_stall) `endif ;
-      `ifdef simulate
-        let {optypes, opdata, metadata, instruction } = rx.u.first;
-      `else
-        let {optypes, opdata, metadata } = rx.u.first;
-      `endif
-      let {op1, op2, op3, op4}=opdata;
-      `ifdef bpu
-        let {rd, word32, memaccess, fn, funct3, pred, epochs, trap}=metadata;
-      `else
-        let {rd, word32, memaccess, fn, funct3, epochs, trap}=metadata;
-      `endif
-      `ifdef spfpu
-        let { rs1addr, rs2addr, rs3addr, rd_index, rdtype, instrtype}=optypes;
-      `else
-        let { rs1addr, rs2addr, rd_index, instrtype}=optypes;
-      `endif
-
+      let {opdata, metadata} = rxmin.u.first;
+      let {rs1addr, rs2addr, rd_index, op1, op2, op3, op4, instrtype}=opdata;
+      let {rd, func_cause, memaccess, word32, epochs}=metadata;
+      Bit#(3) funct3=truncate(func_cause);
+      Bit#(4) fn=truncateLSB(func_cause);
+    `ifdef simulate
+      let instruction = rxinst.u.first;
+    `endif
+    `ifdef bpu
+      let pred = rxbpu.u.first;
+    `endif
+    `ifdef spfpu
+      let {rs3addr, rdtype} = rxfpu.u.first;
+    `endif
   
       Bit#(VADDR) pc = op3;
-      if(trap matches tagged None)begin
+      if(instrtype!=TRAP)begin
         pc=(instrtype==MEMORY || instrtype==JALR)?truncate(op1):truncate(op3);
       end
       
@@ -189,7 +198,16 @@ package stage3;
       Bit#(VADDR) nextpc=pc+ 4;
       // We first check Epochs only then process the instruction
       if(!execute_instruction)begin
-        rx.u.deq;
+        rxmin.u.deq;
+        `ifdef simulate
+          rxinst.u.deq;
+        `endif
+        `ifdef bpu
+          rxbpu.u.deq;
+        `endif
+        `ifdef spfpu
+          rxfpu.u.deq;
+        `endif
         if(verbosity>1)
           $display($time,"\tEXECUTE: Dropping Instruction");
       end
@@ -198,7 +216,7 @@ package stage3;
       // redirection has been checked.
       else if(redirect_result==CheckRPC && pc!=redirect_pc `ifdef bpu || 
                                                redirect_result==CheckNPC && pc!=npc `endif )begin
-          // generate flush here
+        // generate flush here
         wr_flush_from_exe<=CheckRPC;
         if(redirect_result==CheckRPC)begin
           if(verbosity>0)
@@ -216,9 +234,18 @@ package stage3;
           end
         `endif
         eEpoch<= ~eEpoch;
-        rx.u.deq;
+        rxmin.u.deq;
+        `ifdef simulate
+          rxinst.u.deq;
+        `endif
+        `ifdef bpu
+          rxbpu.u.deq;
+        `endif
+        `ifdef spfpu
+          rxfpu.u.deq;
+        `endif
       end
-      else if(trap matches tagged None)begin
+      else if(instrtype!=TRAP)begin
 
         if(rs1 matches tagged Present .x1 &&& rs2 matches tagged Present .x2 
                                     `ifdef spfpu &&& rs3_imm matches tagged Present .x4 `endif )begin
@@ -255,9 +282,18 @@ package stage3;
           end
 
           if(done)begin
-            rx.u.deq;
+            rxmin.u.deq;
+          `ifdef simulate
+            rxinst.u.deq;
+          `endif
+          `ifdef bpu
+            rxbpu.u.deq;
+          `endif
+          `ifdef spfpu
+            rxfpu.u.deq;
+          `endif
 
-        `ifdef bpu
+          `ifdef bpu
             // in case of bimodal branch predictor we need to train the bpu and write new status
             // bits. The following logic calculates the next set of status bits depending on
             // whether the branch was actually taken or not.
@@ -285,12 +321,12 @@ package stage3;
             if((instrtype==JALR || instrtype==JAL)  &&& rd matches 'b00?01 &&& trap1 matches
                                                                                       tagged None)
               wr_ras_push<=tagged Valid nextpc; 
-        `else
+          `else
             check_rpc<= tuple2(redirect, addr);
-        `endif
-        `ifdef spfpu
+          `endif
+          `ifdef spfpu
             Bit#(1) nanboxing=pack(cmtype==MEMORY && funct3[1:0]==2 && rdtype==FRF);
-        `endif
+          `endif
             if(cmtype==REGULAR)
               fwding.fwd_from_exe(out, rd_index);
             if(cmtype==MEMORY)
@@ -299,37 +335,46 @@ package stage3;
               ff_memory_request.enq(tuple3(truncate(addr), epochs[0], funct3));
             end
 
-	      `ifdef simulate
+	        `ifdef simulate
 	      		if(instrtype==BRANCH &&& trap1 matches tagged None)
 	      			out=0;
-	      `endif
+	        `endif
 
-        `ifdef spfpu
+          `ifdef spfpu
             ExecOut t1 = (tuple8(cmtype, out, {rd,'d0, nanboxing}, pc, truncate(addr), epochs[0], 
                                                                                   trap1, rdtype));
-        `else
+          `else
             ExecOut t1 = (tuple7(cmtype, out, rd, pc, truncate(addr), epochs[0], trap1));
-        `endif
+          `endif
 
-        `ifdef simulate
+          `ifdef simulate
             tx.u.enq(tuple3(t1, rd_index, instruction));
-        `else
+          `else
             tx.u.enq(tuple2(t1, rd_index));
-        `endif
+          `endif
           // if the operation is a multicycle one,  then go to stall state.
           end
           else begin
-        `ifdef bpu
+          `ifdef bpu
             check_rpc<= tuple3(None, addr, nextpc);
-        `else
+          `else
             check_rpc<= tuple2(None, 0);
-        `endif
+          `endif
             rg_stall<= True;
           end
         end
       end
       else begin
-        rx.u.deq; 
+        rxmin.u.deq;
+      `ifdef simulate
+        rxinst.u.deq;
+      `endif
+      `ifdef bpu
+        rxbpu.u.deq;
+      `endif
+      `ifdef spfpu
+        rxfpu.u.deq;
+      `endif
         Bit#(XLEN) res=signExtend(pc); // badaddress
       `ifdef bpu
         check_rpc<= tuple3(None, 0, nextpc);
@@ -337,9 +382,9 @@ package stage3;
         check_rpc<= tuple2(None, 0);
       `endif
       `ifdef spfpu
-        ExecOut t1 = (tuple8(REGULAR, res, 0, pc, ?, epochs[0], trap, rdtype));
+        ExecOut t1 = (tuple8(REGULAR, res, 0, pc, ?, epochs[0], tagged None, rdtype)); // TODO        handle traps
       `else
-        ExecOut t1 = (tuple7(REGULAR, res, 0, pc, ?, epochs[0], trap));
+        ExecOut t1 = (tuple7(REGULAR, res, 0, pc, ?, epochs[0], tagged None)); // TODO handle traps
       `endif
       `ifdef simulate
         tx.u.enq(tuple3(t1, rd_index, instruction));
@@ -349,67 +394,76 @@ package stage3;
         // else you need to simply drop the execution since epochs have changed.
       end
     endrule
-    `ifdef multicycle
-      rule capture_stalled_output(rg_stall);
-        `ifdef simulate 
-          let {optypes, opdata, metadata, instruction } = rx.u.first;
-        `else
-          let {optypes, opdata, metadata } = rx.u.first;
-        `endif
-        let {op1, op2, op3, op4}=opdata;
-        `ifdef bpu
-          let {rd, word32, memaccess, fn, funct3, pred, epochs, trap}=metadata;
-        `else
-          let {rd, word32, memaccess, fn, funct3, epochs, trap}=metadata;
-        `endif
-        `ifdef spfpu
-          let { rs1addr, rs2addr, rs3addr, rd_index, rdtype, instrtype}=optypes;
-        `else
-          let { rs1addr, rs2addr, rd_index, instrtype}=optypes;
-        `endif
-        Bit#(VADDR) pc = (instrtype==MEMORY || instrtype==JALR)?truncate(op1):truncate(op3);
-        let {cmtype, out, addr, trap1, redirect} <- alu.delayed_output;
-        Bit#(5) fflags=truncate(addr);
-        if(verbosity>0)begin
-          $display($time,"\tEXECUTE: Got delayed output from ALU: cmtype:",fshow(cmtype)," out: ", 
-              fshow(out)," trap: ", trap1);
-        end
-          
-        `ifdef spfpu 
-          ExecOut t1 = (tuple8(cmtype, out, {rd,fflags,0}, pc, truncate(addr), epochs[0], trap1, 
-                                                                                          rdtype));
-        `else
-          ExecOut t1 = (tuple7(cmtype, out, rd, pc, truncate(addr), epochs[0], trap1));
-        `endif
-        Bool execute_instruction = ({eEpoch, wEpoch}==epochs);
+  `ifdef multicycle
+    rule capture_stalled_output(rg_stall);
+      let {opdata, metadata} = rxmin.u.first;
+      let {rs1addr, rs2addr, rd_index, op1, op2, op3, op4, instrtype}=opdata;
+      let {rd, func_cause, memaccess, word32, epochs}=metadata;
+    `ifdef simulate
+      let instruction = rxinst.u.first;
+    `endif
+    `ifdef bpu
+      let pred = rxbpu.u.first;
+    `endif
+    `ifdef spfpu
+      let {rs3addr, rdtype} = rxfpu.u.first;
+    `endif
+      Bit#(VADDR) pc = (instrtype==MEMORY || instrtype==JALR)?truncate(op1):truncate(op3);
+      let {cmtype, out, addr, trap1, redirect} <- alu.delayed_output;
+      Bit#(5) fflags=truncate(addr);
+      if(verbosity>0)begin
+        $display($time,"\tEXECUTE: Got delayed output from ALU: cmtype:",fshow(cmtype)," out: ", 
+            fshow(out)," trap: ", trap1);
+      end
+        
+    `ifdef spfpu 
+      ExecOut t1 = (tuple8(cmtype, out, {rd,fflags,0}, pc, truncate(addr), epochs[0], trap1, 
+                                                                                        rdtype));
+    `else
+      ExecOut t1 = (tuple7(cmtype, out, rd, pc, truncate(addr), epochs[0], trap1));
+    `endif
+      Bool execute_instruction = ({eEpoch, wEpoch}==epochs);
 
-        if(execute_instruction)begin
-          `ifdef simulate
-            tx.u.enq(tuple3(t1, rd_index, instruction));
-          `else
-            tx.u.enq(tuple2(t1, rd_index));
-          `endif
-          fwding.fwd_from_exe(out, rd_index);
-        end
-        rg_stall<= False;
-        rx.u.deq;
-      endrule
+      if(execute_instruction)begin
+      `ifdef simulate
+        tx.u.enq(tuple3(t1, rd_index, instruction));
+      `else
+        tx.u.enq(tuple2(t1, rd_index));
+      `endif
+        fwding.fwd_from_exe(out, rd_index);
+      end
+      rg_stall<= False;
+      rxmin.u.deq;
+    `ifdef simulate
+      rxinst.u.deq;
     `endif
-    `ifdef RV64
-      method Action inferred_xlen(Bool xlen);
-        wr_inferred_xlen <= xlen;
-      endmethod
+    `ifdef bpu
+      rxbpu.u.deq;
     `endif
-		interface rx_in = rx.e;
+    `ifdef spfpu
+      rxfpu.u.deq;
+    `endif
+    endrule
+  `endif
+		interface rx_min = rxmin.e;
+  `ifdef simulate
+    interface rx_inst=rxinst.e;
+  `endif
+  `ifdef spfpu
+    interface rx_fpu=rxfpu.e;
+  `endif
+  `ifdef bpu
+    interface rx_bpu=rxbpu.e;
+  `endif
 		interface tx_out = tx.e;
     method Action update_wEpoch;
       wEpoch<= ~wEpoch;
       wr_flush_from_wb<= True;
-      `ifdef bpu
-        check_rpc<= tuple3(None, ?, ?);
-      `else
-        check_rpc<= tuple2(None,?);
-      `endif
+    `ifdef bpu
+      check_rpc<= tuple3(None, ?, ?);
+    `else
+      check_rpc<= tuple2(None,?);
+    `endif
     endmethod
     method flush_from_exe=tuple2(wr_flush_from_exe, wr_redirect_pc);
     interface fwd_from_mem= interface Put
@@ -419,24 +473,24 @@ package stage3;
       endmethod
     endinterface;
     method Action invalidate_index(Bit#(TLog#(PRFDEPTH)) ind)=fwding.invalidate_index(ind);
-    `ifdef bpu
-  		method training_data=wr_training_data;
-		  method ras_push=wr_ras_push;
-    `endif
-    `ifdef spfpu
-      method Action roundingmode(Bit#(3) rm);
-        wr_roundingmode<= rm;
-      endmethod
-    `endif
+  `ifdef bpu
+  	method training_data=wr_training_data;
+	  method ras_push=wr_ras_push;
+  `endif
+  `ifdef spfpu
+    method Action roundingmode(Bit#(3) rm);
+      wr_roundingmode<= rm;
+    endmethod
+  `endif
 		interface memory_read_request = interface Get 
 			method ActionValue#(MemoryReadReq#(PADDR,1)) get ;
 				ff_memory_request.deq;
 				return ff_memory_request.first;
 			endmethod
 		endinterface;
-    `ifdef supervisor
-      method sfence_operands= tuple2(sfence_rs1,sfence_rs2);
-    `endif
+  `ifdef supervisor
+    method sfence_operands= tuple2(sfence_rs1,sfence_rs2);
+  `endif
     method Action csr_misa_c (Bit#(1) m);
       wr_misa_c <= m;
     endmethod

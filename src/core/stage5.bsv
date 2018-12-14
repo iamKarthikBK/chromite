@@ -142,13 +142,13 @@ package stage5;
               $display($time, "\tWBMEM: Got response from the Memory: ",fshow(resp));
             let {data, err_fault, epochs}=resp;
             if(err_fault==0 )begin // no bus error
-            `ifdef dpfpu
-              if(nanboxing==1)
-                data[63:32]='1;
-            `endif
+//            `ifdef dpfpu TODO
+//              if(nanboxing==1)
+//                data[63:32]='1;
+//            `endif
               wr_operand_fwding <= tagged Valid tuple2(data, rdindex);
               `ifdef spfpu
-                wr_commit <= tagged Valid (tuple4(rdaddr, data, rdindex, rdtype));
+                wr_commit <= tagged Valid (tuple4(rdaddr, zeroExtend(data), rdindex, rdtype)); //  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
               `else
                 wr_commit <= tagged Valid (tuple3(rdaddr, data, rdindex));
               `endif
@@ -191,7 +191,7 @@ package stage5;
           jump_address=newpc;
           fl=drain;
           `ifdef spfpu
-            wr_commit <= tagged Valid (tuple4(rdaddr, dest, rdindex, rdtype));
+            wr_commit <= tagged Valid (tuple4(rdaddr, zeroExtend(dest), rdindex, rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
             wr_operand_fwding <= tagged Valid tuple2(dest,  rdindex);
           `else
             wr_commit <= tagged Valid (tuple3(rdaddr, dest, rdindex));
@@ -211,7 +211,7 @@ package stage5;
         else begin
           // in case of regular instruction simply update RF and forward the data.
           `ifdef spfpu
-            wr_commit <= tagged Valid (tuple4(rdaddr, rd, rdindex, rdtype));
+            wr_commit <= tagged Valid (tuple4(rdaddr, zeroExtend(rd), rdindex, rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
             csr.update_fflags(fflags); 
           `else
             wr_commit <= tagged Valid (tuple3(rdaddr, rd, rdindex));

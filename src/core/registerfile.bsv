@@ -69,11 +69,11 @@ package registerfile;
   (*conflict_free="opaddress, commit_rd"*)
   (*conflict_free="reset_renaming, commit_rd"*)
 	module mkregisterfile(Ifc_registerfile);
-    Integer verbosity = `VERBOSITY;
+    Integer verbosity = `VERBOSITY ;
 		RegFile#(Bit#(5),Bit#(XLEN)) integer_rf <-mkRegFileWCF(0,31);
     Reg#(Maybe#(Bit#(TLog#(PRFDEPTH)))) arr_rename_int [32];
 		`ifdef spfpu 
-			RegFile#(Bit#(5),Bit#(XLEN)) floating_rf <-mkRegFileWCF(0,31);
+			RegFile#(Bit#(5),Bit#(FLEN)) floating_rf <-mkRegFileWCF(0,31);
       Reg#(Maybe#(Bit#(TLog#(PRFDEPTH)))) arr_rename_float [32];
 		`endif
 		Reg#(Bool) initialize<-mkReg(True);
@@ -111,13 +111,15 @@ package registerfile;
 			Bit#(XLEN) rs1irf=integer_rf.sub(rs1addr);
 			Bit#(XLEN) rs2irf=integer_rf.sub(rs2addr);
       `ifdef spfpu
-  			Bit#(XLEN) rs1frf=floating_rf.sub(rs1addr);
-	  		Bit#(XLEN) rs2frf=floating_rf.sub(rs2addr);
-		  	Bit#(XLEN) rs3frf=floating_rf.sub(rs3addr);
+  			Bit#(FLEN) rs1frf=floating_rf.sub(rs1addr);
+	  		Bit#(FLEN) rs2frf=floating_rf.sub(rs2addr);
+		  	Bit#(FLEN) rs3frf=floating_rf.sub(rs3addr);
       `endif
 
-      Bit#(XLEN) rs1, rs2 `ifdef spfpu , rs3 `endif ;
-
+      Bit#(TMax#(XLEN,FLEN)) rs1, rs2;
+    `ifdef spfpu 
+      Bit#(FLEN) rs3; 
+    `endif 
       
       Bit#(3) rs1index=5;
       if(arr_rename_int[rs1addr] matches tagged Valid .r1index 
@@ -147,19 +149,19 @@ package registerfile;
           rs3index=r3index;
 
         if(rs1type==FloatingRF)begin
-          rs1=rs1frf;
+          rs1=zeroExtend(rs1frf);
         end
         else 
       `endif
-        rs1=rs1irf;
+        rs1=zeroExtend(rs1irf);
 
       `ifdef spfpu
         if(rs2type==FloatingRF)begin
-          rs2=rs2frf;
+          rs2=zeroExtend(rs2frf);
         end
         else
       `endif
-        rs2=rs2irf;
+        rs2=zeroExtend(rs2irf);
 
       `ifdef spfpu
         rs3=rs3frf;
@@ -182,7 +184,7 @@ package registerfile;
       `endif
         
       `ifdef spfpu
-        return tuple6(rs1, rs2, rs3, rs1index, rs2index, rs3index);
+        return tuple6(rs1, rs2, rs1index, rs2index, rs3, rs3index);
       `else
         return tuple4(rs1, rs2, rs1index, rs2index);
       `endif
@@ -211,7 +213,7 @@ package registerfile;
 
         `ifdef spfpu
           if(rdtype==FRF)begin
-			  	  floating_rf.upd(r,d);
+			  	  floating_rf.upd(r,truncate(d));
             if(arr_rename_float[r] matches tagged Valid .x &&& x == index &&&  !donot_invalidate)
             begin
               if(verbosity>1)
@@ -224,7 +226,7 @@ package registerfile;
           else
         `endif
 			  if(r!=0)begin
-			  	integer_rf.upd(r,d);
+			  	integer_rf.upd(r,truncate(d));
           `ifdef spfpu
             if(arr_rename_int[r] matches tagged Valid .x &&& x == index &&&  !donot_invalidate) begin
           `else

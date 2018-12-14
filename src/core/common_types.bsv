@@ -38,13 +38,13 @@ package common_types;
     typedef 32 XLEN;
     typedef 32 VADDR ;
   `endif
-  `ifdef spfpu
-    `ifdef dpfpu
-      typedef 64 FLEN;
-    `else
-      typedef 32 FLEN;
-    `endif
-  `endif 
+  `ifdef dpfpu
+    typedef 64 FLEN;
+  `elsif spfpu
+    typedef 32 FLEN;
+  `else
+    typedef VADDR FLEN;
+  `endif
 	typedef 32 PADDR ;
 	typedef Bit #(3)  Funct3;
   typedef 5 PRFDEPTH;
@@ -93,7 +93,8 @@ package common_types;
   // ------------------------------------------------------------------------------------------
 
   `ifdef spfpu
-    typedef Tuple6#(Bit#(XLEN), Bit#(XLEN), Bit#(XLEN), Bit#(3), Bit#(3), Bit#(3)) Operands ;
+    typedef Tuple6#(Bit#(TMax#(XLEN,FLEN)), Bit#(TMax#(XLEN,FLEN)), Bit#(3), Bit#(3), 
+                    Bit#(FLEN), Bit#(3)) Operands ;
   `else
     typedef Tuple4#(Bit#(XLEN), Bit#(XLEN), Bit#(3), Bit#(3)) Operands ;
   `endif
@@ -184,64 +185,27 @@ package common_types;
 
   
   // ---------- Tuples for the second Pipeline Stage -----------//
-  `ifdef spfpu
-    typedef Tuple6#(Bit#(3),     // rs1addr
-                  Bit#(3),     // rs2addr
-                  Bit#(3),   // rs3addr ifdef spfpu
-                  Bit#(3),  // rd rename index 
-                  Op3type,  // rdtype
-                  Instruction_type // instr_type
-                  ) OpTypes;
-  `else
-    typedef Tuple4#(Bit#(3),     // rs1addr
-                    Bit#(3),     // rs2addr
-                    Bit#(3),  // rd rename index 
-                    Instruction_type // instr_type
-                  ) OpTypes;
-  `endif
-  
-  `ifdef spfpu
-    typedef Tuple4#( Bit#(XLEN),  // rs1_pc
-                     Bit#(XLEN),  // rs2
-                     Bit#(VADDR), // pc_rs1
-                     Bit#(XLEN)   // rs3_imm
-                   ) OpData;
-  `else
-    typedef Tuple4#( Bit#(XLEN),  // rs1_pc
-                     Bit#(XLEN),  // rs2
-                     Bit#(VADDR), // pc_rs1 
-                     Bit#(VADDR)  // imm
-                   ) OpData;
-  `endif
-  
-  // for the following,  funct3 & fn is required for memory ops which will need both type of atomic
-  // op and also the type of acess: byte, half-word, word,  double word.
-  // TODO see if in the current technique this can be avoided.
-  `ifdef bpu
-  typedef Tuple8#(  Bit#(5),    // rd
-                    Bool,       // word32
-                    Access_type,  // mem_access
-                    Bit#(4),  // fn
-                    Bit#(3),  // funct3
-                    Bit#(2),  // prediction
-                    Bit#(2),    // epochs
-                    Trap_type // trap type
-                  ) MetaData;
-  `else
-  typedef Tuple7#(  Bit#(5),    // rd
-                    Bool,       // word32
-                    Access_type,  // mem_access
-                    Bit#(4),  // fn
-                    Bit#(3),  // funct3
-                    Bit#(2),    // epochs
-                    Trap_type // trap type
-                  ) MetaData;
-  `endif
-  `ifdef simulate
-    typedef Tuple4#( OpTypes, OpData, MetaData, Bit#(32)) PIPE2;
-  `else
-    typedef Tuple3#( OpTypes, OpData, MetaData) PIPE2;
-  `endif
+
+  typedef Tuple8#(Bit#(3), // rs1index
+                 Bit#(3), // rs2index
+                 Bit#(3), // rs3index
+                 Bit#(msize), // rs1_pc
+                 Bit#(msize), // rs2
+                 Bit#(VADDR), // pc_rs1
+                 Bit#(t),     // rs3_imm. Incase fpu is on then t = FLEN else VADDR
+                 Instruction_type) // instr_type
+                 OpData#(numeric type msize, numeric type t);
+  typedef Tuple5#(Bit#(5), // rd
+                 Bit#(7), // {fn,f3} or cause
+                 Access_type, // memory access type
+                 Bool, //Word32
+                 Bit#(2) // epochs
+                ) MetaData;
+  typedef Tuple2#(OpData#(msize,t), MetaData) PIPE2_min#(numeric type msize, numeric type t);
+  typedef Tuple2#(Bit#(3), // rs3 index
+                 Op3type // rdtype
+                ) OpFpu;
+
   // -------------------------------------------------------------
   // ---------- Tuples for the third Pipeline Stage -----------//
   `ifdef spfpu
@@ -288,7 +252,7 @@ package common_types;
   } Chmod deriving(Bits, Eq);
 
   `ifdef spfpu
-    typedef Tuple4#(Bit#(5), Bit#(XLEN), Bit#(TLog#(PRFDEPTH)), Op3type) CommitData;
+    typedef Tuple4#(Bit#(5), Bit#(TMax#(FLEN,XLEN)), Bit#(TLog#(PRFDEPTH)), Op3type) CommitData;
   `else
     typedef Tuple3#(Bit#(5), Bit#(XLEN), Bit#(TLog#(PRFDEPTH))) CommitData;
   `endif

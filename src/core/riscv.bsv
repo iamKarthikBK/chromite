@@ -67,7 +67,17 @@ package riscv;
     FIFOF#(PIPE1_opt1) pipe1opt1 <-mkSizedFIFOF(2);
     FIFOF#(PIPE1_opt2) pipe1opt2 <-mkSizedFIFOF(2);
 
-    FIFOF#(PIPE2) pipe2 <- mkSizedFIFOF(2);
+    FIFOF#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) pipe2min <- mkSizedFIFOF(2);
+    `ifdef spfpu
+      FIFOF#(OpFpu) pipe2fpu <- mkSizedFIFOF(2);
+    `endif
+    `ifdef bpu
+      FIFOF#(Bit#(2)) pipe2bpu <- mkSizedFIFOF(2);
+    `endif
+    `ifdef simulate
+      FIFOF#(Bit#(32)) pipe2inst <- mkSizedFIFOF(2);
+    `endif
+
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
 
     mkConnection(stage1.tx_min, pipe1min);
@@ -82,8 +92,20 @@ package riscv;
     mkConnection(pipeopt2,stage2.rx_opt2);
   `endif
 
-    mkConnection(stage2.tx_out, pipe2);
-    mkConnection(pipe2, stage3.rx_in);
+    mkConnection(stage2.tx_min, pipe2min);
+    mkConnection(pipe2min, stage3.rx_min);
+    `ifdef simulate
+      mkConnection(stage2.tx_inst, pipe2inst);
+      mkConnection(pipe2inst, stage3.rx_inst);
+    `endif
+    `ifdef bpu
+      mkConnection(stage2.tx_bpu, pipe2bpu);
+      mkConnection(pipe2bpu, stage3.rx_bpu);
+    `endif
+    `ifdef spfpu
+      mkConnection(stage2.tx_fpu, pipe2fpu);
+      mkConnection(pipe2fpu, stage3.rx_fpu);
+    `endif
     mkConnection(stage3.tx_out, pipe3);
     mkConnection(pipe3, stage5.rx_in);
 
@@ -131,11 +153,6 @@ package riscv;
 //    rule ras_push_connect;
 //      stage1.push_ras(stage3.ras_push);
 //    endrule
-    `ifdef RV64
-      rule connect_inferred_xlen;
-        stage3.inferred_xlen(stage5.inferred_xlen);
-      endrule
-    `endif
     `ifdef spfpu
       rule connect_roundingmode;
         stage3.roundingmode(stage5.roundingmode);

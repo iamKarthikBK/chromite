@@ -211,7 +211,7 @@ package stage1;
 				let pipedata=PIPE1_min{program_counter:rg_pc,
                       instruction:final_instruction,
                       epochs:{rg_eEpoch,rg_wEpoch},
-                      accesserr:pack(err)}; // TODO cache should send 2 error bits.
+                      accesserr:pack(err)}; 
         if(compressed  && enque_instruction && misa[2]==1)begin
           rg_pc<=rg_pc+2;
         end
@@ -221,10 +221,10 @@ package stage1;
         if(enque_instruction)begin
           txmin.u.enq(pipedata);
         `ifdef bpu
-          tx_opt1.enq(PIPE1_opt1{prediction:0});
+          tx_opt1.u.enq(PIPE1_opt1{prediction:0}); // TODO fix when supporting bpu
         `endif
         `ifdef supervisor
-          tx_opt2.enq(PIPE1_opt2{pagefault:0});
+          tx_opt2.u.enq(PIPE1_opt2{pagefault:0}); // TODO fix when TLB is integrated
         `endif
         end
         if(verbosity!=0) begin

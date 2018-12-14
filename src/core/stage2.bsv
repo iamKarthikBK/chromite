@@ -100,8 +100,16 @@ package stage2;
     `ifdef supervisor
   		interface RXe#(PIPE1_opt2) rx_opt2;
     `endif
-    (*always_ready*)
-		interface TXe#(PIPE2) tx_out;
+		interface TXe#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) tx_min;
+  `ifdef spfpu
+    interface TXe#(OpFpu) tx_fpu;
+  `endif
+  `ifdef simulate
+    interface TXe#(Bit#(32)) tx_inst;
+  `endif
+  `ifdef bpu
+    interface TXe#(Bit#(2)) tx_bpu;
+  `endif
 		/*================================= */
 		`ifdef Debug
       method ActionValue#(Bit#(XLEN)) read_write_gprs(Bit#(5) r, Bit#(XLEN) data 
@@ -123,13 +131,22 @@ package stage2;
 
     Ifc_registerfile registerfile <-mkregisterfile();
 		RX#(PIPE1_min) rxmin <-mkRX;
-    `ifdef bpu
-  		RX#(PIPE1_opt1) rxopt1 <-mkRX;
-    `endif
-    `ifdef supervisor
-  		RX#(PIPE1_opt2) rxopt2 <-mkRX;
-    `endif
-		TX#(PIPE2) tx <-mkTX;
+  `ifdef bpu
+    RX#(PIPE1_opt1) rxopt1 <-mkRX;
+  `endif
+  `ifdef supervisor
+  	RX#(PIPE1_opt2) rxopt2 <-mkRX;
+  `endif
+		TX#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) txmin <-mkTX;
+  `ifdef spfpu
+    TX#(OpFpu) txfpu <- mkTX;
+  `endif
+  `ifdef simulate
+    TX#(Bit#(32)) txinst <- mkTX;
+  `endif
+  `ifdef bpu
+    TX#(Bit#(2)) txbpu <- mkTX;
+  `endif
       
     let verbosity = `VERBOSITY ;
     Wire#(CSRtoDecode) wr_csrs <-mkWire();
@@ -154,14 +171,15 @@ package stage2;
     `ifdef supervisor
       err[1]=rxopt2.u.first.pagefault;
     `endif
-      let {optype, meta, resume_wfi}<-decoder_func(inst,err,wr_csrs);
-      let {rs1addr,rs2addr,rd,rs1type,rs2type}=optype;
-      let {func_cause, instrType, memaccess, imm}=meta;
-      Bit#(3) funct3=truncate(func_cause);
-      Bit#(4) fn=truncateLSB(func_cause);
-
+      let {optype, meta, resume_wfi} <- decoder_func(inst,err,wr_csrs);
+      let {rs1addr,rs2addr,rd,rs1type,rs2type} = optype;
+      let {func_cause, instrType, memaccess, imm} = meta;
+      Bit#(3) funct3 = truncate(func_cause);
+      Bit#(4) fn = truncateLSB(func_cause);
       let word32 = decode_word32(inst,misa[2]);
-      let {rs3addr,rs3type,rdtype}=decode_fpu_meta(inst,misa[2]);
+    `ifdef spfpu
+      let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
+    `endif
       
       if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
@@ -171,36 +189,41 @@ package stage2;
           rd_index<= rd_index+ 1;
         wr_rd_index<= rd_index;
 
-        let {rs1, rs2 `ifdef spfpu , rs3 `endif , rs1index, rs2index `ifdef spfpu , rs3index `endif }
+        let {rs1, rs2 , rs1index, rs2index `ifdef spfpu ,rs3 ,rs3index `endif }
              <-registerfile.opaddress(rs1addr, rs2addr, rd, rd_index
               `ifdef spfpu , rs1type, rs2type, rs3addr, rs3type, rdtype `endif );
 
-        Bit#(XLEN) op1=(rs1type==PC)?signExtend(pc):rs1;
-        Bit#(XLEN) op2=(rs2type==Constant2 && misa[2]==1)?'d2:(rs2type==Constant4)?'d4:
-                                                            (rs2type==Immediate)?signExtend(imm):rs2;
+        Bit#(TMax#(XLEN,FLEN)) op1=(rs1type==PC)?signExtend(pc):rs1;
+        Bit#(TMax#(XLEN,FLEN)) op2=(rs2type==Constant2 && misa[2]==1)?'d2:
+                       (rs2type==Constant4)?'d4: (rs2type==Immediate)?signExtend(imm):rs2;
         Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
         if(instrType==TRAP)begin
           op1=zeroExtend(inst); 
           op3=zeroExtend(pc);
         end
-        `ifdef spfpu
-          Bit#(XLEN) op4=(rs3type==FRF)?rs3:signExtend(imm);
-        `else
-          Bit#(VADDR) op4=signExtend(imm);
-        `endif
+      `ifdef spfpu
+        Bit#(FLEN) op4=(rs3type==FRF)?rs3:signExtend(imm);
+      `else
+        Bit#(FLEN) op4=signExtend(imm);
+      `endif
+        OpData#(TMax#(XLEN,FLEN),TMax#(XLEN,FLEN)) t1 = tuple8(rs1index, rs2index, rd_index, op1, 
+                                                               op2, op3, op4, instrType);
+        MetaData t2 = tuple5(rd, func_cause, memaccess, word32, epochs);
+        PIPE2_min#(TMax#(XLEN,FLEN),FLEN) t3 = tuple2(t1, t2);
+      `ifdef spfpu
+        OpFpu t4 = tuple2(rs3index, rdtype);
+      `endif
 
-        OpData t2 =tuple4(op1, op2, op3, op4);
-        `ifdef spfpu
-          OpTypes t1 =tuple6(rs1index, rs2index, rs3index, rd_index, rdtype, instrType);
-        `else
-          OpTypes t1 =tuple4(rs1index, rs2index, rd_index, instrType);
-        `endif
-
-        `ifdef bpu
-          MetaData t3 = tuple8(rd, word32, memaccess, fn, funct3, pred, epochs, unpack(0)); // TODO
-        `else
-          MetaData t3 = tuple7(rd, word32, memaccess, fn, funct3, epochs, unpack(0)); // TODO
-        `endif
+        txmin.u.enq(t3);
+      `ifdef simulate
+        txinst.u.enq(inst);
+      `endif
+      `ifdef bpu
+        txbpu.u.enq(pred);
+      `endif
+      `ifdef spfpu
+        txfpu.u.enq(t4);
+      `endif
 
         if(verbosity>0)begin
           $display($time, "\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpochs: %b WFI: %b ERR: %b", pc, inst, 
@@ -216,12 +239,7 @@ package stage2;
               " word32: %b, memaccess:",  word32, fshow(memaccess));
           $display($time, "\tDECODE: fn: %b funt3: %b trap:", fn, funct3 );
         end
-
-	      `ifdef simulate
-	        tx.u.enq(tuple4(t1, t2, t3, inst));
-	      `else
-	        tx.u.enq(tuple3(t1, t2, t3));
-        `endif
+        
       end
       else
         if(verbosity>=1)
@@ -243,7 +261,16 @@ package stage2;
       end  
     endrule
 
-		method tx_out=tx.e;
+		method tx_min=txmin.e;
+  `ifdef simulate
+    method tx_inst=txinst.e;
+  `endif
+  `ifdef bpu
+    method tx_bpu=txbpu.e;
+  `endif
+  `ifdef spfpu
+    method tx_fpu=txfpu.e;
+  `endif
 		method rx_min=rxmin.e;
   `ifdef bpu
 		method rx_opt1=rxopt1.e;
