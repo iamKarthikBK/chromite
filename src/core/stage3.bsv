@@ -81,7 +81,7 @@ package stage3;
   import SpecialFIFOs::*;
 
   interface Ifc_stage3;
-		interface RXe#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) rx_min;
+		interface RXe#(PIPE2_min#(ELEN,FLEN)) rx_min;
     `ifdef simulate
       interface RXe#(Bit#(32)) rx_inst;
     `endif
@@ -94,7 +94,7 @@ package stage3;
 		interface TXe#(PIPE3) tx_out;
     method Action update_wEpoch;
     method Tuple2#(Flush_type, Bit#(VADDR)) flush_from_exe;
-    interface Put#(Tuple2#(Bit#(XLEN), Bit#(TLog#(PRFDEPTH)))) fwd_from_mem;
+    interface Put#(Tuple2#(Bit#(ELEN), Bit#(TLog#(PRFDEPTH)))) fwd_from_mem;
     method Action invalidate_index(Bit#(TLog#(PRFDEPTH)) ind);
     `ifdef bpu
   		method Maybe#(Training_data#(VADDR)) training_data;
@@ -115,7 +115,7 @@ package stage3;
 
     let verbosity = `VERBOSITY ;
 
-		RX#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) rxmin <-mkRX;								// receive from the decode stage
+		RX#(PIPE2_min#(ELEN,FLEN)) rxmin <-mkRX;								// receive from the decode stage
     `ifdef simulate
       RX#(Bit#(32)) rxinst <- mkRX;
     `endif
@@ -249,7 +249,7 @@ package stage3;
 
         if(rs1 matches tagged Present .x1 &&& rs2 matches tagged Present .x2 
                                     `ifdef spfpu &&& rs3_imm matches tagged Present .x4 `endif )begin
-          Bit#(XLEN) new_op1=x1;
+          Bit#(ELEN) new_op1=x1;
           Bit#(VADDR) t3=op3;
           // TODO: here we need to exchange op1 (which has been fetched from the prf) and op3 in
           // case of JALR. See if this can be avoided.
@@ -382,7 +382,7 @@ package stage3;
         check_rpc<= tuple2(None, 0);
       `endif
       `ifdef spfpu
-        ExecOut t1 = (tuple8(REGULAR, res, 0, pc, ?, epochs[0], tagged None, rdtype)); // TODO        handle traps
+        ExecOut t1 = (tuple8(REGULAR, zeroExtend(res), 0, pc, ?, epochs[0], tagged None, rdtype)); // TODO        handle traps
       `else
         ExecOut t1 = (tuple7(REGULAR, res, 0, pc, ?, epochs[0], tagged None)); // TODO handle traps
       `endif
@@ -467,7 +467,7 @@ package stage3;
     endmethod
     method flush_from_exe=tuple2(wr_flush_from_exe, wr_redirect_pc);
     interface fwd_from_mem= interface Put
-      method Action put (Tuple2#(Bit#(XLEN), Bit#(TLog#(PRFDEPTH))) inputs);
+      method Action put (Tuple2#(Bit#(ELEN), Bit#(TLog#(PRFDEPTH))) inputs);
         let {d, index}=inputs;
         fwding.fwd_from_mem(d, index);
       endmethod

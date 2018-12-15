@@ -43,7 +43,7 @@ package stage5;
     interface RXe#(PIPE3) rx_in;
     interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
     method Maybe#(CommitData) commit_rd;
-    interface Get#(Tuple2#(Bit#(XLEN), Bit#(3))) fwd_from_mem;
+    interface Get#(Tuple2#(Bit#(ELEN), Bit#(3))) fwd_from_mem;
     method Tuple2#(Bool, Bit#(VADDR)) flush;
     method CSRtoDecode csrs_to_decode;
 	  method Action clint_msip(Bit#(1) intrpt);
@@ -80,7 +80,7 @@ package stage5;
     Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
 
     // wire that carriues the information for operand forwarding
-    Wire#(Maybe#(Tuple2#(Bit#(XLEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
+    Wire#(Maybe#(Tuple2#(Bit#(ELEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
 
     // wire that carries the commit data that needs to be written to the integer register file.
     Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
@@ -187,21 +187,21 @@ package stage5;
         end
         else if(committype == SYSTEM_INSTR)begin
           let {drain, newpc, dest}<-csr.system_instruction(csrfield[11:0], 
-                                              csrfield[16:12], rd, csrfield[19:17], pc);
+                                              csrfield[16:12], truncate(rd), csrfield[19:17], pc);
           jump_address=newpc;
           fl=drain;
           `ifdef spfpu
             wr_commit <= tagged Valid (tuple4(rdaddr, zeroExtend(dest), rdindex, rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
-            wr_operand_fwding <= tagged Valid tuple2(dest,  rdindex);
+            wr_operand_fwding <= tagged Valid tuple2(zeroExtend(dest),  rdindex);
           `else
             wr_commit <= tagged Valid (tuple3(rdaddr, dest, rdindex));
-            wr_operand_fwding <= tagged Valid tuple2(dest,  rdindex);
+            wr_operand_fwding <= tagged Valid tuple2(zeroExtend(dest),  rdindex);
           `endif
           `ifdef simulate 
             if(rdaddr==0)
               dest=0;
             `ifdef spfpu
-              dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, dest, rdtype));
+              dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, zeroExtend(dest), rdtype));
             `else
               dump_ff.enq(tuple5(prv, signExtend(pc), inst, rdaddr, dest));
             `endif
@@ -261,7 +261,7 @@ package stage5;
     endmethod
 
     interface fwd_from_mem = interface Get
-      method ActionValue#(Tuple2#(Bit#(XLEN), Bit#(3))) get 
+      method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(3))) get 
                                                     if(wr_operand_fwding matches tagged Valid .data);
         return data;
       endmethod

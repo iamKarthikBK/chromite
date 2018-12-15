@@ -100,7 +100,7 @@ package SoC;
       interface Get#(DumpType) io_dump;
     `endif
     `ifdef EXTERNAL
-      interface AXI4_Master_IFC#(PADDR, XLEN, USERSPACE) mem_master;
+      interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) mem_master;
     `endif
     interface RS232 uart_io;
   endinterface
@@ -112,13 +112,13 @@ package SoC;
     let curr_reset<-exposeCurrentReset;
     Ifc_cclass_axi4 cclass <- mkcclass_axi4();
     Ifc_sign_dump signature<- mksign_dump();
-    AXI4_Fabric_IFC #(`Num_Masters, `Num_Slaves, PADDR, XLEN, USERSPACE) 
+    AXI4_Fabric_IFC #(`Num_Masters, `Num_Slaves, PADDR, ELEN, USERSPACE) 
                                                     fabric <- mkAXI4_Fabric(fn_slave_map);
- 		Ifc_memory_AXI4#(PADDR, XLEN, USERSPACE, `Addr_space) main_memory <- mkmemory_AXI4(`MemoryBase, 
+ 		Ifc_memory_AXI4#(PADDR, ELEN, USERSPACE, `Addr_space) main_memory <- mkmemory_AXI4(`MemoryBase, 
                                                 "code.mem.MSB", "code.mem.LSB");
-		Ifc_bootrom_axi4#(PADDR, XLEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
-	  Ifc_uart_axi4#(PADDR,XLEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);
-    Ifc_clint_axi4#(PADDR,XLEN,0,1) clint <- mkclint_axi4();
+		Ifc_bootrom_axi4#(PADDR, ELEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
+	  Ifc_uart_axi4#(PADDR,ELEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);
+    Ifc_clint_axi4#(PADDR,ELEN,0,1) clint <- mkclint_axi4();
 
    	mkConnection(cclass.master_d,	fabric.v_from_masters[`Mem_master_num]);
    	mkConnection(cclass.master_i, fabric.v_from_masters[`Fetch_master_num]);

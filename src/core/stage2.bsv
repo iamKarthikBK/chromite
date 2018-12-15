@@ -100,7 +100,7 @@ package stage2;
     `ifdef supervisor
   		interface RXe#(PIPE1_opt2) rx_opt2;
     `endif
-		interface TXe#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) tx_min;
+		interface TXe#(PIPE2_min#(ELEN,FLEN)) tx_min;
   `ifdef spfpu
     interface TXe#(OpFpu) tx_fpu;
   `endif
@@ -137,7 +137,7 @@ package stage2;
   `ifdef supervisor
   	RX#(PIPE1_opt2) rxopt2 <-mkRX;
   `endif
-		TX#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) txmin <-mkTX;
+		TX#(PIPE2_min#(ELEN,FLEN)) txmin <-mkTX;
   `ifdef spfpu
     TX#(OpFpu) txfpu <- mkTX;
   `endif
@@ -209,7 +209,7 @@ package stage2;
         OpData#(TMax#(XLEN,FLEN),TMax#(XLEN,FLEN)) t1 = tuple8(rs1index, rs2index, rd_index, op1, 
                                                                op2, op3, op4, instrType);
         MetaData t2 = tuple5(rd, func_cause, memaccess, word32, epochs);
-        PIPE2_min#(TMax#(XLEN,FLEN),FLEN) t3 = tuple2(t1, t2);
+        PIPE2_min#(ELEN,FLEN) t3 = tuple2(t1, t2);
       `ifdef spfpu
         OpFpu t4 = tuple2(rs3index, rdtype);
       `endif

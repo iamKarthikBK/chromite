@@ -69,7 +69,7 @@ package common_types;
 	typedef enum {`ifdef spfpu FloatingRF, `endif IntegerRF, Immediate, Constant4, Constant2} 
                                                                   Op2type deriving(Bits, Eq, FShow);
   typedef enum {FRF, IRF} Op3type deriving(Bits, Eq, FShow);
-  typedef enum {MEMORY, SYSTEM_INSTR, REGULAR} Commit_type deriving(Eq, Bits, FShow);
+  typedef enum {MEMORY, SYSTEM_INSTR, REGULAR, TRAP} Commit_type deriving(Eq, Bits, FShow);
   typedef enum {Machine=3, Supervisor=1, User=0} Privilege_mode 
                                                                           deriving(Eq, Bits, FShow);
   // -------------------------------------------------------------------------------------
@@ -93,7 +93,7 @@ package common_types;
   // ------------------------------------------------------------------------------------------
 
   `ifdef spfpu
-    typedef Tuple6#(Bit#(TMax#(XLEN,FLEN)), Bit#(TMax#(XLEN,FLEN)), Bit#(3), Bit#(3), 
+    typedef Tuple6#(Bit#(ELEN), Bit#(ELEN), Bit#(3), Bit#(3), 
                     Bit#(FLEN), Bit#(3)) Operands ;
   `else
     typedef Tuple4#(Bit#(XLEN), Bit#(XLEN), Bit#(3), Bit#(3)) Operands ;
@@ -111,9 +111,9 @@ package common_types;
                    Bit#(1), Bit#(1)) CSRtoDecode;
 
   `ifdef spfpu
-    typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(XLEN), Op3type ) DumpType;
+    typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), Op3type ) DumpType;
   `else
-    typedef Tuple5#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(XLEN)) DumpType;
+    typedef Tuple5#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN)) DumpType;
   `endif
 
 
@@ -170,7 +170,7 @@ package common_types;
     Bit#(3))    // access_size
     MemoryReadReq#(numeric type addr, numeric type esize);
                     // data , err    , eopch size
-  typedef Tuple3#(Bit#(XLEN), Bit#(2), Bit#(esize)) MemoryReadResp#(numeric type esize);
+  typedef Tuple3#(Bit#(ELEN), Bit#(2), Bit#(esize)) MemoryReadResp#(numeric type esize);
 
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
@@ -208,10 +208,25 @@ package common_types;
 
   // -------------------------------------------------------------
   // ---------- Tuples for the third Pipeline Stage -----------//
+
+  // in case of trap: required:
+  // PC 
+  // Cause
+  // badaddr
+  // in case of system_instr:
+  // rd
+  // csrfield of 20 bits
+  // in case of REGULAR:
+  // rd
+  // rdaddr
+  // in case if MEMORY:
+  // badaddr
+  // rdaddr
+  // PC
   `ifdef spfpu
   typedef Tuple8#(
-    Commit_type,              // regular,  csr or memory
-    Bit#(XLEN),               // rd value or badaddr
+    Commit_type,              // regular,  csr or memory  or
+    Bit#(ELEN),               // rd value or badaddr
     Bit#(11),                 // rd,fflags,nanbox
     Bit#(VADDR),              // PC 
     Bit#(20),                 // CSR field
@@ -222,7 +237,7 @@ package common_types;
   `else
   typedef Tuple7#(
     Commit_type,              // regular,  csr or memory
-    Bit#(XLEN),               // rd value or badaddr
+    Bit#(ELEN),               // rd value or badaddr
     Bit#(5),                  // rd
     Bit#(VADDR),              // PC 
     Bit#(20),                 // CSR field
@@ -252,7 +267,7 @@ package common_types;
   } Chmod deriving(Bits, Eq);
 
   `ifdef spfpu
-    typedef Tuple4#(Bit#(5), Bit#(TMax#(FLEN,XLEN)), Bit#(TLog#(PRFDEPTH)), Op3type) CommitData;
+    typedef Tuple4#(Bit#(5), Bit#(ELEN), Bit#(TLog#(PRFDEPTH)), Op3type) CommitData;
   `else
     typedef Tuple3#(Bit#(5), Bit#(XLEN), Bit#(TLog#(PRFDEPTH))) CommitData;
   `endif

@@ -185,14 +185,14 @@ package alu;
                                             zeroExtend({funct3, imm_value[16:0]}): 
                                             effective_address;
 
-	  return tuple5(committype, final_output, effaddr_csrdata, exception, flush);
+	  return tuple5(committype, zeroExtend(final_output), effaddr_csrdata, exception, flush);
 	endfunction
 
 
 `ifdef multicycle
   interface Ifc_alu;
 	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
-        `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
+        `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(VADDR) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
         memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c );
 		method ActionValue#(ALU_OUT) delayed_output;
@@ -236,7 +236,7 @@ package alu;
     `endif
 
 	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
-        `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
+        `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(VADDR) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
         memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c);
       `ifdef muldiv

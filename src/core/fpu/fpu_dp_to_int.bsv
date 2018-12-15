@@ -14,14 +14,14 @@ import UniqueWrappers::*;
 `include "common_params.bsv"
 `include "fpu.defines"
 interface Ifc_fpu_dp_to_int;
-	method ActionValue#(Floating_output#(XLEN)) _start(Bit#(1) sign,Bit#(11) exponent, Bit#(52) mantissa,  bit convert_unsigned, bit convert_long, Bit#(3) rounding_mode, Bit#(5) flags);
+	method ActionValue#(Floating_output#(ELEN)) _start(Bit#(1) sign,Bit#(11) exponent, Bit#(52) mantissa,  bit convert_unsigned, bit convert_long, Bit#(3) rounding_mode, Bit#(5) flags);
 endinterface
 
 `ifdef fpu_hierarchical
 (*synthesize*)
 `endif
 module mkfpu_dp_to_int(Ifc_fpu_dp_to_int);
-	method ActionValue#(Floating_output#(XLEN)) _start(Bit#(1) lv_sign,Bit#(11) lv_exponent, Bit#(52) lv_mantissa,  bit convert_unsigned, bit convert_long, Bit#(3) rounding_mode, Bit#(5) flags);
+	method ActionValue#(Floating_output#(ELEN)) _start(Bit#(1) lv_sign,Bit#(11) lv_exponent, Bit#(52) lv_mantissa,  bit convert_unsigned, bit convert_long, Bit#(3) rounding_mode, Bit#(5) flags);
 		bit lv_overflow = 0;
 		bit lv_zero = flags[3];
 		bit lv_infinity = flags[1];
@@ -39,8 +39,8 @@ module mkfpu_dp_to_int(Ifc_fpu_dp_to_int);
 		`ifdef verbose $display("sign = %b exponent = %h mantissa = %h zero_flag = %b invalid_flag = %b infinity: %b Denormal : %b", lv_sign, lv_exponent, lv_mantissa, lv_zero, lv_invalid, lv_infinity, lv_denormal); `endif
 		Int#(11) lv_original_exponent = unpack(truncate(lv_exp - 1023));  // removing the bias
         `ifdef verbose $display("lv_original_exponent : %d flags: %b",lv_original_exponent,flags); `endif
-        Bit#(XLEN) final_result = 0;
-		Bit#(TAdd#(52, XLEN)) final_man = {'0,1'b1,lv_mantissa};
+        Bit#(ELEN) final_result = 0;
+		Bit#(TAdd#(52, ELEN)) final_man = {'0,1'b1,lv_mantissa};
         
         if(lv_zero == 1)
            final_result = 0;

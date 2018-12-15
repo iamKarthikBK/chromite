@@ -67,7 +67,7 @@ package riscv;
     FIFOF#(PIPE1_opt1) pipe1opt1 <-mkSizedFIFOF(2);
     FIFOF#(PIPE1_opt2) pipe1opt2 <-mkSizedFIFOF(2);
 
-    FIFOF#(PIPE2_min#(TMax#(XLEN,FLEN),FLEN)) pipe2min <- mkSizedFIFOF(2);
+    FIFOF#(PIPE2_min#(ELEN,FLEN)) pipe2min <- mkSizedFIFOF(2);
     `ifdef spfpu
       FIFOF#(OpFpu) pipe2fpu <- mkSizedFIFOF(2);
     `endif

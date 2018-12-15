@@ -54,8 +54,8 @@ package cclass_bare;
 
   typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
   interface Ifc_cclass_axi4;
-		interface AXI4_Master_IFC#(PADDR, XLEN, USERSPACE) master_d;
-		interface AXI4_Master_IFC#(PADDR, XLEN, USERSPACE) master_i;
+		interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_d;
+		interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_i;
     interface Put#(Bit#(1)) sb_clint_msip;
     interface Put#(Bit#(1)) sb_clint_mtip;
     interface Put#(Bit#(64)) sb_clint_mtime;
@@ -68,8 +68,8 @@ package cclass_bare;
   (*synthesize*)
   module mkcclass_axi4(Ifc_cclass_axi4);
     Ifc_riscv riscv <- mkriscv();
-		AXI4_Master_Xactor_IFC #(PADDR, XLEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
-		AXI4_Master_Xactor_IFC #(PADDR, XLEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
     Reg#(TxnState) fetch_state<- mkReg(Request);
     FIFOF#(Tuple2#(Bit#(3),Bit#(1))) ff_rd_epochs <- mkSizedFIFOF(6);
 
