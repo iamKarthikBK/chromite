@@ -198,7 +198,12 @@ package stage2;
                        (rs2type==Constant4)?'d4: (rs2type==Immediate)?signExtend(imm):rs2;
         Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
         if(instrType==TRAP)begin
-          op1=zeroExtend(inst); 
+          if(func_cause==`Inst_access_fault )
+            op1=zeroExtend(pc); // for baddaddr
+          else if(func_cause == `Illegal_inst)
+            op1=zeroExtend(inst); // for badaddr
+          else
+            op1=0;
           op3=zeroExtend(pc);
         end
       `ifdef spfpu

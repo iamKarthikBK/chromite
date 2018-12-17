@@ -41,6 +41,9 @@ package stage5;
 
   interface Ifc_stage5;
     interface RXe#(PIPE3) rx_in;
+    `ifdef simulate
+      interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
+    `endif
     interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
     method Maybe#(CommitData) commit_rd;
     interface Get#(Tuple2#(Bit#(ELEN), Bit#(3))) fwd_from_mem;
@@ -73,6 +76,9 @@ package stage5;
     let verbosity = `VERBOSITY ;
 
     RX#(PIPE3) rx<-mkRX;
+    `ifdef simulate
+      RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
+    `endif
     Ifc_csr csr <- mkcsr();
     Wire#(Bool) wr_csr_updated <- mkDWire(False);
 
@@ -91,52 +97,39 @@ package stage5;
     // the local epoch register
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
 
-    `ifdef simulate
+    `ifdef rtldump
       FIFO#(DumpType) dump_ff <- mkLFIFO;
       let prv=tpl_1(csr.csrs_to_decode);
     `endif
 
 
     rule instruction_commit;
-      `ifdef simulate
-        let {execout, rdindex, inst}=rx.u.first;
-      `else
-        let {execout, rdindex}=rx.u.first;
-      `endif
-      `ifdef spfpu
-        let {committype, rd, fusedrdfflags, pc, csrfield, epoch, trap, rdtype}=execout;
-        Bit#(5) rdaddr=fusedrdfflags[10:6];
-        Bit#(5) fflags=fusedrdfflags[5:1];
-        Bit#(1) nanboxing=fusedrdfflags[0];
-      `else
-        let {committype, rd, rdaddr, pc, csrfield, epoch, trap}=execout;
-      `endif
+       let {committype, field1, field2, field3, field4}=rx.u.first;
+       `ifdef rtldump
+         let {simpc,inst}=rxinst.u.first;
+       `endif
+      Bit#(1) epoch = truncate(field4);
       Bit#(VADDR) jump_address=0;
       Bool fl = False;
-      if(verbosity>0)begin
-        $display($time, "\tWBMEM: PC: %h Epoch: %b CurrEpoch: %b", pc, epoch, rg_epoch);
-        $display($time, "\tWBMEM: Rd: %d Value: %h committype: ", rdaddr, rd, fshow(committype));
-        $display($time, "\tWBMEM: CSRField: %h trap: ", csrfield, fshow(trap));
-      end
       if(rg_epoch==epoch)begin
-        if(trap matches tagged Interrupt .in)begin
-          let newpc<-  csr.take_trap(trap, pc, ?);
+        if(committype==TRAP)begin
+          
+          let newpc<-  csr.take_trap(truncate(field4), truncate(field2), field1);
           fl=True;
           jump_address=newpc;
           rx.u.deq;
           if(verbosity>0)
-            $display($time, "\tWBMEM: Received Interrupt: ", fshow(trap));
-        end
-        // in case of a flush also flip the local epoch register.
-        // if instruction is of memory type then wait for response from memory
-        else if(trap matches tagged Exception .ex)begin
-          jump_address<- csr.take_trap(trap, pc, truncate(rd));
-          fl= True;
-          rx.u.deq;
-          if(verbosity!=0)
-            $display($time, "\tWBMEM: Received Exception: ", fshow(trap));
+            $display($time, "\tWBMEM: Received Exception: ", field4);
         end
         else if(committype == MEMORY) begin
+          let maddress=field1;
+          let mdata=field2;
+          let mpc=field3;
+          let mmeta=field4;
+          Bit#(3) rdindex=field4[3:1];
+          Bit#(5) rd = field4[8:4];
+          Access_type access_type=unpack(field4[12:10]);
+          Op3type rdtype=unpack(field4[9]);
           if (wr_memory_response matches tagged Valid .resp)begin
             if(verbosity>1)
               $display($time, "\tWBMEM: Got response from the Memory: ",fshow(resp));
@@ -148,36 +141,37 @@ package stage5;
 //            `endif
               wr_operand_fwding <= tagged Valid tuple2(data, rdindex);
               `ifdef spfpu
-                wr_commit <= tagged Valid (tuple4(rdaddr, zeroExtend(data), rdindex, rdtype)); //  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
+                wr_commit <= tagged Valid (tuple4(rd, zeroExtend(data), rdindex, rdtype)); //  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
               `else
-                wr_commit <= tagged Valid (tuple3(rdaddr, data, rdindex));
+                wr_commit <= tagged Valid (tuple3(rd, data, rdindex));
               `endif
-              `ifdef simulate 
-                if(rdaddr==0 `ifdef spfpu && rdtype==IRF `endif )
+              `ifdef rtldump
+                if(rd==0 `ifdef spfpu && rdtype==IRF `endif )
                   data=0;
                 `ifdef spfpu
-                  dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, data, rdtype));
+                  dump_ff.enq(tuple6(prv, signExtend(mpc), inst, rd, data, rdtype));
                 `else
-                  dump_ff.enq(tuple5(prv, signExtend(pc), inst, rdaddr, data));
+                  dump_ff.enq(tuple5(prv, signExtend(mpc), inst, rd, data));
                 `endif
               `endif
             end
             else begin
               if(verbosity>1)
                 $display($time, "\tWBMEM: Received Exception from Memory: ", fshow(resp));
-//              `ifdef supervisor
-//                if(err_fault[0]==1)
-//                  if(access_type==Load)
-//                    trap = tagged Exception Load_pagefault;
-//                  else
-//                    trap = tagged Exception Store_pagefault;
-//                else if(err_fault[1]==1)
-//              `endif
-//                if(access_type == Load)
-//                  trap = tagged Exception Load_access_fault;
-//                else
-//                  trap = tagged Exception Store_access_fault;
-              jump_address<- csr.take_trap(trap, pc, truncate(rd));
+              Bit#(7) cause=0;
+              `ifdef supervisor
+                if(err_fault[0]==1)
+                  if(access_type==Load)
+                    cause = `Load_pagefault;
+                  else
+                    cause = `Store_pagefault;
+                else if(err_fault[1]==1)
+              `endif
+                if(access_type == Load)
+                  cause = `Load_access_fault;
+                else
+                  cause = `Store_access_fault;
+              jump_address<- csr.take_trap(cause, mpc, maddress);
               fl= True;
             end
             rx.u.deq;
@@ -186,8 +180,14 @@ package stage5;
             $display($time, "\tWBMEM: Waiting for response from the Memory");
         end
         else if(committype == SYSTEM_INSTR)begin
-          let {drain, newpc, dest}<-csr.system_instruction(csrfield[11:0], 
-                                              csrfield[16:12], truncate(rd), csrfield[19:17], pc);
+          let rs1=field2;
+          Bit#(3) rdindex=field1[2:0];
+          Bit#(5) rdaddr = field1[7:3];
+          Bit#(3) funct3=field1[11:9];
+          Bit#(12) csraddr = field1[23:12];
+          Bit#(2) lpc=field1[25:24];
+          Op3type rdtype=unpack(field1[8]);
+          let {drain, newpc, dest}<-csr.system_instruction(csraddr, rs1, funct3, lpc);
           jump_address=newpc;
           fl=drain;
           `ifdef spfpu
@@ -197,33 +197,37 @@ package stage5;
             wr_commit <= tagged Valid (tuple3(rdaddr, dest, rdindex));
             wr_operand_fwding <= tagged Valid tuple2(zeroExtend(dest),  rdindex);
           `endif
-          `ifdef simulate 
+          `ifdef rtldump 
             if(rdaddr==0)
               dest=0;
             `ifdef spfpu
-              dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, zeroExtend(dest), rdtype));
+              dump_ff.enq(tuple6(prv, signExtend(simpc), inst, rdaddr, zeroExtend(dest), rdtype)); // TODO
             `else
-              dump_ff.enq(tuple5(prv, signExtend(pc), inst, rdaddr, dest));
+              dump_ff.enq(tuple5(prv, signExtend(simpc), inst, rdaddr, dest));
             `endif
           `endif
           rx.u.deq;
         end
         else begin
           // in case of regular instruction simply update RF and forward the data.
+          Bit#(3) rdindex=field1[2:0];
+          Bit#(5) rdaddr = field1[7:3];
+          Op3type rdtype = unpack(field1[8]);
+          Bit#(5) fflags = field1[13:9];
           `ifdef spfpu
-            wr_commit <= tagged Valid (tuple4(rdaddr, zeroExtend(rd), rdindex, rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
+            wr_commit <= tagged Valid (tuple4(rdaddr, zeroExtend(field2), rdindex, rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
             csr.update_fflags(fflags); 
           `else
-            wr_commit <= tagged Valid (tuple3(rdaddr, rd, rdindex));
+            wr_commit <= tagged Valid (tuple3(rdaddr, field2, rdindex));
           `endif
           rx.u.deq;
-          `ifdef simulate 
+          `ifdef rtldump
             if(rdaddr==0 `ifdef spfpu && rdtype==IRF `endif )
-              rd=0;
+              field2=0;
             `ifdef spfpu
-              dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, rd, rdtype));
+              dump_ff.enq(tuple6(prv, signExtend(simpc), inst, rdaddr, field2, rdtype));
             `else
-              dump_ff.enq(tuple5(prv, signExtend(pc), inst, rdaddr, rd));
+              dump_ff.enq(tuple5(prv, signExtend(simpc), inst, rdaddr, field2));
             `endif
           `endif
         end
@@ -255,6 +259,7 @@ package stage5;
     endinterface;
 
     interface rx_in=rx.e;
+    interface rx_inst=rxinst.e;
 
     method Maybe#(CommitData) commit_rd();
       return wr_commit;

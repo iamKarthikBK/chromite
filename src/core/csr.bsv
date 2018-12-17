@@ -43,9 +43,9 @@ package csr;
 	
   interface Ifc_csr;
 	  method ActionValue#(Tuple3#(Bool, Bit#(VADDR), Bit#(XLEN))) system_instruction(
-            Bit#(12) csr_address, Bit#(5) rs1_addr, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(VADDR) pc);
+            Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
     method CSRtoDecode csrs_to_decode;
-    method ActionValue#(Bit#(VADDR)) take_trap(Trap_type trap, Bit#(VADDR) pc, Bit#(VADDR) badaddr);
+    method ActionValue#(Bit#(VADDR)) take_trap(Bit#(7) type_cause, Bit#(VADDR) pc, Bit#(VADDR) badaddr);
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(64) c_mtime);
@@ -76,14 +76,14 @@ package csr;
       Wire#(Bool) wr_sfence_command <- mkDWire(False);
     `endif 
 	  method ActionValue#(Tuple3#(Bool, Bit#(VADDR), Bit#(XLEN))) system_instruction(
-         Bit#(12) csr_address, Bit#(5) rs1_addr, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(VADDR) pc);
+         Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
       Bool flush = False;
       Bit#(VADDR) jump_add=0;
 	  	let csrread<-csrfile.read_csr(csr_address);
       Bit#(XLEN) writecsrdata=0;
 	  	Bit#(XLEN) destination_value=0;
       if(verbosity>1)
-        $display($time, "\tCSR: csr: %h rs1addr: %d, op1: %h, funct3: %b csr_read: %h", csr_address, rs1_addr, 
+        $display($time, "\tCSR: csr: %h op1: %h, funct3: %b csr_read: %h", csr_address, 
             op1, funct3, csrread);
 
 	  	case(funct3)
@@ -111,11 +111,9 @@ package csr;
           `ifdef supervisor
             if(csr_address==`SATP )begin
               flush=True;
-              jump_add=pc+4; // TODO get rid of addr if possible.
+              jump_add=pc+4; // TODO get rid of addr if possible. We can do a replay mechanism here
             end
           `endif
-          if(funct3[2] == 1)
-            op1=zeroExtend(rs1_addr);
           destination_value=csrread;
           if(funct3[1:0] == 'd1)
             writecsrdata = op1;
@@ -123,27 +121,22 @@ package csr;
             writecsrdata = op1|csrread;
           else
             writecsrdata = ~op1&csrread;
-          csrfile.write_csr(csr_address, writecsrdata,  truncate(pc));
+          csrfile.write_csr(csr_address, writecsrdata,  lpc);
         end
       endcase
 	  	return tuple3(flush,jump_add,destination_value);
 	  endmethod
 	
-    method ActionValue#(Bit#(VADDR)) take_trap(Trap_type trap, Bit#(VADDR) pc, Bit#(VADDR) badaddr);
-		  if(trap matches tagged Exception .ex)begin
-		  	if(!(ex==Inst_addr_misaligned || ex==Inst_access_fault || ex==Load_access_fault ||
-            ex==Load_addr_misaligned || ex==Store_addr_misaligned || ex==Store_access_fault 
-            `ifdef supervisor || ex==Load_pagefault || ex==Store_pagefault || ex==Inst_pagefault `endif ))
-		  		badaddr=0;
-		  end
-		  Bit#(6) cause = 0;
-		  Bit#(TSub #(6, 1)) cause_code = 0;
-		  Bit#(1) cause_type = 0;
-		  case(trap) matches
-		  	tagged Interrupt .i: begin cause_type = 1; cause_code = zeroExtend(pack(i)); end
-		  	tagged Exception .e: begin cause_type = 0; cause_code = zeroExtend(pack(e)); end
-		  endcase
-			cause = {cause_type, cause_code};
+    method ActionValue#(Bit#(VADDR)) take_trap(Bit#(7) type_cause, Bit#(VADDR) pc, Bit#(VADDR) badaddr);
+		  Bit#(5) cause_code = truncate(type_cause);
+//		  if(!(cause_core==`Inst_addr_misaligned || cause_code==`Inst_access_fault || 
+//           cause_code==`Load_access_fault || cause_code==`Load_addr_misaligned || 
+//           cause_code==`Store_addr_misaligned || ex==Store_access_fault 
+//            `ifdef supervisor || ex==Load_pagefault || ex==Store_pagefault || ex==Inst_pagefault `endif ))
+//		  		badaddr=0;
+//		  end
+      Bit#(1) cause_type = truncateLSB(type_cause);
+			Bit#(6) cause = {truncateLSB(type_cause), cause_code[4:0]};
       let jump_address<-csrfile.upd_on_trap(cause, pc, badaddr); 
 		  return jump_address;
   	endmethod

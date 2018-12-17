@@ -69,7 +69,8 @@ package common_types;
 	typedef enum {`ifdef spfpu FloatingRF, `endif IntegerRF, Immediate, Constant4, Constant2} 
                                                                   Op2type deriving(Bits, Eq, FShow);
   typedef enum {FRF, IRF} Op3type deriving(Bits, Eq, FShow);
-  typedef enum {MEMORY, SYSTEM_INSTR, REGULAR, TRAP} Commit_type deriving(Eq, Bits, FShow);
+  typedef enum {SYSTEM_INSTR, REGULAR, TRAP} Commit_type deriving(Eq, Bits, FShow);
+  typedef enum {MEMORY, SYSTEM_INSTR, REGULAR, TRAP} PreCommit_type deriving(Eq, Bits, FShow);
   typedef enum {Machine=3, Supervisor=1, User=0} Privilege_mode 
                                                                           deriving(Eq, Bits, FShow);
   // -------------------------------------------------------------------------------------
@@ -100,7 +101,7 @@ package common_types;
   `endif
 
   // define all tuples here
-  typedef Tuple5#(Commit_type, Bit#(ELEN), Bit#(VADDR), Trap_type, Flush_type) ALU_OUT;
+  typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(VADDR), Bit#(6), Flush_type) ALU_OUT;
   
   typedef Tuple5#(Bit#(PADDR), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
   typedef Tuple4#(Bit#(PADDR), Access_type, Bit#(2), Bit#(1)) CoreRequest;
@@ -190,7 +191,7 @@ package common_types;
                  Bit#(3), // rs2index
                  Bit#(3), // rs3index
                  Bit#(msize), // rs1_pc
-                 Bit#(msize), // rs2
+                 Bit#(msize), // rs2_instruction(for badaddr)
                  Bit#(VADDR), // pc_rs1
                  Bit#(t),     // rs3_imm. Incase fpu is on then t = FLEN else VADDR
                  Instruction_type) // instr_type
@@ -209,53 +210,48 @@ package common_types;
   // -------------------------------------------------------------
   // ---------- Tuples for the third Pipeline Stage -----------//
 
-  // in case of trap: required:
-  // PC 
-  // Cause
-  // badaddr
-  // in case of system_instr:
-  // rd
-  // csrfield of 20 bits
-  // in case of REGULAR:
-  // rd
-  // rdaddr
-  // in case if MEMORY:
-  // badaddr
-  // rdaddr
-  // PC
-  `ifdef spfpu
-  typedef Tuple8#(
-    Commit_type,              // regular,  csr or memory  or
-    Bit#(ELEN),               // rd value or badaddr
-    Bit#(11),                 // rd,fflags,nanbox
-    Bit#(VADDR),              // PC 
-    Bit#(20),                 // CSR field
-    Bit#(1),                  // epoch
-    Trap_type,                // trap
-    Op3type                   // rdtype
-    ) ExecOut;
-  `else
-  typedef Tuple7#(
-    Commit_type,              // regular,  csr or memory
-    Bit#(ELEN),               // rd value or badaddr
-    Bit#(5),                  // rd
-    Bit#(VADDR),              // PC 
-    Bit#(20),                 // CSR field
-    Bit#(1),                  // epoch
-    Trap_type                // trap
-    ) ExecOut;
-  `endif
-  
-  `ifdef simulate
-  typedef Tuple3#(
-    ExecOut,
-    Bit#(3), 
-    Bit#(32)
-    ) PIPE3;
-  `else
-  // rd index also
-  typedef Tuple2#(ExecOut, Bit#(3)) PIPE3;
-  `endif
+  //for TRAP type commit: total : 85
+  // cause                7 bits            
+  // badaddr              VADDR             -done
+  // pc                   VADDR             -done
+
+  // for MEMORY type      total: 154
+  // address              VADDR             -done
+  // data                 ELEN              -done
+  // pc                   VADDR             -done required to generate TRAP
+  // rdtype               1.bit
+  // accesstype           3-bits            
+  // rd                   5-bits            
+  // rdindex              3-bits            
+  // meta_arrangement:    {accesstype,rdtype,rd,rdindex} = 12
+
+  // for REGULAR          total: 78
+  // rdvalue              ELEN              -done
+  // fpu-flags            5 bits            -done
+  // rdtype               1 bits            -done
+  // rd                   5 bits            -done
+  // rdindex              3 bits            -done
+  // meta_arrangement:    {fpu-flags,rdtype,rd,rdindex} = 14
+
+  // for SYSTEM_INSTR     total: 90 bits
+  // csr_imm or rs1       XLEN              -done
+  // rdtype               1-bit             -done
+  // lpc                  2 bits            -done
+  // csr_address          12 bits           -done
+  // funct3               3 bits            -done
+  // rd                   5-bits            -done
+  // rdindex              3 bits            -done
+  // meta_arrangement:    {lpc,csraddress,funct3,rdtype,rd,rdindex} = 26
+
+  // Common: epoch 1-bit
+
+  typedef Bit#(VADDR)     Tbad_Maddr_Rmeta_Smeta;
+  typedef Bit#(ELEN)      Tpc_Mdata_Rrdvalue_Srs1;
+  typedef Bit#(VADDR)     Mpc;
+  typedef Bit#(13)        Tcause_Mmeta_epoch;
+
+  typedef Tuple5#(PreCommit_type, Tbad_Maddr_Rmeta_Smeta, Tpc_Mdata_Rrdvalue_Srs1,
+                                                                    Mpc,Tcause_Mmeta_epoch) PIPE3;
   // ----------------------------------------------------------//
 
   typedef struct {

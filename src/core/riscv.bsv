@@ -79,6 +79,9 @@ package riscv;
     `endif
 
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
+    `ifdef simulate
+      FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
+    `endif
 
     mkConnection(stage1.tx_min, pipe1min);
     mkConnection(pipe1min, stage2.rx_min);
@@ -106,8 +109,14 @@ package riscv;
       mkConnection(stage2.tx_fpu, pipe2fpu);
       mkConnection(pipe2fpu, stage3.rx_fpu);
     `endif
+
     mkConnection(stage3.tx_out, pipe3);
     mkConnection(pipe3, stage5.rx_in);
+
+    `ifdef simulate
+      mkConnection(stage3.tx_inst,pipe3inst);
+      mkConnection(pipe3inst,stage5.rx_inst);
+    `endif
 
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
     let {flush_from_wb, flushpc_from_wb}=stage5.flush; // TODO also get fence info from WB.

@@ -144,7 +144,7 @@ package muldiv_fpga;
         rg_complement<= lv_take_complement;
         `ifdef RV64 rg_word32<= word32; `endif
       end
-      return tuple2(result_avail, tuple5(REGULAR, zeroExtend(default_out), 0, tagged None, None));
+      return tuple2(result_avail, tuple5(REGULAR, zeroExtend(default_out), 0, 0, None));
     endmethod
 		method ActionValue#(ALU_OUT) delayed_output if((rg_count== fromInteger(`MULSTAGES) && !mul_div)
                                             || (rg_count==(fromInteger(`DIVSTAGES)+ 1) && mul_div));
@@ -154,7 +154,7 @@ package muldiv_fpga;
         reslt=~reslt+ 1;
       Bit#(XLEN) product=`ifdef RV64 rg_word32?signExtend(reslt[31:0]): `endif 
           (!mul_div && rg_upperbits)? truncateLSB(reslt): truncate(reslt);
-      return tuple5(REGULAR, mul_div? ?/* div result*/: zeroExtend(product), 0, tagged None, None); 
+      return tuple5(REGULAR, mul_div? ?/* div result*/: zeroExtend(product), 0, 0, None); 
     endmethod
 	endmodule:mkmuldiv
 /*
