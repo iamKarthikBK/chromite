@@ -80,6 +80,19 @@ package stage3;
   import FIFOF::*;
   import SpecialFIFOs::*;
 
+  `define DEQRX \
+    rxmin.u.deq; \
+    `ifdef simulate \
+      rxinst.u.deq; \
+    `endif          \
+    `ifdef bpu      \
+      rxbpu.u.deq;  \
+    `endif          \
+    `ifdef spfpu    \
+      rxfpu.u.deq;  \
+    `endif      
+    
+
   interface Ifc_stage3;
 		interface RXe#(PIPE2_min#(ELEN,FLEN)) rx_min;
     `ifdef simulate
@@ -234,16 +247,7 @@ package stage3;
           end
         `endif
         eEpoch<= ~eEpoch;
-        rxmin.u.deq;
-        `ifdef simulate
-          rxinst.u.deq;
-        `endif
-        `ifdef bpu
-          rxbpu.u.deq;
-        `endif
-        `ifdef spfpu
-          rxfpu.u.deq;
-        `endif
+        `DEQRX
       end
       else if(instrtype!=TRAP)begin
 
@@ -282,16 +286,7 @@ package stage3;
           end
 
           if(done)begin
-            rxmin.u.deq;
-          `ifdef simulate
-            rxinst.u.deq;
-          `endif
-          `ifdef bpu
-            rxbpu.u.deq;
-          `endif
-          `ifdef spfpu
-            rxfpu.u.deq;
-          `endif
+            `DEQRX
 
           `ifdef bpu
             // in case of bimodal branch predictor we need to train the bpu and write new status
@@ -365,16 +360,7 @@ package stage3;
         end
       end
       else begin
-        rxmin.u.deq;
-      `ifdef simulate
-        rxinst.u.deq;
-      `endif
-      `ifdef bpu
-        rxbpu.u.deq;
-      `endif
-      `ifdef spfpu
-        rxfpu.u.deq;
-      `endif
+        `DEQRX
         Bit#(XLEN) res=signExtend(pc); // badaddress
       `ifdef bpu
         check_rpc<= tuple3(None, 0, nextpc);
@@ -433,16 +419,7 @@ package stage3;
         fwding.fwd_from_exe(out, rd_index);
       end
       rg_stall<= False;
-      rxmin.u.deq;
-    `ifdef simulate
-      rxinst.u.deq;
-    `endif
-    `ifdef bpu
-      rxbpu.u.deq;
-    `endif
-    `ifdef spfpu
-      rxfpu.u.deq;
-    `endif
+      `DEQRX
     endrule
   `endif
 		interface rx_min = rxmin.e;
