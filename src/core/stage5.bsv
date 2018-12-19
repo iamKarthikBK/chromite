@@ -104,17 +104,36 @@ package stage5;
 
 
     rule instruction_commit;
-       let {committype, field1, field2, field3, field4}=rx.u.first;
-       `ifdef rtldump
-         let {simpc,inst}=rxinst.u.first;
-       `endif
-      Bit#(1) epoch = truncate(field4);
-      Bit#(VADDR) jump_address=0;
+      let {committype, field1, field2, field3, field4}=rx.u.first;
+    `ifdef rtldump
+      let {simpc,inst}=rxinst.u.first;
+    `endif
+
+      Bit#(VADDR) badaddr = field1;
+      Bit#(5) fflags=truncate(field1);
+      Bit#(3) func3= field1[2:0];
+      Bit#(12) csraddr = field1[14:3];
+      Bit#(2) lpc = field1[16:15];
+
+      Bit#(ELEN) storedata=field2;
+      Bit#(ELEN) commitvalue = field2;
+      Bit#(XLEN) rs1 = truncate(field2);
+      
+      Bit#(VADDR) pc = field3;
+      
+      Bit#(1) epoch = field4[0];
+      Bit#(7) trapcause = field4[7:1];
+      Bit#(3) rdindex = field4[3:1];
+      Bit#(5) rd = field4[8:4];
+      Op3type rdtype = unpack(field4[9]);
+      Access_type memaccess = unpack(field4[12:10]);
+      
+
+      Bit#(VADDR) jump_address=?;
       Bool fl = False;
       if(rg_epoch==epoch)begin
         if(committype==TRAP)begin
-          
-          let newpc<-  csr.take_trap(truncate(field4), truncate(field2), field1);
+          let newpc <- csr.take_trap(trapcause, pc, badaddr);
           fl=True;
           jump_address=newpc;
           rx.u.deq;
@@ -122,14 +141,6 @@ package stage5;
             $display($time, "\tWBMEM: Received Exception: ", field4);
         end
         else if(committype == MEMORY) begin
-          let maddress=field1;
-          let mdata=field2;
-          let mpc=field3;
-          let mmeta=field4;
-          Bit#(3) rdindex=field4[3:1];
-          Bit#(5) rd = field4[8:4];
-          Access_type access_type=unpack(field4[12:10]);
-          Op3type rdtype=unpack(field4[9]);
           if (wr_memory_response matches tagged Valid .resp)begin
             if(verbosity>1)
               $display($time, "\tWBMEM: Got response from the Memory: ",fshow(resp));
@@ -149,9 +160,9 @@ package stage5;
                 if(rd==0 `ifdef spfpu && rdtype==IRF `endif )
                   data=0;
                 `ifdef spfpu
-                  dump_ff.enq(tuple6(prv, signExtend(mpc), inst, rd, data, rdtype));
+                  dump_ff.enq(tuple6(prv, signExtend(pc), inst, rd, data, rdtype));
                 `else
-                  dump_ff.enq(tuple5(prv, signExtend(mpc), inst, rd, data));
+                  dump_ff.enq(tuple5(prv, signExtend(pc), inst, rd, data));
                 `endif
               `endif
             end
@@ -161,17 +172,17 @@ package stage5;
               Bit#(7) cause=0;
               `ifdef supervisor
                 if(err_fault[0]==1)
-                  if(access_type==Load)
+                  if(memaccess==Load)
                     cause = `Load_pagefault;
                   else
                     cause = `Store_pagefault;
                 else if(err_fault[1]==1)
               `endif
-                if(access_type == Load)
+                if(memaccess== Load)
                   cause = `Load_access_fault;
                 else
                   cause = `Store_access_fault;
-              jump_address<- csr.take_trap(cause, mpc, maddress);
+              jump_address<- csr.take_trap(cause, pc, badaddr);
               fl= True;
             end
             rx.u.deq;
@@ -180,54 +191,43 @@ package stage5;
             $display($time, "\tWBMEM: Waiting for response from the Memory");
         end
         else if(committype == SYSTEM_INSTR)begin
-          let rs1=field2;
-          Bit#(3) rdindex=field1[2:0];
-          Bit#(5) rdaddr = field1[7:3];
-          Bit#(3) funct3=field1[11:9];
-          Bit#(12) csraddr = field1[23:12];
-          Bit#(2) lpc=field1[25:24];
-          Op3type rdtype=unpack(field1[8]);
-          let {drain, newpc, dest}<-csr.system_instruction(csraddr, rs1, funct3, lpc);
+          let {drain, newpc, dest}<-csr.system_instruction(csraddr, rs1, func3, lpc);
           jump_address=newpc;
           fl=drain;
           `ifdef spfpu
-            wr_commit <= tagged Valid (tuple4(rdaddr, zeroExtend(dest), rdindex, rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
+            wr_commit <= tagged Valid (tuple4(rd, zeroExtend(dest), rdindex, rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
             wr_operand_fwding <= tagged Valid tuple2(zeroExtend(dest),  rdindex);
           `else
-            wr_commit <= tagged Valid (tuple3(rdaddr, dest, rdindex));
+            wr_commit <= tagged Valid (tuple3(rd, dest, rdindex));
             wr_operand_fwding <= tagged Valid tuple2(zeroExtend(dest),  rdindex);
           `endif
           `ifdef rtldump 
-            if(rdaddr==0)
+            if(rd==0)
               dest=0;
             `ifdef spfpu
-              dump_ff.enq(tuple6(prv, signExtend(simpc), inst, rdaddr, zeroExtend(dest), rdtype)); // TODO
+              dump_ff.enq(tuple6(prv, signExtend(simpc), inst, rd, zeroExtend(dest), rdtype)); // TODO
             `else
-              dump_ff.enq(tuple5(prv, signExtend(simpc), inst, rdaddr, dest));
+              dump_ff.enq(tuple5(prv, signExtend(simpc), inst, rd, dest));
             `endif
           `endif
           rx.u.deq;
         end
         else begin
           // in case of regular instruction simply update RF and forward the data.
-          Bit#(3) rdindex=field1[2:0];
-          Bit#(5) rdaddr = field1[7:3];
-          Op3type rdtype = unpack(field1[8]);
-          Bit#(5) fflags = field1[13:9];
           `ifdef spfpu
-            wr_commit <= tagged Valid (tuple4(rdaddr, zeroExtend(field2), rdindex, rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
+            wr_commit <= tagged Valid (tuple4(rd, commitvalue, rdindex, rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
             csr.update_fflags(fflags); 
           `else
-            wr_commit <= tagged Valid (tuple3(rdaddr, field2, rdindex));
+            wr_commit <= tagged Valid (tuple3(rd, commitvalue, rdindex));
           `endif
           rx.u.deq;
           `ifdef rtldump
-            if(rdaddr==0 `ifdef spfpu && rdtype==IRF `endif )
+            if(rd==0 `ifdef spfpu && rdtype==IRF `endif )
               field2=0;
             `ifdef spfpu
-              dump_ff.enq(tuple6(prv, signExtend(simpc), inst, rdaddr, field2, rdtype));
+              dump_ff.enq(tuple6(prv, signExtend(simpc), inst, rd, field2, rdtype));
             `else
-              dump_ff.enq(tuple5(prv, signExtend(simpc), inst, rdaddr, field2));
+              dump_ff.enq(tuple5(prv, signExtend(simpc), inst, rd, field2));
             `endif
           `endif
         end

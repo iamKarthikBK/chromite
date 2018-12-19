@@ -231,27 +231,29 @@ package common_types;
   // rdtype               1 bits            -done
   // rd                   5 bits            -done
   // rdindex              3 bits            -done
-  // meta_arrangement:    {fpu-flags,rdtype,rd,rdindex} = 14
+  // meta1_arrangement:    {rdtype,rd,rdindex} = 9
+  // meta2_arrangement:    {fpu-flags} = 5
 
   // for SYSTEM_INSTR     total: 90 bits
   // csr_imm or rs1       XLEN              -done
-  // rdtype               1-bit             -done
   // lpc                  2 bits            -done
   // csr_address          12 bits           -done
   // funct3               3 bits            -done
+  // rdtype               1-bit             -done
   // rd                   5-bits            -done
   // rdindex              3 bits            -done
-  // meta_arrangement:    {lpc,csraddress,funct3,rdtype,rd,rdindex} = 26
+  // meta2_arrangement:    {lpc,csraddress,funct3} = 17
+  // meta1_arrangement:    {rdtype,rd,rdindex} = 9
 
   // Common: epoch 1-bit
 
-  typedef Bit#(VADDR)     Tbad_Maddr_Rmeta_Smeta;
-  typedef Bit#(ELEN)      Tpc_Mdata_Rrdvalue_Srs1;
-  typedef Bit#(VADDR)     Mpc;
-  typedef Bit#(13)        Tcause_Mmeta_epoch;
+  typedef Bit#(VADDR)     Tbad_Maddr_Rmeta2_Smeta2;
+  typedef Bit#(ELEN)      Mdata_Rrdvalue_Srs1;
+  typedef Bit#(VADDR)     Tpc_Mpc;
+  typedef Bit#(13)        Tcause_Mmeta_Rmeta1_Smeta1_epoch;
 
-  typedef Tuple5#(PreCommit_type, Tbad_Maddr_Rmeta_Smeta, Tpc_Mdata_Rrdvalue_Srs1,
-                                                                    Mpc,Tcause_Mmeta_epoch) PIPE3;
+  typedef Tuple5#(PreCommit_type, Tbad_Maddr_Rmeta2_Smeta2, Mdata_Rrdvalue_Srs1,
+                                                Tpc_Mpc,Tcause_Mmeta_Rmeta1_Smeta1_epoch) PIPE3;
   // ----------------------------------------------------------//
 
   typedef struct {

@@ -190,6 +190,8 @@ package stage3;
     `endif
     `ifdef spfpu
       let {rs3addr, rdtype} = rxfpu.u.first;
+    `else
+      Op3type rdtype = IRF;
     `endif
   
       Bit#(VADDR) pc = op3;
@@ -309,42 +311,32 @@ package stage3;
           `else
             check_rpc<= tuple2(redirect, addr);
           `endif
-          `ifdef spfpu
             Bit#(1) nanboxing=pack(cmtype==MEMORY && funct3[1:0]==2 && rdtype==FRF);
-          `endif
             if(cmtype==REGULAR)
               fwding.fwd_from_exe(out, rd_index);
             if(cmtype==MEMORY && memaccess!=Store)begin
               ff_memory_request.enq(tuple3(truncate(addr), epochs[0], funct3));
             end
+            Bit#(9) smeta1 = {pack(rdtype),rd,rd_index};
+            Bit#(12) mmeta = {pack(memaccess),smeta1};
+            Tbad_Maddr_Rmeta2_Smeta2 tple1 = zeroExtend(addr); // TODO add lpc in alu for system instr
 
-            Tbad_Maddr_Rmeta_Smeta t1 = 
+            Mdata_Rrdvalue_Srs1 tple2 =
               case(cmtype)
-                TRAP,MEMORY: addr;
-                REGULAR: zeroExtend({6'd0,
-                                    `ifdef spfpu pack(rdtype), `else 1'd0, `endif 
-                                    rd,
-                                    rd_index
-                                  });
-                 SYSTEM_INSTR: zeroExtend({pc[1:0],addr[11:0],funct3,
-                               `ifdef spfpu pack(rdtype), `else 1'd0, `endif rd,rd_index});
+                  MEMORY: x2;
+                  REGULAR: out;
+                  SYSTEM_INSTR: if(funct3[2]==1) zeroExtend(x4[16:12]); else out;
+                  default:0;
               endcase;
-            Tpc_Mdata_Rrdvalue_Srs1 t2 = 
+    
+            Tpc_Mpc tple3 = pc;
+            Tcause_Mmeta_Rmeta1_Smeta1_epoch tple4 = 
               case(cmtype)
-                TRAP: pc;
-                MEMORY: x2;
-                REGULAR: out;
-                SYSTEM_INSTR: if(funct3[2]==1) zeroExtend(x4[16:12]); else out;
+                TRAP: zeroExtend({func_cause,epochs[0]});
+                MEMORY: zeroExtend({mmeta,epochs[0]});
+                default: zeroExtend({smeta1,epochs[0]});
               endcase;
-            Mpc temp3 = pc;
-            Tcause_Mmeta_epoch t4 = 
-              case(cmtype)
-                TRAP: zeroExtend({cause,epochs[0]});
-                MEMORY: {pack(memaccess), `ifdef spfpu pack(rdtype), `else 0, `endif rd,rd_index,epochs[0]};
-                default: 0;
-              endcase;
-
-            PIPE3 pipedata= tuple5(cmtype,t1,t2,temp3,t4);
+            PIPE3 pipedata= tuple5(cmtype, tple1,tple2,tple3,tple4);
 
 	        `ifdef simulate
 	      		if(instrtype==BRANCH && cmtype!=TRAP)
@@ -375,7 +367,7 @@ package stage3;
       `else
         check_rpc<= tuple2(None, 0);
       `endif
-        PIPE3 pipedata = tuple5(TRAP, truncate(op1), zeroExtend(pc), pc, zeroExtend(func_cause)); 
+        PIPE3 pipedata = tuple5(TRAP, truncate(op1), ?, pc, zeroExtend(func_cause)); 
         tx.u.enq(pipedata);
       `ifdef simulate
         txinst.u.enq(tuple2(pc,instruction));
@@ -405,8 +397,8 @@ package stage3;
             fshow(out)," trap: ", cause);
       end
         
-      PIPE3 pipedata = tuple5(REGULAR, zeroExtend({1'd0,fflags,pack(rdtype),rd,rd_index}),
-                              out, pc, zeroExtend(epochs[0])); 
+      PIPE3 pipedata = tuple5(REGULAR, zeroExtend(fflags), out, pc, 
+                              zeroExtend({pack(rdtype),rd,rd_index,epochs[0]}) ); 
       Bool execute_instruction = ({eEpoch, wEpoch}==epochs);
 
       if(execute_instruction)begin
