@@ -131,14 +131,22 @@ package stage5;
 
       Bit#(VADDR) jump_address=?;
       Bool fl = False;
+      `ifdef simulate
+        `ifdef rtldump
+          $display($time,"\tWBMEM: PC: %h: inst: %h",simpc,inst);
+        `endif
+      `endif
       if(rg_epoch==epoch)begin
         if(committype==TRAP)begin
           let newpc <- csr.take_trap(trapcause, pc, badaddr);
           fl=True;
           jump_address=newpc;
           rx.u.deq;
+          `ifdef rtldump
+            rxinst.u.deq;
+          `endif
           if(verbosity>0)
-            $display($time, "\tWBMEM: Received Exception: ", field4);
+            $display($time, "\tWBMEM: Received TRAP: ", trapcause);
         end
         else if(committype == MEMORY) begin
           if (wr_memory_response matches tagged Valid .resp)begin
@@ -185,6 +193,9 @@ package stage5;
               jump_address<- csr.take_trap(cause, pc, badaddr);
               fl= True;
             end
+          `ifdef rtldump
+            rxinst.u.deq;
+          `endif
             rx.u.deq;
           end
           else if(verbosity>1)
@@ -210,6 +221,9 @@ package stage5;
               dump_ff.enq(tuple5(prv, signExtend(simpc), inst, rd, dest));
             `endif
           `endif
+        `ifdef rtldump
+          rxinst.u.deq;
+        `endif
           rx.u.deq;
         end
         else begin
@@ -221,6 +235,9 @@ package stage5;
             wr_commit <= tagged Valid (tuple3(rd, commitvalue, rdindex));
           `endif
           rx.u.deq;
+        `ifdef rtldump
+          rxinst.u.deq;
+        `endif
           `ifdef rtldump
             if(rd==0 `ifdef spfpu && rdtype==IRF `endif )
               field2=0;
@@ -243,8 +260,11 @@ package stage5;
       end
       else begin
         if(verbosity>1)
-          $display($time, "\tWBMEM: Dropping instruction");
+          $display($time, "\tWBMEM: Dropping instruction. Epoch: %b rg_epoch: %b",epoch,rg_epoch);
         rx.u.deq;
+      `ifdef rtldump
+        rxinst.u.deq;
+      `endif
       end
     endrule
 
