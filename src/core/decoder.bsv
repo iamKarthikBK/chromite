@@ -568,10 +568,8 @@ package decoder;
     if(funct3[0]==0 && opcode=='b00011)
       mem_access=Fence;
   `endif
-  `ifdef icache
     if(funct3[0]==1 && opcode=='b00011)
       mem_access=FenceI;
-  `endif
   `ifdef atomic
     if(opcode=='b01011)
       mem_access=Atomic;
@@ -635,8 +633,14 @@ package decoder;
     		'b001:if(funct3==0)inst_type=JALR; 
         'b011:inst_type=JAL;
     		'b000:if(funct3!=2 && funct3!=3) inst_type=BRANCH;
-    		'b100:if(funct3==0 && inst[31:20]=='h105) inst_type=WFI; 
-              else if(funct3!=4) inst_type=SYSTEM_INSTR;
+        'b100:if(funct3==0) begin
+                if(inst[31:20]=='h105) 
+                  inst_type=WFI; 
+                else
+                  inst_type=SYSTEM_INSTR;
+              end
+              else if(funct3!=4) 
+                inst_type=SYSTEM_INSTR;
     	endcase
     end
     else if(opcode[4:3]=='b01)begin // Stores,  LUIs,  MulDiv,  Register Arithmetic
@@ -659,12 +663,14 @@ package decoder;
     	case(opcode[2:0])
     		'b000: if(funct3!='b111 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Loads
         'b011: begin 
+              if(funct3==0) 
             `ifdef dcache 
-              inst_type=MEMORY; // FENCE or FENCE.I only if DCACHE is present
+                inst_type=MEMORY; // FENCE or FENCE.I only if DCACHE is present
+            `else
+                inst_type=ALU;
             `endif
-            `ifdef icache
-              if(funct3[0]==1) inst_type=MEMORY; // FENCE.I only if ICACHE is present
-            `endif
+              if(funct3==1)
+                inst_type=MEMORY; // FENCE.I only if ICACHE is present
         end
         'b001: if(fs!=0 && (misa[5]==1 && funct3==2) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FLoad
     		'b101,'b100,'b110:inst_type=ALU;
@@ -719,7 +725,7 @@ package decoder;
 
 		Bool address_is_valid=address_valid(inst[31:20]);
 		Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], prv);
-    Bit#(6) trapcause=0;
+    Bit#(6) trapcause='1;
     if(takeinterrupt)begin
       trapcause=icause;
       inst_type=TRAP;
@@ -738,14 +744,15 @@ package decoder;
     end
     else if(inst_type == SYSTEM_INSTR)begin
       if(funct3 == 0)begin
-        inst_type=TRAP;
         case(inst[31:20])
-          'h000: trapcause = (misa[20]==1 && prv==User)?`Ecall_from_user: 
+          'h000: begin inst_type=TRAP; trapcause = (misa[20]==1 && prv==User)?`Ecall_from_user: 
                              (misa[18]==1 && prv==Supervisor)?`Ecall_from_supervisor: 
                              `Ecall_from_machine;
-          'h001: trapcause = `Breakpoint;
-          'h102: if(misa[18]==0 || prv!=Supervisor) trapcause=`Illegal_inst;
-          'h302: if(prv!=Machine) trapcause=`Illegal_inst;
+                 end
+          'h001: begin inst_type=TRAP; trapcause = `Breakpoint; end
+          'h102: if(misa[18]==0 || prv!=Supervisor) begin inst_type=TRAP;trapcause=`Illegal_inst; end
+          'h302: if(prv!=Machine) begin inst_type=TRAP; trapcause=`Illegal_inst; end
+          default: begin inst_type=TRAP; trapcause=`Illegal_inst ; end
         endcase
       end
       else begin // CSR read write operation
