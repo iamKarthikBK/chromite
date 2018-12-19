@@ -254,7 +254,68 @@ package common_types;
 
   typedef Tuple5#(PreCommit_type, Tbad_Maddr_Rmeta2_Smeta2, Mdata_Rrdvalue_Srs1,
                                                 Tpc_Mpc,Tcause_Mmeta_Rmeta1_Smeta1_epoch) PIPE3;
+                
   // ----------------------------------------------------------//
+  // ---------- Tuples for the third Pipeline Stage -----------//
+
+  //for TRAP type commit: total : 85
+  // cause                7 bits            
+  // badaddr              VADDR             -done
+  // pc                   VADDR             -done
+
+  // for STORE type      total: 78
+  // address              VADDR             -done
+  // pc                   VADDR           
+
+  // for REGULAR          total: 78
+  // rdvalue              ELEN              -done
+  // fpu-flags            5 bits            -done
+  // rdtype               1 bits            -done
+  // rd                   5 bits            -done
+  // rdindex              3 bits            -done
+  // meta1_arrangement:    {rdtype,rd,rdindex} = 9
+  // meta2_arrangement:    {fpu-flags} = 5
+
+  // for SYSTEM_INSTR     total: 90 bits
+  // csr_imm or rs1       XLEN              -done
+  // lpc                  2 bits            -done
+  // csr_address          12 bits           -done
+  // funct3               3 bits            -done
+  // rdtype               1-bit             -done
+  // rd                   5-bits            -done
+  // rdindex              3 bits            -done
+  // meta2_arrangement:    {lpc,csraddress,funct3} = 17
+  // meta1_arrangement:    {rdtype,rd,rdindex} = 9
+
+  // Common: epoch 1-bit
+  typedef struct{
+    Bit#(7) cause;
+    Bit#(VADDR) badaddr;
+    Bit#(VADDR) pc;}CommitTrap deriving(Bits,Eq,FShow);
+
+  typedef struct{
+    Bit#(VADDR) pc;
+    Bit#(VADDR) addr;}CommitStore deriving (Bits,Eq,FShow);
+
+  typedef struct{
+    Bit#(ELEN) rd;
+    Bit#(14) meta;}CommitRegular deriving(Bits,Eq,FShow);
+
+  typedef struct{
+    Bit#(XLEN) rs1;
+    Bit#(26) meta;}CommitSystem deriving(Bits,Eq,FShow);
+
+  typedef union tagged{
+    CommitTrap TRAP;
+    CommitStore STORE;
+    CommitRegular REGULAR;
+    CommitSystem SYSTEM;} CommitType deriving(Bits,Eq,FShow);
+
+  typedef Tuple2#(CommitType,Bit#(1)) PIPE4;
+
+  // ----------------------------------------------------------//
+
+  
 
   typedef struct {
   	Bit#(1)			mprv;
