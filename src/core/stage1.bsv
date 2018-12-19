@@ -226,13 +226,13 @@ package stage1;
         `ifdef supervisor
           tx_opt2.u.enq(PIPE1_opt2{pagefault:0}); // TODO fix when TLB is integrated
         `endif
-        end
-        if(verbosity!=0) begin
-          $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Epoch: %b", rg_pc, final_instruction,
+          if(verbosity!=0) begin
+            $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Epoch: %b", rg_pc, final_instruction,
                                                                                         err, epoch);
-          $display($time,"\tSTAGE1: rg_action: ",fshow(rg_action)," compressed: %b final_inst:\
+            $display($time,"\tSTAGE1: rg_action: ",fshow(rg_action)," compressed: %b final_inst:\
   %h rg_instruction: %h enque_instruction: %b curr_epoch: %b", compressed, final_instruction, 
               rg_instruction, enque_instruction,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
+          end
         end
     endrule
     

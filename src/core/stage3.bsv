@@ -340,15 +340,15 @@ package stage3;
             PIPE3 pipedata= tuple5(cmtype, tple1,tple2,tple3,tple4);
 
 	        `ifdef simulate
-	      		if(instrtype==BRANCH && cmtype!=TRAP)
-	      			out=0;
-	        `endif
+	      	  if(instrtype==BRANCH && cmtype!=TRAP)
+	      		  out=0;
+  	      `endif
 
-          tx.u.enq(pipedata);
-        `ifdef simulate
-          txinst.u.enq(tuple2(pc,instruction));
-        `endif
-          // if the operation is a multicycle one,  then go to stall state.
+            tx.u.enq(pipedata);
+          `ifdef simulate
+            txinst.u.enq(tuple2(pc,instruction));
+          `endif
+            // if the operation is a multicycle one,  then go to stall state.
           end
           else begin
           `ifdef bpu

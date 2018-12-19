@@ -72,17 +72,17 @@ package registerfile;
     Integer verbosity = `VERBOSITY ;
 		RegFile#(Bit#(5),Bit#(XLEN)) integer_rf <-mkRegFileWCF(0,31);
     Reg#(Maybe#(Bit#(TLog#(PRFDEPTH)))) arr_rename_int [32];
-		`ifdef spfpu 
-			RegFile#(Bit#(5),Bit#(FLEN)) floating_rf <-mkRegFileWCF(0,31);
-      Reg#(Maybe#(Bit#(TLog#(PRFDEPTH)))) arr_rename_float [32];
-		`endif
+	`ifdef spfpu 
+		RegFile#(Bit#(5),Bit#(FLEN)) floating_rf <-mkRegFileWCF(0,31);
+    Reg#(Maybe#(Bit#(TLog#(PRFDEPTH)))) arr_rename_float [32];
+	`endif
 		Reg#(Bool) initialize<-mkReg(True);
 		Reg#(Bit#(5)) rg_index<-mkReg(0);
-    `ifdef spfpu
-      Wire#(Tuple2#(Op3type, Bit#(5))) wr_rename_reg<- mkDWire(tuple2(IRF, 0));
-    `else
-      Wire#(Bit#(5)) wr_rename_reg<- mkDWire(0);
-    `endif
+  `ifdef spfpu
+    Wire#(Tuple2#(Op3type, Bit#(5))) wr_rename_reg<- mkDWire(tuple2(IRF, 0));
+  `else
+    Wire#(Bit#(5)) wr_rename_reg<- mkDWire(0);
+  `endif
 
     for (Integer i=0;i<32;i=i+1) begin
       arr_rename_int[i]<- mkConfigReg(tagged Invalid);
@@ -102,6 +102,8 @@ package registerfile;
 			rg_index<=rg_index+1;
 			if(rg_index=='d31)
 				initialize<=False;
+      if(verbosity>0)
+        $display($time,"\tRF: Initialization phase. Count: %d",rg_index);
 		endrule
 
 	  method ActionValue#(Operands) opaddress( Bit#(5) rs1addr, Bit#(5) rs2addr, Bit#(5) rd,
