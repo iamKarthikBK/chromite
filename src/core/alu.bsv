@@ -78,7 +78,8 @@ package alu;
 	(*noinline*)
 	function ALU_OUT fn_alu (Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
       Bit#(VADDR) imm_value, Instruction_type inst_type, Funct3 funct3,
-      Access_type memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c);
+      Access_type memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c,
+      Bit#(2) lpc);
 
 	  /*========= Perform all the arithmetic ===== */
 	  // ADD* ADDI* SUB* 
@@ -178,7 +179,7 @@ package alu;
       committype = SYSTEM_INSTR;
 	
 	  Bit#(VADDR) effaddr_csrdata = (inst_type==SYSTEM_INSTR)? 
-                                            zeroExtend({imm_value[11:0],funct3}): 
+                                            zeroExtend({lpc,imm_value[11:0],funct3}): 
                                             effective_address;
 
 	  return tuple5(committype, zeroExtend(final_output), effaddr_csrdata, cause, flush);
@@ -190,7 +191,7 @@ package alu;
 	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
         `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(VADDR) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Access_type
-        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c );
+        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c, Bit#(2) lpc );
 		method ActionValue#(ALU_OUT) delayed_output;
   endinterface:Ifc_alu
 
@@ -234,7 +235,7 @@ package alu;
 	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
         `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(VADDR) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Access_type
-        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c);
+        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c, Bit#(2) lpc );
       `ifdef muldiv
         if(inst_type==MULDIV)begin
           let product <- muldiv.get_inputs(truncate(op1), truncate(op2), funct3 `ifdef RV64 , word32 `endif );
@@ -261,7 +262,7 @@ package alu;
         else
       `endif
           return tuple2(True, fn_alu(fn, truncate(op1), truncate(op2), truncate(op3), truncate(imm_value), inst_type, funct3, 
-                        memaccess, word32 `ifdef bpu , prediction `endif , misa_c ));
+                        memaccess, word32 `ifdef bpu , prediction `endif , misa_c, lpc ));
     endmethod
     `ifdef muldiv
       `ifndef spfpu

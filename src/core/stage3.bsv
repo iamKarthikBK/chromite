@@ -267,10 +267,11 @@ package stage3;
           `ifdef multicycle
               let {done, cmtype, out, addr, cause, redirect} <- alu.get_inputs(fn, new_op1, x2, t3, 
                 truncate(x4), instrtype, funct3, memaccess, word32 `ifdef bpu ,pred `endif ,
-                wr_misa_c);
+                wr_misa_c, truncate(pc));
           `else
             let {cmtype, out, addr, cause, redirect} = fn_alu(fn, new_op1, x2, t3, truncate(x4), 
-                      instrtype, funct3, memaccess, word32 `ifdef bpu ,pred `endif , wr_misa_c);
+                      instrtype, funct3, memaccess, word32 `ifdef bpu ,pred `endif , wr_misa_c,
+                    truncate(pc));
             Bool done=True;
           `endif
           if(verbosity>1)begin
@@ -319,7 +320,7 @@ package stage3;
             end
             Bit#(9) smeta1 = {pack(rdtype),rd,rd_index};
             Bit#(12) mmeta = {pack(memaccess),smeta1};
-            Tbad_Maddr_Rmeta2_Smeta2 tple1 = zeroExtend(addr); // TODO add lpc in alu for system instr
+            Tbad_Maddr_Rmeta2_Smeta2 tple1 = zeroExtend(addr); 
 
             Mdata_Rrdvalue_Srs1 tple2 =
               case(cmtype)
