@@ -169,7 +169,7 @@ package stage3;
     Reg#(Flush_type) wr_flush_from_exe <- mkDReg(None);
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDReg(0);
-		FIFOF#(MemoryReadReq#(PADDR,1)) ff_memory_request <-mkBypassFIFOF;
+		FIFOF#(MemoryReadReq#(PADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
     Wire#(Bit#(1)) wr_misa_c<-mkWire();
 
     rule flush_mapping(wr_flush_from_exe!=None||wr_flush_from_wb);
@@ -315,8 +315,8 @@ package stage3;
             Bit#(1) nanboxing=pack(cmtype==MEMORY && funct3[1:0]==2 && rdtype==FRF);
             if(cmtype==REGULAR)
               fwding.fwd_from_exe(out, rd_index);
-            if(cmtype==MEMORY && memaccess!=Store)begin
-              ff_memory_request.enq(tuple3(truncate(addr), epochs[0], funct3));
+            if(cmtype==MEMORY && memaccess==Store)begin
+              ff_memory_read_request.enq(tuple3(truncate(addr), epochs[0], funct3));
             end
             Bit#(9) smeta1 = {pack(rdtype),rd,rd_index};
             Bit#(12) mmeta = {pack(memaccess),smeta1};
@@ -455,8 +455,8 @@ package stage3;
   `endif
 		interface memory_read_request = interface Get 
 			method ActionValue#(MemoryReadReq#(PADDR,1)) get ;
-				ff_memory_request.deq;
-				return ff_memory_request.first;
+				ff_memory_read_request.deq;
+				return ff_memory_read_request.first;
 			endmethod
 		endinterface;
   `ifdef supervisor
