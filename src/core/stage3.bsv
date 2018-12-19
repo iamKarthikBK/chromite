@@ -368,7 +368,7 @@ package stage3;
       `else
         check_rpc<= tuple2(None, 0);
       `endif
-        PIPE3 pipedata = tuple5(TRAP, truncate(op1), ?, pc, zeroExtend(func_cause)); 
+        PIPE3 pipedata = tuple5(TRAP, truncate(op1), ?, pc, zeroExtend({func_cause,epochs[0]})); 
         tx.u.enq(pipedata);
       `ifdef simulate
         txinst.u.enq(tuple2(pc,instruction));
