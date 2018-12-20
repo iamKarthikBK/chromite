@@ -49,10 +49,14 @@ package stage4;
       interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;
     `endif
     interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
-		interface Get#(MemoryReadReq#(PADDR,1)) memory_write_request;
+
+		interface Get#(MemoryWriteReq#(PADDR,1,ELEN)) memory_write_request;
+    interface Put#(Maybe#(MemoryWriteResp#(1))) memory_write_response;
+
     interface Get#(Tuple2#(Bit#(ELEN), Bit#(3))) fwd_from_mem;
   endinterface
 
+  (*synthesize*)
   module mkstage4(Ifc_stage4);
     RX#(PIPE3) rxmin <- mkRX;
     TX#(PIPE4) txmin <- mkTX;
@@ -96,10 +100,20 @@ package stage4;
         temp1=tagged TRAP (CommitTrap{cause:trapcause, badaddr:badaddr, pc:pc});
       end
       else if(committype==REGULAR)begin
-        temp1=tagged REGULAR CommitRegular{rd:commitvalue,meta:zeroExtend({fflags,pack(rdtype),rd,rdindex})};
+        temp1=tagged REGULAR CommitRegular{commitvalue:commitvalue,
+                                          fflags:fflags,
+                                          rdtype:rdtype,
+                                          rd:rd,
+                                          rdindex:rdindex};
       end
       else if(committype==SYSTEM_INSTR)begin
-        temp1=tagged SYSTEM CommitSystem {rs1:rs1,meta:zeroExtend({lpc,csraddr,func3,pack(rdtype),rd,rdindex})};
+        temp1=tagged SYSTEM CommitSystem {rs1:rs1,
+                                          lpc:lpc,
+                                          csraddr:csraddr,
+                                          func3:func3,
+                                          rdtype:rdtype,
+                                          rd:rd,
+                                          rdindex:rdindex};
       end
       else if(committype==MEMORY) begin
         if(memaccess!=Store)begin
@@ -107,7 +121,11 @@ package stage4;
             let {data, err_fault, epochs}=resp;
             if(err_fault==0 )begin // no bus error
               wr_operand_fwding <= tagged Valid tuple2(data, rdindex);
-              temp1=tagged REGULAR CommitRegular{rd:data,meta:zeroExtend({fflags,pack(rdtype),rd,rdindex})};
+              temp1=tagged REGULAR CommitRegular{commitvalue:data,
+                                                 fflags:fflags,
+                                                 rdtype:rdtype,
+                                                 rd:rd,
+                                                 rdindex:rdindex};
             end
             else begin
               if(err_fault[0]==1)
@@ -122,6 +140,11 @@ package stage4;
           end
         end
       end
+      `ifdef simulate
+        $display($time,"\tSTAGE4: PC: %h Inst: %h",simpc,inst);
+        if(complete)
+          $display($time,"\tSTAGE4: temp1: ",fshow(temp1));
+      `endif
       if(complete)begin
         txmin.u.enq(tuple2(temp1,epoch));
         rxmin.u.deq;

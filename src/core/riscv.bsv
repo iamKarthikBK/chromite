@@ -34,6 +34,7 @@ package riscv;
   import stage1::*;
   import stage2::*;
   import stage3::*;
+  import stage4::*;
   import stage5::*;
   import common_types::*;
   `include "common_params.bsv"
@@ -61,6 +62,7 @@ package riscv;
     Ifc_stage1 stage1 <- mkstage1();
     Ifc_stage2 stage2 <- mkstage2();
     Ifc_stage3 stage3 <- mkstage3();
+    Ifc_stage4 stage4 <- mkstage4();
     Ifc_stage5 stage5 <- mkstage5();
 
     FIFOF#(PIPE1_min) pipe1min <-mkSizedFIFOF(2);
@@ -81,6 +83,11 @@ package riscv;
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
     `ifdef simulate
       FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
+    `endif
+
+    FIFOF#(PIPE4) pipe4 <-mkSizedFIFOF(2);
+    `ifdef simulate
+      FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
     `endif
 
     mkConnection(stage1.tx_min, pipe1min);
@@ -111,13 +118,20 @@ package riscv;
     `endif
 
     mkConnection(stage3.tx_out, pipe3);
-    mkConnection(pipe3, stage5.rx_in);
+    mkConnection(pipe3, stage4.rx_min);
 
     `ifdef simulate
       mkConnection(stage3.tx_inst,pipe3inst);
-      mkConnection(pipe3inst,stage5.rx_inst);
+      mkConnection(pipe3inst,stage4.rx_inst);
     `endif
 
+    mkConnection(stage4.tx_min,pipe4);
+    mkConnection(pipe4,stage5.rx_in);
+
+    `ifdef simulate
+      mkConnection(stage4.tx_inst,pipe4inst);
+      mkConnection(pipe4inst,stage5.rx_inst);
+    `endif
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
     let {flush_from_wb, flushpc_from_wb}=stage5.flush; // TODO also get fence info from WB.
     let {decode_firing, rd_index}=stage2.fetch_rd_index;
@@ -133,7 +147,7 @@ package riscv;
       stage3.invalidate_index(rd_index);
     endrule
 
-    mkConnection(stage3.fwd_from_mem, stage5.fwd_from_mem);
+    mkConnection(stage3.fwd_from_mem, stage4.fwd_from_mem);
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
       if(flush_from_wb)
         stage1.flush(flushpc_from_wb, False ,True); // TODO second field indicates a fence.
@@ -178,7 +192,7 @@ package riscv;
     `ifdef rtldump
       interface dump=stage5.dump;
     `endif
-    interface memory_read_response=stage5.memory_read_response;
+    interface memory_read_response=stage4.memory_read_response;
 	  method Action set_external_interrupt(Bit#(1) ex_i)=stage5.set_external_interrupt(ex_i);
   endmodule
 

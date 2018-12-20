@@ -111,11 +111,7 @@ package common_types;
   typedef Tuple8#(Privilege_mode, Bit#(12), Bit#(12), Bit#(12), Bit#(26), Bit#(3), 
                    Bit#(1), Bit#(1)) CSRtoDecode;
 
-  `ifdef spfpu
-    typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), Op3type ) DumpType;
-  `else
-    typedef Tuple5#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN)) DumpType;
-  `endif
+  typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), Op3type) DumpType;
 
 
 	typedef enum {
@@ -172,6 +168,15 @@ package common_types;
     MemoryReadReq#(numeric type addr, numeric type esize);
                     // data , err    , eopch size
   typedef Tuple3#(Bit#(ELEN), Bit#(2), Bit#(esize)) MemoryReadResp#(numeric type esize);
+  
+  typedef Tuple4#(
+    Bit#(addr), // ADDR
+    Bit#(data), // DATA
+    Bit#(esize),// epoch
+    Bit#(3))    // access_size
+    MemoryWriteReq#(numeric type addr, numeric type esize, numeric type data);
+                    // err , eopch size
+  typedef Tuple2#(Bit#(2), Bit#(esize)) MemoryWriteResp#(numeric type esize);
 
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
@@ -295,15 +300,25 @@ package common_types;
 
   typedef struct{
     Bit#(VADDR) pc;
-    Bit#(VADDR) addr;}CommitStore deriving (Bits,Eq,FShow);
+    Bit#(3) rdindex;}CommitStore deriving (Bits,Eq,FShow);
 
   typedef struct{
-    Bit#(ELEN) rd;
-    Bit#(14) meta;}CommitRegular deriving(Bits,Eq,FShow);
+    Bit#(ELEN) commitvalue;
+    Bit#(5) fflags;
+    Op3type rdtype;
+    Bit#(5) rd;
+    Bit#(3) rdindex;
+    }CommitRegular deriving(Bits,Eq,FShow);
 
   typedef struct{
     Bit#(XLEN) rs1;
-    Bit#(26) meta;}CommitSystem deriving(Bits,Eq,FShow);
+    Bit#(2) lpc;
+    Bit#(12) csraddr;
+    Bit#(3) func3;
+    Op3type rdtype;
+    Bit#(5) rd;
+    Bit#(3) rdindex;
+    }CommitSystem deriving(Bits,Eq,FShow);
 
   typedef union tagged{
     CommitTrap TRAP;
