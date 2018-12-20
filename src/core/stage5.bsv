@@ -66,6 +66,8 @@ package stage5;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
+    method Bool initiate_store;
+    method Action write_resp(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) r);
   endinterface
 
   (*synthesize*)
@@ -93,7 +95,9 @@ package stage5;
       FIFO#(DumpType) dump_ff <- mkLFIFO;
       let prv=tpl_1(csr.csrs_to_decode);
     `endif
-
+    Reg#(Bool) rg_store_initiated <- mkReg(False);
+    Wire#(Bool) wr_initiate_store <- mkDWire(False);
+    Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <- mkDWire(tagged Invalid);
 
     rule instruction_commit;
       let {commit, epoch}=rx.u.first;
@@ -119,56 +123,49 @@ package stage5;
           if(verbosity>0)
             $display($time, "\tWBMEM: Received TRAP: ", t.cause);
         end
-//        else if(commit matches tagged STORE .s) begin
-//          if (wr_memory_response matches tagged Valid .resp)begin
-//            if(verbosity>1)
-//              $display($time, "\tWBMEM: Got response from the Memory: ",fshow(resp));
-//            let {data, err_fault, epochs}=resp;
-//            if(err_fault==0 )begin // no bus error
-////            `ifdef dpfpu TODO
-////              if(nanboxing==1)
-////                data[63:32]='1;
-////            `endif
-//              `ifdef spfpu
-//                wr_commit <= tagged Valid (tuple4(rd, zeroExtend(data), rdindex, rdtype)); //  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
-//              `else
-//                wr_commit <= tagged Valid (tuple3(rd, data, rdindex));
-//              `endif
-//              `ifdef rtldump
-//              `ifdef spfpu
-//                dump_ff.enq(tuple6(prv, signExtend(pc), inst, rd, 0, rdtype));
-//              `else
-//                dump_ff.enq(tuple5(prv, signExtend(pc), inst, rd, 0));
-//              `endif
-//              `endif
-//            end
-//            else begin
-//              if(verbosity>1)
-//                $display($time, "\tWBMEM: Received Exception from Memory: ", fshow(resp));
-//              Bit#(7) cause=0;
-//              `ifdef supervisor
-//                if(err_fault[0]==1)
-//                  if(memaccess==Load)
-//                    cause = `Load_pagefault;
-//                  else
-//                    cause = `Store_pagefault;
-//                else if(err_fault[1]==1)
-//              `endif
-//                if(memaccess== Load)
-//                  cause = `Load_access_fault;
-//                else
-//                  cause = `Store_access_fault;
-//              jump_address<- csr.take_trap(cause, pc, badaddr);
-//              fl= True;
-//            end
-//          `ifdef rtldump
-//            rxinst.u.deq;
-//          `endif
-//            rx.u.deq;
-//          end
-//          else if(verbosity>1)
-//            $display($time, "\tWBMEM: Waiting for response from the Memory");
-//        end
+        else if (commit matches tagged STORE .s)begin
+          if(!rg_store_initiated)begin // if store has not started yet.
+            $display($time,"\tSTAGE5: Initiating Store request");
+            rg_store_initiated<=True;
+            wr_initiate_store<=True;
+          end
+          else if(wr_store_response matches tagged Valid .resp)begin
+            if(verbosity>1)
+              $display($time,"\tSTAGE5: Store response Received: ",fshow(resp));
+            let {err, badaddr} = resp;
+            if(err==0)begin
+            `ifdef spfpu
+              wr_commit <= tagged Valid (tuple4(0, 0, s.rdindex, IRF)); //  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
+            `else
+              wr_commit <= tagged Valid (tuple3(0, 0, s.rdindex));
+            `endif
+            `ifdef rtldump
+              dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, 0, 0, IRF));
+              rxinst.u.deq;
+            `endif
+              rx.u.deq;
+            end
+            else begin
+              Bit#(7) trapcause='1;
+              if(err[0]==1)
+                trapcause=`Store_pagefault;
+              else
+                trapcause=`Store_access_fault;
+              let newpc <- csr.take_trap(trapcause, s.pc, badaddr);
+              fl=True;
+              jump_address=newpc;
+              rx.u.deq;
+            `ifdef rtldump
+              rxinst.u.deq;
+            `endif
+            end
+            rg_store_initiated<=False;
+          end
+          else begin
+            if(verbosity>1)
+              $display($time,"\tSTAGE5: Waiting for Store response");
+          end
+        end
         else if(commit matches tagged SYSTEM .sys)begin
           let {drain, newpc, dest}<-csr.system_instruction(sys.csraddr, sys.rs1, sys.func3, sys.lpc);
           jump_address=newpc;
@@ -271,5 +268,9 @@ package stage5;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=csr.set_external_interrupt(ex_i);
     method csr_misa_c=csr.csr_misa_c;
+    method initiate_store=wr_initiate_store;
+    method Action write_resp(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) r);
+      wr_store_response<=r;
+    endmethod
   endmodule
 endpackage

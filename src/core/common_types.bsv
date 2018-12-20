@@ -169,14 +169,13 @@ package common_types;
                     // data , err    , eopch size
   typedef Tuple3#(Bit#(ELEN), Bit#(2), Bit#(esize)) MemoryReadResp#(numeric type esize);
   
-  typedef Tuple4#(
+  typedef Tuple3#(
     Bit#(addr), // ADDR
     Bit#(data), // DATA
-    Bit#(esize),// epoch
-    Bit#(3))    // access_size
+    Bit#(2))    // access_size
     MemoryWriteReq#(numeric type addr, numeric type esize, numeric type data);
                     // err , eopch size
-  typedef Tuple2#(Bit#(2), Bit#(esize)) MemoryWriteResp#(numeric type esize);
+  typedef Bit#(2) MemoryWriteResp;
 
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
@@ -268,9 +267,9 @@ package common_types;
   // badaddr              VADDR             -done
   // pc                   VADDR             -done
 
-  // for STORE type      total: 78
-  // address              VADDR             -done
+  // for STORE type      total: 42
   // pc                   VADDR           
+  // rdindex              3-bits
 
   // for REGULAR          total: 78
   // rdvalue              ELEN              -done

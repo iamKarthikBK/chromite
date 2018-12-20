@@ -45,6 +45,8 @@ package riscv;
     interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
     interface Get#(MemoryReadReq#(PADDR,1)) memory_read_request;
     interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
+		interface Get#(MemoryWriteReq#(PADDR,1,ELEN)) memory_write_request;
+    interface Put#(MemoryWriteResp) memory_write_response;
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);
     method Action clint_mtime(Bit#(64) c_mtime);
@@ -171,6 +173,13 @@ package riscv;
     rule upd_stage2wEpoch(flush_from_wb);
       stage2.update_wEpoch();
       stage3.update_wEpoch();
+      stage4.update_wEpoch();
+    endrule
+    rule connect_store_request;
+      stage4.start_store(stage5.initiate_store);
+    endrule
+    rule connect_store_response;
+      stage5.write_resp(stage4.store_response);
     endrule
     // TODO RAS support will enable the following rule.
 //    rule ras_push_connect;
@@ -193,6 +202,8 @@ package riscv;
       interface dump=stage5.dump;
     `endif
     interface memory_read_response=stage4.memory_read_response;
+		interface memory_write_request=stage4.memory_write_request;
+    interface memory_write_response=stage4.memory_write_response;
 	  method Action set_external_interrupt(Bit#(1) ex_i)=stage5.set_external_interrupt(ex_i);
   endmodule
 
