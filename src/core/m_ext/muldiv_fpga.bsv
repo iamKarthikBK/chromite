@@ -154,7 +154,7 @@ package muldiv_fpga;
         reslt=~reslt+ 1;
       Bit#(XLEN) product=`ifdef RV64 rg_word32?signExtend(reslt[31:0]): `endif 
           (!mul_div && rg_upperbits)? truncateLSB(reslt): truncate(reslt);
-      return tuple5(REGULAR, mul_div? ?/* div result*/: zeroExtend(product), 0, 0, None); 
+      return tuple5(REGULAR, zeroExtend(product), 0, 0, None); 
     endmethod
 	endmodule:mkmuldiv
 /*
