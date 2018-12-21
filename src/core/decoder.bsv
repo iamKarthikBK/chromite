@@ -463,7 +463,6 @@ package decoder;
     let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
 
     // ------- Default declarations of all local variables -----------//
-    Trap_type exception = tagged None;
     let {icause, takeinterrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
 
 		Bit#(5) rs1=inst[19:15];
@@ -564,10 +563,8 @@ package decoder;
 		Access_type mem_access=Load;
 		if(stype)
 		mem_access=Store;
-  `ifdef dcache
     if(funct3[0]==0 && opcode=='b00011)
       mem_access=Fence;
-  `endif
     if(funct3[0]==1 && opcode=='b00011)
       mem_access=FenceI;
   `ifdef atomic
@@ -664,13 +661,9 @@ package decoder;
     		'b000: if(funct3!='b111 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Loads
         'b011: begin 
               if(funct3==0) 
-            `ifdef dcache 
-                inst_type=MEMORY; // FENCE or FENCE.I only if DCACHE is present
-            `else
-                inst_type=ALU;
-            `endif
+                inst_type=MEMORY; // FENCE 
               if(funct3==1)
-                inst_type=MEMORY; // FENCE.I only if ICACHE is present
+                inst_type=MEMORY; // FENCE.I
         end
         'b001: if(fs!=0 && (misa[5]==1 && funct3==2) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FLoad
     		'b101,'b100,'b110:inst_type=ALU;

@@ -112,49 +112,7 @@ package common_types;
                    Bit#(1), Bit#(1)) CSRtoDecode;
 
   typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), Op3type) DumpType;
-
-
-	typedef enum {
-		Inst_addr_misaligned=0,
-		Inst_access_fault=1,
-		Illegal_inst=2,
-		Breakpoint=3,
-		Load_addr_misaligned=4,
-		Load_access_fault=5,
-		Store_addr_misaligned=6,
-		Store_access_fault=7,
-		Ecall_from_user=8,
-    Ecall_from_supervisor=9,
-		Ecall_from_machine=11,
-    Inst_pagefault=12,
-    Load_pagefault=13,
-    Store_pagefault=15
-	} Exception_cause deriving (Bits,Eq,FShow);
-
-	typedef enum{
-		User_soft_int=0,
-    `ifdef supervisor
-      Supervisor_soft_int=1,
-    `endif
-		Machine_soft_int=3,
-		User_timer_int=4,
-    `ifdef supervisor
-      Supervisor_timer_int=5,
-    `endif
-		Machine_timer_int=7,
-		User_external_int=8,
-    `ifdef supervisor
-      Supervisor_external_int=9,
-    `endif
-		Machine_external_int=11
-	} Interrupt_cause deriving (Bits,Eq,FShow);
-
-	typedef union tagged{
-	  Exception_cause Exception;
-	  Interrupt_cause Interrupt;
-	  void None;
-	} Trap_type deriving(Bits,Eq,FShow);
-
+  
   typedef struct {
   	Bit#(addr_width) pc;
   	Bit#(addr_width) branch_address;
