@@ -135,7 +135,7 @@ package stage5;
             let {err, badaddr} = resp;
             if(err==0)begin
             `ifdef spfpu
-              wr_commit <= tagged Valid (tuple4(0, 0, s.rdindex, IRF)); //  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
+              wr_commit <= tagged Valid (tuple4(0, 0, s.rdindex, IRF)); 
             `else
               wr_commit <= tagged Valid (tuple3(0, 0, s.rdindex));
             `endif
@@ -147,10 +147,7 @@ package stage5;
             end
             else begin
               Bit#(7) trapcause='1;
-              if(err[0]==1)
-                trapcause=`Store_pagefault;
-              else
-                trapcause=`Store_access_fault;
+              trapcause=`Store_access_fault;
               let newpc <- csr.take_trap(trapcause, s.pc, badaddr);
               fl=True;
               jump_address=newpc;
@@ -171,7 +168,7 @@ package stage5;
           jump_address=newpc;
           fl=drain;
           `ifdef spfpu
-            wr_commit <= tagged Valid (tuple4(sys.rd, zeroExtend(dest), sys.rdindex, sys.rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
+            wr_commit <= tagged Valid (tuple4(sys.rd, zeroExtend(dest), sys.rdindex, sys.rdtype));
           `else
             wr_commit <= tagged Valid (tuple3(sys.rd, sys.dest, sys.rdindex));
           `endif
@@ -188,7 +185,7 @@ package stage5;
         else if(commit matches tagged REGULAR .r)begin
           // in case of regular instruction simply update RF and forward the data.
         `ifdef spfpu
-          wr_commit <= tagged Valid (tuple4(r.rd, r.commitvalue, r.rdindex, r.rdtype));//  TODO data from the previous stage should be Max(FLEN,XLEN) bits wide
+          wr_commit <= tagged Valid (tuple4(r.rd, r.commitvalue, r.rdindex, r.rdtype));
           csr.update_fflags(r.fflags); 
         `else
           wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdindex));
