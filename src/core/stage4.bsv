@@ -144,7 +144,7 @@ package stage4;
                                           rdindex:rdindex};
       end
       else if(committype==MEMORY) begin
-        if(memaccess!=Store)begin
+        if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
 
           if(wr_memory_response matches tagged Valid .resp)begin
             let {data, err_fault, epochs}=resp;
@@ -183,7 +183,7 @@ package stage4;
             $display($time,"\tSTAGE4: Waiting for Memory Read Response");
           end
         end
-        else begin
+        else if(memaccess==Store)begin
           temp1=tagged STORE CommitStore{pc:pc,rdindex:rdindex};
           storebuffer.allocate(badaddr, storedata, size);
         end

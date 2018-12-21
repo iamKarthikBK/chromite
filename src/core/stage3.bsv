@@ -320,7 +320,7 @@ package stage3;
             Bit#(1) nanboxing=pack(cmtype==MEMORY && funct3[1:0]==2 && rdtype==FRF);
             if(cmtype==REGULAR)
               fwding.fwd_from_exe(out, rd_index);
-            if(cmtype==MEMORY && memaccess!=Store)begin
+            if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
               ff_memory_read_request.enq(tuple3(truncate(addr), epochs[0], funct3));
             end
             Bit#(9) smeta1 = {pack(rdtype),rd,rd_index};
