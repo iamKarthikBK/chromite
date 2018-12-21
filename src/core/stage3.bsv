@@ -220,6 +220,11 @@ package stage3;
       // We first check Epochs only then process the instruction
       if(!execute_instruction)begin
         `DEQRX
+      `ifdef bpu
+        check_rpc<= tuple3(None, ?, ?);
+      `else
+        check_rpc<= tuple2(None,?);
+      `endif
         if(verbosity>1)
           $display($time,"\tEXECUTE: Dropping Instruction");
       end
@@ -319,8 +324,12 @@ package stage3;
               ff_memory_read_request.enq(tuple3(truncate(addr), epochs[0], funct3));
             end
             Bit#(9) smeta1 = {pack(rdtype),rd,rd_index};
-            Bit#(12) mmeta = {pack(memaccess),smeta1};
-            Tbad_Maddr_Rmeta2_Smeta2 tple1 = zeroExtend(addr); 
+            Bit#(16) mmeta = {nanboxing,funct3,pack(memaccess),smeta1};
+            Tbad_Maddr_Rmeta2_Smeta2 tple1 = 
+              case(cmtype)
+                REGULAR: 0;
+                default: zeroExtend(addr); 
+              endcase;
 
             Mdata_Rrdvalue_Srs1 tple2 =
               case(cmtype)
@@ -333,7 +342,7 @@ package stage3;
             Tpc_Mpc tple3 = pc;
             Tcause_Mmeta_Rmeta1_Smeta1_epoch tple4 = 
               case(cmtype)
-                TRAP: zeroExtend({func_cause,epochs[0]});
+                TRAP: zeroExtend({cause,epochs[0]});
                 MEMORY: zeroExtend({mmeta,epochs[0]});
                 default: zeroExtend({smeta1,epochs[0]});
               endcase;
@@ -430,11 +439,6 @@ package stage3;
     method Action update_wEpoch;
       wEpoch<= ~wEpoch;
       wr_flush_from_wb<= True;
-    `ifdef bpu
-      check_rpc<= tuple3(None, ?, ?);
-    `else
-      check_rpc<= tuple2(None,?);
-    `endif
     endmethod
     method flush_from_exe=tuple2(wr_flush_from_exe, wr_redirect_pc);
     interface fwd_from_mem= interface Put

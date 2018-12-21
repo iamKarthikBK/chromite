@@ -725,7 +725,7 @@ package decoder;
 
 		Bool address_is_valid=address_valid(inst[31:20]);
 		Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], prv);
-    Bit#(6) trapcause='1;
+    Bit#(6) trapcause=`Illegal_inst;
     if(takeinterrupt)begin
       trapcause=icause;
       inst_type=TRAP;

@@ -37,12 +37,14 @@ package stage4;
   import FIFO::*;
   import TxRx::*;
   import GetPut::*;
+  import BUtils::*;
   `ifndef dcache
     `define BUFFSIZE 2
   `endif
 
   import common_types::*;
   `include "common_params.bsv"
+  import storebuffer::*;
 
   interface Ifc_stage4;
     interface RXe#(PIPE3) rx_min;
@@ -53,7 +55,7 @@ package stage4;
     `endif
     interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
 
-		interface Get#(MemoryWriteReq#(PADDR,1,ELEN)) memory_write_request;
+		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
 
     interface Get#(Tuple2#(Bit#(ELEN), Bit#(3))) fwd_from_mem;
@@ -70,25 +72,14 @@ package stage4;
       RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
       TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst <-mkTX;
     `endif
+    Ifc_storebuffer storebuffer <- mkstorebuffer();
     // wire that captures the response coming from the external memory or cache.
     Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
     // wire that carriues the information for operand forwarding
     Wire#(Maybe#(Tuple2#(Bit#(ELEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
-  `ifndef dcache
-    Reg#(Bit#(VADDR)) store_address[`BUFFSIZE ];
-    Reg#(Bit#(ELEN)) store_data[`BUFFSIZE ];
-    Reg#(Bit#(2)) store_size [ `BUFFSIZE ];
-    for(Integer i=0;i<`BUFFSIZE ;i=i+1)begin
-      store_data[i]<-mkReg(0);
-      store_address[i]<-mkReg(0);
-      store_size[i]<-mkReg(0);
-    end
-    Reg#(Bit#(TLog#( `BUFFSIZE ))) rg_head <- mkReg(0);
-    Reg#(Bit#(TLog#( `BUFFSIZE ))) rg_tail <- mkReg(0);
     Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
     Wire#(Bool) wr_store_start<-mkDWire(False);
-  `endif
 
 
     rule check_operation;
@@ -116,8 +107,16 @@ package stage4;
       Bit#(5) rd = field4[8:4];
       Op3type rdtype = unpack(field4[9]);
       Access_type memaccess = unpack(field4[12:10]);
+      Bit#(2) size=field4[14:13];
+      Bit#(1) sign=field4[15];
+      Bit#(1) nanboxing=field4[16];
       CommitType temp1=?;
       Bool complete=True;
+  
+      // check store_buffer entries
+      let {storemask,storehit} <- storebuffer.check_address(badaddr); 
+      Bit#(6) loadoffset = {badaddr[2:0],3'b0};
+
       if(rg_epoch!=epoch)begin
         rxmin.u.deq;
         `ifdef simulate
@@ -146,12 +145,28 @@ package stage4;
       end
       else if(committype==MEMORY) begin
         if(memaccess!=Store)begin
+
           if(wr_memory_response matches tagged Valid .resp)begin
             let {data, err_fault, epochs}=resp;
+            Bit#(ELEN) update_data = data<<loadoffset;
+            update_data= (update_data&~storemask)|(storehit);
+            $display($time, "\tSTAGE4: storehit: %h data: %h udpate_data: %h loadoffset: %d\
+ storemask: %h",  storehit, data, update_data, loadoffset, storemask);
+            update_data= update_data>>{loadoffset};
+            if(size==0)
+              update_data=sign==0?signExtend(update_data[7:0]):zeroExtend(update_data[7:0]);
+            else if(size==1)
+              update_data=sign==0?signExtend(update_data[15:0]):zeroExtend(update_data[15:0]);
+            else if(size==2)
+                update_data=sign==0?signExtend(update_data[31:0]):zeroExtend(update_data[31:0]);
+            `ifdef dpfpu
+              if(nanboxing==1)
+                  update_data[63:32]='1;
+            `endif
             if(err_fault==0 )begin // no bus error
-              wr_operand_fwding <= tagged Valid tuple2(data, rdindex);
-              temp1=tagged REGULAR CommitRegular{commitvalue:data,
-                                                 fflags:fflags,
+              wr_operand_fwding <= tagged Valid tuple2(update_data, rdindex);
+              temp1=tagged REGULAR CommitRegular{commitvalue:update_data,
+                                                 fflags:0,
                                                  rdtype:rdtype,
                                                  rd:rd,
                                                  rdindex:rdindex};
@@ -170,12 +185,7 @@ package stage4;
         end
         else begin
           temp1=tagged STORE CommitStore{pc:pc,rdindex:rdindex};
-          store_address[rg_tail]<=badaddr;
-          store_data[rg_tail]<=storedata;
-          store_size[rg_tail]<=func3[1:0];
-          rg_tail<=rg_tail+1;
-          $display($time,"\tSTAGE4: Enquing Store Addr: %h Data: %h size: %b into Tail: %d",
-              badaddr, storedata, func3[1:0], rg_tail);
+          storebuffer.allocate(badaddr, storedata, size);
         end
       end
       `ifdef simulate
@@ -217,17 +227,15 @@ package stage4;
       wr_store_start<=s;
     endmethod
 		interface memory_write_request = interface Get
-      method ActionValue#(MemoryWriteReq#(PADDR,1,ELEN)) get if(wr_store_start);
-        $display($time,"\tSTAGE4: Sending Store request for Addr:%h Data: %h size: %b",
-        store_address[rg_head], store_data[rg_head], store_size[rg_head]);
-        rg_head<=rg_head+1;
-        return tuple3(truncate(store_address[rg_head]),store_data[rg_head],store_size[rg_head]);
+      method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) get if(wr_store_start);
+        let x <- storebuffer.perform_store;
+        return x;
       endmethod
     endinterface;
     interface memory_write_response = interface Put
       method Action put(MemoryWriteResp r);
         $display($time,"\tSTAGE4: Recieved Write response: %b",r);
-        wr_store_response<=tagged Valid (tuple2(r,store_address[rg_head-1]));
+        wr_store_response<=tagged Valid (tuple2(r,storebuffer.write_address));
       endmethod
     endinterface;
     method store_response = wr_store_response;

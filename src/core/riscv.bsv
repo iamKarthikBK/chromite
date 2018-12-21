@@ -45,7 +45,7 @@ package riscv;
     interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
     interface Get#(MemoryReadReq#(PADDR,1)) memory_read_request;
     interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
-		interface Get#(MemoryWriteReq#(PADDR,1,ELEN)) memory_write_request;
+		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);

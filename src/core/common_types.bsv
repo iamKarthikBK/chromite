@@ -219,15 +219,16 @@ package common_types;
   // badaddr              VADDR             -done
   // pc                   VADDR             -done
 
-  // for MEMORY type      total: 154
+  // for MEMORY type      total: 156
   // address              VADDR             -done
   // data                 ELEN              -done
   // pc                   VADDR             -done required to generate TRAP
   // rdtype               1.bit
   // accesstype           3-bits            
+  // access_size          3-bits
   // rd                   5-bits            
   // rdindex              3-bits            
-  // meta_arrangement:    {accesstype,rdtype,rd,rdindex} = 12
+  // meta_arrangement:    {nanboxing,access_size,accesstype,rdtype,rd,rdindex} = 16
 
   // for REGULAR          total: 78
   // rdvalue              ELEN              -done
@@ -254,7 +255,7 @@ package common_types;
   typedef Bit#(VADDR)     Tbad_Maddr_Rmeta2_Smeta2;
   typedef Bit#(ELEN)      Mdata_Rrdvalue_Srs1;
   typedef Bit#(VADDR)     Tpc_Mpc;
-  typedef Bit#(13)        Tcause_Mmeta_Rmeta1_Smeta1_epoch;
+  typedef Bit#(17)        Tcause_Mmeta_Rmeta1_Smeta1_epoch;
 
   typedef Tuple5#(PreCommit_type, Tbad_Maddr_Rmeta2_Smeta2, Mdata_Rrdvalue_Srs1,
                                                 Tpc_Mpc,Tcause_Mmeta_Rmeta1_Smeta1_epoch) PIPE3;
