@@ -102,22 +102,16 @@ package TbSoC;
 
     `ifdef rtldump
       rule write_dump_file(rg_cnt>=5 && !rg_stop);
-        `ifdef spfpu
           let {prv, pc, instruction, rd, data, rdtype}<- soc.io_dump.get;
-        `else
-          let {prv, pc, instruction, rd, data}<- soc.io_dump.get;
-        `endif
         if(instruction=='h00006f||instruction =='h00a001)begin
           $finish(0);
-	end
+      	end
         else begin
   		  	$fwrite(dump, prv, " 0x%16h", pc, " (0x%8h", instruction, ")"); 
-        `ifdef spfpu
           if(rdtype==FRF)
   		  	  $fwrite(dump, " f%d", rd, " 0x%16h", data, "\n"); 
           else
-        `endif
-  			  $fwrite(dump, " x%d", rd, " 0x%16h", data, "\n"); 
+  			    $fwrite(dump, " x%d", rd, " 0x%16h", data, "\n"); 
         end
       endrule
     `endif
