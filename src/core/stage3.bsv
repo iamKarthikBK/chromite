@@ -82,7 +82,7 @@ package stage3;
 
   `define DEQRX \
     rxmin.u.deq; \
-    `ifdef simulate \
+    `ifdef rtldump \
       rxinst.u.deq; \
     `endif          \
     `ifdef bpu      \
@@ -95,7 +95,7 @@ package stage3;
 
   interface Ifc_stage3;
 		interface RXe#(PIPE2_min#(ELEN,FLEN)) rx_min;
-  `ifdef simulate
+  `ifdef rtldump
     interface RXe#(Bit#(32)) rx_inst;
   `endif
   `ifdef bpu
@@ -105,7 +105,7 @@ package stage3;
     interface RXe#(OpFpu) rx_fpu;
   `endif
 		interface TXe#(PIPE3) tx_out;
-  `ifdef simulate
+  `ifdef rtldump
     interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;  
   `endif
     method Action update_wEpoch;
@@ -133,7 +133,7 @@ package stage3;
     let verbosity = `VERBOSITY ;
 
 		RX#(PIPE2_min#(ELEN,FLEN)) rxmin <-mkRX;								// receive from the decode stage
-    `ifdef simulate
+    `ifdef rtldump
       RX#(Bit#(32)) rxinst <- mkRX;
     `endif
     `ifdef spfpu
@@ -143,7 +143,7 @@ package stage3;
       RX#(Bit#(2)) rxbpu <-mkRX;
     `endif
 		TX#(PIPE3) tx <-mkTX;							// send to the memory stage;
-    `ifdef simulate
+    `ifdef rtldump
       TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst<-mkTX;
     `endif
     `ifdef bpu
@@ -184,7 +184,7 @@ package stage3;
       let {rd, func_cause, memaccess, word32, epochs}=metadata;
       Bit#(3) funct3=truncate(func_cause);
       Bit#(4) fn=truncateLSB(func_cause);
-    `ifdef simulate
+    `ifdef rtldump
       let instruction = rxinst.u.first;
     `endif
     `ifdef bpu
@@ -224,7 +224,7 @@ package stage3;
       Bool execute = True;
       if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence) 
                                                     && !wr_storebuffer_empty)
-        execute=False;
+        execute=False; // instead of just store-buffer for loads will need to check if pipe is empty
       // We first check Epochs only then process the instruction
       if(!execute_instruction)begin
         `DEQRX
@@ -364,7 +364,7 @@ package stage3;
   	      `endif
 
             tx.u.enq(pipedata);
-          `ifdef simulate
+          `ifdef rtldump
             txinst.u.enq(tuple2(pc,instruction));
           `endif
             // if the operation is a multicycle one,  then go to stall state.
@@ -390,7 +390,7 @@ package stage3;
       `endif
         PIPE3 pipedata = tuple5(TRAP, truncate(op1), ?, pc, zeroExtend({func_cause,epochs[0]})); 
         tx.u.enq(pipedata);
-      `ifdef simulate
+      `ifdef rtldump
         txinst.u.enq(tuple2(pc,instruction));
       `endif
         // else you need to simply drop the execution since epochs have changed.
@@ -401,7 +401,7 @@ package stage3;
       let {opdata, metadata} = rxmin.u.first;
       let {rs1addr, rs2addr, rd_index, op1, op2, op3, op4, instrtype}=opdata;
       let {rd, func_cause, memaccess, word32, epochs}=metadata;
-    `ifdef simulate
+    `ifdef rtldump
       let instruction = rxinst.u.first;
     `endif
     `ifdef bpu
@@ -425,7 +425,7 @@ package stage3;
       Bool execute_instruction = ({eEpoch, wEpoch}==epochs);
 
       if(execute_instruction)begin
-      `ifdef simulate
+      `ifdef rtldump
         txinst.u.enq(tuple2(pc,instruction));
       `endif
         tx.u.enq(pipedata);
@@ -436,7 +436,7 @@ package stage3;
     endrule
   `endif
 		interface rx_min = rxmin.e;
-  `ifdef simulate
+  `ifdef rtldump
     interface rx_inst=rxinst.e;
   `endif
   `ifdef spfpu
@@ -446,7 +446,7 @@ package stage3;
     interface rx_bpu=rxbpu.e;
   `endif
 		interface tx_out = tx.e;
-  `ifdef simulate
+  `ifdef rtldump
     interface tx_inst=txinst.e;
   `endif
     method Action update_wEpoch;

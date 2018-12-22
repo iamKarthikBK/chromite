@@ -49,7 +49,7 @@ package stage4;
   interface Ifc_stage4;
     interface RXe#(PIPE3) rx_min;
     interface TXe#(PIPE4) tx_min;
-    `ifdef simulate
+    `ifdef rtldump
       interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
       interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;
     `endif
@@ -69,7 +69,7 @@ package stage4;
   module mkstage4(Ifc_stage4);
     RX#(PIPE3) rxmin <- mkRX;
     TX#(PIPE4) txmin <- mkTX;
-  `ifdef simulate
+  `ifdef rtldump
     RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
     TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst <-mkTX;
   `endif
@@ -121,7 +121,7 @@ package stage4;
 
       if(rg_epoch!=epoch)begin
         rxmin.u.deq;
-        `ifdef simulate
+        `ifdef rtldump
           rxinst.u.deq;
         `endif
         complete=False;
@@ -198,14 +198,15 @@ package stage4;
         end
       end
       `ifdef simulate
-        $display($time,"\tSTAGE4: PC: %h Inst: %h",simpc,inst);
-        if(complete)
-          $display($time,"\tSTAGE4: temp1: ",fshow(temp1));
+        `ifdef rtldump
+          $display($time,"\tSTAGE4: PC: %h Inst: %h",simpc,inst);
+        `endif
+        if(complete) $display($time,"\tSTAGE4: temp1: ",fshow(temp1));
       `endif
       if(complete)begin
         txmin.u.enq(tuple2(temp1,epoch));
         rxmin.u.deq;
-        `ifdef simulate
+        `ifdef rtldump
           txinst.u.enq(rxinst.u.first);
           rxinst.u.deq;
         `endif
@@ -214,7 +215,7 @@ package stage4;
 
     interface rx_min = rxmin.e;
     interface tx_min = txmin.e;
-  `ifdef simulate
+  `ifdef rtldump
     interface rx_inst = rxinst.e;
     interface tx_inst = txinst.e;
   `endif

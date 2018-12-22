@@ -77,17 +77,17 @@ package riscv;
     `ifdef bpu
       FIFOF#(Bit#(2)) pipe2bpu <- mkSizedFIFOF(2);
     `endif
-    `ifdef simulate
+    `ifdef rtldump
       FIFOF#(Bit#(32)) pipe2inst <- mkSizedFIFOF(2);
     `endif
 
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
-    `ifdef simulate
+    `ifdef rtldump
       FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
     `endif
 
     FIFOF#(PIPE4) pipe4 <-mkSizedFIFOF(2);
-    `ifdef simulate
+    `ifdef rtldump
       FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
     `endif
 
@@ -105,7 +105,7 @@ package riscv;
 
     mkConnection(stage2.tx_min, pipe2min);
     mkConnection(pipe2min, stage3.rx_min);
-    `ifdef simulate
+    `ifdef rtldump
       mkConnection(stage2.tx_inst, pipe2inst);
       mkConnection(pipe2inst, stage3.rx_inst);
     `endif
@@ -121,7 +121,7 @@ package riscv;
     mkConnection(stage3.tx_out, pipe3);
     mkConnection(pipe3, stage4.rx_min);
 
-    `ifdef simulate
+    `ifdef rtldump
       mkConnection(stage3.tx_inst,pipe3inst);
       mkConnection(pipe3inst,stage4.rx_inst);
     `endif
@@ -129,7 +129,7 @@ package riscv;
     mkConnection(stage4.tx_min,pipe4);
     mkConnection(pipe4,stage5.rx_in);
 
-    `ifdef simulate
+    `ifdef rtldump
       mkConnection(stage4.tx_inst,pipe4inst);
       mkConnection(pipe4inst,stage5.rx_inst);
     `endif

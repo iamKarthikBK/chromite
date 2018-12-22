@@ -41,7 +41,7 @@ package stage5;
 
   interface Ifc_stage5;
     interface RXe#(PIPE4) rx_in;
-    `ifdef simulate
+    `ifdef rtldump
       interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
     `endif
     method Maybe#(CommitData) commit_rd;
@@ -76,7 +76,7 @@ package stage5;
     let verbosity = `VERBOSITY ;
 
     RX#(PIPE4) rx<-mkRX;
-    `ifdef simulate
+    `ifdef rtldump
       RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
     `endif
     Ifc_csr csr <- mkcsr();
@@ -235,8 +235,9 @@ package stage5;
       csr.incr_minstret;
     endrule
     interface rx_in=rx.e;
+  `ifdef rtldump
     interface rx_inst=rxinst.e;
-
+  `endif
     method Maybe#(CommitData) commit_rd();
       return wr_commit;
     endmethod

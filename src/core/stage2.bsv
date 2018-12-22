@@ -105,7 +105,7 @@ package stage2;
   `ifdef spfpu
     interface TXe#(OpFpu) tx_fpu;
   `endif
-  `ifdef simulate
+  `ifdef rtldump
     interface TXe#(Bit#(32)) tx_inst;
   `endif
   `ifdef bpu
@@ -141,7 +141,7 @@ package stage2;
   `ifdef spfpu
     TX#(OpFpu) txfpu <- mkTX;
   `endif
-  `ifdef simulate
+  `ifdef rtldump
     TX#(Bit#(32)) txinst <- mkTX;
   `endif
   `ifdef bpu
@@ -191,7 +191,7 @@ package stage2;
       `endif
 
         txmin.u.enq(t3);
-      `ifdef simulate
+      `ifdef rtldump
         txinst.u.enq(inst);
       `endif
       `ifdef bpu
@@ -246,7 +246,7 @@ package stage2;
       `endif
 
         txmin.u.enq(t3);
-      `ifdef simulate
+      `ifdef rtldump
         txinst.u.enq(inst);
       `endif
       `ifdef bpu
@@ -287,7 +287,7 @@ package stage2;
     endrule
 
 		method tx_min=txmin.e;
-  `ifdef simulate
+  `ifdef rtldump
     method tx_inst=txinst.e;
   `endif
   `ifdef bpu
