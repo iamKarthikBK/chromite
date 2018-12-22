@@ -669,10 +669,12 @@ package decoder;
     		'b101,'b100,'b110:inst_type=ALU;
     	endcase
     end
-    else if(opcode[4:3]=='b10 && fs!=0 && ( (funct7[0]==0 && misa[5]==1) || (funct7[0]==1 &&
-        misa[3]==1)) )begin
-      inst_type=FLOAT;
-    end
+    `ifdef spfpu
+      else if(opcode[4:3]=='b10 && fs!=0 && ( (funct7[0]==0 && misa[5]==1) || (funct7[0]==1 &&
+          misa[3]==1)) )begin
+        inst_type=FLOAT;
+      end
+    `endif
 
     // --------- Function for ALU -------------
     // In case of Atomic operations as well,  the immediate portion will ensure the right opcode is

@@ -236,7 +236,7 @@ package registerfile;
         `ifdef spfpu
           let{r, d, rdtype}=in;
         `else
-          let{r, d=in;
+          let{r, d}=in;
         `endif
 			  if(verbosity>0)begin
           $display($time,"\tRF: Writing Rd: %d(%h) ",r,d `ifdef spfpu , fshow(rdtype) `endif );

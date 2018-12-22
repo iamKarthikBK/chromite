@@ -182,7 +182,7 @@ package stage2;
       let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
     `endif
       if(rg_rerun)begin 
-        OpData#(TMax#(XLEN,FLEN),TMax#(XLEN,FLEN)) t1 = tuple8(?, ?, ?, ?, 
+        OpData#(ELEN,FLEN) t1 = tuple8(?, ?, ?, ?, 
                                                                ?, pc, ?, TRAP);
         MetaData t2 = tuple5(?, `Rerun , ?, ?, epochs);
         PIPE2_min#(ELEN,FLEN) t3 = tuple2(t1, t2);
@@ -237,7 +237,7 @@ package stage2;
       
         rg_rerun<=rerun;
 
-        OpData#(TMax#(XLEN,FLEN),TMax#(XLEN,FLEN)) t1 = tuple8(rs1index, rs2index, rd_index, op1, 
+        OpData#(ELEN,FLEN) t1 = tuple8(rs1index, rs2index, rd_index, op1, 
                                                                op2, op3, op4, instrType);
         MetaData t2 = tuple5(rd, func_cause, memaccess, word32, epochs);
         PIPE2_min#(ELEN,FLEN) t3 = tuple2(t1, t2);

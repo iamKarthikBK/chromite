@@ -409,6 +409,8 @@ package stage3;
     `endif
     `ifdef spfpu
       let {rs3addr, rdtype} = rxfpu.u.first;
+    `else
+      Op3type rdtype = IRF;
     `endif
       Bit#(VADDR) pc = (instrtype==MEMORY || instrtype==JALR)?truncate(op1):truncate(op3);
       let {cmtype, out, addr, cause, redirect} <- alu.delayed_output;

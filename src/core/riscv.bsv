@@ -141,7 +141,6 @@ package riscv;
       stage2.reset_renaming;
     endrule
     rule commit_instruction;
-      $display($time,"\tFIRING");
       stage2.commit_rd(stage5.commit_rd);
     endrule
     rule rename_instruction;
