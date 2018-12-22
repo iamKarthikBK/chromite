@@ -86,8 +86,8 @@ package common_types;
     typedef Tuple5#(Bit#(5), Bit#(5), Bit#(5), Op1type, Op2type) OpType_min;
   //                {fn,f3}   instr-Type       mem-type     Imm
     typedef Tuple4#(Bit#(7), Instruction_type, Access_type, Bit#(32)) DecodeMeta; 
-                                          // resume_wfi
-    typedef Tuple3#(OpType_min,DecodeMeta, Bool) DecodeOut;
+                                          // resume_wfi , rerun
+    typedef Tuple4#(OpType_min,DecodeMeta, Bool, Bool) DecodeOut;
 
   //                 rs3     rs3 type , rd type
     typedef Tuple3#(Bit#(5), Op3type, Op3type) OpType_fpu;
@@ -299,9 +299,11 @@ package common_types;
   } Chmod deriving(Bits, Eq);
 
   `ifdef spfpu
-    typedef Tuple4#(Bit#(5), Bit#(ELEN), Bit#(TLog#(PRFDEPTH)), Op3type) CommitData;
+    typedef Tuple3#(Bit#(5), Bit#(ELEN), Op3type) CommitData;
+    typedef Tuple3#(Bit#(5), Bit#(TLog#(PRFDEPTH)), Op3type) CommitRename;
   `else
-    typedef Tuple3#(Bit#(5), Bit#(XLEN), Bit#(TLog#(PRFDEPTH))) CommitData;
+    typedef Tuple2#(Bit#(5), Bit#(XLEN)) CommitData;
+    typedef Tuple2#(Bit#(5), Bit#(TLog#(PRFDEPTH))) CommitRename;
   `endif
 
   typedef struct{

@@ -124,6 +124,7 @@ package stage3;
     `endif
 		interface Get#(MemoryReadReq#(PADDR,1)) memory_read_request;
     method Action csr_misa_c (Bit#(1) m);
+    method Action storebuffer_empty(Bool e);
   endinterface
 
   (*synthesize*)
@@ -171,6 +172,7 @@ package stage3;
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDReg(0);
 		FIFOF#(MemoryReadReq#(PADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
     Wire#(Bit#(1)) wr_misa_c<-mkWire();
+    Wire#(Bool) wr_storebuffer_empty<-mkWire();
 
     rule flush_mapping(wr_flush_from_exe!=None||wr_flush_from_wb);
       fwding.flush_mapping;
@@ -216,7 +218,13 @@ package stage3;
                                                                 " check_rpc: ", fshow(check_rpc));
       end
       let {redirect_result, redirect_pc `ifdef bpu , npc `endif }=check_rpc;
-      Bit#(VADDR) nextpc=pc+ 4;
+      `ifdef bpu
+        Bit#(VADDR) nextpc=pc+ 4; // TODO this should +2 in case of compressed
+      `endif
+      Bool execute = True;
+      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence) 
+                                                    && !wr_storebuffer_empty)
+        execute=False;
       // We first check Epochs only then process the instruction
       if(!execute_instruction)begin
         `DEQRX
@@ -253,7 +261,7 @@ package stage3;
         eEpoch<= ~eEpoch;
         `DEQRX
       end
-      else if(instrtype!=TRAP)begin
+      else if(instrtype!=TRAP && execute)begin
 
         if(rs1 matches tagged Present .x1 &&& rs2 matches tagged Present .x2 
                                     `ifdef spfpu &&& rs3_imm matches tagged Present .x4 `endif )begin
@@ -283,9 +291,11 @@ package stage3;
             $display($time, "\tEXECUTE: cmtype: ", fshow(cmtype), " out: %h addr: %h trap:", out,
                  addr, cause, " redirect ", fshow(redirect));
             $display($time, "\tEXECUTE: x1: %h,  x2: %h,  op3: %h, x4: %h", new_op1, x2, t3, x4);
+            $display($time, "\tEXECUTE: wr_storebuffer_empty: %b",wr_storebuffer_empty);
           end
 
           if(done)begin
+            if(execute) begin
             `DEQRX
 
           `ifdef bpu
@@ -359,6 +369,7 @@ package stage3;
           `endif
             // if the operation is a multicycle one,  then go to stall state.
           end
+        end
           else begin
           `ifdef bpu
             check_rpc<= tuple3(None, addr, nextpc);
@@ -369,7 +380,7 @@ package stage3;
           end
         end
       end
-      else begin
+      else if(instrtype==TRAP) begin
         `DEQRX
         Bit#(XLEN) res=signExtend(pc); // badaddress
       `ifdef bpu
@@ -468,6 +479,9 @@ package stage3;
   `endif
     method Action csr_misa_c (Bit#(1) m);
       wr_misa_c <= m;
+    endmethod
+    method Action storebuffer_empty(Bool e);
+      wr_storebuffer_empty<=e;
     endmethod
   endmodule
 endpackage

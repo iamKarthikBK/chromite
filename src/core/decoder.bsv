@@ -452,7 +452,7 @@ package decoder;
     
     OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
     DecodeMeta t2 = tuple4(temp1, inst_type, mem_access, immediate_value);
-    return tuple3(t1,t2,resume_wfi);
+    return tuple4(t1,t2,resume_wfi, False);
 
 
   endfunction
@@ -761,9 +761,12 @@ package decoder;
     if(inst_type==TRAP)
       temp1={trap_type,trapcause};
 
+    Bool rerun = mem_access==Fence || mem_access==FenceI || inst_type==SYSTEM_INSTR;
+
+
     OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
     DecodeMeta t2 = tuple4(temp1, inst_type, mem_access, immediate_value);
-    return tuple3(t1,t2,resume_wfi);
+    return tuple4(t1,t2,resume_wfi, rerun);
 
   endfunction
 
