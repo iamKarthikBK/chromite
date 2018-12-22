@@ -47,6 +47,8 @@ package storebuffer;
     method Action allocate(Bit#(VADDR) addr, Bit#(ELEN) data, Bit#(2) size);
     method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) perform_store;
     method Bit#(VADDR) write_address;
+    method Action deque;
+    method Bool storebuffer_empty;
   endinterface
 
   (*synthesize*)
@@ -61,6 +63,7 @@ package storebuffer;
     end
     Reg#(Bit#(TLog#( `buffsize ))) rg_head <- mkReg(0);
     Reg#(Bit#(TLog#( `buffsize ))) rg_tail <- mkReg(0);
+    FIFOF#(Bool) storequeue <- mkSizedFIFOF(2);
 
     method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(VADDR) addr);
       Bit#(ELEN) storemask1 = 0;
@@ -102,6 +105,7 @@ package storebuffer;
       store_data[rg_tail]<=data;
       store_size[rg_tail]<=size;
       rg_tail<=rg_tail+1;
+      storequeue.enq(True);
     endmethod
     method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) perform_store ;
       $display($time,"\tSTAGE4: Sending Store request for Addr:%h Data: %h size: %b",
@@ -112,6 +116,10 @@ package storebuffer;
     method Bit#(VADDR) write_address;
       return store_addr[rg_head-1];
     endmethod
+    method Action deque;
+      storequeue.deq;
+    endmethod
+    method Bool storebuffer_empty=!storequeue.notEmpty;
   endmodule
 endpackage
 

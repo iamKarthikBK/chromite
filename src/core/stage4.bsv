@@ -62,16 +62,17 @@ package stage4;
     method Action update_wEpoch;
     method Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) store_response;
     method Action start_store(Bool s);
+    method Bool storebuffer_empty;
   endinterface
 
   (*synthesize*)
   module mkstage4(Ifc_stage4);
     RX#(PIPE3) rxmin <- mkRX;
     TX#(PIPE4) txmin <- mkTX;
-    `ifdef simulate
-      RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
-      TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst <-mkTX;
-    `endif
+  `ifdef simulate
+    RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
+    TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst <-mkTX;
+  `endif
     Ifc_storebuffer storebuffer <- mkstorebuffer();
     // wire that captures the response coming from the external memory or cache.
     Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
@@ -115,7 +116,7 @@ package stage4;
   
       // check store_buffer entries
       let {storemask,storehit} <- storebuffer.check_address(badaddr); 
-      Bit#(6) loadoffset = {badaddr[2:0],3'b0};
+      Bit#(6) loadoffset = {badaddr[2:0],3'b0}; // parameterize for XLEN
 
       if(rg_epoch!=epoch)begin
         rxmin.u.deq;
@@ -187,6 +188,13 @@ package stage4;
           temp1=tagged STORE CommitStore{pc:pc,rdindex:rdindex};
           storebuffer.allocate(badaddr, storedata, size);
         end
+        else if(memaccess==Fence || memaccess==FenceI)begin
+          temp1=tagged REGULAR CommitRegular{commitvalue:?,
+                                                 fflags:0,
+                                                 rdtype:rdtype,
+                                                 rd:rd,
+                                                 rdindex:rdindex};
+        end
       end
       `ifdef simulate
         $display($time,"\tSTAGE4: PC: %h Inst: %h",simpc,inst);
@@ -235,10 +243,12 @@ package stage4;
     interface memory_write_response = interface Put
       method Action put(MemoryWriteResp r);
         $display($time,"\tSTAGE4: Recieved Write response: %b",r);
+        storebuffer.deque;
         wr_store_response<=tagged Valid (tuple2(r,storebuffer.write_address));
       endmethod
     endinterface;
     method store_response = wr_store_response;
+    method storebuffer_empty = storebuffer.storebuffer_empty;
   endmodule
 endpackage
 
