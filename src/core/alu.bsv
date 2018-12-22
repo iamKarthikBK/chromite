@@ -251,6 +251,9 @@ package alu;
       `endif
       `ifdef spfpu
         if(inst_type==FLOAT)begin
+          `ifndef dpfpu
+            word32=True;
+          `endif
           fpu._start(op1, op2, imm_value, fn, imm_value[11:5], funct3, imm_value[1:0],0, word32);
           `ifdef muldiv
             `ifdef spfpu
