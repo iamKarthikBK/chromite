@@ -53,6 +53,7 @@ package storebuffer;
 
   (*synthesize*)
   module mkstorebuffer(Ifc_storebuffer);
+    let offset = valueOf(XLEN)==64?2:1;
     Reg#(Bit#(VADDR)) store_addr [ `buffsize ];
     Reg#(Bit#(ELEN))  store_data [ `buffsize ];
     Reg#(Bit#(2)) store_size [ `buffsize ];
@@ -66,23 +67,29 @@ package storebuffer;
     FIFOF#(Bool) storequeue <- mkSizedFIFOF(2);
 
     method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(VADDR) addr);
+      Bit#(TLog#(ELEN)) shiftamt1 = {store_addr[rg_tail-1][offset:0],3'b0}; // parameterize for XLEN
       Bit#(ELEN) storemask1 = 0;
       Bit#(ELEN) storemask2 = 0;
-      Bit#(TSub#(VADDR,3)) wordaddr = truncateLSB(addr);
+      `ifdef RV64
+        Bit#(TSub#(VADDR,3)) wordaddr = truncateLSB(addr);
+      `else
+        Bit#(TSub#(VADDR,2)) wordaddr = truncateLSB(addr);
+      `endif
       if(truncateLSB(store_addr[rg_tail-1]) == wordaddr)begin
         Bit#(ELEN) temp = store_size[rg_tail-1]==0?'hff:
                           store_size[rg_tail-1]==1?'hffff:
                           store_size[rg_tail-1]==2?'hffffffff:'1;
-        temp = temp << {store_addr[rg_tail-1][2:0],3'b0};
+        temp = temp << shiftamt1; 
         $display($time,"\tSTOREBUFFER Addr1: %h Data1: %h Size: %h temp: %h rg_tail: %d",store_addr[rg_tail-1],
                                      store_data[rg_tail-1],store_size[rg_tail-1], temp, rg_tail-1);
         storemask1 = temp;               // 'h00_00_00_FF
       end
       if(truncateLSB(store_addr[rg_tail]) == wordaddr)begin
+        Bit#(TLog#(ELEN)) shiftamt2 = {store_addr[rg_tail][offset:0],3'b0}; // parameterize for XLEN
         Bit#(ELEN) temp = store_size[rg_tail]==0?'hff:
                           store_size[rg_tail]==1?'hffff:
                           store_size[rg_tail]==2?'hffffffff:'1;
-        temp = temp << {store_addr[rg_tail][2:0],3'b0};            
+        temp = temp << shiftamt2;
         $display($time,"\tSTOREBUFFER Addr1: %h Data1: %h Size: %h temp: %h rg_tail: %d",store_addr[rg_tail],
                                        store_data[rg_tail],store_size[rg_tail], temp, rg_tail);
         storemask2 = temp&(~storemask1); // 'h00_00_00_FF

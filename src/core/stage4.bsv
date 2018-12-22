@@ -84,7 +84,8 @@ package stage4;
 
 
     rule check_operation;
-      
+ 
+      let offset = valueOf(XLEN)==64?2:1;
       let {committype, field1, field2, field3, field4}=rxmin.u.first;
     `ifdef rtldump
       let {simpc,inst}=rxinst.u.first;
@@ -116,7 +117,7 @@ package stage4;
   
       // check store_buffer entries
       let {storemask,storehit} <- storebuffer.check_address(badaddr); 
-      Bit#(6) loadoffset = {badaddr[2:0],3'b0}; // parameterize for XLEN
+      Bit#(TLog#(ELEN)) loadoffset = {badaddr[offset:0],3'b0}; // parameterize for XLEN
 
       if(rg_epoch!=epoch)begin
         rxmin.u.deq;
@@ -213,10 +214,10 @@ package stage4;
 
     interface rx_min = rxmin.e;
     interface tx_min = txmin.e;
-    `ifdef simulate
-      interface rx_inst = rxinst.e;
-      interface tx_inst = txinst.e;
-    `endif
+  `ifdef simulate
+    interface rx_inst = rxinst.e;
+    interface tx_inst = txinst.e;
+  `endif
     interface  memory_read_response= interface Put
       method Action put (Maybe#(MemoryReadResp#(1)) response);
         wr_memory_response <= response;
