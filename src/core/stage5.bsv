@@ -179,7 +179,7 @@ package stage5;
             wr_commit <= tagged Valid (tuple3(sys.rd, zeroExtend(dest), sys.rdtype));
             wr_rename <= tagged Valid (tuple3(sys.rd, sys.rdindex, sys.rdtype));
           `else
-            wr_commit <= tagged Valid (tuple2(sys.rd, sys.dest));
+            wr_commit <= tagged Valid (tuple2(sys.rd, dest));
             wr_rename <= tagged Valid (tuple2(sys.rd, sys.rdindex));
           `endif
           `ifdef rtldump 
