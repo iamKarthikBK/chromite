@@ -61,13 +61,14 @@ package registerfile;
           `ifdef spfpu ,Op3type rfselect `endif );
 		`endif
 		method Action commit_rd (Maybe#(CommitData) commit);
+    method Action update_renaming (Maybe#(CommitRename) commit);
     method Action reset_renaming;
 	endinterface
 
 	(*synthesize*)
   (*preempts="reset_renaming, opaddress"*)
-  (*conflict_free="opaddress, commit_rd"*)
-  (*conflict_free="reset_renaming, commit_rd"*)
+  (*conflict_free="opaddress, update_renaming"*)
+  (*conflict_free="reset_renaming, update_renaming"*)
 	module mkregisterfile(Ifc_registerfile);
     Integer verbosity = `VERBOSITY ;
 		RegFile#(Bit#(5),Bit#(XLEN)) integer_rf <-mkRegFileWCF(0,31);
@@ -194,28 +195,17 @@ package registerfile;
 
     // Here we invaildate the renaming regifile on each commit. This is done to make sure that
     // we avoid reading into the wrong renamed-register in the next stage. 
-		method Action commit_rd (Maybe#(CommitData) commit) if(!initialize);
+    method Action update_renaming (Maybe#(CommitRename) commit) if(!initialize);
       if(commit matches tagged Valid .in)begin
         `ifdef spfpu
-          let{r, d, index, rdtype}=in;
-        `else
-          let{r, d, index}=in;
-        `endif
-			  if(verbosity>0)begin
-          $display($time,"\tRF: Writing Rd: %d(%h) index: %d ",r,d, index `ifdef spfpu 
-              , fshow(rdtype) `endif );
-          `ifdef spfpu
-            $display($time,"\tRF: arr_rename_float: ",fshow(arr_rename_float[r]));
-          `endif
-        end
-
-        `ifdef spfpu
+          let{r, index, rdtype}=in;
           Bool donot_invalidate = (tpl_2(wr_rename_reg)==r && tpl_1(wr_rename_reg)==rdtype);
+        `else
+          let{r, index}=in;
         `endif
 
         `ifdef spfpu
           if(rdtype==FRF)begin
-			  	  floating_rf.upd(r,truncate(d));
             if(arr_rename_float[r] matches tagged Valid .x &&& x == index &&&  !donot_invalidate)
             begin
               if(verbosity>1)
@@ -228,7 +218,6 @@ package registerfile;
           else
         `endif
 			  if(r!=0)begin
-			  	integer_rf.upd(r,truncate(d));
           `ifdef spfpu
             if(arr_rename_int[r] matches tagged Valid .x &&& x == index &&&  !donot_invalidate) begin
           `else
@@ -238,7 +227,28 @@ package registerfile;
               $display($time, "\tRF: Commit rename index: %d rd: %d wr_rename_reg: %d", x, r,
               wr_rename_reg);
               arr_rename_int[r]<= tagged Invalid;
+            end
           end
+        end
+    endmethod
+		method Action commit_rd (Maybe#(CommitData) commit) if(!initialize);
+      if(commit matches tagged Valid .in)begin
+        `ifdef spfpu
+          let{r, d, rdtype}=in;
+        `else
+          let{r, d=in;
+        `endif
+			  if(verbosity>0)begin
+          $display($time,"\tRF: Writing Rd: %d(%h) ",r,d `ifdef spfpu , fshow(rdtype) `endif );
+        end
+
+      `ifdef spfpu
+        if(rdtype==FRF)begin
+			  	  floating_rf.upd(r,truncate(d));
+        end else
+        `endif
+			  if(r!=0)begin
+			  	integer_rf.upd(r,truncate(d));
 			  end
       end
 		endmethod

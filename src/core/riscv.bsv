@@ -57,7 +57,6 @@ package riscv;
   endinterface
 
   (*synthesize*)
-  (*preempts="flush_rename_mapping, commit_instruction"*)
   module mkriscv(Ifc_riscv);
     let verbosity = `VERBOSITY ;
 
@@ -142,7 +141,11 @@ package riscv;
       stage2.reset_renaming;
     endrule
     rule commit_instruction;
+      $display($time,"\tFIRING");
       stage2.commit_rd(stage5.commit_rd);
+    endrule
+    rule rename_instruction;
+      stage2.update_renaming(stage5.update_renaming);
     endrule
 
     rule connect_get_index(decode_firing);
@@ -162,10 +165,7 @@ package riscv;
       stage3.csr_misa_c(stage5.csr_misa_c);
     endrule
     rule clear_stall_in_decode_stage(flush_from_exe != None || flush_from_wb);
-      stage2.csr_updated(True);
-    endrule
-    rule check_csr_update(!(flush_from_exe != None || flush_from_wb));
-      stage2.csr_updated(stage5.csr_updated);
+      stage2.clear_stall(True);
     endrule
     rule upd_stage2eEpoch(flush_from_exe!=None);
       stage2.update_eEpoch();
@@ -190,6 +190,9 @@ package riscv;
         stage3.roundingmode(stage5.roundingmode);
       endrule
     `endif
+    rule connect_storebuffer_status;
+      stage3.storebuffer_empty(stage4.storebuffer_empty);
+    endrule
     ///////////////////////////////////////////
 
     interface inst_request=stage1.inst_request;

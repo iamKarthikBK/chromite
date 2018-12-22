@@ -92,6 +92,7 @@ package stage2;
 
 	interface Ifc_stage2;
 		method Action commit_rd (Maybe#(CommitData) commit);
+    method Action update_renaming (Maybe#(CommitRename) commit);
 		/* ===== pipe connections ========= */
 		interface RXe#(PIPE1_min) rx_min;
     `ifdef bpu
@@ -116,7 +117,7 @@ package stage2;
           `ifdef spfpu ,Op3type rfselect `endif );
 		`endif
     method Action csrs (CSRtoDecode csr);
-    method Action csr_updated (Bool upd);
+    method Action clear_stall (Bool upd);
 		method Action update_eEpoch;
 		method Action update_wEpoch;
     method Tuple2#(Bool, Bit#(TLog#(PRFDEPTH))) fetch_rd_index;
@@ -126,7 +127,6 @@ package stage2;
   (*synthesize*)
   (*conflict_free="commit_rd, decode_and_fetch"*)
   (*preempts="reset_renaming, decode_and_fetch"*)
-  (*preempts="reset_renaming, commit_rd"*)
   module mkstage2(Ifc_stage2);
 
     Ifc_registerfile registerfile <-mkregisterfile();
@@ -154,6 +154,7 @@ package stage2;
 		Reg#(Bit#(1)) wEpoch <-mkReg(0);
     Reg#(Bool) rg_stall <- mkReg(False);
     Reg#(Bool) rg_wfi <- mkReg(False);
+    Reg#(Bool) rg_rerun <- mkReg(False);
     Wire#(Bool) wr_op_complete <-mkDWire(False);
     Reg#(Bit#(TLog#(PRFDEPTH))) rd_index <- mkReg(0);
     Wire#(Bit#(TLog#(PRFDEPTH))) wr_rd_index <- mkDWire(0);
@@ -171,7 +172,7 @@ package stage2;
     `ifdef supervisor
       err[1]=rxopt2.u.first.pagefault;
     `endif
-      let {optype, meta, resume_wfi} <- decoder_func(inst,err,wr_csrs);
+      let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,err,wr_csrs);
       let {rs1addr,rs2addr,rd,rs1type,rs2type} = optype;
       let {func_cause, instrType, memaccess, imm} = meta;
       Bit#(3) funct3 = truncate(func_cause);
@@ -180,8 +181,30 @@ package stage2;
     `ifdef spfpu
       let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
     `endif
-      
-      if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
+      if(rg_rerun)begin 
+        OpData#(TMax#(XLEN,FLEN),TMax#(XLEN,FLEN)) t1 = tuple8(?, ?, ?, ?, 
+                                                               ?, pc, ?, TRAP);
+        MetaData t2 = tuple5(?, `Rerun , ?, ?, epochs);
+        PIPE2_min#(ELEN,FLEN) t3 = tuple2(t1, t2);
+      `ifdef spfpu
+        OpFpu t4 = tuple2(?, IRF);
+      `endif
+
+        txmin.u.enq(t3);
+      `ifdef simulate
+        txinst.u.enq(inst);
+      `endif
+      `ifdef bpu
+        txbpu.u.enq(pred);
+      `endif
+      `ifdef spfpu
+        txfpu.u.enq(t4);
+      `endif
+      rg_stall<=True;
+      rg_rerun<=False;
+      $display($time,"\tDECODE: PC: %h Inst: %h Tagged as RERUN",pc,inst);
+      end
+      else if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
         if(rd_index==4)
           rd_index<= 0;
@@ -211,6 +234,9 @@ package stage2;
       `else
         Bit#(FLEN) op4=signExtend(imm);
       `endif
+      
+        rg_rerun<=rerun;
+
         OpData#(TMax#(XLEN,FLEN),TMax#(XLEN,FLEN)) t1 = tuple8(rs1index, rs2index, rd_index, op1, 
                                                                op2, op3, op4, instrType);
         MetaData t2 = tuple5(rd, func_cause, memaccess, word32, epochs);
@@ -258,12 +284,6 @@ package stage2;
         rxopt2.u.deq;
       `endif
       end
-
-      if({eEpoch, wEpoch}==epochs)begin
-        if(instrType==SYSTEM_INSTR)
-          rg_stall<= True;
-       // rg_wfi<=pack(instrType==WFI);
-      end  
     endrule
 
 		method tx_min=txmin.e;
@@ -289,6 +309,9 @@ package stage2;
 		method Action commit_rd (Maybe#(CommitData) commit);
       registerfile.commit_rd(commit);
     endmethod
+    method Action update_renaming (Maybe#(CommitRename) commit);
+      registerfile.update_renaming(commit);
+    endmethod
 
     // This method will get activated when there is a flush from the execute stage
 		method Action update_eEpoch;
@@ -302,7 +325,7 @@ package stage2;
         $display($time,"\tSTAGE2: updating wEpoch"); 
 			wEpoch<=~wEpoch;
 		endmethod
-    method Action csr_updated (Bool upd) if(rg_stall);
+    method Action clear_stall (Bool upd) if(rg_stall);
       if(upd)
         rg_stall<= False;
     endmethod

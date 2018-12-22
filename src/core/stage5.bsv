@@ -45,12 +45,12 @@ package stage5;
       interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
     `endif
     method Maybe#(CommitData) commit_rd;
+    method Maybe#(CommitRename) update_renaming();
     method Tuple2#(Bool, Bit#(VADDR)) flush;
     method CSRtoDecode csrs_to_decode;
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(64) c_mtime);
-    method Bool csr_updated;
     method Bool interrupt;
     `ifdef rtldump
       interface Get#(DumpType) dump;
@@ -80,10 +80,10 @@ package stage5;
       RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
     `endif
     Ifc_csr csr <- mkcsr();
-    Wire#(Bool) wr_csr_updated <- mkDWire(False);
 
     // wire that carries the commit data that needs to be written to the integer register file.
     Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
+    Wire#(Maybe#(CommitRename)) wr_rename <- mkDWire(tagged Invalid);
 
     // wire which signals the entire pipe to be flushed.
     Wire#(Tuple2#(Bool, Bit#(VADDR))) wr_flush <- mkDWire(tuple2(False, ?));
@@ -108,20 +108,26 @@ package stage5;
       Bool fl = False;
       `ifdef simulate
         `ifdef rtldump
-          $display($time,"\tWBMEM: PC: %h: inst: %h",simpc,inst);
+          $display($time,"\tWBMEM: PC: %h: inst: %h commit: ",simpc,inst,fshow(commit));
         `endif
       `endif
       if(rg_epoch==epoch)begin
         if(commit matches tagged TRAP .t)begin
-          let newpc <- csr.take_trap(t.cause, t.pc, t.badaddr);
-          fl=True;
-          jump_address=newpc;
+          if(t.cause==`Rerun )begin
+            fl=True;
+            jump_address=t.pc;
+          end
+          else begin
+            let newpc <- csr.take_trap(t.cause, t.pc, t.badaddr);
+            fl=True;
+            jump_address=newpc;
+          end
           rx.u.deq;
           `ifdef rtldump
             rxinst.u.deq;
           `endif
           if(verbosity>0)
-            $display($time, "\tWBMEM: Received TRAP: ", t.cause);
+            $display($time, "\tWBMEM: Received TRAP: ", t.cause, " New PC: %h",jump_address);
         end
         else if (commit matches tagged STORE .s)begin
           if(!rg_store_initiated)begin // if store has not started yet.
@@ -135,9 +141,11 @@ package stage5;
             let {err, badaddr} = resp;
             if(err==0)begin
             `ifdef spfpu
-              wr_commit <= tagged Valid (tuple4(0, 0, s.rdindex, IRF)); 
+              wr_commit <= tagged Valid (tuple3(0, 0, IRF)); 
+              wr_rename <= tagged Valid (tuple3(0, s.rdindex, IRF)); 
             `else
-              wr_commit <= tagged Valid (tuple3(0, 0, s.rdindex));
+              wr_commit <= tagged Valid (tuple2(0, 0));
+              wr_rename <= tagged Valid (tuple2(0, s.rdindex));
             `endif
             `ifdef rtldump
               dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, 0, 0, IRF));
@@ -168,9 +176,11 @@ package stage5;
           jump_address=newpc;
           fl=drain;
           `ifdef spfpu
-            wr_commit <= tagged Valid (tuple4(sys.rd, zeroExtend(dest), sys.rdindex, sys.rdtype));
+            wr_commit <= tagged Valid (tuple3(sys.rd, zeroExtend(dest), sys.rdtype));
+            wr_rename <= tagged Valid (tuple3(sys.rd, sys.rdindex, sys.rdtype));
           `else
-            wr_commit <= tagged Valid (tuple3(sys.rd, sys.dest, sys.rdindex));
+            wr_commit <= tagged Valid (tuple2(sys.rd, sys.dest));
+            wr_rename <= tagged Valid (tuple2(sys.rd, sys.rdindex));
           `endif
           `ifdef rtldump 
             if(sys.rd==0)
@@ -184,11 +194,14 @@ package stage5;
         end
         else if(commit matches tagged REGULAR .r)begin
           // in case of regular instruction simply update RF and forward the data.
+          $display($time,"\tWBMEM: Regular commit");
         `ifdef spfpu
-          wr_commit <= tagged Valid (tuple4(r.rd, r.commitvalue, r.rdindex, r.rdtype));
+          wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdtype));
+          wr_rename <= tagged Valid (tuple3(r.rd, r.rdindex, r.rdtype));
           csr.update_fflags(r.fflags); 
         `else
-          wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdindex));
+          wr_commit <= tagged Valid (tuple2(r.rd, r.commitvalue));
+          wr_rename <= tagged Valid (tuple2(r.rd, r.rdindex));
         `endif
           rx.u.deq;
         `ifdef rtldump
@@ -207,11 +220,6 @@ package stage5;
         if(fl)begin
           rg_epoch <= ~rg_epoch;
         end
-        if(fl)
-          wr_csr_updated<= True;
-        else if(commit matches tagged SYSTEM .x)
-          wr_csr_updated<= True;
-
       end
       else begin
         if(verbosity>1)
@@ -232,9 +240,11 @@ package stage5;
     method Maybe#(CommitData) commit_rd();
       return wr_commit;
     endmethod
+    method Maybe#(CommitRename) update_renaming();
+      return wr_rename;
+    endmethod
     method flush=wr_flush;
     method csrs_to_decode = csr.csrs_to_decode;
-    method Bool csr_updated = wr_csr_updated;
 
 	  method Action clint_msip(Bit#(1) intrpt);
       csr.clint_msip(intrpt);
