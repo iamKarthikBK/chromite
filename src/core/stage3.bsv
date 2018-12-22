@@ -179,8 +179,9 @@ package stage3;
     endrule
 
     rule execute_operation `ifdef multicycle (!rg_stall) `endif ;
-      let {opdata, metadata} = rxmin.u.first;
-      let {rs1addr, rs2addr, rd_index, op1, op2, op3, op4, instrtype}=opdata;
+      let {opmeta, opdata, metadata} = rxmin.u.first;
+      let {rs1addr, rs2addr, rd_index, op3, instrtype} = opmeta;
+      let {op1, op2, op4}=opdata;
       let {rd, func_cause, memaccess, word32, epochs}=metadata;
       Bit#(3) funct3=truncate(func_cause);
       Bit#(4) fn=truncateLSB(func_cause);
@@ -398,8 +399,9 @@ package stage3;
     endrule
   `ifdef multicycle
     rule capture_stalled_output(rg_stall);
-      let {opdata, metadata} = rxmin.u.first;
-      let {rs1addr, rs2addr, rd_index, op1, op2, op3, op4, instrtype}=opdata;
+      let {opmeta, opdata, metadata} = rxmin.u.first;
+      let {rs1addr, rs2addr, rd_index, op3, instrtype} = opmeta;
+      let {op1, op2, op4}=opdata;
       let {rd, func_cause, memaccess, word32, epochs}=metadata;
     `ifdef rtldump
       let instruction = rxinst.u.first;

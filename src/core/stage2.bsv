@@ -182,15 +182,15 @@ package stage2;
       let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
     `endif
       if(rg_rerun)begin 
-        OpData#(ELEN,FLEN) t1 = tuple8(?, ?, ?, ?, 
-                                                               ?, pc, ?, TRAP);
-        MetaData t2 = tuple5(?, `Rerun , ?, ?, epochs);
-        PIPE2_min#(ELEN,FLEN) t3 = tuple2(t1, t2);
+        OpMeta t1 = tuple5(?,?,?, pc, TRAP);
+        OpData#(ELEN,FLEN) t2 = tuple3(?, ?, ?);
+        MetaData t3 = tuple5(?, `Rerun , ?, ?, epochs);
+        PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
       `ifdef spfpu
-        OpFpu t4 = tuple2(?, IRF);
+        OpFpu t5 = tuple2(?, IRF);
       `endif
 
-        txmin.u.enq(t3);
+        txmin.u.enq(t4);
       `ifdef rtldump
         txinst.u.enq(inst);
       `endif
@@ -198,7 +198,7 @@ package stage2;
         txbpu.u.enq(pred);
       `endif
       `ifdef spfpu
-        txfpu.u.enq(t4);
+        txfpu.u.enq(t5);
       `endif
       rg_stall<=True;
       rg_rerun<=False;
@@ -236,16 +236,15 @@ package stage2;
       `endif
       
         rg_rerun<=rerun;
-
-        OpData#(ELEN,FLEN) t1 = tuple8(rs1index, rs2index, rd_index, op1, 
-                                                               op2, op3, op4, instrType);
-        MetaData t2 = tuple5(rd, func_cause, memaccess, word32, epochs);
-        PIPE2_min#(ELEN,FLEN) t3 = tuple2(t1, t2);
+        OpMeta t1 = tuple5(rs1index, rs2index, rd_index, op3, instrType);
+        OpData#(ELEN,FLEN) t2 = tuple3(op1, op2, op4);
+        MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);
+        PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
       `ifdef spfpu
-        OpFpu t4 = tuple2(rs3index, rdtype);
+        OpFpu t5 = tuple2(rs3index, rdtype);
       `endif
 
-        txmin.u.enq(t3);
+        txmin.u.enq(t4);
       `ifdef rtldump
         txinst.u.enq(inst);
       `endif
@@ -253,7 +252,7 @@ package stage2;
         txbpu.u.enq(pred);
       `endif
       `ifdef spfpu
-        txfpu.u.enq(t4);
+        txfpu.u.enq(t5);
       `endif
 
         if(verbosity>0)begin

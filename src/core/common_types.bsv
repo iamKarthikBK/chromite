@@ -149,14 +149,15 @@ package common_types;
   
   // ---------- Tuples for the second Pipeline Stage -----------//
 
-  typedef Tuple8#(Bit#(3), // rs1index
+  typedef Tuple5#(Bit#(3), // rs1index
                  Bit#(3), // rs2index
                  Bit#(3), // rs3index
+                 Bit#(VADDR), // pc_rs1,
+                 Instruction_type)  OpMeta;
+  typedef Tuple3#(
                  Bit#(msize), // rs1_pc
                  Bit#(msize), // rs2_instruction(for badaddr)
-                 Bit#(VADDR), // pc_rs1
-                 Bit#(t),     // rs3_imm. Incase fpu is on then t = FLEN else VADDR
-                 Instruction_type) // instr_type
+                 Bit#(t))     // rs3_imm. Incase fpu is on then t = FLEN else VADDR
                  OpData#(numeric type msize, numeric type t);
   typedef Tuple5#(Bit#(5), // rd
                  Bit#(7), // {fn,f3} or cause
@@ -164,7 +165,7 @@ package common_types;
                  Bool, //Word32
                  Bit#(2) // epochs
                 ) MetaData;
-  typedef Tuple2#(OpData#(msize,t), MetaData) PIPE2_min#(numeric type msize, numeric type t);
+  typedef Tuple3#(OpMeta, OpData#(msize,t), MetaData) PIPE2_min#(numeric type msize, numeric type t);
   typedef Tuple2#(Bit#(3), // rs3 index
                  Op3type // rdtype
                 ) OpFpu;
