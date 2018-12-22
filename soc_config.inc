@@ -1,4 +1,4 @@
-ISA=RV64IMAFD
+ISA=RV64IMAFDC
 MMU=enable
 AXI=enable
 BPU=disable
