@@ -335,7 +335,7 @@ package stage3;
               ff_memory_read_request.enq(tuple3(truncate(addr), epochs[0], funct3));
             end
             Bit#(9) smeta1 = {pack(rdtype),rd,rd_index};
-            Bit#(16) mmeta = {nanboxing,funct3,pack(memaccess),smeta1};
+            Bit#(20) mmeta = {fn,nanboxing,funct3,pack(memaccess),smeta1};
             Tbad_Maddr_Rmeta2_Smeta2 tple1 = 
               case(cmtype)
                 REGULAR: 0;

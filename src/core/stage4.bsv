@@ -65,6 +65,24 @@ package stage4;
     method Bool storebuffer_empty;
   endinterface
 
+  function Bit#(ELEN) fn_atomic_op (Bit#(4) op,  Bit#(ELEN) rs2,  Bit#(ELEN) loaded);
+    Int#(ELEN) s_loaded = unpack(loaded);
+		Int#(ELEN) s_rs2 = unpack(rs2);
+    case (op[3:0])
+				'b0011:return rs2;
+				'b0000:return (loaded+rs2);
+				'b0010:return (loaded^rs2);
+				'b0110:return (loaded&rs2);
+				'b0100:return (loaded|rs2);
+				'b1100:return min(loaded,rs2);
+				'b1110:return max(loaded,rs2);
+				'b1000:return pack(min(s_loaded,s_rs2));
+				'b1010:return pack(max(s_loaded,s_rs2));
+				default:return loaded;
+        // TODO: Handle LR SC
+			endcase	
+  endfunction
+
   (*synthesize*)
   module mkstage4(Ifc_stage4);
     RX#(PIPE3) rxmin <- mkRX;
@@ -81,6 +99,7 @@ package stage4;
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
     Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
     Wire#(Bool) wr_store_start<-mkDWire(False);
+    Reg#(Bit#(VADDR)) rg_reserved_addr <- mkReg(0);
 
 
     rule check_operation;
@@ -112,6 +131,7 @@ package stage4;
       Bit#(2) size=field4[14:13];
       Bit#(1) sign=field4[15];
       Bit#(1) nanboxing=field4[16];
+      Bit#(4) atomic_op = field4[20:17];
       CommitType temp1=?;
       Bool complete=True;
   
@@ -173,7 +193,8 @@ package stage4;
                                                rdindex:rdindex, 
                                                rd: rd,  
                                                commitvalue:update_data};
-                storebuffer.allocate(badaddr, storedata, size);
+                // TODO: perform atomic op here and update storedata
+                storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
               end
               else
             `endif
@@ -184,10 +205,22 @@ package stage4;
                                                  rdindex:rdindex};
             end
             else begin
-              if(err_fault[0]==1)
-                temp1=tagged TRAP CommitTrap{cause:`Load_access_fault, badaddr:badaddr, pc:pc};
-              else
+              if(err_fault[0]==1)begin
+              `ifdef atomic 
+                if(memaccess==Atomic)
+                  temp1=tagged TRAP CommitTrap{cause:`Store_access_fault, badaddr:badaddr, pc:pc};
+                else
+              `endif
+                  temp1=tagged TRAP CommitTrap{cause:`Load_access_fault, badaddr:badaddr, pc:pc};
+              end
+              else begin
+              `ifdef atomic 
+                if(memaccess==Atomic)
+                  temp1=tagged TRAP CommitTrap{cause:`Store_pagefault, badaddr:badaddr, pc:pc};
+                else
+              `endif
                 temp1=tagged TRAP CommitTrap{cause:`Load_pagefault, badaddr:badaddr, pc:pc};
+              end
             end
           end
           else begin
