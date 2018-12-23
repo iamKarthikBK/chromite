@@ -154,6 +154,7 @@ package decoder;
 		return tuple3(unpack(zeroExtend(pack(countZerosLSB(pending_interrupts)))), taketrap, resume_wfi);
 	endfunction
   
+  (*noinline*)
   function Bit#(3) gen_funct3(Bit #(16) inst);
     Bit#(5) opcode={inst[1:0],inst[15:13]};
     Bit #(3) funct3 =3'b000;
@@ -618,7 +619,7 @@ package decoder;
     else if(opcode[4:3]=='b01)begin // Stores,  LUIs,  MulDiv,  Register Arithmetic
       case (opcode[2:0])  
         'b000 : if(funct3[2]==0 `ifdef RV32  && funct3[1:0]!='b11 `endif ) inst_type=MEMORY; // STORE 
-        'b010 : if(misa[0]==1 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Atomic
+        'b011 : if(misa[0]==1 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Atomic
         'b001 : if(fs!=0 && (funct3==2 && misa[5]==1) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FStore
         'b101 : inst_type=ALU;      // LUI 
         'b100,'b110: begin 

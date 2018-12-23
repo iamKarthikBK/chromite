@@ -219,13 +219,13 @@ package stage3;
                                                                 " check_rpc: ", fshow(check_rpc));
       end
       let {redirect_result, redirect_pc `ifdef bpu , npc `endif }=check_rpc;
-      `ifdef bpu
-        Bit#(VADDR) nextpc=pc+ 4; // TODO this should +2 in case of compressed
-      `endif
+    `ifdef bpu
+      Bit#(VADDR) nextpc=pc+ 4; // TODO this should +2 in case of compressed
+    `endif
       Bool execute = True;
-      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence) 
+      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence || memaccess==Atomic) 
                                                     && !wr_storebuffer_empty)
-        execute=False; // instead of just store-buffer for loads will need to check if pipe is empty
+        execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
       // We first check Epochs only then process the instruction
       if(!execute_instruction)begin
         `DEQRX
@@ -265,7 +265,7 @@ package stage3;
       else if(instrtype!=TRAP && execute)begin
 
         if(rs1 matches tagged Present .x1 &&& rs2 matches tagged Present .x2 
-                                    `ifdef spfpu &&& rs3_imm matches tagged Present .x4 `endif )begin
+                                `ifdef spfpu &&& rs3_imm matches tagged Present .x4 `endif )begin
           Bit#(ELEN) new_op1=x1;
           Bit#(VADDR) t3=op3;
           // TODO: here we need to exchange op1 (which has been fetched from the prf) and op3 in
@@ -279,7 +279,7 @@ package stage3;
             sfence_rs2<=x2;
           `endif
           `ifdef multicycle
-              let {done, cmtype, out, addr, cause, redirect} <- alu.get_inputs(fn, new_op1, x2, t3, 
+            let {done, cmtype, out, addr, cause, redirect} <- alu.get_inputs(fn, new_op1, x2, t3, 
                 truncate(x4), instrtype, funct3, memaccess, word32 `ifdef bpu ,pred `endif ,
                 wr_misa_c, truncate(pc));
           `else

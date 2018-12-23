@@ -259,6 +259,10 @@ package common_types;
 
   typedef struct{
     Bit#(VADDR) pc;
+  `ifdef atomic
+    Bit#(ELEN) commitvalue;
+    Bit#(5) rd;
+  `endif
     Bit#(3) rdindex;}CommitStore deriving (Bits,Eq,FShow);
 
   typedef struct{

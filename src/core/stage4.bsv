@@ -167,7 +167,17 @@ package stage4;
             `endif
             if(err_fault==0 )begin // no bus error
               wr_operand_fwding <= tagged Valid tuple2(update_data, rdindex);
-              temp1=tagged REGULAR CommitRegular{commitvalue:update_data,
+            `ifdef atomic
+              if(memaccess==Atomic)begin
+                temp1=tagged STORE CommitStore{pc:pc,
+                                               rdindex:rdindex, 
+                                               rd: rd,  
+                                               commitvalue:update_data};
+                storebuffer.allocate(badaddr, storedata, size);
+              end
+              else
+            `endif
+                temp1=tagged REGULAR CommitRegular{commitvalue:update_data,
                                                  fflags:0,
                                                  rdtype:rdtype,
                                                  rd:rd,
@@ -186,7 +196,12 @@ package stage4;
           end
         end
         else if(memaccess==Store)begin
-          temp1=tagged STORE CommitStore{pc:pc,rdindex:rdindex};
+          temp1=tagged STORE CommitStore{pc:pc,
+                                         rdindex:rdindex
+                                       `ifdef atomic
+                                         , rd: rd,  
+                                         commitvalue:?
+                                       `endif };
           storebuffer.allocate(badaddr, storedata, size);
         end
         else if(memaccess==Fence || memaccess==FenceI)begin
