@@ -645,7 +645,7 @@ package decoder;
     		'b101: inst_type=ALU;
         `ifdef RV64
           'b110: if(funct3[1:0]!='b01) // Immediate-32
-                  inst_type=ALU 
+                  inst_type=ALU ;
                 else if(funct7[0]==0)
                   inst_type=ALU; 
         `endif
