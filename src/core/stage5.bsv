@@ -76,9 +76,9 @@ package stage5;
     let verbosity = `VERBOSITY ;
 
     RX#(PIPE4) rx<-mkRX;
-    `ifdef rtldump
-      RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
-    `endif
+  `ifdef rtldump
+    RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
+  `endif
     Ifc_csr csr <- mkcsr();
 
     // wire that carries the commit data that needs to be written to the integer register file.
@@ -91,10 +91,10 @@ package stage5;
     // the local epoch register
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
 
-    `ifdef rtldump
-      FIFO#(DumpType) dump_ff <- mkLFIFO;
-      let prv=tpl_1(csr.csrs_to_decode);
-    `endif
+  `ifdef rtldump
+    FIFO#(DumpType) dump_ff <- mkLFIFO;
+    let prv=tpl_1(csr.csrs_to_decode);
+  `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
     Wire#(Bool) wr_initiate_store <- mkDWire(False);
     Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <- mkDWire(tagged Invalid);
@@ -141,14 +141,17 @@ package stage5;
             let {err, badaddr} = resp;
             if(err==0)begin
             `ifdef spfpu
-              wr_commit <= tagged Valid (tuple3(0, 0, IRF)); 
-              wr_rename <= tagged Valid (tuple3(0, s.rdindex, IRF)); 
+              wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
+              wr_rename <= tagged Valid (tuple3(s.rd, s.rdindex, IRF)); 
             `else
-              wr_commit <= tagged Valid (tuple2(0, 0));
-              wr_rename <= tagged Valid (tuple2(0, s.rdindex));
+              wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
+              wr_rename <= tagged Valid (tuple2(s.rd, s.rdindex));
             `endif
             `ifdef rtldump
-              dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, 0, 0, IRF));
+              Bit#(ELEN) data=s.commitvalue;
+              if(s.rd==0)
+                data=0;
+              dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, s.rd, data, IRF));
               rxinst.u.deq;
             `endif
               rx.u.deq;
@@ -175,18 +178,18 @@ package stage5;
           let {drain, newpc, dest}<-csr.system_instruction(sys.csraddr, sys.rs1, sys.func3, sys.lpc);
           jump_address=newpc;
           fl=drain;
-          `ifdef spfpu
-            wr_commit <= tagged Valid (tuple3(sys.rd, zeroExtend(dest), sys.rdtype));
-            wr_rename <= tagged Valid (tuple3(sys.rd, sys.rdindex, sys.rdtype));
-          `else
-            wr_commit <= tagged Valid (tuple2(sys.rd, dest));
-            wr_rename <= tagged Valid (tuple2(sys.rd, sys.rdindex));
-          `endif
-          `ifdef rtldump 
-            if(sys.rd==0)
-              dest=0;
-            dump_ff.enq(tuple6(prv, signExtend(simpc), inst, sys.rd, zeroExtend(dest), sys.rdtype));
-          `endif
+        `ifdef spfpu
+          wr_commit <= tagged Valid (tuple3(sys.rd, zeroExtend(dest), sys.rdtype));
+          wr_rename <= tagged Valid (tuple3(sys.rd, sys.rdindex, sys.rdtype));
+        `else
+          wr_commit <= tagged Valid (tuple2(sys.rd, dest));
+          wr_rename <= tagged Valid (tuple2(sys.rd, sys.rdindex));
+        `endif
+        `ifdef rtldump 
+          if(sys.rd==0)
+            dest=0;
+          dump_ff.enq(tuple6(prv, signExtend(simpc), inst, sys.rd, zeroExtend(dest), sys.rdtype));
+        `endif
         `ifdef rtldump
           rxinst.u.deq;
         `endif

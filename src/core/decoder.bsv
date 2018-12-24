@@ -43,6 +43,7 @@ package decoder;
   import BUtils::*;
   `include "common_params.bsv"
 	  
+  (*noinline*)
   function Bool address_valid(Bit#(12) csr_address);
 		case(csr_address[11:8])
       `ifdef user
@@ -121,19 +122,22 @@ package decoder;
 		endcase
 	endfunction
 	
+  (*noinline*)
   function Bool hasCSRPermission(Bit#(12) address, Bool write,  Privilege_mode prv);
     Bit#(12) csr_index = pack(address);
     return ((pack(prv) >= csr_index[9:8]) && !(write && csr_index[11:10]==2'b11) );
   endfunction
    
   // if the operand is not 0 then the instruction will perform a write on the CSR.
+  (*noinline*)
 	function Bool valid_csr_access(Bit#(12) csr_addr, Bit#(5) operand, Bit#(2) operation,
                                                                               Privilege_mode prv);
 		Bool ret = hasCSRPermission(unpack(csr_addr), (operand != 0 || operation=='b01) ? True:False,
                                                                                               prv);
 		return ret;
 	endfunction
-  
+ 
+  (*noinline*)
 	function Tuple3#(Bit#(6), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(12) mip, Bit#(12) csr_mie, 
                                                         Bit#(12) mideleg,  Bit#(1) mie);
 		Bit#(12) pending_interrupts = (truncate(mip)) & truncate(csr_mie) ;
@@ -150,6 +154,7 @@ package decoder;
 		return tuple3(unpack(zeroExtend(pack(countZerosLSB(pending_interrupts)))), taketrap, resume_wfi);
 	endfunction
   
+  (*noinline*)
   function Bit#(3) gen_funct3(Bit #(16) inst);
     Bit#(5) opcode={inst[1:0],inst[15:13]};
     Bit #(3) funct3 =3'b000;
@@ -197,11 +202,10 @@ package decoder;
  endfunction
 
   typedef enum {Q0='b00, Q1='b01, Q2='b10} Quadrant deriving(Bits,Eq,FShow);
-
-  function DecodeOut decoder_func_16(Bit#(16) inst, Bit#(2) err, CSRtoDecode csrs);
+  (*noinline*)
+  function DecodeOut decoder_func_16(Bit#(16) inst, CSRtoDecode csrs);
     
     let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
-    let {icause, takeinterrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
     Quadrant quad =unpack(inst[1:0]);
     Bit#(3) funct3 = inst[15:13];
 
@@ -273,9 +277,6 @@ package decoder;
 
     //----------------------------------- inferring rd
     Bit#(5) rd=inst[11:7];
-//  	Op3type rdtype=IRF;
-//    if( (quad==Q0||quad==Q2) && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
-//      rdtype=FRF;
 
     if(quad==Q0)begin
       case(funct3[2]) 
@@ -302,8 +303,6 @@ package decoder;
         'b101,'b110,'b111: rd=0;
       endcase
     end
-//    Bit#(5) rs3=0;
-//    Op3type rs3type=IRF;
 	
     // --- capturing memory access type.Only valid are Load/Store
     Access_type mem_access=Load;
@@ -344,13 +343,6 @@ package decoder;
       inst_type=JAL;
     else if (quad==Q1 && (funct3=='b110 || funct3=='b111)) //C.BEQZ C.BNEZ
       inst_type=BRANCH;
-
-//    // Deriving word32
-//    Bool word32=False;
-//    `ifdef RV64
-//      if( quad ==Q1 && (funct3=='b001 || (funct3=='b100 && inst[12:10]=='b111 && inst[6]=='b0)))
-//        word32=True;
-//    `endif
 
     Bit#(18) imm_value=
     case (quad) matches
@@ -414,56 +406,40 @@ package decoder;
     Bit#(32) immediate_value=signExtend(imm_value);
     Bit#(3) f3=gen_funct3(inst);
 
-    Bit#(6) trapcause=0;
-    if(takeinterrupt)begin
-      trapcause=icause;
-      inst_type=TRAP;
-    end
-    if(err[0]==1)begin
-      inst_type=TRAP;
-      trapcause= `Inst_access_fault;
-    end
-    else if(err[1]==1 && misa[18]==1) begin // supervisor enabled.
-      inst_type=TRAP;
-      trapcause=`Inst_pagefault;
-    end
-    else if(quad==Q2 && funct3=='b100 && inst[12]==1 && inst[11:2]==0)begin
+    Bit#(6) trapcause=`Illegal_inst;
+    if(quad==Q2 && funct3=='b100 && inst[12]==1 && inst[11:2]==0)begin
       inst_type=TRAP;
       trapcause = `Breakpoint;
     end
     else if(inst==0 || (quad==Q0 && funct3=='b100) || 
           (quad==Q1 && inst[15:10]=='b100111 && inst[6]==1)) begin
       inst_type=TRAP;
-      trapcause=`Illegal_inst;
     end
     else if(imm_value==0 && ((quad==Q0 && funct3=='b000) || //ADDI4SPN
             (quad==Q1 && ((funct3=='b000 && inst[11:7]!=0) || funct3=='b011)) || // NOP ADDI ADDI16SPN LUI
             (quad==Q1 && funct3=='b100 && inst[11:10]<2) || // SRLI SRAI
             (quad==Q2 && funct3=='b000)  )) begin // SLLI
       inst_type=TRAP;
-      trapcause = `Illegal_inst;
     end
     
-    Bit#(1) trap_type=pack(takeinterrupt);
     Bit#(7) temp1 = {fn,f3};
     if(inst_type==TRAP)
-      temp1={trap_type,trapcause};
+      temp1={1'b0,trapcause};
 
     
     OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
     DecodeMeta t2 = tuple4(temp1, inst_type, mem_access, immediate_value);
-    return tuple4(t1,t2,resume_wfi, False);
+    return tuple4(t1, t2, False, False);
 
 
   endfunction
 
 
-  //(*noinline*)
-  function DecodeOut decoder_func_32(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs);
+  (*noinline*)
+  function DecodeOut decoder_func_32(Bit#(32) inst, CSRtoDecode csrs);
     let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
 
     // ------- Default declarations of all local variables -----------//
-    let {icause, takeinterrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
 
 		Bit#(5) rs1=inst[19:15];
 		Bit#(5) rs2=inst[24:20];
@@ -643,7 +619,7 @@ package decoder;
     else if(opcode[4:3]=='b01)begin // Stores,  LUIs,  MulDiv,  Register Arithmetic
       case (opcode[2:0])  
         'b000 : if(funct3[2]==0 `ifdef RV32  && funct3[1:0]!='b11 `endif ) inst_type=MEMORY; // STORE 
-        'b010 : if(misa[0]==1 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Atomic
+        'b011 : if(misa[0]==1 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Atomic
         'b001 : if(fs!=0 && (funct3==2 && misa[5]==1) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FStore
         'b101 : inst_type=ALU;      // LUI 
         'b100,'b110: begin 
@@ -721,21 +697,8 @@ package decoder;
 		Bool address_is_valid=address_valid(inst[31:20]);
 		Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], prv);
     Bit#(6) trapcause=`Illegal_inst;
-    if(takeinterrupt)begin
-      trapcause=icause;
+    if(inst[1:0]!='b11 )begin
       inst_type=TRAP;
-    end
-    else if(err[0]==1) begin
-      inst_type=TRAP;
-      trapcause = `Inst_access_fault ;
-    end
-    else if(err[1]==1 && misa[18]==1) begin
-      inst_type=TRAP;
-      trapcause= `Inst_pagefault;
-    end
-    else if(inst[1:0]!='b11 )begin
-      inst_type=TRAP;
-      trapcause= `Illegal_inst; 
     end
     else if(inst_type == SYSTEM_INSTR)begin
       if(funct3 == 0)begin
@@ -745,33 +708,32 @@ package decoder;
                              `Ecall_from_machine;
                  end
           'h001: begin inst_type=TRAP; trapcause = `Breakpoint; end
-          'h102: if(misa[18]==0 || prv!=Supervisor) begin inst_type=TRAP;trapcause=`Illegal_inst; end
-          'h302: if(prv!=Machine) begin inst_type=TRAP; trapcause=`Illegal_inst; end
-          default: begin inst_type=TRAP; trapcause=`Illegal_inst ; end
+          'h102: if(misa[18]==0 || prv!=Supervisor) begin inst_type=TRAP;end
+          'h302: if(prv!=Machine) begin inst_type=TRAP; end
+          default: begin inst_type=TRAP;  end
         endcase
       end
       else begin // CSR read write operation
         if(!(address_is_valid && access_is_valid))begin
           inst_type=TRAP;
-          trapcause = `Illegal_inst;
         end
       end
     end
 
-    Bit#(1) trap_type=pack(takeinterrupt);
     Bit#(7) temp1 = {fn,funct3};
     if(inst_type==TRAP)
-      temp1={trap_type,trapcause};
+      temp1={1'b0,trapcause};
 
     Bool rerun = mem_access==Fence || mem_access==FenceI || inst_type==SYSTEM_INSTR;
 
 
     OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
     DecodeMeta t2 = tuple4(temp1, inst_type, mem_access, immediate_value);
-    return tuple4(t1,t2,resume_wfi, rerun);
+    return tuple4(t1, t2, False, rerun);
 
   endfunction
 
+  (*noinline*)
   function OpType_fpu decode_fpu_meta(Bit#(32) inst, Bit#(1) misa_c);
     Bit#(5) rs3=inst[31:27];
  		Op3type rs3type=FRF;
@@ -801,6 +763,7 @@ package decoder;
     return tuple3(rs3,rs3type,rdtype);
   endfunction
 
+  (*noinline*)
   function Bool decode_word32 (Bit#(32) inst, Bit#(1) misa_c);
     Bool word32=False;
     `ifdef RV64
@@ -826,9 +789,28 @@ package decoder;
   function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs) = 
     actionvalue
       let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
+      DecodeOut result_decode = decoder_func_32(inst, csrs);
       if(inst[1:0]!='b11 && misa[2]==1)
-        return decoder_func_16(truncate(inst),err,csrs);
-      else
-        return decoder_func_32(inst,err,csrs);
+        result_decode = decoder_func_16(truncate(inst),csrs);
+      let {icause, takeinterrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
+      let {t1, t2, t3, t4} = result_decode;
+      let {func_cause, inst_type,  mem_access,  immediate_value}=t2;
+      Instruction_type x = inst_type;
+      if(takeinterrupt)begin
+        func_cause={1'b1, icause};
+        x=TRAP;
+      end
+      else if(err[0]==1) begin
+        x=TRAP;
+        func_cause = `Inst_access_fault ;
+      end
+      else if(err[1]==1 && misa[18]==1) begin
+        x=TRAP;
+        func_cause= `Inst_pagefault;
+      end
+
+      DecodeMeta tupl2 = tuple4(func_cause, x, mem_access, immediate_value);
+      return tuple4(t1, tupl2, resume_wfi, t4);
+
   endactionvalue;
 endpackage
