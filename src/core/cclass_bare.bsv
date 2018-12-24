@@ -41,7 +41,9 @@ package cclass_bare;
   import riscv:: * ;
   import common_types:: * ;
   import FIFOF::*;
-//  import l1icache::*;
+  `ifdef icache
+    import l1icache::*;
+  `endif
   `include "common_params.bsv"
 
   `define Mem_master_num 0
@@ -51,6 +53,23 @@ package cclass_bare;
 	import Connectable 				:: *;
   import GetPut:: *;
   import BUtils::*;
+  
+  `ifdef icache
+    function Bool isIO(Bit#(VADDR) addr, Bool cacheable);
+	    if(!cacheable)
+	  	  return True;
+	    else
+	  	  return False;
+    endfunction
+
+    (*synthesize*)
+    module mkicache(Ifc_l1icache#(`iwords, `iblocks, `isets, `iways, VADDR, `ifbsize, 3));
+       let ifc();
+	   mkl1icache#(isIO,"PLRU") _temp(ifc);
+	   return (ifc);
+    endmodule
+  `endif
+
 
   typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
   interface Ifc_cclass_axi4;
@@ -67,6 +86,8 @@ package cclass_bare;
 
   (*synthesize*)
   module mkcclass_axi4(Ifc_cclass_axi4);
+    let vaddr = valueOf(VADDR);
+    let paddr = valueOf(PADDR);
     Ifc_riscv riscv <- mkriscv();
 		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
 		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
@@ -75,10 +96,43 @@ package cclass_bare;
 
     FIFOF#(Bit#(3))  ff_epoch <-mkSizedFIFOF(4);
     Integer verbosity = `VERBOSITY ;
+	
+  `ifdef icache
+	  let icache<-mkicache;
+	  mkConnection(riscv.inst_request, icache.core_req); //icache integration
+	  mkConnection(icache.core_resp, riscv.inst_response); // icache integration
+     
+    rule drive_constants;
+		  icache.cache_enable(True);
+    endrule
+
+	  rule handle_icache_request;
+	  	let {inst_addr, burst_len, burst_size} <- icache.read_mem_req.get;
+      Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+      if(upperbits!=0)
+        inst_addr=0;
+	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, arlen: 7, 
+	  	arsize: 2, arburst: 'b10, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
+	    fetch_xactor.i_rd_addr.enq(icache_request);
+	  	if(verbosity!=0)
+	  	  $display($time, "\ticache: icache Requesting ", fshow(icache_request));
+	  endrule
+
+	  rule handle_fabric_resp;
+	    let fab_resp <- pop_o (fetch_xactor.o_rd_data);
+	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
+      icache.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
+	  	if(verbosity!=0)
+	  	  $display($time, "\ticache: icache receiving Response ", fshow(fab_resp));
+	  endrule
+
+  `else 
   
-    // TODO get rid of the fetch_State. It will work faster without this blocking state-machine
     rule handle_fetch_request ;
 	    let {inst_addr, fence, epoch, prefetch} <- riscv.inst_request.get;
+      Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+      if(upperbits!=0)
+        inst_addr=0;
 			AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(inst_addr), aruser: ?, 
             arlen: 0, arsize: 2, arburst: 'b01, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
 			fetch_xactor.i_rd_addr.enq(read_request);	
@@ -96,9 +150,12 @@ package cclass_bare;
       if(verbosity!=0)
         $display($time, "\tCORE: Fetch Response ", fshow(response));
     endrule
-
+  `endif
     rule handle_memory_read_request;
       let {addr,epoch,access}<- riscv.memory_read_request.get;
+      Bit#(TSub#(VADDR,PADDR)) upperbits = addr[vaddr-1:paddr];
+      if(upperbits!=0)
+        addr=0;
       ff_rd_epochs.enq(tuple2(access,epoch));
       AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(addr), aruser: 0, arlen: 0, 
         arsize: zeroExtend(access[1:0]), arburst:'b01, arid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
@@ -115,13 +172,16 @@ package cclass_bare;
       Bit#(1) sign=truncateLSB(access);
 			let bus_error = !(response.rresp==AXI4_OKAY);
       let rdata=response.rdata;
-  		riscv.memory_read_response.put(tagged Valid tuple3(rdata, {pack(bus_error),0}, epoch));
+  		riscv.memory_read_response.put(tagged Valid tuple3(rdata, {0,pack(bus_error)}, epoch));
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Read Response ", fshow(response));
     endrule
 
     rule handle_memory_write_request;
       let {address,data,size}<- riscv.memory_write_request.get; 
+      Bit#(TSub#(VADDR,PADDR)) upperbits = address[vaddr-1:paddr];
+      if(upperbits!=0)
+        address=0;
       if(size==0)
         data=duplicate(data[7:0]);
       else if(size==1)
@@ -146,7 +206,7 @@ package cclass_bare;
     rule handle_memory_write_response;
       let response<-pop_o(memory_xactor.o_wr_resp);
 	  	let bus_error = !(response.bresp==AXI4_OKAY);
-	  	riscv.memory_write_response.put({pack(bus_error),0});
+	  	riscv.memory_write_response.put({0,pack(bus_error)});
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Write Response ", fshow(response));
     endrule

@@ -122,7 +122,7 @@ package stage3;
     `ifdef supervisor
       method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
     `endif
-		interface Get#(MemoryReadReq#(PADDR,1)) memory_read_request;
+		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
     method Action csr_misa_c (Bit#(1) m);
     method Action storebuffer_empty(Bool e);
   endinterface
@@ -170,7 +170,7 @@ package stage3;
     Reg#(Flush_type) wr_flush_from_exe <- mkDReg(None);
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDReg(0);
-		FIFOF#(MemoryReadReq#(PADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
+		FIFOF#(MemoryReadReq#(VADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
     Wire#(Bit#(1)) wr_misa_c<-mkWire();
     Wire#(Bool) wr_storebuffer_empty<-mkWire();
 
@@ -332,7 +332,7 @@ package stage3;
             if(cmtype==REGULAR)
               fwding.fwd_from_exe(out, rd_index);
             if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
-              ff_memory_read_request.enq(tuple3(truncate(addr), epochs[0], funct3));
+              ff_memory_read_request.enq(tuple3(addr, epochs[0], funct3));
             end
             Bit#(9) smeta1 = {pack(rdtype),rd,rd_index};
             Bit#(20) mmeta = {fn,nanboxing,funct3,pack(memaccess),smeta1};
@@ -473,7 +473,7 @@ package stage3;
     endmethod
   `endif
 		interface memory_read_request = interface Get 
-			method ActionValue#(MemoryReadReq#(PADDR,1)) get ;
+			method ActionValue#(MemoryReadReq#(VADDR,1)) get ;
 				ff_memory_read_request.deq;
 				return ff_memory_read_request.first;
 			endmethod

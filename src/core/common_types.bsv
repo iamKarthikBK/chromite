@@ -33,7 +33,7 @@ package common_types;
 
   `ifdef RV64
   	typedef 64 XLEN;
-    typedef 39 VADDR ;
+    typedef 64 VADDR ;
   `else
     typedef 32 XLEN;
     typedef 32 VADDR ;

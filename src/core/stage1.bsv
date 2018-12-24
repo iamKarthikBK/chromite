@@ -68,7 +68,9 @@ package stage1;
   `endif
 
     // flush from the write-back or exe stage.
-    method Action flush(Bit#(VADDR) newpc, Bool fence, Bool exe_wb); //fence integration
+    method Action flush(Bit#(VADDR) newpc, Bool fence); //fence integration
+		method Action update_eEpoch;
+		method Action update_wEpoch;
 
     // csrs from the csrfile.
     method Action csrs (CSRtoDecode csr);
@@ -276,20 +278,22 @@ package stage1;
     // This method will fire when a flush from the write back stage or execute stage is initiated.
     // Explicit Conditions: None
     // Implicit Conditions: None
-    method Action flush(Bit#(VADDR) newpc, Bool fence, Bool exe_wb); //fence integration
+    method Action flush(Bit#(VADDR) newpc, Bool fence); //fence integration
 		  if(fence)
 		  	rg_fence<=True;
       rg_pc<=newpc;
-      if(exe_wb)
-        rg_wEpoch<=~rg_wEpoch;
-      else
-        rg_eEpoch<=~rg_eEpoch;
       rg_icache_request<={truncateLSB(newpc),2'b0};
       if(newpc[1:0]!=0)
         rg_discard_lower<=True;
       if(verbosity>1)
-        $display($time, "\tSTAGE1: Received Flush. PC: %h Flush: ",newpc); 
+        $display($time, "\tSTAGE1: Received Flush. PC: %h Fence: %b ",newpc,fence); 
       ff_memory_response.clear();
+    endmethod
+    method Action update_eEpoch;
+      rg_eEpoch<=~rg_eEpoch;
+    endmethod
+    method Action update_wEpoch;
+      rg_wEpoch<=~rg_wEpoch;
     endmethod
     
     // This method captures the csrs from the csrfile

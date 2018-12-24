@@ -38,7 +38,7 @@ package stage5;
   import FIFOF::*;
   import csr::*;
   import csrfile::*;
-
+  import DReg::*;
   interface Ifc_stage5;
     interface RXe#(PIPE4) rx_in;
     `ifdef rtldump
@@ -46,7 +46,7 @@ package stage5;
     `endif
     method Maybe#(CommitData) commit_rd;
     method Maybe#(CommitRename) update_renaming();
-    method Tuple2#(Bool, Bit#(VADDR)) flush;
+    method Tuple3#(Bool, Bit#(VADDR), Bool) flush;
     method CSRtoDecode csrs_to_decode;
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
@@ -86,7 +86,7 @@ package stage5;
     Wire#(Maybe#(CommitRename)) wr_rename <- mkDWire(tagged Invalid);
 
     // wire which signals the entire pipe to be flushed.
-    Wire#(Tuple2#(Bool, Bit#(VADDR))) wr_flush <- mkDWire(tuple2(False, ?));
+    Wire#(Tuple3#(Bool, Bit#(VADDR), Bool)) wr_flush <- mkDReg(tuple3(False, ?, False));
 
     // the local epoch register
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
@@ -104,6 +104,7 @@ package stage5;
     `ifdef rtldump
       let {simpc,inst}=rxinst.u.first;
     `endif
+      Bool fenceI=False;
       Bit#(VADDR) jump_address=?;
       Bool fl = False;
       `ifdef simulate
@@ -113,9 +114,10 @@ package stage5;
       `endif
       if(rg_epoch==epoch)begin
         if(commit matches tagged TRAP .t)begin
-          if(t.cause==`Rerun )begin
+          if(t.cause==`Rerun || t.cause==`IcacheFence )begin
             fl=True;
             jump_address=t.pc;
+            fenceI=(t.cause==`IcacheFence );
           end
           else begin
             let newpc <- csr.take_trap(t.cause, t.pc, t.badaddr);
@@ -219,7 +221,7 @@ package stage5;
         end
         
         // if it is a branch/JAL_R instruction generate a flush signal to the pipe. 
-        wr_flush<=tuple2(fl, jump_address);
+        wr_flush<=tuple3(fl, jump_address, fenceI);
         if(fl)begin
           rg_epoch <= ~rg_epoch;
         end

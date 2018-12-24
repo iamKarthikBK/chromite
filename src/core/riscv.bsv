@@ -43,7 +43,7 @@ package riscv;
     
   	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
     interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
-    interface Get#(MemoryReadReq#(PADDR,1)) memory_read_request;
+    interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
     interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
 		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
@@ -134,7 +134,7 @@ package riscv;
       mkConnection(pipe4inst,stage5.rx_inst);
     `endif
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
-    let {flush_from_wb, flushpc_from_wb}=stage5.flush; // TODO also get fence info from WB.
+    let {flush_from_wb, flushpc_from_wb, fenceI}=stage5.flush;
     let {decode_firing, rd_index}=stage2.fetch_rd_index;
 
     rule flush_rename_mapping(flush_from_exe!=None || flush_from_wb);
@@ -154,9 +154,9 @@ package riscv;
     mkConnection(stage3.fwd_from_mem, stage4.fwd_from_mem);
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
       if(flush_from_wb)
-        stage1.flush(flushpc_from_wb, False ,True); // TODO second field indicates a fence.
+        stage1.flush(flushpc_from_wb, fenceI);
       else
-        stage1.flush(flushpc_from_exe, False, False); // can never send a fence request.
+        stage1.flush(flushpc_from_exe, False); // can never send a fence request.
     endrule
     rule connect_csrs;
       stage2.csrs(stage5.csrs_to_decode);
@@ -168,8 +168,10 @@ package riscv;
     endrule
     rule upd_stage2eEpoch(flush_from_exe!=None);
       stage2.update_eEpoch();
+      stage1.update_eEpoch();
     endrule
     rule upd_stage2wEpoch(flush_from_wb);
+      stage1.update_wEpoch();
       stage2.update_wEpoch();
       stage3.update_wEpoch();
       stage4.update_wEpoch();

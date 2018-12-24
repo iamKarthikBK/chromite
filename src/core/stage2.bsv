@@ -155,6 +155,7 @@ package stage2;
     Reg#(Bool) rg_stall <- mkReg(False);
     Reg#(Bool) rg_wfi <- mkReg(False);
     Reg#(Bool) rg_rerun <- mkReg(False);
+    Reg#(Bool) rg_fencei_rerun <- mkReg(False);
     Wire#(Bool) wr_op_complete <-mkDWire(False);
     Reg#(Bit#(TLog#(PRFDEPTH))) rd_index <- mkReg(0);
     Wire#(Bit#(TLog#(PRFDEPTH))) wr_rd_index <- mkDWire(0);
@@ -181,10 +182,11 @@ package stage2;
     `ifdef spfpu
       let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
     `endif
+      $display($time,"\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpoch: %b",pc,inst,epochs,{eEpoch,wEpoch});
       if(rg_rerun && {eEpoch, wEpoch}==epochs)begin 
         OpMeta t1 = tuple5(?,?,?, pc, TRAP);
         OpData#(ELEN,FLEN) t2 = tuple3(?, ?, ?);
-        MetaData t3 = tuple5(?, `Rerun , ?, ?, epochs);
+        MetaData t3 = tuple5(?, rg_fencei_rerun?`IcacheFence:`Rerun , ?, ?, epochs);
         PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
       `ifdef spfpu
         OpFpu t5 = tuple2(?, IRF);
@@ -202,6 +204,7 @@ package stage2;
       `endif
       rg_stall<=True;
       rg_rerun<=False;
+      rg_fencei_rerun<=False;
       $display($time,"\tDECODE: PC: %h Inst: %h Tagged as RERUN",pc,inst);
       end
       else if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
@@ -236,6 +239,8 @@ package stage2;
       `endif
         $display($time, "\tSTAGE2: Setting Rerun: %b", rerun);
         rg_rerun<=rerun;
+        if(instrType==MEMORY && memaccess==FenceI)
+          rg_fencei_rerun<=True;
         OpMeta t1 = tuple5(rs1index, rs2index, rd_index, op3, instrType);
         OpData#(ELEN,FLEN) t2 = tuple3(op1, op2, op4);
         MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);

@@ -133,6 +133,7 @@
 `define Load_pagefault        13
 `define Store_pagefault       15
 `define Rerun                 31
+`define IcacheFence           30
 `define User_soft_int         0
 `define Supervisor_soft_int   1
 `define Machine_soft_int      3
