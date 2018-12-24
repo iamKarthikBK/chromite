@@ -48,6 +48,7 @@ package SoC;
   import uart::*;
   import clint::*;
   import sign_dump::*;
+  import err_slave::*;
   // package imports
   import Connectable:: *;
   import GetPut:: *;
@@ -81,15 +82,14 @@ package SoC;
         slave_num = `Memory_slave_num;
       else if(addr>= `BootRomBase && addr<= `BootRomEnd)
         slave_num =  `BootRom_slave_num;
-        else
-      if(addr>= `UartBase && addr<= `UartEnd)
+      else if(addr>= `UartBase && addr<= `UartEnd)
         slave_num = `Uart_slave_num;
       else if(addr>= `ClintBase && addr<= `ClintEnd)
         slave_num = `Clint_slave_num;
       else if(addr>= `SignBase && addr<= `SignEnd)
         slave_num = `Sign_slave_num;
       else
-        slave_exist = False;
+        slave_num = `Err_slave_num;
         
       return tuple2(slave_exist, slave_num);
     endfunction:fn_slave_map
@@ -119,6 +119,7 @@ package SoC;
 		Ifc_bootrom_axi4#(PADDR, ELEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
 	  Ifc_uart_axi4#(PADDR,ELEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);
     Ifc_clint_axi4#(PADDR,ELEN,0,1) clint <- mkclint_axi4();
+    Ifc_err_slave#(PADDR,ELEN,0) err_slave <- mkerr_slave;
 
    	mkConnection(cclass.master_d,	fabric.v_from_masters[`Mem_master_num]);
    	mkConnection(cclass.master_i, fabric.v_from_masters[`Fetch_master_num]);
@@ -129,6 +130,7 @@ package SoC;
  	  mkConnection (fabric.v_to_slaves [`Uart_slave_num ],uart.slave);
   	mkConnection (fabric.v_to_slaves [`Clint_slave_num ],clint.slave);
     mkConnection (fabric.v_to_slaves [`Sign_slave_num ] , signature.slave);
+    mkConnection (fabric.v_to_slaves [`Err_slave_num ] , err_slave.slave);
 
     // sideband connection
     mkConnection(cclass.sb_clint_msip,clint.sb_clint_msip);
