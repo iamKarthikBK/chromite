@@ -65,7 +65,7 @@ package fwding1;
     endmethod
     method ActionValue#(FwdType#(ELEN)) read_rs1 (Bit#(ELEN) rfvalue, Bit#(3) index);
       FwdType#(ELEN) ret= tagged Present rfvalue;
-      if(index!=5)begin
+      if(index!=fromInteger(valueOf(PRFDEPTH)))begin
         ret=fwd_data[index];
         if(verbosity>1)
           $display($time, "\tFWDING: Reading rs1 from prf. Data: %h index\
@@ -75,7 +75,7 @@ package fwding1;
     endmethod
     method ActionValue#(FwdType#(ELEN)) read_rs2 (Bit#(ELEN) rfvalue, Bit#(3) index);
       FwdType#(ELEN) ret= tagged Present rfvalue;
-      if(index!=5)begin
+      if(index!=fromInteger(valueOf(PRFDEPTH)))begin
         ret=fwd_data[index];
         if(verbosity>1)
           $display($time, "\tFWDING: Reading rs2 from prf. Data: %h index\
@@ -86,7 +86,7 @@ package fwding1;
     `ifdef spfpu                                                            
     method ActionValue#(FwdType#(ELEN)) read_rs3 (Bit#(ELEN) rfvalue, Bit#(3) index);
       FwdType#(ELEN) ret= tagged Present rfvalue;
-      if(index!=5)
+      if(index!=fromInteger(valueOf(PRFDEPTH)))
         ret=fwd_data[index];
       return ret;
     endmethod

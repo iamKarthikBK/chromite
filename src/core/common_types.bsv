@@ -47,7 +47,7 @@ package common_types;
   `endif
 	typedef 32 PADDR ;
 	typedef Bit #(3)  Funct3;
-  typedef 5 PRFDEPTH;
+  typedef 7 PRFDEPTH;
   typedef 8 RAS_DEPTH;
   typedef 0 USERSPACE ;
   typedef TMax#(XLEN, FLEN) ELEN;

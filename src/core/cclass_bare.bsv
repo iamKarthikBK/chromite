@@ -73,11 +73,11 @@ package cclass_bare;
     Reg#(TxnState) fetch_state<- mkReg(Request);
     FIFOF#(Tuple2#(Bit#(3),Bit#(1))) ff_rd_epochs <- mkSizedFIFOF(6);
 
-    FIFOF#(Bit#(3))  ff_epoch <-mkFIFOF;
+    FIFOF#(Bit#(3))  ff_epoch <-mkSizedFIFOF(4);
     Integer verbosity = `VERBOSITY ;
   
     // TODO get rid of the fetch_State. It will work faster without this blocking state-machine
-    rule handle_fetch_request(fetch_state == Request) ;
+    rule handle_fetch_request ;
 	    let {inst_addr, fence, epoch, prefetch} <- riscv.inst_request.get;
 			AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(inst_addr), aruser: ?, 
             arlen: 0, arsize: 2, arburst: 'b01, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
@@ -87,7 +87,7 @@ package cclass_bare;
       if(verbosity!=0)
         $display($time, "\tCORE: Fetch Request ", fshow(read_request));
     endrule
-    rule handle_fetch_response(fetch_state == Response);
+    rule handle_fetch_response;
 			let response <- pop_o (fetch_xactor.o_rd_data);	
 			Bool bus_error = !(response.rresp==AXI4_OKAY);
       riscv.inst_response.put(tuple3(truncate(response.rdata), bus_error,ff_epoch.first));

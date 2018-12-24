@@ -181,7 +181,7 @@ package stage2;
     `ifdef spfpu
       let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
     `endif
-      if(rg_rerun)begin 
+      if(rg_rerun && {eEpoch, wEpoch}==epochs)begin 
         OpMeta t1 = tuple5(?,?,?, pc, TRAP);
         OpData#(ELEN,FLEN) t2 = tuple3(?, ?, ?);
         MetaData t3 = tuple5(?, `Rerun , ?, ?, epochs);
@@ -206,7 +206,7 @@ package stage2;
       end
       else if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
-        if(rd_index==4)
+        if(rd_index==fromInteger(valueOf(PRFDEPTH)-1))
           rd_index<= 0;
         else
           rd_index<= rd_index+ 1;
@@ -234,7 +234,7 @@ package stage2;
       `else
         Bit#(FLEN) op4=signExtend(imm);
       `endif
-      
+        $display($time, "\tSTAGE2: Setting Rerun: %b", rerun);
         rg_rerun<=rerun;
         OpMeta t1 = tuple5(rs1index, rs2index, rd_index, op3, instrType);
         OpData#(ELEN,FLEN) t2 = tuple3(op1, op2, op4);
@@ -271,9 +271,10 @@ package stage2;
         end
         
       end
-      else
+      else begin
         if(verbosity>=1)
           $display($time,"\tDECODE: dropping instructions due to epoch mis-match");
+      end
       if((rg_wfi && resume_wfi) || (!rg_wfi))begin
         rxmin.u.deq; 
       `ifdef bpu
@@ -325,8 +326,10 @@ package stage2;
 			wEpoch<=~wEpoch;
 		endmethod
     method Action clear_stall (Bool upd) if(rg_stall);
-      if(upd)
+      if(upd) begin
         rg_stall<= False;
+        rg_rerun<= False;
+      end
     endmethod
     method fetch_rd_index = tuple2(wr_op_complete, wr_rd_index);
     method reset_renaming=registerfile.reset_renaming;

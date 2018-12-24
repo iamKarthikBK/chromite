@@ -124,7 +124,7 @@ package registerfile;
       Bit#(FLEN) rs3; 
     `endif 
       
-      Bit#(3) rs1index=5;
+      Bit#(3) rs1index=fromInteger(valueOf(PRFDEPTH));
       if(arr_rename_int[rs1addr] matches tagged Valid .r1index 
           `ifdef spfpu &&& rs1type!=FloatingRF `endif ) 
         rs1index=zeroExtend(r1index);
@@ -133,7 +133,7 @@ package registerfile;
             `ifdef spfpu &&& rs1type==FloatingRF `endif ) 
         rs1index=zeroExtend(r1index);
       `endif
-      Bit#(3) rs2index=5; 
+      Bit#(3) rs2index=fromInteger(valueOf(PRFDEPTH)); 
       `ifdef spfpu
         if(arr_rename_float[rs2addr] matches tagged Valid .r2index 
           `ifdef spfpu &&& rs2type==FloatingRF `endif ) begin
@@ -147,7 +147,7 @@ package registerfile;
         end
 
       `ifdef spfpu
-        Bit#(3) rs3index=5;
+        Bit#(3) rs3index=PRFDEPTH;
         if(rs3type==FRF &&& arr_rename_float[rs3addr] matches tagged Valid .r3index)
           rs3index=r3index;
 

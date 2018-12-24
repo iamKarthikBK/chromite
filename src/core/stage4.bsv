@@ -193,7 +193,6 @@ package stage4;
                                                rdindex:rdindex, 
                                                rd: rd,  
                                                commitvalue:update_data};
-                // TODO: perform atomic op here and update storedata
                 storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
               end
               else
