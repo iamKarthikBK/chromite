@@ -147,7 +147,7 @@ package registerfile;
         end
 
       `ifdef spfpu
-        Bit#(3) rs3index=fromInteger(valueOf(PRFDEPTH)-1);
+        Bit#(3) rs3index=fromInteger(valueOf(PRFDEPTH));
         if(rs3type==FRF &&& arr_rename_float[rs3addr] matches tagged Valid .r3index)
           rs3index=r3index;
 
