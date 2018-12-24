@@ -26,3 +26,12 @@ THREADS=1
 # DebugOptions
 RTLDUMP=True
 ASSERTIONS=enable
+
+# Instruction cache
+ICACHE=enable
+ISETS=64
+IWORDS=4
+IBLOCKS=8
+IWAYS=4
+IFBSIZE=4
+IREPL=PLRU

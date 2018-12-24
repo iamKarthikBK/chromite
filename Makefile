@@ -98,6 +98,9 @@ endif
 ifeq ($(ASSERTIONS), enable)
   define_macros += -D ASSERT=True
 endif
+ifeq ($(ICACHE), enable)
+  define_macros += -D icache=True
+endif
 
 
 ifeq ($(COVERAGE), none)
@@ -111,8 +114,11 @@ ifeq ($(TRACE), enable)
   trace := --trace
 endif
 
-define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True\
--D MULSTAGES=$(MULSTAGES) -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True
+define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
+								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True \
+								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
+								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL)
+
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/
 M_EXT:=./src/core/m_ext/
 FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
