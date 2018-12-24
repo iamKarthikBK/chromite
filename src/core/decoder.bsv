@@ -642,7 +642,19 @@ package decoder;
                 inst_type=MEMORY; // FENCE.I
         end
         'b001: if(fs!=0 && (misa[5]==1 && funct3==2) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FLoad
-    		'b101,'b100,'b110:inst_type=ALU;
+    		'b101: inst_type=ALU;
+        `ifdef RV64
+          'b110: if(funct3[1:0]!='b01) // Immediate-32
+                  inst_type=ALU 
+                else if(funct7[0]==0)
+                  inst_type=ALU; 
+        `endif
+        'b100:`ifdef RV32 // immediate
+                if(funct3[1:0]=='b01 && funct7[0]==0) // for shift operations operation
+                  inst_type=ALU; 
+                else if(funct3[1:0]!=01)
+              `endif
+                  inst_type=ALU;    
     	endcase
     end
     `ifdef spfpu
