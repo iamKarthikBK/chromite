@@ -7,8 +7,8 @@ build64:
         - make patch
         - make generate_verilog SYNTH=SIM MUL=fpga ISA=RV64IMAFDC MULSTAGES=8 DIVSTAGES=64 VERBOSITY=0
         - make link_verilator generate_boot_files
-        - make regress opts='--filter=rv64[^!si] --parallel=90 --sub'
-        - make regress opts='--filter=rv64[^!si] --final'
+        - make regress opts='--filter=rv64[^!si].*p --parallel=90 --sub'
+        - make regress opts='--filter=rv64[^!si].*p --final'
         - make aapg opts="--test_count=30 --parallel=90 --sub"
         - make regress opts='--list=aapg.list --final'
         - make torture opts="--config=all"
@@ -28,8 +28,8 @@ build32:
         - make patch
         - make generate_verilog SYNTH=SIM MUL=fpga ISA=RV32IMAFC MULSTAGES=4 DIVSTAGES=32 VERBOSITY=0
         - make link_verilator generate_boot_files
-        - make regress opts='--filter=rv32[^!si] --parallel=90 --sub'
-        - make regress opts='--filter=rv32[^!si] --final'
+        - make regress opts='--filter=rv32[^!si].*p --parallel=90 --sub'
+        - make regress opts='--filter=rv32[^!si].*p --final'
     only:
         - 23-new-memory-subsystem-integration-with-pipeline
     tags:
