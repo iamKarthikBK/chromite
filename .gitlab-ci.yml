@@ -14,6 +14,11 @@ build64:
         - make torture opts="--config=all"
         - make regress opts="--list=riscv-torture.list --parallel=40 --sub"
         - make regress opts="--list=riscv-torture.list --final"
+    only:
+        - 23-new-memory-subsystem-integration-with-pipeline
+    tags:
+        - c-class-build-regression
+
 build32:
     variables:
         GIT_SUBMODULE_STRATEGY: recursive
