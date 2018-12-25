@@ -108,9 +108,11 @@ package cclass_bare;
 
 	  rule handle_icache_request;
 	  	let {inst_addr, burst_len, burst_size} <- icache.read_mem_req.get;
-      Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
-      if(upperbits!=0)
-        inst_addr=0;
+      if(vaddr>paddr)begin
+        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+        if(upperbits!=0)
+          inst_addr=0;
+      end
 	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, arlen: 7, 
 	  	arsize: 2, arburst: 'b10, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    fetch_xactor.i_rd_addr.enq(icache_request);
@@ -153,9 +155,11 @@ package cclass_bare;
   `endif
     rule handle_memory_read_request;
       let {addr,epoch,access}<- riscv.memory_read_request.get;
-      Bit#(TSub#(VADDR,PADDR)) upperbits = addr[vaddr-1:paddr];
-      if(upperbits!=0)
-        addr=0;
+      if(vaddr>paddr)begin
+        Bit#(TSub#(VADDR,PADDR)) upperbits = addr[vaddr-1:paddr];
+        if(upperbits!=0)
+          addr=0;
+      end
       ff_rd_epochs.enq(tuple2(access,epoch));
       AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(addr), aruser: 0, arlen: 0, 
         arsize: zeroExtend(access[1:0]), arburst:'b01, arid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
@@ -179,9 +183,11 @@ package cclass_bare;
 
     rule handle_memory_write_request;
       let {address,data,size}<- riscv.memory_write_request.get; 
-      Bit#(TSub#(VADDR,PADDR)) upperbits = address[vaddr-1:paddr];
-      if(upperbits!=0)
-        address=0;
+      if(vaddr>paddr)begin
+        Bit#(TSub#(VADDR,PADDR)) upperbits = address[vaddr-1:paddr];
+        if(upperbits!=0)
+          address=0;
+      end
       if(size==0)
         data=duplicate(data[7:0]);
       else if(size==1)

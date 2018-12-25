@@ -28,8 +28,8 @@ build32:
         - make patch
         - make generate_verilog SYNTH=SIM MUL=fpga ISA=RV32IMAFC MULSTAGES=4 DIVSTAGES=32 VERBOSITY=0
         - make link_verilator generate_boot_files
-        - make regress opts='--filter=rv32[^!si].*p --parallel=90 --sub'
-        - make regress opts='--filter=rv32[^!si].*p --final'
+        - make regress opts='--filter=rv32[^!si][^!ud].*p --parallel=90 --sub'
+        - make regress opts='--filter=rv32[^!si][^!ud].*p --final'
     only:
         - 23-new-memory-subsystem-integration-with-pipeline
     tags:
