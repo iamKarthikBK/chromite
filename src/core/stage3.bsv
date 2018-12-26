@@ -151,7 +151,7 @@ package stage3;
 		  Reg#(Maybe#(Training_data#(VADDR))) wr_training_data <-mkDReg(tagged Invalid);
 		  Wire#(Maybe#(Bit#(VADDR))) wr_ras_push<-mkDWire(tagged Invalid);
     `else
-      Reg#(Tuple2#(Flush_type, Bit#(VADDR))) check_rpc <- mkReg(tuple2(None, 0));
+      Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(1))) check_rpc <- mkReg(tuple3(None, 0, 0));
     `endif
     `ifdef spfpu
       Wire#(Bit#(3)) wr_roundingmode <- mkWire();
@@ -167,9 +167,10 @@ package stage3;
     Ifc_fwding fwding <- mkfwding();
 		Reg#(Bit#(1)) eEpoch <-mkReg(0);
 		Reg#(Bit#(1)) wEpoch <-mkReg(0);
-    Reg#(Flush_type) wr_flush_from_exe <- mkDReg(None);
+    Reg#(Flush_type) wr_flush_from_exe <- mkDWire(None);
+    Reg#(Flush_type) wr_flush_mapping <- mkDReg(None);
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
-    Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDReg(0);
+    Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDWire(0);
 		FIFOF#(MemoryReadReq#(VADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
     Wire#(Bit#(1)) wr_misa_c<-mkWire();
     Wire#(Bool) wr_storebuffer_empty<-mkWire();
@@ -177,7 +178,7 @@ package stage3;
     Reg#(Maybe#(Bit#(VADDR))) rg_loadreserved_addr <- mkReg(tagged Invalid);
   `endif
 
-    rule flush_mapping(wr_flush_from_exe!=None||wr_flush_from_wb);
+    rule flush_mapping(wr_flush_mapping!=None||wr_flush_from_wb);
       fwding.flush_mapping;
     endrule
 
@@ -221,7 +222,7 @@ package stage3;
         $display($time, "\tEXECUTE: pc: %h, rs1: ", pc, fshow(rs1), " rs2 ", fshow(rs2), 
                                                                 " check_rpc: ", fshow(check_rpc));
       end
-      let {redirect_result, redirect_pc `ifdef bpu , npc `endif }=check_rpc;
+      let {redirect_result, redirect_pc, rpc_epoch `ifdef bpu , npc `endif }=check_rpc;
     `ifdef bpu
       Bit#(VADDR) nextpc=pc+ 4; // TODO this should +2 in case of compressed
     `endif
@@ -243,10 +244,11 @@ package stage3;
       // here the trap could be because the misprediction from the previous jump.branch might
       // have caused the cpu to fetch an illegal instruction. So trap check should happen after the
       // redirection has been checked.
-      else if(redirect_result==CheckRPC && pc!=redirect_pc `ifdef bpu || 
-                                               redirect_result==CheckNPC && pc!=npc `endif )begin
+      else if(rpc_epoch==wEpoch &&  ((redirect_result==CheckRPC && pc!=redirect_pc) `ifdef bpu || 
+                                     (redirect_result==CheckNPC && pc!=npc) `endif ))begin
         // generate flush here
         wr_flush_from_exe<=CheckRPC;
+        wr_flush_mapping<=CheckRPC;
         if(redirect_result==CheckRPC)begin
           if(verbosity>0)
             $display($time, "\tEXECUTE: Raising a flush due to pc mismatch. New PC: %h", 
@@ -329,17 +331,15 @@ package stage3;
             if((instrtype==JALR || instrtype==JAL)  &&& rd matches 'b00?01 && cmtype!=TRAP)
               wr_ras_push<=tagged Valid nextpc; 
           `else
-            check_rpc<= tuple2(redirect, addr);
+            check_rpc<= tuple3(redirect, addr, wEpoch);
           `endif
             Bit#(1) nanboxing=pack(cmtype==MEMORY && funct3[1:0]==2 && rdtype==FRF);
-            if(cmtype==REGULAR)
-              fwding.fwd_from_exe(out, rd_index);
           `ifdef atomic
             if(cmtype==MEMORY && memaccess==Atomic && fn=='b0101) begin // LR
               rg_loadreserved_addr<= tagged Valid addr;
               memaccess=Load;
             end
-            else
+            else if(cmtype==MEMORY)
               rg_loadreserved_addr<= tagged Invalid;
             if(cmtype==MEMORY && memaccess== Atomic && fn=='b0111) begin // SC
               if(rg_loadreserved_addr matches tagged Valid .scaddr &&& scaddr == addr)begin
@@ -351,6 +351,8 @@ package stage3;
               end
             end
           `endif
+            if(cmtype==REGULAR)
+              fwding.fwd_from_exe(out, rd_index);
             if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
               ff_memory_read_request.enq(tuple3(addr, epochs[0], funct3));
             end
@@ -395,7 +397,7 @@ package stage3;
           `ifdef bpu
             check_rpc<= tuple3(None, addr, nextpc);
           `else
-            check_rpc<= tuple2(None, 0);
+            check_rpc<= tuple3(None, 0, wEpoch);
           `endif
             rg_stall<= True;
           end
@@ -407,7 +409,7 @@ package stage3;
       `ifdef bpu
         check_rpc<= tuple3(None, 0, nextpc);
       `else
-        check_rpc<= tuple2(None, 0);
+        check_rpc<= tuple3(None, 0, wEpoch);
       `endif
         PIPE3 pipedata = tuple5(TRAP, truncate(op1), ?, pc, zeroExtend({func_cause,epochs[0]})); 
         tx.u.enq(pipedata);
@@ -474,6 +476,7 @@ package stage3;
     method Action update_wEpoch;
       wEpoch<= ~wEpoch;
       wr_flush_from_wb<= True;
+      $display($time,"\tEXECUTE: Flush from Write Back");
     endmethod
     method flush_from_exe=tuple2(wr_flush_from_exe, wr_redirect_pc);
     interface fwd_from_mem= interface Put
