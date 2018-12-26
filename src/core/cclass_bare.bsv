@@ -176,7 +176,7 @@ package cclass_bare;
       Bit#(1) sign=truncateLSB(access);
 			let bus_error = !(response.rresp==AXI4_OKAY);
       let rdata=response.rdata;
-  		riscv.memory_read_response.put(tagged Valid tuple3(rdata, {0,pack(bus_error)}, epoch));
+  		riscv.memory_read_response.put(tuple3(rdata, {0,pack(bus_error)}, epoch));
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Read Response ", fshow(response));
     endrule

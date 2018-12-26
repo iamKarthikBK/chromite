@@ -53,7 +53,7 @@ package stage4;
       interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
       interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;
     `endif
-    interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
+    interface Put#(MemoryReadResp#(1)) memory_read_response;
 
 		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
@@ -95,6 +95,7 @@ package stage4;
     Ifc_storebuffer storebuffer <- mkstorebuffer();
     // wire that captures the response coming from the external memory or cache.
     Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
+    FIFOF#(MemoryReadResp#(1)) ff_memory_response <- mkUGSizedFIFOF(2);
     // wire that carriues the information for operand forwarding
     Wire#(Maybe#(Tuple2#(Bit#(ELEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
@@ -169,8 +170,9 @@ package stage4;
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
           if(verbosity>0)
             $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
-          if(wr_memory_response matches tagged Valid .resp)begin
-            let {data, err_fault, epochs}=resp;
+          if(ff_memory_response.notEmpty)begin
+            let {data, err_fault, epochs}=ff_memory_response.first;
+            ff_memory_response.deq;
             Bit#(ELEN) update_data = data<<loadoffset;
             update_data= (update_data&~storemask)|(storehit);
             update_data= update_data>>{loadoffset};
@@ -270,10 +272,10 @@ package stage4;
     interface tx_inst = txinst.e;
   `endif
     interface  memory_read_response= interface Put
-      method Action put (Maybe#(MemoryReadResp#(1)) response);
+      method Action put (MemoryReadResp#(1) response)if(ff_memory_response.notFull);
         if(verbosity>1)
           $display($time, "\tSTAGE4: Read Response: ", fshow(response));
-        wr_memory_response <= response;
+        ff_memory_response.enq(response);
       endmethod
     endinterface;
     interface fwd_from_mem = interface Get
