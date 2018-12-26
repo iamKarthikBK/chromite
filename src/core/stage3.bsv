@@ -335,12 +335,14 @@ package stage3;
           `endif
             Bit#(1) nanboxing=pack(cmtype==MEMORY && funct3[1:0]==2 && rdtype==FRF);
           `ifdef atomic
-            if(cmtype==MEMORY && memaccess==Atomic && fn=='b0101) begin // LR
-              rg_loadreserved_addr<= tagged Valid addr;
-              memaccess=Load;
+            if(cmtype==MEMORY)begin
+              if(memaccess==Atomic && fn=='b0101) begin // LR
+                rg_loadreserved_addr<= tagged Valid addr;
+                memaccess=Load;
+              end
+              else
+                rg_loadreserved_addr<= tagged Invalid;
             end
-            else if(cmtype==MEMORY)
-              rg_loadreserved_addr<= tagged Invalid;
             if(cmtype==MEMORY && memaccess== Atomic && fn=='b0111) begin // SC
               if(rg_loadreserved_addr matches tagged Valid .scaddr &&& scaddr == addr)begin
                 memaccess=Store;
