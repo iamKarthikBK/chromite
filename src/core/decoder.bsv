@@ -652,7 +652,7 @@ package decoder;
         'b100:`ifdef RV32 // immediate
                 if(funct3[1:0]=='b01 && funct7[0]==0) // for shift operations operation
                   inst_type=ALU; 
-                else if(funct3[1:0]!=01)
+                else if(funct3[1:0]!='b01)
               `endif
                   inst_type=ALU;    
     	endcase
