@@ -173,54 +173,61 @@ package stage4;
           if(ff_memory_response.notEmpty)begin
             let {data, err_fault, epochs}=ff_memory_response.first;
             ff_memory_response.deq;
-            Bit#(ELEN) update_data = data<<loadoffset;
-            update_data= (update_data&~storemask)|(storehit);
-            update_data= update_data>>{loadoffset};
-            if(size==0)
-              update_data=sign==0?signExtend(update_data[7:0]):zeroExtend(update_data[7:0]);
-            else if(size==1)
-              update_data=sign==0?signExtend(update_data[15:0]):zeroExtend(update_data[15:0]);
-            else if(size==2)
-                update_data=sign==0?signExtend(update_data[31:0]):zeroExtend(update_data[31:0]);
-            `ifdef dpfpu
-              if(nanboxing==1)
-                  update_data[63:32]='1;
-            `endif
-            if(err_fault==0 )begin // no bus error
-              wr_operand_fwding <= tagged Valid tuple2(update_data, rdindex);
-            `ifdef atomic
-              if(memaccess==Atomic)begin
-                temp1=tagged STORE CommitStore{pc:pc,
-                                               rdindex:rdindex, 
-                                               rd: rd,  
-                                               commitvalue:update_data};
-                storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
-              end
-              else
-            `endif
-                temp1=tagged REG CommitRegular{commitvalue:update_data,
-                                                 fflags:0,
-                                                 rdtype:rdtype,
-                                                 rd:rd,
-                                                 rdindex:rdindex};
-            end
-            else begin
-              if(err_fault[0]==1)begin
-              `ifdef atomic 
-                if(memaccess==Atomic)
-                  temp1=tagged TRAP CommitTrap{cause:`Store_access_fault, badaddr:badaddr, pc:pc};
+            if(epochs==rg_epoch)begin
+              Bit#(ELEN) update_data = data<<loadoffset;
+              update_data= (update_data&~storemask)|(storehit);
+              update_data= update_data>>{loadoffset};
+              if(size==0)
+                update_data=sign==0?signExtend(update_data[7:0]):zeroExtend(update_data[7:0]);
+              else if(size==1)
+                update_data=sign==0?signExtend(update_data[15:0]):zeroExtend(update_data[15:0]);
+              else if(size==2)
+                  update_data=sign==0?signExtend(update_data[31:0]):zeroExtend(update_data[31:0]);
+              `ifdef dpfpu
+                if(nanboxing==1)
+                    update_data[63:32]='1;
+              `endif
+              if(err_fault==0 )begin // no bus error
+                wr_operand_fwding <= tagged Valid tuple2(update_data, rdindex);
+              `ifdef atomic
+                if(memaccess==Atomic)begin
+                  temp1=tagged STORE CommitStore{pc:pc,
+                                                 rdindex:rdindex, 
+                                                 rd: rd,  
+                                                 commitvalue:update_data};
+                  storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
+                end
                 else
               `endif
-                  temp1=tagged TRAP CommitTrap{cause:`Load_access_fault, badaddr:badaddr, pc:pc};
+                  temp1=tagged REG CommitRegular{commitvalue:update_data,
+                                                   fflags:0,
+                                                   rdtype:rdtype,
+                                                   rd:rd,
+                                                   rdindex:rdindex};
               end
               else begin
-              `ifdef atomic 
-                if(memaccess==Atomic)
-                  temp1=tagged TRAP CommitTrap{cause:`Store_pagefault, badaddr:badaddr, pc:pc};
-                else
-              `endif
-                temp1=tagged TRAP CommitTrap{cause:`Load_pagefault, badaddr:badaddr, pc:pc};
+                if(err_fault[0]==1)begin
+                `ifdef atomic 
+                  if(memaccess==Atomic)
+                    temp1=tagged TRAP CommitTrap{cause:`Store_access_fault, badaddr:badaddr, pc:pc};
+                  else
+                `endif
+                    temp1=tagged TRAP CommitTrap{cause:`Load_access_fault, badaddr:badaddr, pc:pc};
+                end
+                else begin
+                `ifdef atomic 
+                  if(memaccess==Atomic)
+                    temp1=tagged TRAP CommitTrap{cause:`Store_pagefault, badaddr:badaddr, pc:pc};
+                  else
+                `endif
+                  temp1=tagged TRAP CommitTrap{cause:`Load_pagefault, badaddr:badaddr, pc:pc};
+                end
               end
+            end
+            else begin
+              complete=False;
+            if(verbosity>0)
+              $display($time,"\tSTAGE4: Dropping Memory Read Response");
             end
           end
           else begin
