@@ -86,7 +86,7 @@ package stage5;
     Wire#(Maybe#(CommitRename)) wr_rename <- mkDWire(tagged Invalid);
 
     // wire which signals the entire pipe to be flushed.
-    Wire#(Tuple3#(Bool, Bit#(VADDR), Bool)) wr_flush <- mkDReg(tuple3(False, ?, False));
+    Wire#(Tuple3#(Bool, Bit#(VADDR), Bool)) wr_flush <- mkDWire(tuple3(False, ?, False));
 
     // the local epoch register
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
