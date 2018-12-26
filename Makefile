@@ -24,7 +24,7 @@ endef
 
 TOP_MODULE:=mkTbSoC
 TOP_FILE:=TbSoC.bsv
-TOP_DIR:=./src/testbench
+TOP_DIR:=./src/testbench/
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))
@@ -52,6 +52,9 @@ endif
 ifneq (,$(findstring D,$(ISA)))
   define_macros += -D dpfpu=True
   FLOAT=--float
+endif
+ifneq (,$(findstring C,$(ISA)))
+  define_macros += -D compressed=True
 endif
 ifeq ($(BPU),enable)
   define_macros += -D bpu=True
@@ -89,11 +92,14 @@ endif
 ifeq ($(RTLDUMP), True)
   define_macros += -D rtldump=True
 endif
-ifeq ($(SUPERVISOR),  True)
+ifeq ($(SUPERVISOR),  enable)
   define_macros += -D supervisor=True
 endif
 ifeq ($(ASSERTIONS), enable)
   define_macros += -D ASSERT=True
+endif
+ifeq ($(ICACHE), enable)
+  define_macros += -D icache=True
 endif
 
 
@@ -108,8 +114,11 @@ ifeq ($(TRACE), enable)
   trace := --trace
 endif
 
-define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True\
--D MULSTAGES=$(MULSTAGES) -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True
+define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
+								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True \
+								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
+								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL)
+
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/
 M_EXT:=./src/core/m_ext/
 FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
@@ -120,9 +129,10 @@ WRAPPERS:=./src/wrappers/
 LIB:=./src/common_bsv
 VERILATOR_FLAGS = --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
 --noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
--Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS)
+-Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS) \
+-DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(LIB):$(FABRIC):$(UNCORE):$(TESTBENCH):$(PERIPHERALS):$(WRAPPERS):$(M_EXT)
-default: generate_verilog link_verilator 
+default: generate_verilog link_verilator generate_boot_files
 
 check-env:
 	@if test -z "$$BLUESPECDIR"; then echo "BLUESPECDIR variable not set"; exit 1; fi;
@@ -192,6 +202,7 @@ generate_verilog: check-restore check-env
 	@cp src/common_verilog/BRAM1Load.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO2.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO1.v ./verilog/
+	@cp ${BLUESPECDIR}/Verilog/FIFO10.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/RevertReg.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFO20.v ./verilog/
 	@cp ${BLUESPECDIR}/Verilog/FIFOL1.v ./verilog/

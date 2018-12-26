@@ -56,7 +56,8 @@ package csrfile;
   		method Bit#(3) roundingmode;
       method Action update_fflags(Bit#(5) flags);
     `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i);
+	  method Action set_external_interrupt(Bit#(1) ex_i);
+    method Bit#(1) csr_misa_c;
   endinterface
 
   function Reg#(Bit#(a)) extInterruptReg(Reg#(Bit#(a)) r1, Reg#(Bit#(a)) r2);
@@ -142,7 +143,11 @@ package csrfile;
     `ifdef supervisor
       Reg#(Bit#(1)) misa_s <- mkReg(1);
     `else
-      Bit#(1) misa_s =0;
+      `ifdef rtldump
+        Bit#(1) misa_s =1;
+      `else
+        Bit#(1) misa_s =0;
+      `endif
     `endif
     `ifdef user
       Reg#(Bit#(1)) misa_u <- mkReg(1);
@@ -289,7 +294,7 @@ package csrfile;
 	  Reg#(Bit#(5)) rg_mcause   <- mkReg(0);
     
 	  Reg#(Bit#(3)) rg_mcounteren<-mkReg(0);
-	  Reg#(Bit#(XLEN)) rg_clint_mtime <-mkReg(0);
+	  Reg#(Bit#(64)) rg_clint_mtime <-mkReg(0);
 	  //////////////////////////////////////////////////////////////////////////////////////////
 	  //////////////////////////////// SUPERVISOR LEVEL CSRs ///////////////////////////////////
     `ifdef supervisor
@@ -326,7 +331,9 @@ package csrfile;
 	  //////////////////////////////// USER LEVEL CSRs /////////////////////////////////////////
 	  Reg#(Bit#(XLEN)) rg_uscratch <- mkReg(0);
     `ifdef RV64 
-      Reg#(Bit#(2)) rg_uxl <- mkReg(fromInteger(valueOf(TDiv#(XLEN, 32)))); 
+      Reg#(Bit#(2)) uxl <- mkReg(fromInteger(valueOf(TDiv#(XLEN, 32)))); 
+    `else
+      Bit#(2) uxl = fromInteger(valueOf(TDiv#(XLEN, 32))); 
     `endif
 
     `ifdef usertraps
@@ -374,12 +381,14 @@ package csrfile;
             data[31:30]=rg_mxl;
           `endif
         end
-        if (addr == `MTVEC ) data= signExtend({rg_mtvec, rg_mode});
+        if (addr == `MTVEC ) data= signExtend({rg_mtvec, rg_mode}) ;
         if (addr == `MSTATUS )begin
+          `ifdef RV64
             if(rg_mxl==2)
-              data= {sd, 27'd0, sxl, rg_uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
+              data= {sd, 27'd0, sxl, uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
                       hpp, spp, rg_mpie, hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
             else if(rg_mxl==1)
+          `endif
               data= {'d0, sd, 8'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp, hpp, spp, rg_mpie,
                     hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
         end
@@ -410,7 +419,7 @@ package csrfile;
         `ifdef supervisor
           if (addr == `SSTATUS )
             if(sxl==2)// 64 bit 
-              data= {sd, 29'd0, rg_uxl, 12'd0, mxr, sum, 1'd0, xs, fs, 2'd0,
+              data= {sd, 29'd0, uxl, 12'd0, mxr, sum, 1'd0, xs, fs, 2'd0,
                       hpp, spp, 1'd0, hpie, spie, rg_upie, 1'd0, hie, sie, rg_uie};
             else if(sxl==1)
               data= {'d0, sd, 11'd0, mxr, sum, 1'd0, xs, fs, 2'd0, hpp, spp, rg_mpie,
@@ -432,10 +441,12 @@ package csrfile;
         `endif
         // =============== User level CSRs ================//
         if (addr == `USTATUS )
-          if(rg_uxl==2)
-            data= {sd, 27'd0, 2'd0, rg_uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
+          `ifdef RV64
+            if(uxl==2)
+              data= {sd, 27'd0, 2'd0, uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
                     hpp, spp, rg_mpie, hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
-          else if(rg_uxl==1)
+            else if(uxl==1)
+          `endif
             data= {'d0, sd, 8'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp, hpp, spp, rg_mpie,
                     hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
         `ifdef usertraps
@@ -500,8 +511,10 @@ package csrfile;
             rg_mpp<= word[12:11];
           rg_mprv<= word[17];
           fs<=word[14:13];
-          if(rg_uxl==1)
-            rg_uxl<=word[33:32]; 
+          `ifdef RV64
+            if(uxl==1)
+              uxl<=word[33:32]; 
+          `endif
           `ifdef supervisor
             sie<=word[1];
             spie<= word[5];
@@ -626,7 +639,9 @@ package csrfile;
             rg_upie<= word[4];
           `endif
           fs<=word[14:13];
-          rg_uxl<= word[33:32];
+          `ifdef RV64
+            uxl<= word[33:32];
+          `endif
           sie<=word[1];
           spie<= word[5];
           spp<= word[8];
@@ -717,7 +732,6 @@ package csrfile;
         let lv_mepc=rg_mepc;
         if(misa_c==0)
           lv_mepc[0]=0;
-        $display($time,"\tCSRFILE: MEPC value returned: %h", lv_mepc);
         return {lv_mepc,1'b0};
       end
     endmethod
@@ -826,7 +840,7 @@ package csrfile;
           return unpack(sxl[1]);
       `endif
         else 
-          return unpack(rg_uxl[1]);
+          return unpack(uxl[1]);
       endmethod
     `endif
     method interrupt = unpack(|(csr_mie&csr_mip));
@@ -849,21 +863,21 @@ package csrfile;
         end
       endmethod
     `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i);
-	  	let {i,j} = ex_i;
+	  method Action set_external_interrupt(Bit#(1) ex_i);
 	  	if(rg_prv == Machine) begin
-	  		rg_meip <= pack(i);
+	  		rg_meip <= pack(ex_i);
 	  	end
       `ifdef supervisor
   	  	else if(rg_prv == Supervisor) begin
-	    		ext_seip <= pack(i);
+	    		ext_seip <= pack(ex_i);
 	    	end
       `endif
       `ifdef usertraps
   	  	else if(rg_prv == User) begin
-	    		ext_ueip <= pack(i);
+	    		ext_ueip <= pack(ex_i);
 	    	end
       `endif
 	  endmethod
+    method csr_misa_c=misa_c;
   endmodule
 endpackage

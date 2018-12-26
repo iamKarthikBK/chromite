@@ -61,28 +61,29 @@ package registerfile;
           `ifdef spfpu ,Op3type rfselect `endif );
 		`endif
 		method Action commit_rd (Maybe#(CommitData) commit);
+    method Action update_renaming (Maybe#(CommitRename) commit);
     method Action reset_renaming;
 	endinterface
 
 	(*synthesize*)
   (*preempts="reset_renaming, opaddress"*)
-  (*conflict_free="opaddress, commit_rd"*)
-  (*conflict_free="reset_renaming, commit_rd"*)
+  (*conflict_free="opaddress, update_renaming"*)
+  (*conflict_free="reset_renaming, update_renaming"*)
 	module mkregisterfile(Ifc_registerfile);
-    Integer verbosity = `VERBOSITY;
+    Integer verbosity = `VERBOSITY ;
 		RegFile#(Bit#(5),Bit#(XLEN)) integer_rf <-mkRegFileWCF(0,31);
     Reg#(Maybe#(Bit#(TLog#(PRFDEPTH)))) arr_rename_int [32];
-		`ifdef spfpu 
-			RegFile#(Bit#(5),Bit#(XLEN)) floating_rf <-mkRegFileWCF(0,31);
-      Reg#(Maybe#(Bit#(TLog#(PRFDEPTH)))) arr_rename_float [32];
-		`endif
+	`ifdef spfpu 
+		RegFile#(Bit#(5),Bit#(FLEN)) floating_rf <-mkRegFileWCF(0,31);
+    Reg#(Maybe#(Bit#(TLog#(PRFDEPTH)))) arr_rename_float [32];
+	`endif
 		Reg#(Bool) initialize<-mkReg(True);
 		Reg#(Bit#(5)) rg_index<-mkReg(0);
-    `ifdef spfpu
-      Wire#(Tuple2#(Op3type, Bit#(5))) wr_rename_reg<- mkDWire(tuple2(IRF, 0));
-    `else
-      Wire#(Bit#(5)) wr_rename_reg<- mkDWire(0);
-    `endif
+  `ifdef spfpu
+    Wire#(Tuple2#(Op3type, Bit#(5))) wr_rename_reg<- mkDWire(tuple2(IRF, 0));
+  `else
+    Wire#(Bit#(5)) wr_rename_reg<- mkDWire(0);
+  `endif
 
     for (Integer i=0;i<32;i=i+1) begin
       arr_rename_int[i]<- mkConfigReg(tagged Invalid);
@@ -102,6 +103,8 @@ package registerfile;
 			rg_index<=rg_index+1;
 			if(rg_index=='d31)
 				initialize<=False;
+      if(verbosity>0)
+        $display($time,"\tRF: Initialization phase. Count: %d",rg_index);
 		endrule
 
 	  method ActionValue#(Operands) opaddress( Bit#(5) rs1addr, Bit#(5) rs2addr, Bit#(5) rd,
@@ -111,15 +114,17 @@ package registerfile;
 			Bit#(XLEN) rs1irf=integer_rf.sub(rs1addr);
 			Bit#(XLEN) rs2irf=integer_rf.sub(rs2addr);
       `ifdef spfpu
-  			Bit#(XLEN) rs1frf=floating_rf.sub(rs1addr);
-	  		Bit#(XLEN) rs2frf=floating_rf.sub(rs2addr);
-		  	Bit#(XLEN) rs3frf=floating_rf.sub(rs3addr);
+  			Bit#(FLEN) rs1frf=floating_rf.sub(rs1addr);
+	  		Bit#(FLEN) rs2frf=floating_rf.sub(rs2addr);
+		  	Bit#(FLEN) rs3frf=floating_rf.sub(rs3addr);
       `endif
 
-      Bit#(XLEN) rs1, rs2 `ifdef spfpu , rs3 `endif ;
-
+      Bit#(TMax#(XLEN,FLEN)) rs1, rs2;
+    `ifdef spfpu 
+      Bit#(FLEN) rs3; 
+    `endif 
       
-      Bit#(3) rs1index=5;
+      Bit#(3) rs1index=fromInteger(valueOf(PRFDEPTH));
       if(arr_rename_int[rs1addr] matches tagged Valid .r1index 
           `ifdef spfpu &&& rs1type!=FloatingRF `endif ) 
         rs1index=zeroExtend(r1index);
@@ -128,7 +133,7 @@ package registerfile;
             `ifdef spfpu &&& rs1type==FloatingRF `endif ) 
         rs1index=zeroExtend(r1index);
       `endif
-      Bit#(3) rs2index=5; 
+      Bit#(3) rs2index=fromInteger(valueOf(PRFDEPTH)); 
       `ifdef spfpu
         if(arr_rename_float[rs2addr] matches tagged Valid .r2index 
           `ifdef spfpu &&& rs2type==FloatingRF `endif ) begin
@@ -142,24 +147,24 @@ package registerfile;
         end
 
       `ifdef spfpu
-        Bit#(3) rs3index=5;
+        Bit#(3) rs3index=fromInteger(valueOf(PRFDEPTH));
         if(rs3type==FRF &&& arr_rename_float[rs3addr] matches tagged Valid .r3index)
           rs3index=r3index;
 
         if(rs1type==FloatingRF)begin
-          rs1=rs1frf;
+          rs1=zeroExtend(rs1frf);
         end
         else 
       `endif
-        rs1=rs1irf;
+        rs1=zeroExtend(rs1irf);
 
       `ifdef spfpu
         if(rs2type==FloatingRF)begin
-          rs2=rs2frf;
+          rs2=zeroExtend(rs2frf);
         end
         else
       `endif
-        rs2=rs2irf;
+        rs2=zeroExtend(rs2irf);
 
       `ifdef spfpu
         rs3=rs3frf;
@@ -182,7 +187,7 @@ package registerfile;
       `endif
         
       `ifdef spfpu
-        return tuple6(rs1, rs2, rs3, rs1index, rs2index, rs3index);
+        return tuple6(rs1, rs2, rs1index, rs2index, rs3, rs3index);
       `else
         return tuple4(rs1, rs2, rs1index, rs2index);
       `endif
@@ -190,28 +195,17 @@ package registerfile;
 
     // Here we invaildate the renaming regifile on each commit. This is done to make sure that
     // we avoid reading into the wrong renamed-register in the next stage. 
-		method Action commit_rd (Maybe#(CommitData) commit) if(!initialize);
+    method Action update_renaming (Maybe#(CommitRename) commit) if(!initialize);
       if(commit matches tagged Valid .in)begin
         `ifdef spfpu
-          let{r, d, index, rdtype}=in;
-        `else
-          let{r, d, index}=in;
-        `endif
-			  if(verbosity>0)begin
-          $display($time,"\tRF: Writing Rd: %d(%h) index: %d ",r,d, index `ifdef spfpu 
-              , fshow(rdtype) `endif );
-          `ifdef spfpu
-            $display($time,"\tRF: arr_rename_float: ",fshow(arr_rename_float[r]));
-          `endif
-        end
-
-        `ifdef spfpu
+          let{r, index, rdtype}=in;
           Bool donot_invalidate = (tpl_2(wr_rename_reg)==r && tpl_1(wr_rename_reg)==rdtype);
+        `else
+          let{r, index}=in;
         `endif
 
         `ifdef spfpu
           if(rdtype==FRF)begin
-			  	  floating_rf.upd(r,d);
             if(arr_rename_float[r] matches tagged Valid .x &&& x == index &&&  !donot_invalidate)
             begin
               if(verbosity>1)
@@ -224,7 +218,6 @@ package registerfile;
           else
         `endif
 			  if(r!=0)begin
-			  	integer_rf.upd(r,d);
           `ifdef spfpu
             if(arr_rename_int[r] matches tagged Valid .x &&& x == index &&&  !donot_invalidate) begin
           `else
@@ -234,7 +227,28 @@ package registerfile;
               $display($time, "\tRF: Commit rename index: %d rd: %d wr_rename_reg: %d", x, r,
               wr_rename_reg);
               arr_rename_int[r]<= tagged Invalid;
+            end
           end
+        end
+    endmethod
+		method Action commit_rd (Maybe#(CommitData) commit) if(!initialize);
+      if(commit matches tagged Valid .in)begin
+        `ifdef spfpu
+          let{r, d, rdtype}=in;
+        `else
+          let{r, d}=in;
+        `endif
+			  if(verbosity>0)begin
+          $display($time,"\tRF: Writing Rd: %d(%h) ",r,d `ifdef spfpu , fshow(rdtype) `endif );
+        end
+
+      `ifdef spfpu
+        if(rdtype==FRF)begin
+			  	  floating_rf.upd(r,truncate(d));
+        end else
+        `endif
+			  if(r!=0)begin
+			  	integer_rf.upd(r,truncate(d));
 			  end
       end
 		endmethod

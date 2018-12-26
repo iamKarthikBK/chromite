@@ -62,10 +62,12 @@ package alu;
       `define only_spfpu True
     `endif
   `endif
-  `ifdef muldiv_fpga 
-    import muldiv_fpga::*; 
-  `else
-    import muldiv_asic::*;
+  `ifdef muldiv
+    `ifdef muldiv_fpga 
+      import muldiv_fpga::*; 
+    `else
+      import muldiv_asic::*;
+    `endif
   `endif
   `ifdef spfpu
     import fpu::*;
@@ -74,9 +76,10 @@ package alu;
   `include "common_params.bsv"
 
 	(*noinline*)
-	function ALU_OUT fn_alu ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
-        Bit#(VADDR) imm_value, Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
-        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif );
+	function ALU_OUT fn_alu (Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
+      Bit#(VADDR) imm_value, Instruction_type inst_type, Funct3 funct3,
+      Access_type memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c,
+      Bit#(2) lpc);
 
 	  /*========= Perform all the arithmetic ===== */
 	  // ADD* ADDI* SUB* 
@@ -133,7 +136,26 @@ package alu;
     //    The npc by default is PC+ 4. so we have to check only when there is a diversion in pc
     //    which can happen either due to JALR/JAL or due to a taken branch. There is no notion of
     //    misprediction here.
-		Flush_type flush=None;
+    // generate the effective address to jump to 
+		Bit#(VADDR) effective_address=op3+ truncate(imm_value);
+    if(inst_type==JALR)
+      effective_address[0]=0;
+
+    Bit#(6) cause=0;
+    Bool exception=False;
+	  if( (inst_type==JALR || inst_type==JAL || (inst_type==BRANCH && final_output[0]==1)) && 
+        effective_address[1]!=0 && misa_c==0 ) begin
+	  	exception=True;
+      cause=`Inst_addr_misaligned ;
+    end
+    if(inst_type==MEMORY && ((funct3[1:0]==1 && effective_address[0]!=0) || 
+                            (funct3[1:0]==2 && effective_address[1:0]!=0)
+             `ifdef RV64 || (funct3[1:0]==3 && effective_address[2:0]!=0) `endif ))begin
+      cause = memaccess==Load? `Load_addr_misaligned: `Store_addr_misaligned;
+      exception=True;
+    end
+    Flush_type flush=None;
+    if(!exception)
     `ifdef bpu
       if(inst_type==JAL || inst_type==JALR) 
         flush=CheckRPC;
@@ -143,59 +165,33 @@ package alu;
         else if(final_output[0]==0) // actuall not-taken but predicted taken.
           flush=CheckNPC;
       end
-      else if(inst_type==MEMORY && (memaccess==FenceI))
-        flush=Fence;
     `else
   		if((inst_type==BRANCH && final_output[0]==1) || inst_type==JALR || inst_type==JAL )begin
 	  		flush=CheckRPC;
 		  end
-      else if(inst_type==MEMORY && (memaccess==FenceI))
-        flush=Fence;
     `endif
-		
-    // generate the effective address to jump to 
-		Bit#(VADDR) effective_address=op3+ truncate(imm_value);
-    if(inst_type==JALR)
-      effective_address[0]=0;
-
-	  Trap_type exception=tagged None;
-	  if(((inst_type==JALR||inst_type==JAL) && effective_address[1]!=0) || (inst_type==BRANCH && final_output[0]==1 &&
-                                                             effective_address[1:0]!=0)) begin
-	  	exception=tagged Exception Inst_addr_misaligned;
-    end
-    else if(inst_type==MEMORY && ((funct3[1:0]==1 && effective_address[0]!=0) || 
-                                  (funct3[1:0]==2 && effective_address[1:0]!=0) || 
-                      `ifdef RV64 (funct3[1:0]==3 && effective_address[2:0]!=0) `endif ))begin
-      exception = memaccess==Load? tagged Exception Load_addr_misaligned: 
-                                                          tagged Exception Store_addr_misaligned;
-    end
-
-    if(exception matches tagged None)begin
-    end
-    else begin
-      final_output=signExtend(effective_address);
-    end
-      
-    
-    Commit_type committype = REGULAR;
-    if(inst_type==MEMORY)
+    PreCommit_type committype = REGULAR;
+    if(exception)
+      committype=TRAP;
+    else if(inst_type==MEMORY)
       committype = MEMORY;
     else if(inst_type == SYSTEM_INSTR)
       committype = SYSTEM_INSTR;
 	
 	  Bit#(VADDR) effaddr_csrdata = (inst_type==SYSTEM_INSTR)? 
-                                            zeroExtend({funct3, imm_value[16:0]}): 
+                                            zeroExtend({lpc,imm_value[11:0],funct3}): 
                                             effective_address;
 
-	  return tuple5(committype, final_output, effaddr_csrdata, exception, flush);
+	  return tuple5(committype, zeroExtend(final_output), effaddr_csrdata, cause, flush);
 	endfunction
+
 
 `ifdef multicycle
   interface Ifc_alu;
-	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
-        `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
-        Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
-        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif );
+	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
+        `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(VADDR) imm_value `endif , 
+        Instruction_type inst_type, Funct3 funct3, Access_type
+        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c, Bit#(2) lpc );
 		method ActionValue#(ALU_OUT) delayed_output;
   endinterface:Ifc_alu
 
@@ -223,7 +219,7 @@ package alu;
             $display($time,"\tALU: Sending delayed output from FPU");
           let fpu_result<-fpu.get_result;
           wr_delayed_output<= tuple5(REGULAR, fpu_result.final_result, zeroExtend(fpu_result.fflags), 
-              tagged None, None);
+              0, None);
           rg_wait<=None;
         endrule
         rule capture_delayed_muldivputput(rg_wait==WaitMulDiv);
@@ -236,13 +232,13 @@ package alu;
       `endif
     `endif
 
-	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
-        `ifdef spfpu Bit#(XLEN) imm_value `else Bit#(VADDR) imm_value `endif , 
-        Instruction_type inst_type, Funct3 funct3, Bit#(VADDR) pc, Access_type
-        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif );
+	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
+        `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(VADDR) imm_value `endif , 
+        Instruction_type inst_type, Funct3 funct3, Access_type
+        memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c, Bit#(2) lpc );
       `ifdef muldiv
         if(inst_type==MULDIV)begin
-          let product <- muldiv.get_inputs(op1, op2, funct3, word32);
+          let product <- muldiv.get_inputs(truncate(op1), truncate(op2), funct3 `ifdef RV64 , word32 `endif );
           `ifdef muldiv
             `ifdef spfpu
               if(!tpl_1(product))
@@ -255,18 +251,21 @@ package alu;
       `endif
       `ifdef spfpu
         if(inst_type==FLOAT)begin
+          `ifndef dpfpu
+            word32=True;
+          `endif
           fpu._start(op1, op2, imm_value, fn, imm_value[11:5], funct3, imm_value[1:0],0, word32);
           `ifdef muldiv
             `ifdef spfpu
                 rg_wait<=WaitFPU;
             `endif
           `endif
-          return tuple2(False, tuple5(REGULAR, '1, 0, tagged None, None));
+          return tuple2(False, tuple5(REGULAR, '1, 0, 0, None));
         end
         else
       `endif
-          return tuple2(True, fn_alu(fn, op1, op2, op3, truncate(imm_value), inst_type, funct3, 
-                                            pc, memaccess, word32 `ifdef bpu , prediction `endif ));
+          return tuple2(True, fn_alu(fn, truncate(op1), truncate(op2), truncate(op3), truncate(imm_value), inst_type, funct3, 
+                        memaccess, word32 `ifdef bpu , prediction `endif , misa_c, lpc ));
     endmethod
     `ifdef muldiv
       `ifndef spfpu

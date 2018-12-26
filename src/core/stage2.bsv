@@ -92,17 +92,32 @@ package stage2;
 
 	interface Ifc_stage2;
 		method Action commit_rd (Maybe#(CommitData) commit);
+    method Action update_renaming (Maybe#(CommitRename) commit);
 		/* ===== pipe connections ========= */
-		interface RXe#(IF_ID_type) rx_in;
-    (*always_ready*)
-		interface TXe#(PIPE2) tx_out;
+		interface RXe#(PIPE1_min) rx_min;
+    `ifdef bpu
+  		interface RXe#(PIPE1_opt1) rx_opt1;
+    `endif
+    `ifdef supervisor
+  		interface RXe#(PIPE1_opt2) rx_opt2;
+    `endif
+		interface TXe#(PIPE2_min#(ELEN,FLEN)) tx_min;
+  `ifdef spfpu
+    interface TXe#(OpFpu) tx_fpu;
+  `endif
+  `ifdef rtldump
+    interface TXe#(Bit#(32)) tx_inst;
+  `endif
+  `ifdef bpu
+    interface TXe#(Bit#(2)) tx_bpu;
+  `endif
 		/*================================= */
 		`ifdef Debug
       method ActionValue#(Bit#(XLEN)) read_write_gprs(Bit#(5) r, Bit#(XLEN) data 
           `ifdef spfpu ,Op3type rfselect `endif );
 		`endif
     method Action csrs (CSRtoDecode csr);
-    method Action csr_updated (Bool upd);
+    method Action clear_stall (Bool upd);
 		method Action update_eEpoch;
 		method Action update_wEpoch;
     method Tuple2#(Bool, Bit#(TLog#(PRFDEPTH))) fetch_rd_index;
@@ -112,12 +127,26 @@ package stage2;
   (*synthesize*)
   (*conflict_free="commit_rd, decode_and_fetch"*)
   (*preempts="reset_renaming, decode_and_fetch"*)
-  (*preempts="reset_renaming, commit_rd"*)
   module mkstage2(Ifc_stage2);
 
     Ifc_registerfile registerfile <-mkregisterfile();
-		RX#(IF_ID_type) rx <-mkRX;
-		TX#(PIPE2) tx <-mkTX;
+		RX#(PIPE1_min) rxmin <-mkRX;
+  `ifdef bpu
+    RX#(PIPE1_opt1) rxopt1 <-mkRX;
+  `endif
+  `ifdef supervisor
+  	RX#(PIPE1_opt2) rxopt2 <-mkRX;
+  `endif
+		TX#(PIPE2_min#(ELEN,FLEN)) txmin <-mkTX;
+  `ifdef spfpu
+    TX#(OpFpu) txfpu <- mkTX;
+  `endif
+  `ifdef rtldump
+    TX#(Bit#(32)) txinst <- mkTX;
+  `endif
+  `ifdef bpu
+    TX#(Bit#(2)) txbpu <- mkTX;
+  `endif
       
     let verbosity = `VERBOSITY ;
     Wire#(CSRtoDecode) wr_csrs <-mkWire();
@@ -125,78 +154,118 @@ package stage2;
 		Reg#(Bit#(1)) wEpoch <-mkReg(0);
     Reg#(Bool) rg_stall <- mkReg(False);
     Reg#(Bool) rg_wfi <- mkReg(False);
+    Reg#(Bool) rg_rerun <- mkReg(False);
+    Reg#(Bool) rg_fencei_rerun <- mkReg(False);
     Wire#(Bool) wr_op_complete <-mkDWire(False);
     Reg#(Bit#(TLog#(PRFDEPTH))) rd_index <- mkReg(0);
     Wire#(Bit#(TLog#(PRFDEPTH))) wr_rd_index <- mkDWire(0);
 
     rule decode_and_fetch(!rg_stall);
-	    let pc=rx.u.first.program_counter;
-	    let inst=rx.u.first.instruction;
-	    let pred=rx.u.first.prediction;
-	    let epochs=rx.u.first.epochs;
-      let err=rx.u.first.accesserr_pagefault;
+      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=wr_csrs;
+	    let pc=rxmin.u.first.program_counter;
+	    let inst=rxmin.u.first.instruction;
+	    let epochs=rxmin.u.first.epochs;
+      let accesserr=rxmin.u.first.accesserr;
+      Bit#(2) err={1'b0,accesserr};
+    `ifdef bpu
+  	  let pred=rxopt1.u.first.prediction;
+    `endif
+    `ifdef supervisor
+      err[1]=rxopt2.u.first.pagefault;
+    `endif
+      let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,err,wr_csrs);
+      let {rs1addr,rs2addr,rd,rs1type,rs2type} = optype;
+      let {func_cause, instrType, memaccess, imm} = meta;
+      Bit#(3) funct3 = truncate(func_cause);
+      Bit#(4) fn = truncateLSB(func_cause);
+      let word32 = decode_word32(inst,misa[2]);
+    `ifdef spfpu
+      let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
+    `endif
+      if(verbosity>0)
+        $display($time,"\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpoch: %b",pc,inst,epochs,{eEpoch,wEpoch});
+      if(rg_rerun && {eEpoch, wEpoch}==epochs)begin 
+        OpMeta t1 = tuple5(?,?,?, pc, TRAP);
+        OpData#(ELEN,FLEN) t2 = tuple3(?, ?, ?);
+        MetaData t3 = tuple5(?, rg_fencei_rerun?`IcacheFence:`Rerun , ?, ?, epochs);
+        PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
       `ifdef spfpu
-        let {opdecode, meta, trap, resume_wfi, rdtype} <- decoder_func(inst, err, wr_csrs);
-      `else
-        let {opdecode, meta, trap, resume_wfi} <- decoder_func(inst, err, wr_csrs);
-      `endif
-      `ifdef spfpu
-        let {rs1addr, rs2addr, rd, rs3addr, rs1type, rs2type, rs3type}=opdecode;
-      `else
-        let {rs1addr, rs2addr, rd, rs1type, rs2type} = opdecode;
+        OpFpu t5 = tuple2(?, IRF);
       `endif
 
-      `ifdef RV64
-        let {fn, instrType, memaccess, imm, funct3, wfi, word32}=meta;
-      `else
-        let {fn, instrType, memaccess, imm, funct3, wfi}=meta;
+        txmin.u.enq(t4);
+      `ifdef rtldump
+        txinst.u.enq(inst);
       `endif
-      
-      if(!wfi && {eEpoch, wEpoch}==epochs)begin
+      `ifdef bpu
+        txbpu.u.enq(pred);
+      `endif
+      `ifdef spfpu
+        txfpu.u.enq(t5);
+      `endif
+      rg_stall<=True;
+      rg_rerun<=False;
+      rg_fencei_rerun<=False;
+      if(verbosity>0)
+        $display($time,"\tDECODE: Tagged as RERUN",pc,inst);
+      end
+      else if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
-        if(rd_index==4)
+        if(rd_index==fromInteger(valueOf(PRFDEPTH)-1))
           rd_index<= 0;
         else
           rd_index<= rd_index+ 1;
         wr_rd_index<= rd_index;
 
-        let {rs1, rs2 `ifdef spfpu , rs3 `endif , rs1index, rs2index `ifdef spfpu , rs3index `endif }
+        let {rs1, rs2 , rs1index, rs2index `ifdef spfpu ,rs3 ,rs3index `endif }
              <-registerfile.opaddress(rs1addr, rs2addr, rd, rd_index
               `ifdef spfpu , rs1type, rs2type, rs3addr, rs3type, rdtype `endif );
 
-        Bit#(XLEN) op1=(rs1type==PC)?signExtend(pc):rs1;
-        Bit#(XLEN) op2=(rs2type==Constant4)?'d4:(rs2type==Immediate)?signExtend(imm):rs2;
+        Bit#(TMax#(XLEN,FLEN)) op1=(rs1type==PC)?signExtend(pc):rs1;
+        Bit#(TMax#(XLEN,FLEN)) op2=(rs2type==Constant2 && misa[2]==1)?'d2:
+                       (rs2type==Constant4)?'d4: (rs2type==Immediate)?signExtend(imm):rs2;
         Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
-        Bool traptaken=True;
-        if(trap matches tagged None)begin
-          traptaken=False;
-        end
-        if(traptaken)begin
-          op1=zeroExtend(inst); 
+        if(instrType==TRAP)begin
+          if(func_cause==`Inst_access_fault )
+            op1=zeroExtend(pc); // for baddaddr
+          else if(func_cause == `Illegal_inst)
+            op1=zeroExtend(inst); // for badaddr
+          else
+            op1=0;
           op3=zeroExtend(pc);
         end
-        `ifdef spfpu
-          Bit#(XLEN) op4=(rs3type==FRF)?rs3:signExtend(imm);
-        `else
-          Bit#(VADDR) op4=signExtend(imm);
-        `endif
+      `ifdef spfpu
+        Bit#(FLEN) op4=(rs3type==FRF)?rs3:signExtend(imm);
+      `else
+        Bit#(FLEN) op4=signExtend(imm);
+      `endif
+        rg_rerun<=rerun;
+        if(instrType==MEMORY && memaccess==FenceI)
+          rg_fencei_rerun<=True;
+        OpMeta t1 = tuple5(rs1index, rs2index, rd_index, op3, instrType);
+        OpData#(ELEN,FLEN) t2 = tuple3(op1, op2, op4);
+        MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);
+        PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
+      `ifdef spfpu
+        OpFpu t5 = tuple2(rs3index, rdtype);
+      `endif
 
-        OpData t2 =tuple4(op1, op2, op3, op4);
-        `ifdef spfpu
-          OpTypes t1 =tuple6(rs1index, rs2index, rs3index, rd_index, rdtype, instrType);
-        `else
-          OpTypes t1 =tuple4(rs1index, rs2index, rd_index, instrType);
-        `endif
-
-        `ifdef bpu
-          MetaData t3 = tuple8(rd, word32, memaccess, fn, funct3, pred, epochs, trap);
-        `else
-          MetaData t3 = tuple7(rd, word32, memaccess, fn, funct3, epochs, trap);
-        `endif
+        txmin.u.enq(t4);
+      `ifdef rtldump
+        txinst.u.enq(inst);
+      `endif
+      `ifdef bpu
+        txbpu.u.enq(pred);
+      `endif
+      `ifdef spfpu
+        txfpu.u.enq(t5);
+      `endif
+      if(instrType==TRAP) // TODO removing this causes a corner case in rv32mi shamt test case.
+          rg_stall<=True;
 
         if(verbosity>0)begin
           $display($time, "\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpochs: %b WFI: %b ERR: %b", pc, inst, 
-              epochs, {eEpoch, wEpoch}, wfi, err);
+              epochs, {eEpoch, wEpoch}, instrType==WFI, err);
           $display($time, "\tDECODE: rs1addr: %d rs2addr: %d", rs1addr, rs2addr 
               `ifdef spfpu ," rs3addr: %d",rs3addr `endif );
           $display($time, "\tDECODE: rs1type: ", fshow(rs1type), " rs2type ", fshow(rs2type)
@@ -206,35 +275,50 @@ package stage2;
           $display($time, "\tDECODE: op1: %h op2: %h op3: %h op4: %h", op1, op2, op3, op4);
           $display($time, "\tDECODE: rd: %d, rdtype: ",rd, `ifdef spfpu fshow(rdtype), `endif 
               " word32: %b, memaccess:",  word32, fshow(memaccess));
-          $display($time, "\tDECODE: fn: %b funt3: %b trap:", fn, funct3, fshow(trap) );
+          $display($time, "\tDECODE: fn: %b funt3: %b trap: %d", fn, funct3,func_cause);
         end
-	      `ifdef simulate
-	        tx.u.enq(tuple4(t1, t2, t3, inst));
-	      `else
-	        tx.u.enq(tuple3(t1, t2, t3));
-        `endif
+        
       end
-      else
+      else begin
         if(verbosity>=1)
           $display($time,"\tDECODE: dropping instructions due to epoch mis-match");
-
-      if((rg_wfi && resume_wfi) || (!rg_wfi))
-        rx.u.deq; 
-
-      if({eEpoch, wEpoch}==epochs)begin
-        if(instrType==SYSTEM_INSTR)
-          rg_stall<= True;
-       // rg_wfi<=wfi;
-      end  
+      end
+      if((rg_wfi && resume_wfi) || (!rg_wfi))begin
+        rxmin.u.deq; 
+      `ifdef bpu
+        rxopt1.u.deq;
+      `endif
+      `ifdef supervisor
+        rxopt2.u.deq;
+      `endif
+      end
     endrule
 
-		method tx_out=tx.e;
-		method rx_in=rx.e;
+		method tx_min=txmin.e;
+  `ifdef rtldump
+    method tx_inst=txinst.e;
+  `endif
+  `ifdef bpu
+    method tx_bpu=txbpu.e;
+  `endif
+  `ifdef spfpu
+    method tx_fpu=txfpu.e;
+  `endif
+		method rx_min=rxmin.e;
+  `ifdef bpu
+		method rx_opt1=rxopt1.e;
+  `endif
+  `ifdef supervisor
+		method rx_opt2=rxopt2.e;
+  `endif
     method Action csrs (CSRtoDecode csr);
       wr_csrs<= csr;
     endmethod
 		method Action commit_rd (Maybe#(CommitData) commit);
       registerfile.commit_rd(commit);
+    endmethod
+    method Action update_renaming (Maybe#(CommitRename) commit);
+      registerfile.update_renaming(commit);
     endmethod
 
     // This method will get activated when there is a flush from the execute stage
@@ -249,9 +333,11 @@ package stage2;
         $display($time,"\tSTAGE2: updating wEpoch"); 
 			wEpoch<=~wEpoch;
 		endmethod
-    method Action csr_updated (Bool upd) if(rg_stall);
-      if(upd)
+    method Action clear_stall (Bool upd) if(rg_stall);
+      if(upd) begin
         rg_stall<= False;
+        rg_rerun<= False;
+      end
     endmethod
     method fetch_rd_index = tuple2(wr_op_complete, wr_rd_index);
     method reset_renaming=registerfile.reset_renaming;

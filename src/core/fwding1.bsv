@@ -35,14 +35,14 @@ package fwding1;
   import GetPut::*;
 
   interface Ifc_fwding;
-    method ActionValue#(FwdType#(XLEN)) read_rs1 (Bit#(XLEN) rfvalue, Bit#(3) index);
-    method ActionValue#(FwdType#(XLEN)) read_rs2 (Bit#(XLEN) rfvalue, Bit#(3) index);
+    method ActionValue#(FwdType#(ELEN)) read_rs1 (Bit#(ELEN) rfvalue, Bit#(3) index);
+    method ActionValue#(FwdType#(ELEN)) read_rs2 (Bit#(ELEN) rfvalue, Bit#(3) index);
     `ifdef spfpu                                              
-    method ActionValue#(FwdType#(XLEN)) read_rs3 (Bit#(XLEN) rfvalue, Bit#(3) index);
+    method ActionValue#(FwdType#(ELEN)) read_rs3 (Bit#(ELEN) rfvalue, Bit#(3) index);
     `endif
 
-		method Action fwd_from_exe (Bit#(XLEN) d, Bit#(3) index);
-		method Action fwd_from_mem (Bit#(XLEN) d, Bit#(3) index);
+		method Action fwd_from_exe (Bit#(ELEN) d, Bit#(3) index);
+		method Action fwd_from_mem (Bit#(ELEN) d, Bit#(3) index);
     method Action invalidate_index(Bit#(3) ind);
     method Action flush_mapping;
   endinterface
@@ -53,7 +53,7 @@ package fwding1;
   (*conflict_free="invalidate_index, fwd_from_mem"*)
   module mkfwding(Ifc_fwding);
     let verbosity = `VERBOSITY ;
-    Reg#(FwdType#(XLEN)) fwd_data [valueOf(PRFDEPTH)];
+    Reg#(FwdType#(ELEN)) fwd_data [valueOf(PRFDEPTH)];
     for(Integer i=0;i<= 32;i=i+ 1)begin
       if(i<valueOf(PRFDEPTH))
         fwd_data[i]<- mkReg(tagged Absent); 
@@ -63,9 +63,9 @@ package fwding1;
         fwd_data[i]<= tagged Absent;
       end
     endmethod
-    method ActionValue#(FwdType#(XLEN)) read_rs1 (Bit#(XLEN) rfvalue, Bit#(3) index);
-      FwdType#(XLEN) ret= tagged Present rfvalue;
-      if(index!=5)begin
+    method ActionValue#(FwdType#(ELEN)) read_rs1 (Bit#(ELEN) rfvalue, Bit#(3) index);
+      FwdType#(ELEN) ret= tagged Present rfvalue;
+      if(index!=fromInteger(valueOf(PRFDEPTH)))begin
         ret=fwd_data[index];
         if(verbosity>1)
           $display($time, "\tFWDING: Reading rs1 from prf. Data: %h index\
@@ -73,9 +73,9 @@ package fwding1;
       end
       return ret;
     endmethod
-    method ActionValue#(FwdType#(XLEN)) read_rs2 (Bit#(XLEN) rfvalue, Bit#(3) index);
-      FwdType#(XLEN) ret= tagged Present rfvalue;
-      if(index!=5)begin
+    method ActionValue#(FwdType#(ELEN)) read_rs2 (Bit#(ELEN) rfvalue, Bit#(3) index);
+      FwdType#(ELEN) ret= tagged Present rfvalue;
+      if(index!=fromInteger(valueOf(PRFDEPTH)))begin
         ret=fwd_data[index];
         if(verbosity>1)
           $display($time, "\tFWDING: Reading rs2 from prf. Data: %h index\
@@ -84,19 +84,19 @@ package fwding1;
       return ret;
     endmethod
     `ifdef spfpu                                                            
-    method ActionValue#(FwdType#(XLEN)) read_rs3 (Bit#(XLEN) rfvalue, Bit#(3) index);
-      FwdType#(XLEN) ret= tagged Present rfvalue;
-      if(index!=5)
+    method ActionValue#(FwdType#(ELEN)) read_rs3 (Bit#(ELEN) rfvalue, Bit#(3) index);
+      FwdType#(ELEN) ret= tagged Present rfvalue;
+      if(index!=fromInteger(valueOf(PRFDEPTH)))
         ret=fwd_data[index];
       return ret;
     endmethod
     `endif
-		method Action fwd_from_exe (Bit#(XLEN) d, Bit#(3) index);
+		method Action fwd_from_exe (Bit#(ELEN) d, Bit#(3) index);
       if(verbosity>1)
         $display($time, "\tFWDING: Got fwded data from exe. Data: %h index: %d", d, index);
 			fwd_data[index]<=tagged Present d;	
 		endmethod
-		method Action fwd_from_mem (Bit#(XLEN) d, Bit#(3) index);
+		method Action fwd_from_mem (Bit#(ELEN) d, Bit#(3) index);
       if(verbosity>1)
         $display($time, "\tFWDING: Got fwded data from mem. Data: %h index: %d", d, index);
 			fwd_data[index]<=tagged Present d;	

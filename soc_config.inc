@@ -1,8 +1,8 @@
-ISA=RV64IMAFD
+ISA=RV64IMAFDC
 MMU=enable
 AXI=enable
-BPU=enable
-MUL=sequential
+BPU=disable
+MUL=fpga
 PERF=enable
 COREFABRIC=AXI4
 SYNTH=SIM
@@ -12,7 +12,7 @@ DEBUG=disable
 OPENOCD=disable
 USERTRAPS=False
 USER=True
-SUPERVISOR=True
+SUPERVISOR=disable
 MULSTAGES=8
 DIVSTAGES=64
 FPGA=xc7a100tcsg324-1
@@ -26,3 +26,12 @@ THREADS=1
 # DebugOptions
 RTLDUMP=True
 ASSERTIONS=enable
+
+# Instruction cache
+ICACHE=enable
+ISETS=64
+IWORDS=4
+IBLOCKS=8
+IWAYS=4
+IFBSIZE=4
+IREPL=PLRU

@@ -1,5 +1,5 @@
 /* 
-Copyright (c) 2013, IIT Madras All rights reserved.
+Copyright (c) 2018, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
 provided that the following conditions are met:
@@ -29,292 +29,281 @@ Details:
 --------------------------------------------------------------------------------------------------
 */
 package stage4;
+  import Vector::*;
+  import FIFOF::*;
+  import DReg::*;
+  import SpecialFIFOs::*;
+  import BRAMCore::*;
+  import FIFO::*;
   import TxRx::*;
   import GetPut::*;
+  import BUtils::*;
+  `ifndef dcache
+    `define BUFFSIZE 2
+  `endif
+
   import common_types::*;
   `include "common_params.bsv"
-
-  import FIFO::*;
-  import FIFOF::*;
-  import csr::*;
-  import csrfile::*;
+  import storebuffer::*;
 
   interface Ifc_stage4;
-    interface RXe#(PIPE3) rx_in;
-    `ifdef supervisor // TODO make the following into a common structure
-      interface Put#(Maybe#(Tuple4#(Bit#(XLEN), Bool, Bool, Access_type))) memory_response;
-    `else
-      interface Put#(Maybe#(Tuple3#(Bit#(XLEN), Bool, Access_type))) memory_response;
+    interface RXe#(PIPE3) rx_min;
+    interface TXe#(PIPE4) tx_min;
+    `ifdef rtldump
+      interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
+      interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;
     `endif
-    method Maybe#(CommitData) commit_rd;
-    interface Get#(Tuple2#(Bit#(XLEN), Bit#(3))) fwd_from_mem;
-    method Tuple2#(Bool, Bit#(VADDR)) flush;
-    method CSRtoDecode csrs_to_decode;
-	  method Action clint_msip(Bit#(1) intrpt);
-		method Action clint_mtip(Bit#(1) intrpt);
-		method Action clint_mtime(Bit#(XLEN) c_mtime);
-    method Bool csr_updated;
-    method Bool interrupt;
-    `ifdef simulate
-      interface Get#(DumpType) dump;
-    `endif
-    `ifdef RV64 method Bool inferred_xlen; `endif // False-32bit,  True-64bit 
-		`ifdef supervisor
-			method Bit#(XLEN) send_satp;
-			method Chmod perm_to_TLB;
-      method Bool send_sfence;
-		`endif
-    `ifdef spfpu
-  		method Bit#(3) roundingmode;
-    `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i);
+    interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
+
+		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
+    interface Put#(MemoryWriteResp) memory_write_response;
+
+    interface Get#(Tuple2#(Bit#(ELEN), Bit#(3))) fwd_from_mem;
+    method Action update_wEpoch;
+    method Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) store_response;
+    method Action start_store(Bool s);
+    method Bool storebuffer_empty;
   endinterface
+
+  function Bit#(ELEN) fn_atomic_op (Bit#(4) op,  Bit#(ELEN) rs2,  Bit#(ELEN) loaded);
+    Int#(ELEN) s_loaded = unpack(loaded);
+		Int#(ELEN) s_rs2 = unpack(rs2);
+    case (op[3:0])
+				'b0011:return rs2;
+				'b0000:return (loaded+rs2);
+				'b0010:return (loaded^rs2);
+				'b0110:return (loaded&rs2);
+				'b0100:return (loaded|rs2);
+				'b1100:return min(loaded,rs2);
+				'b1110:return max(loaded,rs2);
+				'b1000:return pack(min(s_loaded,s_rs2));
+				'b1010:return pack(max(s_loaded,s_rs2));
+				default:return loaded;
+        // TODO: Handle LR SC
+			endcase	
+  endfunction
 
   (*synthesize*)
   module mkstage4(Ifc_stage4);
-
     let verbosity = `VERBOSITY ;
-
-    RX#(PIPE3) rx<-mkRX;
-    Ifc_csr csr <- mkcsr();
-    Wire#(Bool) wr_csr_updated <- mkDWire(False);
-
+    RX#(PIPE3) rxmin <- mkRX;
+    TX#(PIPE4) txmin <- mkTX;
+  `ifdef rtldump
+    RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
+    TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst <-mkTX;
+  `endif
+    Ifc_storebuffer storebuffer <- mkstorebuffer();
     // wire that captures the response coming from the external memory or cache.
-    `ifdef supervisor
-      Wire#(Maybe#(Tuple4#(Bit#(XLEN), Bool, Bool, Access_type))) wr_memory_response <- mkDWire(tagged Invalid);
-    `else
-      Wire#(Maybe#(Tuple3#(Bit#(XLEN), Bool,  Access_type))) wr_memory_response <- mkDWire(tagged Invalid);
-    `endif 
-
+    Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
     // wire that carriues the information for operand forwarding
-    Wire#(Maybe#(Tuple2#(Bit#(XLEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
-
-    // wire that carries the commit data that needs to be written to the integer register file.
-    Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
-
-    // wire which signals the entire pipe to be flushed.
-    Wire#(Tuple2#(Bool, Bit#(VADDR))) wr_flush <- mkDWire(tuple2(False, ?));
-
-    // the local epoch register
+    Wire#(Maybe#(Tuple2#(Bit#(ELEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
+    Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
+    Wire#(Bool) wr_store_start<-mkDWire(False);
 
-    `ifdef simulate
-      FIFO#(DumpType) dump_ff <- mkLFIFO;
-      let prv=tpl_1(csr.csrs_to_decode);
+
+    rule check_operation;
+ 
+      let offset = valueOf(XLEN)==64?2:1;
+      let {committype, field1, field2, field3, field4}=rxmin.u.first;
+    `ifdef rtldump
+      let {simpc,inst}=rxinst.u.first;
     `endif
 
+      Bit#(VADDR) badaddr = field1;
+      Bit#(5) fflags=truncate(field1);
+      Bit#(3) func3= field1[2:0];
+      Bit#(12) csraddr = field1[14:3];
+      Bit#(2) lpc = field1[16:15];
 
-    rule instruction_commit;
-      `ifdef simulate
-        let {execout, rdindex, inst}=rx.u.first;
-      `else
-        let {execout, rdindex}=rx.u.first;
-      `endif
-      `ifdef spfpu
-        let {committype, rd, fusedrdfflags, pc, csrfield, epoch, trap, rdtype}=execout;
-        Bit#(5) rdaddr=fusedrdfflags[10:6];
-        Bit#(5) fflags=fusedrdfflags[5:1];
-        Bit#(1) nanboxing=fusedrdfflags[0];
-      `else
-        let {committype, rd, rdaddr, pc, csrfield, epoch, trap}=execout;
-      `endif
-      Bit#(VADDR) jump_address=0;
-      Bool fl = False;
-      // continue commit only if epochs match. Else deque the ex fifo
-      if(verbosity>0)begin
-        $display($time, "\tWBMEM: PC: %h Epoch: %b CurrEpoch: %b", pc, epoch, rg_epoch);
-        $display($time, "\tWBMEM: Rd: %d Value: %h committype: ", rdaddr, rd, fshow(committype));
-        $display($time, "\tWBMEM: CSRField: %h trap: ", csrfield, fshow(trap));
-      end
+      Bit#(ELEN) storedata=field2;
+      Bit#(ELEN) commitvalue = field2;
+      Bit#(XLEN) rs1 = truncate(field2);
+      
+      Bit#(VADDR) pc = field3;
+      
+      Bit#(1) epoch = field4[0];
+      Bit#(7) trapcause = field4[7:1];
+      Bit#(3) rdindex = field4[3:1];
+      Bit#(5) rd = field4[8:4];
+      Op3type rdtype = unpack(field4[9]);
+      Access_type memaccess = unpack(field4[12:10]);
+      Bit#(2) size=field4[14:13];
+      Bit#(1) sign=field4[15];
+      Bit#(1) nanboxing=field4[16];
+      Bit#(4) atomic_op = field4[20:17];
+      CommitType temp1=?;
+      Bool complete=True;
+  
+      // check store_buffer entries
+      let {storemask,storehit} <- storebuffer.check_address(badaddr); 
+      Bit#(TLog#(ELEN)) loadoffset = {badaddr[offset:0],3'b0}; // parameterize for XLEN
+
       if(rg_epoch!=epoch)begin
-        if(verbosity>1)
-          $display($time, "\tWBMEM: Dropping instruction");
-        rx.u.deq;
+        rxmin.u.deq;
+        `ifdef rtldump
+          rxinst.u.deq;
+        `endif
+        complete=False;
       end
-      else begin
-        if(trap matches tagged Interrupt .in)begin
-          let newpc<-  csr.take_trap(trap, pc, ?);
-          fl=True;
-          jump_address=newpc;
-          rx.u.deq;
+      else if(committype==TRAP)begin
+        temp1=tagged TRAP (CommitTrap{cause:trapcause, badaddr:badaddr, pc:pc});
+      end
+      else if(committype==REGULAR)begin
+        temp1=tagged REG CommitRegular{commitvalue:commitvalue,
+                                          fflags:fflags,
+                                          rdtype:rdtype,
+                                          rd:rd,
+                                          rdindex:rdindex};
+      end
+      else if(committype==SYSTEM_INSTR)begin
+        temp1=tagged SYSTEM CommitSystem {rs1:rs1,
+                                          lpc:lpc,
+                                          csraddr:csraddr,
+                                          func3:func3,
+                                          rdtype:rdtype,
+                                          rd:rd,
+                                          rdindex:rdindex};
+      end
+      else if(committype==MEMORY) begin
+        if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
           if(verbosity>0)
-            $display($time, "\tWBMEM: Received Interrupt: ", fshow(trap));
-        end
-        // in case of a flush also flip the local epoch register.
-        // if instruction is of memory type then wait for response from memory
-        else if(trap matches tagged Exception .ex)begin
-          jump_address<- csr.take_trap(trap, pc, truncate(rd));
-          fl= True;
-          rx.u.deq;
-          if(verbosity!=0)
-            $display($time, "\tWBMEM: Received Exception: ", fshow(trap));
-        end
-        else if(committype == MEMORY) begin
-          if (wr_memory_response matches tagged Valid .resp)begin
-            if(verbosity>1)
-              $display($time, "\tWBMEM: Got response from the Memory: ",fshow(resp));
-            `ifdef supervisor
-              let {data, err, fault, access_type}=resp;
-            `else
-              let {data, err, access_type}=resp;
-            `endif
-            if(!err `ifdef supervisor && !fault `endif )begin // no bus error
-            `ifdef spfpu
+            $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
+          if(wr_memory_response matches tagged Valid .resp)begin
+            let {data, err_fault, epochs}=resp;
+            Bit#(ELEN) update_data = data<<loadoffset;
+            update_data= (update_data&~storemask)|(storehit);
+            update_data= update_data>>{loadoffset};
+            if(size==0)
+              update_data=sign==0?signExtend(update_data[7:0]):zeroExtend(update_data[7:0]);
+            else if(size==1)
+              update_data=sign==0?signExtend(update_data[15:0]):zeroExtend(update_data[15:0]);
+            else if(size==2)
+                update_data=sign==0?signExtend(update_data[31:0]):zeroExtend(update_data[31:0]);
+            `ifdef dpfpu
               if(nanboxing==1)
-                data[63:32]='1;
+                  update_data[63:32]='1;
             `endif
-              wr_operand_fwding <= tagged Valid tuple2(data, rdindex);
-              `ifdef spfpu
-                wr_commit <= tagged Valid (tuple4(rdaddr, data, rdindex, rdtype));
-              `else
-                wr_commit <= tagged Valid (tuple3(rdaddr, data, rdindex));
-              `endif
-              `ifdef simulate 
-                if(rdaddr==0 `ifdef spfpu && rdtype==IRF `endif )
-                  data=0;
-                `ifdef spfpu
-                  dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, data, rdtype));
-                `else
-                  dump_ff.enq(tuple5(prv, signExtend(pc), inst, rdaddr, data));
-                `endif
-              `endif
+            if(err_fault==0 )begin // no bus error
+              wr_operand_fwding <= tagged Valid tuple2(update_data, rdindex);
+            `ifdef atomic
+              if(memaccess==Atomic)begin
+                temp1=tagged STORE CommitStore{pc:pc,
+                                               rdindex:rdindex, 
+                                               rd: rd,  
+                                               commitvalue:update_data};
+                storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
+              end
+              else
+            `endif
+                temp1=tagged REG CommitRegular{commitvalue:update_data,
+                                                 fflags:0,
+                                                 rdtype:rdtype,
+                                                 rd:rd,
+                                                 rdindex:rdindex};
             end
             else begin
-              if(verbosity>1)
-                $display($time, "\tWBMEM: Received Exception from Memory: ", fshow(resp));
-              `ifdef supervisor
-                if(fault)
-                  if(access_type==Load)
-                    trap = tagged Exception Load_pagefault;
-                  else
-                    trap = tagged Exception Store_pagefault;
-                else if(err)
-              `endif
-                if(access_type == Load)
-                  trap = tagged Exception Load_access_fault;
+              if(err_fault[0]==1)begin
+              `ifdef atomic 
+                if(memaccess==Atomic)
+                  temp1=tagged TRAP CommitTrap{cause:`Store_access_fault, badaddr:badaddr, pc:pc};
                 else
-                  trap = tagged Exception Store_access_fault;
-              jump_address<- csr.take_trap(trap, pc, truncate(rd));
-              fl= True;
+              `endif
+                  temp1=tagged TRAP CommitTrap{cause:`Load_access_fault, badaddr:badaddr, pc:pc};
+              end
+              else begin
+              `ifdef atomic 
+                if(memaccess==Atomic)
+                  temp1=tagged TRAP CommitTrap{cause:`Store_pagefault, badaddr:badaddr, pc:pc};
+                else
+              `endif
+                temp1=tagged TRAP CommitTrap{cause:`Load_pagefault, badaddr:badaddr, pc:pc};
+              end
             end
-            rx.u.deq;
           end
-          else if(verbosity>1)
-            $display($time, "\tWBMEM: Waiting for response from the Memory");
+          else begin
+            complete=False;
+            if(verbosity>0)
+              $display($time,"\tSTAGE4: Waiting for Memory Read Response");
+          end
         end
-        else if(committype == SYSTEM_INSTR)begin
-          let {drain, newpc, dest}<-csr.system_instruction(csrfield[11:0], 
-                                              csrfield[16:12], rd, csrfield[19:17]
-                                              `ifdef supervisor , pc `endif );
-          jump_address=newpc;
-          fl=drain;
-          `ifdef spfpu
-            wr_commit <= tagged Valid (tuple4(rdaddr, dest, rdindex, rdtype));
-            wr_operand_fwding <= tagged Valid tuple2(dest,  rdindex);
-          `else
-            wr_commit <= tagged Valid (tuple3(rdaddr, dest, rdindex));
-            wr_operand_fwding <= tagged Valid tuple2(dest,  rdindex);
-          `endif
-          `ifdef simulate 
-            if(rdaddr==0)
-              dest=0;
-            `ifdef spfpu
-              dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, dest, rdtype));
-            `else
-              dump_ff.enq(tuple5(prv, signExtend(pc), inst, rdaddr, dest));
-            `endif
-          `endif
-          rx.u.deq;
+        else if(memaccess==Store)begin
+          if(verbosity>0)
+            $display($time, "\tSTAGE4: PC: %h Store Operation.", simpc);
+          temp1=tagged STORE CommitStore{pc:pc,
+                                         rdindex:rdindex
+                                       `ifdef atomic
+                                         , rd: rd,  
+                                         commitvalue:0 
+                                       `endif };
+          wr_operand_fwding <= tagged Valid tuple2(0, rdindex);
+          storebuffer.allocate(badaddr, storedata, size);
         end
-        else begin
-          // in case of regular instruction simply update RF and forward the data.
-          `ifdef spfpu
-            wr_commit <= tagged Valid (tuple4(rdaddr, rd, rdindex, rdtype));
-            csr.update_fflags(fflags); 
-          `else
-            wr_commit <= tagged Valid (tuple3(rdaddr, rd, rdindex));
-          `endif
-          rx.u.deq;
-          `ifdef simulate 
-            if(rdaddr==0 `ifdef spfpu && rdtype==IRF `endif )
-              rd=0;
-            `ifdef spfpu
-              dump_ff.enq(tuple6(prv, signExtend(pc), inst, rdaddr, rd, rdtype));
-            `else
-              dump_ff.enq(tuple5(prv, signExtend(pc), inst, rdaddr, rd));
-            `endif
-          `endif
+        else if(memaccess==Fence || memaccess==FenceI)begin
+          if(verbosity>0)
+            $display($time, "\tSTAGE4: PC: %h Fence Operation.", simpc);
+          temp1=tagged REG CommitRegular{commitvalue:?,
+                                                 fflags:0,
+                                                 rdtype:rdtype,
+                                                 rd:rd,
+                                                 rdindex:rdindex};
         end
-        
-        // if it is a branch/JAL_R instruction generate a flush signal to the pipe. 
-        wr_flush<=tuple2(fl, jump_address);
-        if(fl)begin
-          rg_epoch <= ~rg_epoch;
-        end
-        if(fl || committype==SYSTEM_INSTR)
-          wr_csr_updated<= True;
-
+      end
+      `ifdef rtldump
+        if(verbosity>1)
+          $display($time,"\tSTAGE4: PC: %h Inst: %h",simpc,inst);
+      `endif
+      if(complete)begin
+        txmin.u.enq(tuple2(temp1,epoch));
+        rxmin.u.deq;
+        `ifdef rtldump
+          txinst.u.enq(rxinst.u.first);
+          rxinst.u.deq;
+        `endif
       end
     endrule
 
-    rule increment_instruction_counter(wr_commit matches tagged Valid .x);
-      csr.incr_minstret;
-    endrule
-
-    interface  memory_response= interface Put
-    `ifdef supervisor
-      method Action put (Maybe#(Tuple4#(Bit#(XLEN), Bool, Bool, Access_type)) response);
-    `else
-      method Action put (Maybe#(Tuple3#(Bit#(XLEN), Bool,  Access_type)) response);
-    `endif
+    interface rx_min = rxmin.e;
+    interface tx_min = txmin.e;
+  `ifdef rtldump
+    interface rx_inst = rxinst.e;
+    interface tx_inst = txinst.e;
+  `endif
+    interface  memory_read_response= interface Put
+      method Action put (Maybe#(MemoryReadResp#(1)) response);
+        if(verbosity>1)
+          $display($time, "\tSTAGE4: Read Response: ", fshow(response));
         wr_memory_response <= response;
       endmethod
     endinterface;
-
-    interface rx_in=rx.e;
-
-    method Maybe#(CommitData) commit_rd();
-      return wr_commit;
-    endmethod
-
     interface fwd_from_mem = interface Get
-      method ActionValue#(Tuple2#(Bit#(XLEN), Bit#(3))) get 
+      method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(3))) get 
                                                     if(wr_operand_fwding matches tagged Valid .data);
         return data;
       endmethod
     endinterface;
-
-    method flush=wr_flush;
-    method csrs_to_decode = csr.csrs_to_decode;
-    method Bool csr_updated = wr_csr_updated;
-
-	  method Action clint_msip(Bit#(1) intrpt);
-      csr.clint_msip(intrpt);
+    method Action update_wEpoch;
+      rg_epoch<=~rg_epoch;
     endmethod
-		method Action clint_mtip(Bit#(1) intrpt);
-      csr.clint_mtip(intrpt);
+    method Action start_store(Bool s);
+      wr_store_start<=s;
     endmethod
-		method Action clint_mtime(Bit#(XLEN) c_mtime);
-      csr.clint_mtime(c_mtime);
-    endmethod
-    `ifdef simulate
-      interface dump = interface Get
-        method ActionValue#(DumpType) get ;
-          dump_ff.deq;
-          return dump_ff.first;
-        endmethod
-      endinterface;
-    `endif
-    `ifdef RV64 method Bool inferred_xlen = csr.inferred_xlen; `endif // False-32bit,  True-64bit 
-    method  interrupt=csr.interrupt;
-		`ifdef supervisor
-			method send_satp=csr.send_satp;
-			method perm_to_TLB=csr.perm_to_TLB;
-      method send_sfence=csr.send_sfence;
-		`endif
-    `ifdef spfpu
-  		method roundingmode=csr.roundingmode;
-    `endif
-	  method Action set_external_interrupt(Tuple2#(Bool,Bool) ex_i)=csr.set_external_interrupt(ex_i);
+		interface memory_write_request = interface Get
+      method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) get if(wr_store_start);
+        let x <- storebuffer.perform_store;
+        return x;
+      endmethod
+    endinterface;
+    interface memory_write_response = interface Put
+      method Action put(MemoryWriteResp r);
+        if(verbosity>1)
+          $display($time,"\tSTAGE4: Recieved Write response: %b",r);
+        storebuffer.deque;
+        wr_store_response<=tagged Valid (tuple2(r,storebuffer.write_address));
+      endmethod
+    endinterface;
+    method store_response = wr_store_response;
+    method storebuffer_empty = storebuffer.storebuffer_empty;
   endmodule
 endpackage
+
