@@ -197,7 +197,7 @@ package stage5;
         `endif
           rx.u.deq;
         end
-        else if(commit matches tagged REGULAR .r)begin
+        else if(commit matches tagged REG .r)begin
           // in case of regular instruction simply update RF and forward the data.
           $display($time,"\tWBMEM: Regular commit");
         `ifdef spfpu

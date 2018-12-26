@@ -69,7 +69,7 @@ package common_types;
 	typedef enum {`ifdef spfpu FloatingRF, `endif IntegerRF, Immediate, Constant4, Constant2} 
                                                                   Op2type deriving(Bits, Eq, FShow);
   typedef enum {FRF, IRF} Op3type deriving(Bits, Eq, FShow);
-  typedef enum {SYSTEM_INSTR, REGULAR, TRAP} Commit_type deriving(Eq, Bits, FShow);
+//  typedef enum {SYSTEM_INSTR, REGULAR, TRAP} Commit_type deriving(Eq, Bits, FShow);
   typedef enum {MEMORY, SYSTEM_INSTR, REGULAR, TRAP} PreCommit_type deriving(Eq, Bits, FShow);
   typedef enum {Machine=3, Supervisor=1, User=0} Privilege_mode 
                                                                           deriving(Eq, Bits, FShow);
@@ -287,7 +287,7 @@ package common_types;
   typedef union tagged{
     CommitTrap TRAP;
     CommitStore STORE;
-    CommitRegular REGULAR;
+    CommitRegular REG;
     CommitSystem SYSTEM;} CommitType deriving(Bits,Eq,FShow);
 
   typedef Tuple2#(CommitType,Bit#(1)) PIPE4;

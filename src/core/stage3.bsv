@@ -173,6 +173,9 @@ package stage3;
 		FIFOF#(MemoryReadReq#(VADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
     Wire#(Bit#(1)) wr_misa_c<-mkWire();
     Wire#(Bool) wr_storebuffer_empty<-mkWire();
+  `ifdef atomic
+    Reg#(Maybe#(Bit#(VADDR))) rg_loadreserved_addr <- mkReg(tagged Invalid);
+  `endif
 
     rule flush_mapping(wr_flush_from_exe!=None||wr_flush_from_wb);
       fwding.flush_mapping;
@@ -331,6 +334,23 @@ package stage3;
             Bit#(1) nanboxing=pack(cmtype==MEMORY && funct3[1:0]==2 && rdtype==FRF);
             if(cmtype==REGULAR)
               fwding.fwd_from_exe(out, rd_index);
+          `ifdef atomic
+            if(cmtype==MEMORY && memaccess==Atomic && fn=='b0101) begin // LR
+              rg_loadreserved_addr<= tagged Valid addr;
+              memaccess=Load;
+            end
+            else
+              rg_loadreserved_addr<= tagged Invalid;
+            if(cmtype==MEMORY && memaccess== Atomic && fn=='b0111) begin // SC
+              if(rg_loadreserved_addr matches tagged Valid .scaddr &&& scaddr == addr)begin
+                memaccess=Store;
+              end
+              else begin
+                out = 1;
+                cmtype = REGULAR;
+              end
+            end
+          `endif
             if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
               ff_memory_read_request.enq(tuple3(addr, epochs[0], funct3));
             end

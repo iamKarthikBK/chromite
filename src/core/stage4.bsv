@@ -99,7 +99,6 @@ package stage4;
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
     Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
     Wire#(Bool) wr_store_start<-mkDWire(False);
-    Reg#(Bit#(VADDR)) rg_reserved_addr <- mkReg(0);
 
 
     rule check_operation;
@@ -150,7 +149,7 @@ package stage4;
         temp1=tagged TRAP (CommitTrap{cause:trapcause, badaddr:badaddr, pc:pc});
       end
       else if(committype==REGULAR)begin
-        temp1=tagged REGULAR CommitRegular{commitvalue:commitvalue,
+        temp1=tagged REG CommitRegular{commitvalue:commitvalue,
                                           fflags:fflags,
                                           rdtype:rdtype,
                                           rd:rd,
@@ -167,7 +166,7 @@ package stage4;
       end
       else if(committype==MEMORY) begin
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
-
+          $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
           if(wr_memory_response matches tagged Valid .resp)begin
             let {data, err_fault, epochs}=resp;
             Bit#(ELEN) update_data = data<<loadoffset;
@@ -197,7 +196,7 @@ package stage4;
               end
               else
             `endif
-                temp1=tagged REGULAR CommitRegular{commitvalue:update_data,
+                temp1=tagged REG CommitRegular{commitvalue:update_data,
                                                  fflags:0,
                                                  rdtype:rdtype,
                                                  rd:rd,
@@ -228,16 +227,18 @@ package stage4;
           end
         end
         else if(memaccess==Store)begin
+          $display($time, "\tSTAGE4: PC: %h Store Operation.", simpc);
           temp1=tagged STORE CommitStore{pc:pc,
                                          rdindex:rdindex
                                        `ifdef atomic
                                          , rd: rd,  
-                                         commitvalue:?
+                                         commitvalue:0 
                                        `endif };
           storebuffer.allocate(badaddr, storedata, size);
         end
         else if(memaccess==Fence || memaccess==FenceI)begin
-          temp1=tagged REGULAR CommitRegular{commitvalue:?,
+          $display($time, "\tSTAGE4: PC: %h Fence Operation.", simpc);
+          temp1=tagged REG CommitRegular{commitvalue:?,
                                                  fflags:0,
                                                  rdtype:rdtype,
                                                  rd:rd,
@@ -268,6 +269,7 @@ package stage4;
   `endif
     interface  memory_read_response= interface Put
       method Action put (Maybe#(MemoryReadResp#(1)) response);
+        $display($time, "\tSTAGE4: Read Response: ", fshow(response));
         wr_memory_response <= response;
       endmethod
     endinterface;
