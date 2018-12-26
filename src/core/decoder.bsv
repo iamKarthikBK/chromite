@@ -167,7 +167,7 @@ package decoder;
     5'b00001: funct3=3'b011; // C.FLD
     5'b00101: funct3=3'b011; // C.FSD
     5'b10001: funct3=3'b011; // C.FLDSP
-    5'b10101: funct3=3'b010; // C.FSDSP
+    5'b10101: funct3=3'b011; // C.FSDSP
   `endif
     5'b01000:funct3=3'b000;
     5'b10000:funct3=3'b001;
