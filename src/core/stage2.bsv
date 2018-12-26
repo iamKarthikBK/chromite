@@ -259,6 +259,8 @@ package stage2;
       `ifdef spfpu
         txfpu.u.enq(t5);
       `endif
+      if(instrType==TRAP) // TODO removing this causes a corner case in rv32mi shamt test case.
+          rg_stall<=True;
 
         if(verbosity>0)begin
           $display($time, "\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpochs: %b WFI: %b ERR: %b", pc, inst, 
