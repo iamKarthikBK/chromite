@@ -234,6 +234,7 @@ package stage4;
                                          , rd: rd,  
                                          commitvalue:0 
                                        `endif };
+          wr_operand_fwding <= tagged Valid tuple2(0, rdindex);
           storebuffer.allocate(badaddr, storedata, size);
         end
         else if(memaccess==Fence || memaccess==FenceI)begin
