@@ -31,6 +31,6 @@ build32:
         - make regress opts='--filter=rv32[^!si][^!ud].*p --parallel=90 --sub'
         - make regress opts='--filter=rv32[^!si][^!ud].*p --final'
     only:
-        - 23-new-memory-subsystem-integration-with-pipeline
+        - master
     tags:
         - c-class-build-regression
