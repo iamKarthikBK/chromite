@@ -85,6 +85,7 @@ package stage4;
 
   (*synthesize*)
   module mkstage4(Ifc_stage4);
+    let verbosity = `VERBOSITY ;
     RX#(PIPE3) rxmin <- mkRX;
     TX#(PIPE4) txmin <- mkTX;
   `ifdef rtldump
@@ -166,13 +167,12 @@ package stage4;
       end
       else if(committype==MEMORY) begin
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
-          $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
+          if(verbosity>0)
+            $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
           if(wr_memory_response matches tagged Valid .resp)begin
             let {data, err_fault, epochs}=resp;
             Bit#(ELEN) update_data = data<<loadoffset;
             update_data= (update_data&~storemask)|(storehit);
-            $display($time, "\tSTAGE4: storehit: %h data: %h udpate_data: %h loadoffset: %d\
- storemask: %h",  storehit, data, update_data, loadoffset, storemask);
             update_data= update_data>>{loadoffset};
             if(size==0)
               update_data=sign==0?signExtend(update_data[7:0]):zeroExtend(update_data[7:0]);
@@ -223,11 +223,13 @@ package stage4;
           end
           else begin
             complete=False;
-            $display($time,"\tSTAGE4: Waiting for Memory Read Response");
+            if(verbosity>0)
+              $display($time,"\tSTAGE4: Waiting for Memory Read Response");
           end
         end
         else if(memaccess==Store)begin
-          $display($time, "\tSTAGE4: PC: %h Store Operation.", simpc);
+          if(verbosity>0)
+            $display($time, "\tSTAGE4: PC: %h Store Operation.", simpc);
           temp1=tagged STORE CommitStore{pc:pc,
                                          rdindex:rdindex
                                        `ifdef atomic
@@ -238,7 +240,8 @@ package stage4;
           storebuffer.allocate(badaddr, storedata, size);
         end
         else if(memaccess==Fence || memaccess==FenceI)begin
-          $display($time, "\tSTAGE4: PC: %h Fence Operation.", simpc);
+          if(verbosity>0)
+            $display($time, "\tSTAGE4: PC: %h Fence Operation.", simpc);
           temp1=tagged REG CommitRegular{commitvalue:?,
                                                  fflags:0,
                                                  rdtype:rdtype,
@@ -246,11 +249,9 @@ package stage4;
                                                  rdindex:rdindex};
         end
       end
-      `ifdef simulate
-        `ifdef rtldump
+      `ifdef rtldump
+        if(verbosity>1)
           $display($time,"\tSTAGE4: PC: %h Inst: %h",simpc,inst);
-        `endif
-        if(complete) $display($time,"\tSTAGE4: temp1: ",fshow(temp1));
       `endif
       if(complete)begin
         txmin.u.enq(tuple2(temp1,epoch));
@@ -270,7 +271,8 @@ package stage4;
   `endif
     interface  memory_read_response= interface Put
       method Action put (Maybe#(MemoryReadResp#(1)) response);
-        $display($time, "\tSTAGE4: Read Response: ", fshow(response));
+        if(verbosity>1)
+          $display($time, "\tSTAGE4: Read Response: ", fshow(response));
         wr_memory_response <= response;
       endmethod
     endinterface;
@@ -294,7 +296,8 @@ package stage4;
     endinterface;
     interface memory_write_response = interface Put
       method Action put(MemoryWriteResp r);
-        $display($time,"\tSTAGE4: Recieved Write response: %b",r);
+        if(verbosity>1)
+          $display($time,"\tSTAGE4: Recieved Write response: %b",r);
         storebuffer.deque;
         wr_store_response<=tagged Valid (tuple2(r,storebuffer.write_address));
       endmethod
