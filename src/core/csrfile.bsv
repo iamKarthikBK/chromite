@@ -732,7 +732,6 @@ package csrfile;
         let lv_mepc=rg_mepc;
         if(misa_c==0)
           lv_mepc[0]=0;
-        $display($time,"\tCSRFILE: MEPC value returned: %h", lv_mepc);
         return {lv_mepc,1'b0};
       end
     endmethod

@@ -107,10 +107,9 @@ package stage5;
       Bool fenceI=False;
       Bit#(VADDR) jump_address=?;
       Bool fl = False;
-      `ifdef simulate
-        `ifdef rtldump
+      `ifdef rtldump
+        if(verbosity>0)
           $display($time,"\tWBMEM: PC: %h: inst: %h commit: ",simpc,inst,fshow(commit));
-        `endif
       `endif
       if(rg_epoch==epoch)begin
         if(commit matches tagged TRAP .t)begin
@@ -133,7 +132,8 @@ package stage5;
         end
         else if (commit matches tagged STORE .s)begin
           if(!rg_store_initiated)begin // if store has not started yet.
-            $display($time,"\tSTAGE5: Initiating Store request");
+            if(verbosity>0)
+              $display($time,"\tSTAGE5: Initiating Store request");
             rg_store_initiated<=True;
             wr_initiate_store<=True;
           end
@@ -199,7 +199,8 @@ package stage5;
         end
         else if(commit matches tagged REG .r)begin
           // in case of regular instruction simply update RF and forward the data.
-          $display($time,"\tWBMEM: Regular commit");
+          if(verbosity>0)
+            $display($time,"\tWBMEM: Regular commit");
         `ifdef spfpu
           wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdtype));
           wr_rename <= tagged Valid (tuple3(r.rd, r.rdindex, r.rdtype));

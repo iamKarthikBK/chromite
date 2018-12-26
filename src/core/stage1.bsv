@@ -171,7 +171,8 @@ package stage1;
           ff_memory_response.deq;
           rg_action<=None;
           enque_instruction=False;
-          $display($time,"\tSTAGE1: Dropping Instruction from Cache");
+          if(verbosity>0)
+            $display($time,"\tSTAGE1: Dropping Instruction from Cache");
         end
         else if(rg_discard_lower && misa[2]==1)begin
           rg_discard_lower<=False;

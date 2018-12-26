@@ -478,7 +478,6 @@ package stage3;
     method Action update_wEpoch;
       wEpoch<= ~wEpoch;
       wr_flush_from_wb<= True;
-      $display($time,"\tEXECUTE: Flush from Write Back");
     endmethod
     method flush_from_exe=tuple2(wr_flush_from_exe, wr_redirect_pc);
     interface fwd_from_mem= interface Put

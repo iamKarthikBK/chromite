@@ -182,7 +182,8 @@ package stage2;
     `ifdef spfpu
       let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
     `endif
-      $display($time,"\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpoch: %b",pc,inst,epochs,{eEpoch,wEpoch});
+      if(verbosity>0)
+        $display($time,"\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpoch: %b",pc,inst,epochs,{eEpoch,wEpoch});
       if(rg_rerun && {eEpoch, wEpoch}==epochs)begin 
         OpMeta t1 = tuple5(?,?,?, pc, TRAP);
         OpData#(ELEN,FLEN) t2 = tuple3(?, ?, ?);
@@ -205,7 +206,8 @@ package stage2;
       rg_stall<=True;
       rg_rerun<=False;
       rg_fencei_rerun<=False;
-      $display($time,"\tDECODE: PC: %h Inst: %h Tagged as RERUN",pc,inst);
+      if(verbosity>0)
+        $display($time,"\tDECODE: Tagged as RERUN",pc,inst);
       end
       else if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
@@ -237,7 +239,6 @@ package stage2;
       `else
         Bit#(FLEN) op4=signExtend(imm);
       `endif
-        $display($time, "\tSTAGE2: Setting Rerun: %b", rerun);
         rg_rerun<=rerun;
         if(instrType==MEMORY && memaccess==FenceI)
           rg_fencei_rerun<=True;

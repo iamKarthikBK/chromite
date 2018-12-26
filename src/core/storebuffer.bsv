@@ -53,6 +53,7 @@ package storebuffer;
 
   (*synthesize*)
   module mkstorebuffer(Ifc_storebuffer);
+    let verbosity = `VERBOSITY ;
     let offset = valueOf(XLEN)==64?2:1;
     Reg#(Bit#(VADDR)) store_addr [ `buffsize ];
     Reg#(Bit#(ELEN))  store_data [ `buffsize ];
@@ -80,7 +81,8 @@ package storebuffer;
                           store_size[rg_tail-1]==1?'hffff:
                           store_size[rg_tail-1]==2?'hffffffff:'1;
         temp = temp << shiftamt1; 
-        $display($time,"\tSTOREBUFFER Addr1: %h Data1: %h Size: %h temp: %h rg_tail: %d",store_addr[rg_tail-1],
+        if(verbosity>0)
+          $display($time,"\tSTOREBUFFER Addr1: %h Data1: %h Size: %h temp: %h rg_tail: %d",store_addr[rg_tail-1],
                                      store_data[rg_tail-1],store_size[rg_tail-1], temp, rg_tail-1);
         storemask1 = temp;               // 'h00_00_00_FF
       end
@@ -90,7 +92,8 @@ package storebuffer;
                           store_size[rg_tail]==1?'hffff:
                           store_size[rg_tail]==2?'hffffffff:'1;
         temp = temp << shiftamt2;
-        $display($time,"\tSTOREBUFFER Addr1: %h Data1: %h Size: %h temp: %h rg_tail: %d",store_addr[rg_tail],
+        if(verbosity>0)
+          $display($time,"\tSTOREBUFFER Addr1: %h Data1: %h Size: %h temp: %h rg_tail: %d",store_addr[rg_tail],
                                        store_data[rg_tail],store_size[rg_tail], temp, rg_tail);
         storemask2 = temp&(~storemask1); // 'h00_00_00_FF
       end
@@ -106,7 +109,8 @@ package storebuffer;
         data=duplicate(data[15:0]);
       else if(size==2)
         data=duplicate(data[31:0]);
-      $display($time,"\tSOREBUFFER: Enquing Store Addr: %h Data: %h size: %b into Tail: %d",
+      if(verbosity>0)
+        $display($time,"\tSOREBUFFER: Enquing Store Addr: %h Data: %h size: %b into Tail: %d",
               addr, data, size, rg_tail);
       store_addr[rg_tail]<=addr;
       store_data[rg_tail]<=data;
@@ -115,7 +119,8 @@ package storebuffer;
       storequeue.enq(True);
     endmethod
     method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) perform_store ;
-      $display($time,"\tSTAGE4: Sending Store request for Addr:%h Data: %h size: %b",
+      if(verbosity>0)
+        $display($time,"\tSTAGE4: Sending Store request for Addr:%h Data: %h size: %b",
           store_addr[rg_head], store_data[rg_head], store_size[rg_head]);
       rg_head<=rg_head+1;
       return tuple3(truncate(store_addr[rg_head]),store_data[rg_head],store_size[rg_head]);
