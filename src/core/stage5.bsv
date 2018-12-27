@@ -68,6 +68,9 @@ package stage5;
     method Bit#(1) csr_misa_c;
     method Bool initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) r);
+  `ifdef cache_control
+    method Bit#(2) mv_cacheenable;
+  `endif
   endinterface
 
   (*synthesize*)
@@ -286,5 +289,8 @@ package stage5;
     method Action write_resp(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) r);
       wr_store_response<=r;
     endmethod
+  `ifdef cache_control
+    method mv_cacheenable = csr.mv_cacheenable;
+  `endif
   endmodule
 endpackage

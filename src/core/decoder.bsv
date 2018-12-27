@@ -98,6 +98,14 @@ package decoder;
             return True;
         end
       `endif
+    `ifdef cache_control
+      'h8: begin
+        if(csr_address[7:0]!=0)
+          return False;
+        else
+          return True;
+      end
+    `endif
 			'hB:begin
 				if( (csr_address[7:0]>('h2+ `Counters) `ifndef RV64 && csr_address[7:0]<'h80) ||
              csr_address[7:0]>('h82+ `Counters)) `else )) `endif 

@@ -103,7 +103,7 @@ package cclass_bare;
 	  mkConnection(icache.core_resp, riscv.inst_response); // icache integration
      
     rule drive_constants;
-		  icache.cache_enable(True);
+		  icache.cache_enable(unpack(riscv.mv_cacheenable[0]));
     endrule
 
 	  rule handle_icache_request;
