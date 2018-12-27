@@ -33,6 +33,7 @@ package stage4;
   import FIFOF::*;
   import DReg::*;
   import SpecialFIFOs::*;
+  import CustomFIFOs::*;
   import BRAMCore::*;
   import FIFO::*;
   import TxRx::*;
@@ -95,7 +96,7 @@ package stage4;
     Ifc_storebuffer storebuffer <- mkstorebuffer();
     // wire that captures the response coming from the external memory or cache.
     Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
-    FIFOF#(MemoryReadResp#(1)) ff_memory_response <- mkUGSizedFIFOF(2);
+    FIFOF#(MemoryReadResp#(1)) ff_memory_response <- mkUGBypassFIFOF();
     // wire that carriues the information for operand forwarding
     Wire#(Maybe#(Tuple2#(Bit#(ELEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
