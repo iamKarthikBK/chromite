@@ -43,7 +43,7 @@ package SoC;
   `include "SoC.defines"
 
   // peripheral imports
-  import memory::*;
+  import bram::*;
   import bootrom:: *;
   import uart::*;
   import clint::*;
@@ -114,8 +114,8 @@ package SoC;
     Ifc_sign_dump signature<- mksign_dump();
     AXI4_Fabric_IFC #(`Num_Masters, `Num_Slaves, PADDR, ELEN, USERSPACE) 
                                                     fabric <- mkAXI4_Fabric(fn_slave_map);
- 		Ifc_memory_AXI4#(PADDR, ELEN, USERSPACE, `Addr_space) main_memory <- mkmemory_AXI4(`MemoryBase, 
-                                                "code.mem.MSB", "code.mem.LSB");
+ 		Ifc_bram_axi4#(PADDR, ELEN, USERSPACE, `Addr_space) main_memory <- mkbram_axi4(`MemoryBase, 
+                                                "code.mem.MSB", "code.mem.LSB", "MainMEM");
 		Ifc_bootrom_axi4#(PADDR, ELEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
 	  Ifc_uart_axi4#(PADDR,ELEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);
     Ifc_clint_axi4#(PADDR,ELEN,0,1) clint <- mkclint_axi4();
