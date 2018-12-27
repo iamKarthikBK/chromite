@@ -51,9 +51,12 @@ package riscv;
     method Action clint_mtip(Bit#(1) intrpt);
     method Action clint_mtime(Bit#(64) c_mtime);
 	  method Action set_external_interrupt(Bit#(1) ex_i);
-    `ifdef rtldump
-      interface Get#(DumpType) dump;
-    `endif
+  `ifdef rtldump
+    interface Get#(DumpType) dump;
+  `endif
+  `ifdef cache_control
+    method Bit#(2) mv_cacheenable;
+  `endif
   endinterface
 
   (*synthesize*)
@@ -209,6 +212,9 @@ package riscv;
 		interface memory_write_request=stage4.memory_write_request;
     interface memory_write_response=stage4.memory_write_response;
 	  method Action set_external_interrupt(Bit#(1) ex_i)=stage5.set_external_interrupt(ex_i);
+  `ifdef cache_control
+    method mv_cacheenable = stage5.mv_cacheenable;
+  `endif
   endmodule
 
 endpackage

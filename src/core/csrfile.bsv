@@ -47,17 +47,20 @@ package csrfile;
     method ActionValue#(Bit#(VADDR)) upd_on_trap(Bit#(6) cause, Bit#(VADDR) pc, Bit#(VADDR) tval);
     method Action incr_minstret;
     method Bool interrupt;
-    `ifdef RV64 method Bool inferred_xlen; `endif // False-32bit,  True-64bit 
-		`ifdef supervisor
-			method Bit#(XLEN) send_satp;
-			method Chmod perm_to_TLB;
-		`endif
-    `ifdef spfpu
-  		method Bit#(3) roundingmode;
-      method Action update_fflags(Bit#(5) flags);
-    `endif
+  `ifdef RV64 method Bool inferred_xlen; `endif // False-32bit,  True-64bit 
+	`ifdef supervisor
+		method Bit#(XLEN) send_satp;
+		method Chmod perm_to_TLB;
+	`endif
+  `ifdef spfpu
+  	method Bit#(3) roundingmode;
+    method Action update_fflags(Bit#(5) flags);
+  `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
+  `ifdef cache_control
+    method Bit#(2) mv_cacheenable;
+  `endif
   endinterface
 
   function Reg#(Bit#(a)) extInterruptReg(Reg#(Bit#(a)) r1, Reg#(Bit#(a)) r2);
@@ -347,6 +350,13 @@ package csrfile;
      Reg#(Bit#(5)) fflags <- mkReg(0);
      Reg#(Bit#(3)) frm <- mkReg(0);
 	  //////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////// None Standard User RW CSRs /////////////////////////////////
+  `ifdef cache_control
+    // 0-bit is cache enable for instruction cache
+    // 1-bit is cache enable for data cache
+    // Address: 'h800
+    Reg#(Bit#(2)) rg_cachecontrol <- mkReg(`icachereset ); 
+  `endif
     
     Bit#(12) csr_mip= {rg_meip, heip, seip, rg_ueip, rg_mtip, htie, stie, rg_utip, rg_msip,
                           hsip, ssip, rg_usip};
@@ -472,6 +482,9 @@ package csrfile;
         if (addr == `FFLAGS ) data=zeroExtend(fflags);
         if (addr == `FRM ) data=zeroExtend(frm);
         if (addr == `FCSR ) data=zeroExtend({frm, fflags});
+      `ifdef cache_control
+        if (addr ==`CACHECNTRL ) data = zeroExtend(rg_cachecontrol);
+      `endif
         return data;
     endmethod
 
@@ -681,6 +694,11 @@ package csrfile;
             rg_ucause<= truncate(word);
           end
         `endif
+        /////////////////////////////// Non standard User CSRs  ////////////////////
+      `ifdef cache_control
+        `CACHECNTRL:
+          rg_cachecontrol <= truncate(word);
+      `endif
         default: noAction;
       endcase
     endmethod
@@ -879,5 +897,8 @@ package csrfile;
       `endif
 	  endmethod
     method csr_misa_c=misa_c;
+  `ifdef cache_control
+    method mv_cacheenable = rg_cachecontrol;
+  `endif
   endmodule
 endpackage

@@ -71,6 +71,12 @@
 `ifdef supervisor
   `define non_m_traps True
 `endif
+`ifdef icache
+  `define cache_control
+`endif
+`ifdef dcache
+  `define cache_control
+`endif
 /////////////////////////////////////////////////////////////////////////
 ////////////////////// opcode definitions of ISA ////////////////////////
 `define AUIPC_op			    'b00101

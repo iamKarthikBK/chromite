@@ -63,6 +63,9 @@ package csr;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
+  `ifdef cache_control
+    method Bit#(2) mv_cacheenable;
+  `endif
   endinterface:Ifc_csr
 
 
@@ -167,5 +170,8 @@ package csr;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=csrfile.set_external_interrupt(ex_i);
     method csr_misa_c=csrfile.csr_misa_c;
+  `ifdef cache_control
+    method mv_cacheenable = csrfile.mv_cacheenable;
+  `endif
   endmodule
 endpackage

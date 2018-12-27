@@ -55,4 +55,6 @@
 `define SIP       'h144 // Supervisor interrupt pending
 `define SATP      'h180 // Supervisor address translation and protection
 ////////////////////////////////////////////////////////////////////////////////////
+////////////////////////// Non-Standard User RW CSRS ///////////////////////////////
+`define CACHECNTRL 'h800 // cache control register
 
