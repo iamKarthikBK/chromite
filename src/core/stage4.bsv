@@ -33,6 +33,7 @@ package stage4;
   import FIFOF::*;
   import DReg::*;
   import SpecialFIFOs::*;
+  import CustomFIFOs::*;
   import BRAMCore::*;
   import FIFO::*;
   import TxRx::*;
@@ -53,7 +54,7 @@ package stage4;
       interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
       interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;
     `endif
-    interface Put#(Maybe#(MemoryReadResp#(1))) memory_read_response;
+    interface Put#(MemoryReadResp#(1)) memory_read_response;
 
 		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
@@ -95,6 +96,7 @@ package stage4;
     Ifc_storebuffer storebuffer <- mkstorebuffer();
     // wire that captures the response coming from the external memory or cache.
     Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
+    FIFOF#(MemoryReadResp#(1)) ff_memory_response <- mkUGBypassFIFOF();
     // wire that carriues the information for operand forwarding
     Wire#(Maybe#(Tuple2#(Bit#(ELEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
@@ -169,56 +171,64 @@ package stage4;
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
           if(verbosity>0)
             $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
-          if(wr_memory_response matches tagged Valid .resp)begin
-            let {data, err_fault, epochs}=resp;
-            Bit#(ELEN) update_data = data<<loadoffset;
-            update_data= (update_data&~storemask)|(storehit);
-            update_data= update_data>>{loadoffset};
-            if(size==0)
-              update_data=sign==0?signExtend(update_data[7:0]):zeroExtend(update_data[7:0]);
-            else if(size==1)
-              update_data=sign==0?signExtend(update_data[15:0]):zeroExtend(update_data[15:0]);
-            else if(size==2)
-                update_data=sign==0?signExtend(update_data[31:0]):zeroExtend(update_data[31:0]);
-            `ifdef dpfpu
-              if(nanboxing==1)
-                  update_data[63:32]='1;
-            `endif
-            if(err_fault==0 )begin // no bus error
-              wr_operand_fwding <= tagged Valid tuple2(update_data, rdindex);
-            `ifdef atomic
-              if(memaccess==Atomic)begin
-                temp1=tagged STORE CommitStore{pc:pc,
-                                               rdindex:rdindex, 
-                                               rd: rd,  
-                                               commitvalue:update_data};
-                storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
-              end
-              else
-            `endif
-                temp1=tagged REG CommitRegular{commitvalue:update_data,
-                                                 fflags:0,
-                                                 rdtype:rdtype,
-                                                 rd:rd,
-                                                 rdindex:rdindex};
-            end
-            else begin
-              if(err_fault[0]==1)begin
-              `ifdef atomic 
-                if(memaccess==Atomic)
-                  temp1=tagged TRAP CommitTrap{cause:`Store_access_fault, badaddr:badaddr, pc:pc};
+          if(ff_memory_response.notEmpty)begin
+            let {data, err_fault, epochs}=ff_memory_response.first;
+            ff_memory_response.deq;
+            if(epochs==rg_epoch)begin
+              Bit#(ELEN) update_data = data<<loadoffset;
+              update_data= (update_data&~storemask)|(storehit);
+              update_data= update_data>>{loadoffset};
+              if(size==0)
+                update_data=sign==0?signExtend(update_data[7:0]):zeroExtend(update_data[7:0]);
+              else if(size==1)
+                update_data=sign==0?signExtend(update_data[15:0]):zeroExtend(update_data[15:0]);
+              else if(size==2)
+                  update_data=sign==0?signExtend(update_data[31:0]):zeroExtend(update_data[31:0]);
+              `ifdef dpfpu
+                if(nanboxing==1)
+                    update_data[63:32]='1;
+              `endif
+              if(err_fault==0 )begin // no bus error
+                wr_operand_fwding <= tagged Valid tuple2(update_data, rdindex);
+              `ifdef atomic
+                if(memaccess==Atomic)begin
+                  temp1=tagged STORE CommitStore{pc:pc,
+                                                 rdindex:rdindex, 
+                                                 rd: rd,  
+                                                 commitvalue:update_data};
+                  storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
+                end
                 else
               `endif
-                  temp1=tagged TRAP CommitTrap{cause:`Load_access_fault, badaddr:badaddr, pc:pc};
+                  temp1=tagged REG CommitRegular{commitvalue:update_data,
+                                                   fflags:0,
+                                                   rdtype:rdtype,
+                                                   rd:rd,
+                                                   rdindex:rdindex};
               end
               else begin
-              `ifdef atomic 
-                if(memaccess==Atomic)
-                  temp1=tagged TRAP CommitTrap{cause:`Store_pagefault, badaddr:badaddr, pc:pc};
-                else
-              `endif
-                temp1=tagged TRAP CommitTrap{cause:`Load_pagefault, badaddr:badaddr, pc:pc};
+                if(err_fault[0]==1)begin
+                `ifdef atomic 
+                  if(memaccess==Atomic)
+                    temp1=tagged TRAP CommitTrap{cause:`Store_access_fault, badaddr:badaddr, pc:pc};
+                  else
+                `endif
+                    temp1=tagged TRAP CommitTrap{cause:`Load_access_fault, badaddr:badaddr, pc:pc};
+                end
+                else begin
+                `ifdef atomic 
+                  if(memaccess==Atomic)
+                    temp1=tagged TRAP CommitTrap{cause:`Store_pagefault, badaddr:badaddr, pc:pc};
+                  else
+                `endif
+                  temp1=tagged TRAP CommitTrap{cause:`Load_pagefault, badaddr:badaddr, pc:pc};
+                end
               end
+            end
+            else begin
+              complete=False;
+            if(verbosity>0)
+              $display($time,"\tSTAGE4: Dropping Memory Read Response");
             end
           end
           else begin
@@ -270,10 +280,10 @@ package stage4;
     interface tx_inst = txinst.e;
   `endif
     interface  memory_read_response= interface Put
-      method Action put (Maybe#(MemoryReadResp#(1)) response);
+      method Action put (MemoryReadResp#(1) response)if(ff_memory_response.notFull);
         if(verbosity>1)
           $display($time, "\tSTAGE4: Read Response: ", fshow(response));
-        wr_memory_response <= response;
+        ff_memory_response.enq(response);
       endmethod
     endinterface;
     interface fwd_from_mem = interface Get

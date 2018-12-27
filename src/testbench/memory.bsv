@@ -74,6 +74,9 @@ package memory;
 			Bit#(TSub#(mem_size,2)) index_address=(addr - base_address)[valueOf(mem_size)-1:byte_offset+1];
 			dmemLSB.b.put(truncate(strb),index_address,truncate(data));
 			dmemMSB.b.put(truncateLSB(strb),index_address,truncateLSB(data));
+  		if(verbosity!= 0)
+        $display($time, "\tMainMem: Recieved Write Request for Address: %h Index: %d Data: %h strb:\
+ %h", addr,index_address,data,strb);
   	endmethod
   
     // The write response will always be an error.
@@ -88,7 +91,7 @@ package memory;
       dmemMSB.a.put(0, index_address, ?);
       read_request_sent<= True;
   		if(verbosity!= 0)
-        $display($time, "\tBootROM: Recieved Read Request for Address: %h Index Address: %h",  
+        $display($time, "\tMainMem: Recieved Read Request for Address: %h Index Address: %d",  
                                                                             addr, index_address);
   	endmethod
   
@@ -194,7 +197,7 @@ package memory;
       AXI4_Rd_Data#(dwidth, uwidth) r = AXI4_Rd_Data {rresp: AXI4_OKAY, rdata: data0 , 
         rlast:rg_readburst_counter==rg_read_packet.arlen, ruser: 0, rid:rg_read_packet.arid};
   		if(verbosity!=0) 
-        $display($time, "\tBootROM : Responding Read Request with Data: %h ",data0);
+        $display($time, "\tMainMem : Responding Read Request with Data: %h ",data0);
       s_xactor.i_rd_data.enq(r);
     endrule
     interface slave = s_xactor.axi_side;
@@ -252,7 +255,7 @@ package memory;
       AXI4_Lite_Rd_Data#(dwidth, uwidth) r = AXI4_Lite_Rd_Data {rresp: AXI4_LITE_OKAY, rdata: data0 , 
         ruser: 0};
   		if(verbosity!=0) 
-        $display($time, "\tBootROM : Responding Read Request with Data: %h ",data0);
+        $display($time, "\tMainMem : Responding Read Request with Data: %h ",data0);
       s_xactor.i_rd_data.enq(r);
     endrule
     interface slave = s_xactor.axi_side;
@@ -318,7 +321,7 @@ package memory;
       D_channel_lite#(w, z) lv_resp=D_channel_lite { d_opcode : AccessAckData, d_size : rg_size, 
             d_source : rg_source, d_sink : ?, d_data : data0, d_error : False};
   		if(verbosity!=0) 
-        $display($time, "\tBootROM : Responding Read Request with Data: %h ", data0);
+        $display($time, "\tMainMem : Responding Read Request with Data: %h ", data0);
 	  	read_xactor.core_side.xactor_response.put(lv_resp);
     endrule
     interface read_slave = read_xactor.fabric_side;

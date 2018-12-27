@@ -163,15 +163,30 @@ package decoder;
     case (opcode)
     
     5'b00000:funct3=3'b000;
+  `ifdef dpfpu
+    5'b00001: funct3=3'b011; // C.FLD
+    5'b00101: funct3=3'b011; // C.FSD
+    5'b10001: funct3=3'b011; // C.FLDSP
+    5'b10101: funct3=3'b011; // C.FSDSP
+  `endif
     5'b01000:funct3=3'b000;
     5'b10000:funct3=3'b001;
     5'b01001:funct3=3'b000;
     5'b00010:funct3=3'b010;
     5'b01010:funct3=3'b000;
     5'b10010:funct3=3'b010;
-    5'b00011:funct3=3'b011;
+  `ifdef RV64
+    5'b00011:funct3=3'b011; // C.LD
+    5'b00111:funct3=3'b011; // C.SD
+    5'b10011:funct3=3'b011; // C.LDSP
+    5'b10111:funct3=3'b011; // C.SDSP
+  `elsif spfpu
+    5'b00011:funct3=3'b010; // C.FLW
+    5'b00111:funct3=3'b010; // C.FSW
+    5'b10011:funct3=3'b010; // C.FLWSP
+    5'b10111:funct3=3'b010; // C.FSWSP
+  `endif
     5'b01011:funct3=3'b000;
-    5'b10011:funct3=3'b011;
     5'b01100:
             if((inst[11:10]==2'b00)||(inst[11:10]==2'b01))
                 funct3=3'b101;//SRLI,SRAI
@@ -191,8 +206,6 @@ package decoder;
     5'b00110:funct3=3'b010;
     5'b01110:funct3=3'b000;
     5'b10110:funct3=3'b010;
-    5'b10111:funct3=3'b011;
-    5'b00111:funct3=3'b011;
     5'b01111:funct3=3'b001;
     default:funct3=3'b000;
     endcase

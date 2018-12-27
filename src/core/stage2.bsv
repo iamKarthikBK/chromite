@@ -207,7 +207,7 @@ package stage2;
       rg_rerun<=False;
       rg_fencei_rerun<=False;
       if(verbosity>0)
-        $display($time,"\tDECODE: Tagged as RERUN",pc,inst);
+        $display($time,"\tDECODE: Tagged as RERUN");
       end
       else if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
