@@ -48,6 +48,7 @@ package cclass_bare;
 
   `define Mem_master_num 0
   `define Fetch_master_num 1
+  `define IO_master_num 2
 
   // package imports
 	import Connectable 				:: *;
@@ -75,6 +76,9 @@ package cclass_bare;
   interface Ifc_cclass_axi4;
 		interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_d;
 		interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_i;
+  `ifdef cache_control
+    interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_io;
+  `endif
     interface Put#(Bit#(1)) sb_clint_msip;
     interface Put#(Bit#(1)) sb_clint_mtip;
     interface Put#(Bit#(64)) sb_clint_mtime;
@@ -91,6 +95,7 @@ package cclass_bare;
     Ifc_riscv riscv <- mkriscv();
 		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
 		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) io_xactor <- mkAXI4_Master_Xactor;
     Reg#(TxnState) fetch_state<- mkReg(Request);
     FIFOF#(Tuple2#(Bit#(3),Bit#(1))) ff_rd_epochs <- mkSizedFIFOF(6);
 
@@ -106,26 +111,48 @@ package cclass_bare;
 		  icache.cache_enable(unpack(riscv.mv_cacheenable[0]));
     endrule
 
-	  rule handle_icache_request;
+	  rule handle_icache_line_request;
 	  	let {inst_addr, burst_len, burst_size} <- icache.read_mem_req.get;
       if(vaddr>paddr)begin
         Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
         if(upperbits!=0)
           inst_addr=0;
       end
-	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, arlen: 7, 
-	  	arsize: 2, arburst: 'b10, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
+	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+        arlen: burst_len , arsize: 2, arburst: 'b10, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    fetch_xactor.i_rd_addr.enq(icache_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\ticache: icache Requesting ", fshow(icache_request));
+	  	  $display($time, "\tCORE: ICACHE Line Requesting ", fshow(icache_request));
 	  endrule
 
-	  rule handle_fabric_resp;
+	  rule handle_icache_line_resp;
 	    let fab_resp <- pop_o (fetch_xactor.o_rd_data);
 	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
       icache.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\ticache: icache receiving Response ", fshow(fab_resp));
+	  	  $display($time, "\tCORE: ICACHE Line Response ", fshow(fab_resp));
+	  endrule
+	  
+    rule handle_icache_nc_request;
+	  	let {inst_addr, burst_len, burst_size} <- icache.nc_read_req.get;
+      if(vaddr>paddr)begin
+        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+        if(upperbits!=0)
+          inst_addr=0;
+      end
+	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+        arlen: burst_len , arsize: 2, arburst: 'b10, arid:`IO_master_num }; // arburst: 00-FIXED 01-INCR 10-WRAP
+	    io_xactor.i_rd_addr.enq(icache_request);
+	  	if(verbosity!=0)
+	  	  $display($time, "\tCORE: Icache IO Requesting ", fshow(icache_request));
+	  endrule
+
+	  rule handle_icache_nc_resp;
+	    let fab_resp <- pop_o (io_xactor.o_rd_data);
+	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
+      icache.nc_read_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
+	  	if(verbosity!=0)
+	  	  $display($time, "\tCORE: ICACHE Line Response ", fshow(fab_resp));
 	  endrule
 
   `else 
@@ -308,6 +335,9 @@ package cclass_bare;
     endinterface;
 		interface master_i= fetch_xactor.axi_side;
 		interface master_d= memory_xactor.axi_side;
+  `ifdef cache_control
+    interface master_io=io_xactor.axi_side;
+  `endif
     `ifdef rtldump
       interface io_dump=riscv.dump;
     `endif
