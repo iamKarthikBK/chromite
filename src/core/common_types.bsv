@@ -65,10 +65,10 @@ package common_types;
   	typedef enum {CheckRPC, None} Flush_type deriving (Bits, Eq, FShow);
   `endif
   typedef enum {Regular, None} Flush_type2 deriving (Bits, Eq, FShow);
-	typedef enum {`ifdef spfpu FloatingRF, `endif IntegerRF, PC} Op1type deriving(Bits, Eq, FShow);
-	typedef enum {`ifdef spfpu FloatingRF, `endif IntegerRF, Immediate, Constant4, Constant2} 
+	typedef enum {`ifdef spfpu FloatingRF=2, `endif IntegerRF=0, PC=1} Op1type deriving(Bits, Eq, FShow);
+	typedef enum {`ifdef spfpu FloatingRF=4, `endif IntegerRF=0, Immediate=1, Constant4=2, Constant2=3} 
                                                                   Op2type deriving(Bits, Eq, FShow);
-  typedef enum {FRF, IRF} Op3type deriving(Bits, Eq, FShow);
+  typedef enum {FRF=1, IRF=0} RFType deriving(Bits, Eq, FShow);
 //  typedef enum {SYSTEM_INSTR, REGULAR, TRAP} Commit_type deriving(Eq, Bits, FShow);
   typedef enum {MEMORY, SYSTEM_INSTR, REGULAR, TRAP} PreCommit_type deriving(Eq, Bits, FShow);
   typedef enum {Machine=3, Supervisor=1, User=0} Privilege_mode 
@@ -90,7 +90,7 @@ package common_types;
     typedef Tuple4#(OpType_min,DecodeMeta, Bool, Bool) DecodeOut;
 
   //                 rs3     rs3 type , rd type
-    typedef Tuple3#(Bit#(5), Op3type, Op3type) OpType_fpu;
+    typedef Tuple3#(Bit#(5), RFType, RFType) OpType_fpu;
   // ------------------------------------------------------------------------------------------
 
   `ifdef spfpu
@@ -111,7 +111,7 @@ package common_types;
   typedef Tuple8#(Privilege_mode, Bit#(12), Bit#(12), Bit#(12), Bit#(26), Bit#(3), 
                    Bit#(1), Bit#(1)) CSRtoDecode;
 
-  typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), Op3type) DumpType;
+  typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), RFType) DumpType;
   
   typedef struct {
   	Bit#(addr_width) pc;
@@ -167,7 +167,7 @@ package common_types;
                 ) MetaData;
   typedef Tuple3#(OpMeta, OpData#(msize,t), MetaData) PIPE2_min#(numeric type msize, numeric type t);
   typedef Tuple2#(Bit#(3), // rs3 index
-                 Op3type // rdtype
+                 RFType // rdtype
                 ) OpFpu;
 
   // -------------------------------------------------------------
@@ -269,7 +269,7 @@ package common_types;
   typedef struct{
     Bit#(ELEN) commitvalue;
     Bit#(5) fflags;
-    Op3type rdtype;
+    RFType rdtype;
     Bit#(5) rd;
     Bit#(3) rdindex;
     }CommitRegular deriving(Bits,Eq,FShow);
@@ -279,7 +279,7 @@ package common_types;
     Bit#(2) lpc;
     Bit#(12) csraddr;
     Bit#(3) func3;
-    Op3type rdtype;
+    RFType rdtype;
     Bit#(5) rd;
     Bit#(3) rdindex;
     }CommitSystem deriving(Bits,Eq,FShow);
@@ -305,8 +305,8 @@ package common_types;
   } Chmod deriving(Bits, Eq);
 
   `ifdef spfpu
-    typedef Tuple3#(Bit#(5), Bit#(ELEN), Op3type) CommitData;
-    typedef Tuple3#(Bit#(5), Bit#(TLog#(PRFDEPTH)), Op3type) CommitRename;
+    typedef Tuple3#(Bit#(5), Bit#(ELEN), RFType) CommitData;
+    typedef Tuple3#(Bit#(5), Bit#(TLog#(PRFDEPTH)), RFType) CommitRename;
   `else
     typedef Tuple2#(Bit#(5), Bit#(XLEN)) CommitData;
     typedef Tuple2#(Bit#(5), Bit#(TLog#(PRFDEPTH))) CommitRename;
