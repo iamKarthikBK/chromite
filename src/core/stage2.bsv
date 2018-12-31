@@ -92,7 +92,6 @@ package stage2;
 
 	interface Ifc_stage2;
 		method Action commit_rd (Maybe#(CommitData) commit);
-    method Action update_renaming (Maybe#(CommitRename) commit);
 		/* ===== pipe connections ========= */
 		interface RXe#(PIPE1_min) rx_min;
     `ifdef bpu
@@ -120,13 +119,10 @@ package stage2;
     method Action clear_stall (Bool upd);
 		method Action update_eEpoch;
 		method Action update_wEpoch;
-    method Tuple2#(Bool, Bit#(TLog#(PRFDEPTH))) fetch_rd_index;
-    method Action reset_renaming;
 	endinterface:Ifc_stage2
 
   (*synthesize*)
-  (*conflict_free="commit_rd, decode_and_fetch"*)
-  (*preempts="reset_renaming, decode_and_fetch"*)
+//  (*conflict_free="commit_rd, decode_and_fetch"*)
   module mkstage2(Ifc_stage2);
 
     Ifc_registerfile registerfile <-mkregisterfile();
@@ -157,8 +153,6 @@ package stage2;
     Reg#(Bool) rg_rerun <- mkReg(False);
     Reg#(Bool) rg_fencei_rerun <- mkReg(False);
     Wire#(Bool) wr_op_complete <-mkDWire(False);
-    Reg#(Bit#(TLog#(PRFDEPTH))) rd_index <- mkReg(0);
-    Wire#(Bit#(TLog#(PRFDEPTH))) wr_rd_index <- mkDWire(0);
 
     rule decode_and_fetch(!rg_stall);
       let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=wr_csrs;
@@ -182,10 +176,12 @@ package stage2;
     `ifdef spfpu
       let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
     `endif
+      RFType rf1type = `ifdef spfpu rs1type==FloatingRF?FRF: `endif IRF;
+      RFType rf2type = `ifdef spfpu rs2type==FloatingRF?FRF: `endif IRF;
       if(verbosity>0)
         $display($time,"\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpoch: %b",pc,inst,epochs,{eEpoch,wEpoch});
       if(rg_rerun && {eEpoch, wEpoch}==epochs)begin 
-        OpMeta t1 = tuple5(?,?,?, pc, TRAP);
+        OpMeta t1 = tuple4(?,?, pc, TRAP);
         OpData#(ELEN,FLEN) t2 = tuple3(?, ?, ?);
         MetaData t3 = tuple5(?, rg_fencei_rerun?`IcacheFence:`Rerun , ?, ?, epochs);
         PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
@@ -211,19 +207,16 @@ package stage2;
       end
       else if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
-        if(rd_index==fromInteger(valueOf(PRFDEPTH)-1))
-          rd_index<= 0;
-        else
-          rd_index<= rd_index+ 1;
-        wr_rd_index<= rd_index;
-
-        let {rs1, rs2 , rs1index, rs2index `ifdef spfpu ,rs3 ,rs3index `endif }
-             <-registerfile.opaddress(rs1addr, rs2addr, rd, rd_index
-              `ifdef spfpu , rs1type, rs2type, rs3addr, rs3type, rdtype `endif );
+        let rs1 <- registerfile.read_rs1(rs1addr `ifdef spfpu ,rf1type `endif );
+        let rs2 <- registerfile.read_rs2(rs2addr `ifdef spfpu ,rf2type `endif );
+      `ifdef spfpu
+        let rs3 <- registerfile.read_rs3(rs3addr);
+      `endif
 
         Bit#(TMax#(XLEN,FLEN)) op1=(rs1type==PC)?signExtend(pc):rs1;
-        Bit#(TMax#(XLEN,FLEN)) op2=(rs2type==Constant2 && misa[2]==1)?'d2:
-                       (rs2type==Constant4)?'d4: (rs2type==Immediate)?signExtend(imm):rs2;
+        Bit#(TMax#(XLEN,FLEN)) op2=(rs2type==Constant2)?'d2: // constant2 only is C enabled.
+                                   (rs2type==Constant4)?'d4:
+                                   (rs2type==Immediate)?signExtend(imm):rs2;
         Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
         if(instrType==TRAP)begin
           if(func_cause==`Inst_access_fault )
@@ -242,12 +235,12 @@ package stage2;
         rg_rerun<=rerun;
         if(instrType==MEMORY && memaccess==FenceI)
           rg_fencei_rerun<=True;
-        OpMeta t1 = tuple5(rs1index, rs2index, rd_index, op3, instrType);
+        OpMeta t1 = tuple4(rs1addr, rs2addr, op3, instrType);
         OpData#(ELEN,FLEN) t2 = tuple3(op1, op2, op4);
         MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);
         PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
       `ifdef spfpu
-        OpFpu t5 = tuple2(rs3index, rdtype);
+        OpFpu t5 = tuple2(rs3addr, rdtype);
       `endif
 
         txmin.u.enq(t4);
@@ -260,7 +253,7 @@ package stage2;
       `ifdef spfpu
         txfpu.u.enq(t5);
       `endif
-      if(instrType==TRAP) // TODO removing this causes a corner case in rv32mi shamt test case.
+        if(instrType==TRAP)
           rg_stall<=True;
 
         if(verbosity>0)begin
@@ -270,8 +263,7 @@ package stage2;
               `ifdef spfpu ," rs3addr: %d",rs3addr `endif );
           $display($time, "\tDECODE: rs1type: ", fshow(rs1type), " rs2type ", fshow(rs2type)
             `ifdef spfpu ," rs3type: ",fshow(rs3type) `endif );
-          $display($time, "\tDECODE: rs1index: %d rs2index: %d rdindex: %d instrtype: ", rs1index,
-          rs2index, rd_index, fshow(instrType) `ifdef spfpu ,", rs3index:%d", rs3index `endif );
+          $display($time, "\tDECODE: instrtype: ", fshow(instrType));
           $display($time, "\tDECODE: op1: %h op2: %h op3: %h op4: %h", op1, op2, op3, op4);
           $display($time, "\tDECODE: rd: %d, rdtype: ",rd, `ifdef spfpu fshow(rdtype), `endif 
               " word32: %b, memaccess:",  word32, fshow(memaccess));
@@ -317,9 +309,6 @@ package stage2;
 		method Action commit_rd (Maybe#(CommitData) commit);
       registerfile.commit_rd(commit);
     endmethod
-    method Action update_renaming (Maybe#(CommitRename) commit);
-      registerfile.update_renaming(commit);
-    endmethod
 
     // This method will get activated when there is a flush from the execute stage
 		method Action update_eEpoch;
@@ -339,7 +328,5 @@ package stage2;
         rg_rerun<= False;
       end
     endmethod
-    method fetch_rd_index = tuple2(wr_op_complete, wr_rd_index);
-    method reset_renaming=registerfile.reset_renaming;
   endmodule
 endpackage

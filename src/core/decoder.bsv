@@ -769,8 +769,8 @@ package decoder;
   (*noinline*)
   function OpType_fpu decode_fpu_meta(Bit#(32) inst, Bit#(1) misa_c);
     Bit#(5) rs3=inst[31:27];
- 		Op3type rs3type=FRF;
-    Op3type rdtype=IRF;
+ 		RFType rs3type=FRF;
+    RFType rdtype=IRF;
 
 		Bit#(5) opcode= inst[6:2];
     Bool r4type= (opcode[4:2]=='b100);

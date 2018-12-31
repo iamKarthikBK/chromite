@@ -149,9 +149,8 @@ package common_types;
   
   // ---------- Tuples for the second Pipeline Stage -----------//
 
-  typedef Tuple5#(Bit#(3), // rs1index
-                 Bit#(3), // rs2index
-                 Bit#(3), // rs3index
+  typedef Tuple4#(Bit#(5), // rs1addr
+                 Bit#(5), // rs2addr
                  Bit#(VADDR), // pc_rs1,
                  Instruction_type)  OpMeta;
   typedef Tuple3#(
@@ -166,7 +165,7 @@ package common_types;
                  Bit#(2) // epochs
                 ) MetaData;
   typedef Tuple3#(OpMeta, OpData#(msize,t), MetaData) PIPE2_min#(numeric type msize, numeric type t);
-  typedef Tuple2#(Bit#(3), // rs3 index
+  typedef Tuple2#(Bit#(5), // rs3addr
                  RFType // rdtype
                 ) OpFpu;
 
