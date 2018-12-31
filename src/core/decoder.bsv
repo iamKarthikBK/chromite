@@ -819,31 +819,52 @@ package decoder;
     return word32;
   endfunction
   
-  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs) = 
-    actionvalue
+  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs, Bool
+    curr_rerun, Bool rerun_fencei) =  actionvalue
       let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
       DecodeOut result_decode = decoder_func_32(inst, csrs);
       if(inst[1:0]!='b11 && misa[2]==1)
         result_decode = decoder_func_16(truncate(inst),csrs);
       let {icause, takeinterrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
       let {t1, t2, t3, t4} = result_decode;
+      let {rs1addr,rs2addr,rd,rs1type,rs2type} = t1;
       let {func_cause, inst_type,  mem_access,  immediate_value}=t2;
-      Instruction_type x = inst_type;
-      if(takeinterrupt)begin
+      Instruction_type x_inst_type = inst_type;
+      Op1type x_rs1type = rs1type;
+      Op2type x_rs2type = rs2type;
+      Bit#(5) x_rs1addr = rs1addr;
+      Bit#(5) x_rs2addr = rs2addr;
+
+      if(curr_rerun)begin
+        x_inst_type=TRAP;
+        func_cause=rerun_fencei?`IcacheFence : `Rerun ;
+        t4=False;
+      end
+      else if(takeinterrupt)begin
         func_cause={1'b1, icause};
-        x=TRAP;
+        x_inst_type=TRAP;
       end
       else if(err[0]==1) begin
-        x=TRAP;
+        x_inst_type=TRAP;
         func_cause = `Inst_access_fault ;
       end
       else if(err[1]==1 && misa[18]==1) begin
-        x=TRAP;
+        x_inst_type=TRAP;
         func_cause= `Inst_pagefault;
       end
 
-      DecodeMeta tupl2 = tuple4(func_cause, x, mem_access, immediate_value);
-      return tuple4(t1, tupl2, resume_wfi, t4);
+      if(x_inst_type == TRAP)begin
+        x_rs2addr=0;
+        x_rs2type=IntegerRF;
+        x_rs1addr=0;
+        if(func_cause == `Inst_access_fault || func_cause==`Inst_pagefault )
+          x_rs1type=PC;
+        else
+          x_rs1type=IntegerRF;
+      end
+
+      DecodeMeta tupl2 = tuple4(func_cause, x_inst_type, mem_access, immediate_value);
+      return tuple4(tuple5(x_rs1addr, x_rs2addr, rd, x_rs1type,x_rs2type), tupl2, resume_wfi, t4);
 
   endactionvalue;
 endpackage

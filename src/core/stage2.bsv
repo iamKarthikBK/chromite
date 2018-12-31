@@ -167,7 +167,8 @@ package stage2;
     `ifdef supervisor
       err[1]=rxopt2.u.first.pagefault;
     `endif
-      let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,err,wr_csrs);
+      let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,err,wr_csrs, rg_rerun,
+                                                                                  rg_fencei_rerun);
       let {rs1addr,rs2addr,rd,rs1type,rs2type} = optype;
       let {func_cause, instrType, memaccess, imm} = meta;
       Bit#(3) funct3 = truncate(func_cause);
@@ -180,32 +181,7 @@ package stage2;
       RFType rf2type = `ifdef spfpu rs2type==FloatingRF?FRF: `endif IRF;
       if(verbosity>0)
         $display($time,"\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpoch: %b",pc,inst,epochs,{eEpoch,wEpoch});
-      if(rg_rerun && {eEpoch, wEpoch}==epochs)begin 
-        OpMeta t1 = tuple4(?,?, pc, TRAP);
-        OpData#(ELEN,FLEN) t2 = tuple3(?, ?, ?);
-        MetaData t3 = tuple5(?, rg_fencei_rerun?`IcacheFence:`Rerun , ?, ?, epochs);
-        PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
-      `ifdef spfpu
-        OpFpu t5 = tuple2(?, IRF);
-      `endif
-
-        txmin.u.enq(t4);
-      `ifdef rtldump
-        txinst.u.enq(inst);
-      `endif
-      `ifdef bpu
-        txbpu.u.enq(pred);
-      `endif
-      `ifdef spfpu
-        txfpu.u.enq(t5);
-      `endif
-      rg_stall<=True;
-      rg_rerun<=False;
-      rg_fencei_rerun<=False;
-      if(verbosity>0)
-        $display($time,"\tDECODE: Tagged as RERUN");
-      end
-      else if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
+      if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
         let rs1 <- registerfile.read_rs1(rs1addr `ifdef spfpu ,rf1type `endif );
         let rs2 <- registerfile.read_rs2(rs2addr `ifdef spfpu ,rf2type `endif );
@@ -213,20 +189,13 @@ package stage2;
         let rs3 <- registerfile.read_rs3(rs3addr);
       `endif
 
-        Bit#(TMax#(XLEN,FLEN)) op1=(rs1type==PC)?signExtend(pc):rs1;
-        Bit#(TMax#(XLEN,FLEN)) op2=(rs2type==Constant2)?'d2: // constant2 only is C enabled.
-                                   (rs2type==Constant4)?'d4:
-                                   (rs2type==Immediate)?signExtend(imm):rs2;
+        Bit#(ELEN) op1=(rs1type==PC)?signExtend(pc):rs1;
+        Bit#(ELEN) op2=(rs2type==Constant2)?'d2: // constant2 only is C enabled.
+                        (rs2type==Constant4)?'d4:
+                        (rs2type==Immediate)?signExtend(imm):rs2;
         Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
-        if(instrType==TRAP)begin
-          if(func_cause==`Inst_access_fault )
-            op1=zeroExtend(pc); // for baddaddr
-          else if(func_cause == `Illegal_inst)
+        if(instrType==TRAP && func_cause == `Illegal_inst )
             op1=zeroExtend(inst); // for badaddr
-          else
-            op1=0;
-          op3=zeroExtend(pc);
-        end
       `ifdef spfpu
         Bit#(FLEN) op4=(rs3type==FRF)?rs3:signExtend(imm);
       `else
@@ -235,6 +204,8 @@ package stage2;
         rg_rerun<=rerun;
         if(instrType==MEMORY && memaccess==FenceI)
           rg_fencei_rerun<=True;
+        else 
+          rg_fencei_rerun<=False;
         OpMeta t1 = tuple4(rs1addr, rs2addr, op3, instrType);
         OpData#(ELEN,FLEN) t2 = tuple3(op1, op2, op4);
         MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);
@@ -275,15 +246,13 @@ package stage2;
         if(verbosity>=1)
           $display($time,"\tDECODE: dropping instructions due to epoch mis-match");
       end
-      if((rg_wfi && resume_wfi) || (!rg_wfi))begin
-        rxmin.u.deq; 
-      `ifdef bpu
-        rxopt1.u.deq;
-      `endif
-      `ifdef supervisor
-        rxopt2.u.deq;
-      `endif
-      end
+      rxmin.u.deq; 
+    `ifdef bpu
+      rxopt1.u.deq;
+    `endif
+    `ifdef supervisor
+      rxopt2.u.deq;
+    `endif
     endrule
 
 		method tx_min=txmin.e;

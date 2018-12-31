@@ -140,16 +140,9 @@ package riscv;
     let {flush_from_wb, flushpc_from_wb, fenceI}=stage5.flush;
     let {decode_firing, rd_index}=stage2.fetch_rd_index;
 
-    rule flush_rename_mapping(flush_from_exe!=None || flush_from_wb);
-      stage2.reset_renaming;
-    endrule
     rule commit_instruction;
       stage2.commit_rd(stage5.commit_rd);
     endrule
-    rule rename_instruction;
-      stage2.update_renaming(stage5.update_renaming);
-    endrule
-
     rule connect_get_index(decode_firing);
       stage3.invalidate_index(rd_index);
     endrule
