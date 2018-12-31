@@ -167,7 +167,7 @@ package registerfile;
 
       `ifdef spfpu
         if(rdtype==FRF)begin
-			  	  floating_rf.upd(r,truncate(d));
+			  	floating_rf.upd(r,truncate(d));
         end else
       `endif
 			  if(r!=0)begin

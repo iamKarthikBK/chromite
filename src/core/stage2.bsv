@@ -180,7 +180,8 @@ package stage2;
       RFType rf1type = `ifdef spfpu rs1type==FloatingRF?FRF: `endif IRF;
       RFType rf2type = `ifdef spfpu rs2type==FloatingRF?FRF: `endif IRF;
       if(verbosity>0)
-        $display($time,"\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpoch: %b",pc,inst,epochs,{eEpoch,wEpoch});
+        $display($time,"\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpoch: %b Rerun: %b",pc,inst,
+                                                              epochs,{eEpoch,wEpoch},rg_rerun);
       if(instrType!=WFI && {eEpoch, wEpoch}==epochs)begin
         wr_op_complete<= True;
         let rs1 <- registerfile.read_rs1(rs1addr `ifdef spfpu ,rf1type `endif );

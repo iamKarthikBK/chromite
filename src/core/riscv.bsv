@@ -124,16 +124,16 @@ package riscv;
       mkConnection(pipe2fpu, stage3.rx_fpu);
     `endif
 
-    mkConnection(stage3.tx_out, pipe3.reg_fifo);
-    mkConnection(pipe3.reg_fifo, stage4.rx_min);
+    mkConnection(stage3.tx_out, pipe3.fifo);
+    mkConnection(pipe3.fifo, stage4.rx_min);
 
     `ifdef rtldump
       mkConnection(stage3.tx_inst,pipe3inst);
       mkConnection(pipe3inst,stage4.rx_inst);
     `endif
 
-    mkConnection(stage4.tx_min,pipe4.reg_fifo);
-    mkConnection(pipe4.reg_fifo,stage5.rx_in);
+    mkConnection(stage4.tx_min,pipe4.fifo);
+    mkConnection(pipe4.fifo,stage5.rx_in);
 
     `ifdef rtldump
       mkConnection(stage4.tx_inst,pipe4inst);

@@ -49,9 +49,9 @@ package fwding1;
 
   (*synthesize*)
   module mkfwding(Ifc_fwding);
-    Wire#(FwdType) wr_from_pipe3 <- mkWire();
-    Wire#(FwdType) wr_from_pipe4_first <- mkWire();
-    Wire#(FwdType) wr_from_pipe4_second <- mkWire();
+    Wire#(FwdType) wr_from_pipe3 <- mkDWire(tuple4(False,0,0,IRF));
+    Wire#(FwdType) wr_from_pipe4_first <- mkDWire(tuple4(False,0,0,IRF));
+    Wire#(FwdType) wr_from_pipe4_second <- mkDWire(tuple4(False,0,0,IRF));
     method Action fwd_from_pipe3 (FwdType fwd);
       wr_from_pipe3<=fwd;
     endmethod
@@ -68,21 +68,24 @@ package fwding1;
       let {p3_avail, p3_addr, p3_val, p3_rf} = wr_from_pipe3;
       let {p4_avail, p4_addr, p4_val, p4_rf} = wr_from_pipe4_first;
       let {p5_avail, p5_addr, p5_val, p5_rf} = wr_from_pipe4_second;
-      if(addr==0 `ifdef spfpu && rftype==IRF `endif )
-        rs1val=0;
-      else if(p3_addr==addr `ifdef spfpu && p3_rf==rftype `endif )
-        rs1val=p3_val;
-      else if(p4_addr==addr `ifdef spfpu && p4_rf == rftype `endif )
-        rs1val=p4_val;
-      else if(p5_addr==addr `ifdef spfpu && p5_rf == rftype `endif )
-        rs1val=p5_val;
+      if(addr!=0)begin
+        if(p3_addr==addr `ifdef spfpu && p3_rf==rftype `endif )
+          rs1val=p3_val;
+        else if(p4_addr==addr `ifdef spfpu && p4_rf == rftype `endif )
+          rs1val=p4_val;
+        else if(p5_addr==addr `ifdef spfpu && p5_rf == rftype `endif )
+          rs1val=p5_val;
+      end
 
-      if(p3_addr==addr && !p3_avail `ifdef spfpu && p3_rf==rftype `endif )
-        available=False;
-      else if(p4_addr==addr && !p4_avail `ifdef spfpu && p4_rf==rftype `endif )
-        available=False;
-      else if(p5_addr==addr && !p5_avail `ifdef spfpu && p5_rf==rftype `endif )
-        available=False;
+      if(addr!=0)begin
+        if(p3_addr==addr && !p3_avail `ifdef spfpu && p3_rf==rftype `endif )
+          available=False;
+        else if(p4_addr==addr && !p4_avail `ifdef spfpu && p4_rf==rftype `endif )
+          available=False;
+        else if(p5_addr==addr && !p5_avail `ifdef spfpu && p5_rf==rftype `endif )
+          available=False;
+      end
+      $display($time,"\tFWDING: Returning RS1 Avail: %b Val: %h",available,rs1val);
       return tuple2(available,rs1val);
     endmethod
     method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr, RFType rftype);
@@ -91,20 +94,23 @@ package fwding1;
       let {p3_avail, p3_addr, p3_val, p3_rf} = wr_from_pipe3;
       let {p4_avail, p4_addr, p4_val, p4_rf} = wr_from_pipe4_first;
       let {p5_avail, p5_addr, p5_val, p5_rf} = wr_from_pipe4_second;
-      if(addr==0 && rftype==IRF)
-        rs2val=0;
-      else if(p3_addr==addr && p3_rf==rftype)
-        rs2val=p3_val;
-      else if(p4_addr==addr && p4_rf == rftype)
-        rs2val=p4_val;
-      else if(p5_addr==addr && p5_rf == rftype)
-        rs2val=p5_val;
-      if(p3_addr==addr && p3_rf==rftype && !p3_avail)
-        available=False;
-      else if(p4_addr==addr && p4_rf == rftype && !p4_avail)
-        available=False;
-      else if(p5_addr==addr && p5_rf == rftype && !p4_avail)
-        available=False;
+      if(addr!=0)begin
+        if(p3_addr==addr && p3_rf==rftype)
+          rs2val=p3_val;
+        else if(p4_addr==addr && p4_rf == rftype)
+          rs2val=p4_val;
+        else if(p5_addr==addr && p5_rf == rftype)
+          rs2val=p5_val;
+      end
+      if(addr!=0)begin
+        if(p3_addr==addr && p3_rf==rftype && !p3_avail)
+          available=False;
+        else if(p4_addr==addr && p4_rf == rftype && !p4_avail)
+          available=False;
+        else if(p5_addr==addr && p5_rf == rftype && !p4_avail)
+          available=False;
+      end
+      $display($time,"\tFWDING: Returning RS2 Avail: %b Val: %h",available,rs2val);
       return tuple2(available,rs2val);
     endmethod
   `ifdef spfpu
