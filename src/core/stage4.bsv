@@ -125,7 +125,7 @@ package stage4;
       Bit#(1) epoch = field4[0];
       Bit#(7) trapcause = field4[7:1];
       Bit#(5) rd = field4[5:1];
-      Op3type rdtype = unpack(field4[6]);
+      RFType rdtype = unpack(field4[6]);
       Access_type memaccess = unpack(field4[9:7]);
       Bit#(2) size=field4[11:10];
       Bit#(1) sign=field4[12];
@@ -152,7 +152,7 @@ package stage4;
         temp1=tagged REG CommitRegular{commitvalue:commitvalue,
                                           fflags:fflags,
                                           rdtype:rdtype,
-                                          rd:rd},
+                                          rd:rd};
       end
       else if(committype==SYSTEM_INSTR)begin
         temp1=tagged SYSTEM CommitSystem {rs1:rs1,
@@ -232,7 +232,7 @@ package stage4;
         else if(memaccess==Store)begin
           if(verbosity>0)
             $display($time, "\tSTAGE4: PC: %h Store Operation.", simpc);
-          temp1=tagged STORE CommitStore{pc:pc,
+          temp1=tagged STORE CommitStore{pc:pc
                                        `ifdef atomic
                                          , rd: rd,  
                                          commitvalue:0 
