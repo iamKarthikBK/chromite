@@ -37,6 +37,7 @@ package riscv;
   import stage4::*;
   import stage5::*;
   import common_types::*;
+  import CustomFIFOs::*;
   `include "common_params.bsv"
   
   interface Ifc_riscv;
@@ -84,12 +85,14 @@ package riscv;
       FIFOF#(Bit#(32)) pipe2inst <- mkSizedFIFOF(2);
     `endif
 
-    FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
+//    FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
+    Ifc_PipeFIFOF#(PIPE3) pipe3 <- mkPipeFIFOF();
     `ifdef rtldump
       FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
     `endif
 
-    FIFOF#(PIPE4) pipe4 <-mkSizedFIFOF(2);
+//    FIFOF#(PIPE4) pipe4 <-mkSizedFIFOF(2);
+    Ifc_PipeFIFOF#(PIPE4) pipe4 <- mkPipeFIFOF();
     `ifdef rtldump
       FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
     `endif
@@ -121,16 +124,16 @@ package riscv;
       mkConnection(pipe2fpu, stage3.rx_fpu);
     `endif
 
-    mkConnection(stage3.tx_out, pipe3);
-    mkConnection(pipe3, stage4.rx_min);
+    mkConnection(stage3.tx_out, pipe3.reg_fifo);
+    mkConnection(pipe3.reg_fifo, stage4.rx_min);
 
     `ifdef rtldump
       mkConnection(stage3.tx_inst,pipe3inst);
       mkConnection(pipe3inst,stage4.rx_inst);
     `endif
 
-    mkConnection(stage4.tx_min,pipe4);
-    mkConnection(pipe4,stage5.rx_in);
+    mkConnection(stage4.tx_min,pipe4.reg_fifo);
+    mkConnection(pipe4.reg_fifo,stage5.rx_in);
 
     `ifdef rtldump
       mkConnection(stage4.tx_inst,pipe4inst);
@@ -138,16 +141,11 @@ package riscv;
     `endif
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
     let {flush_from_wb, flushpc_from_wb, fenceI}=stage5.flush;
-    let {decode_firing, rd_index}=stage2.fetch_rd_index;
 
     rule commit_instruction;
       stage2.commit_rd(stage5.commit_rd);
     endrule
-    rule connect_get_index(decode_firing);
-      stage3.invalidate_index(rd_index);
-    endrule
 
-    mkConnection(stage3.fwd_from_mem, stage4.fwd_from_mem);
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
       if(flush_from_wb)
         stage1.flush(flushpc_from_wb, fenceI);
