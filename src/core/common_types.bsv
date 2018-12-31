@@ -89,6 +89,8 @@ package common_types;
     typedef Tuple4#(Bit#(7), Instruction_type, Access_type, Bit#(32)) DecodeMeta; 
                                           // resume_wfi , rerun
     typedef Tuple4#(OpType_min,DecodeMeta, Bool, Bool) DecodeOut;
+    
+    typedef Tuple3#(Bit#(5), RFType, RFType) OpType_fpu;
   // ------------------------------------------------------------------------------------------
 
   `ifdef spfpu
