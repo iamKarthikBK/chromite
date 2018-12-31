@@ -110,7 +110,6 @@ package stage3;
   `endif
     method Action update_wEpoch;
     method Tuple2#(Flush_type, Bit#(VADDR)) flush_from_exe;
-    interface Put#(Tuple2#(Bit#(ELEN), Bit#(TLog#(PRFDEPTH)))) fwd_from_mem;
     `ifdef bpu
   		method Maybe#(Training_data#(VADDR)) training_data;
 		  method Maybe#(Bit#(VADDR)) ras_push;
@@ -124,6 +123,9 @@ package stage3;
 		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
     method Action csr_misa_c (Bit#(1) m);
     method Action storebuffer_empty(Bool e);
+    method Action fwd_from_pipe3 (FwdType fwd);
+    method Action fwd_from_pipe4_first (FwdType fwd);
+    method Action fwd_from_pipe4_second (FwdType fwd);
   endinterface
 
   (*synthesize*)
@@ -494,6 +496,15 @@ package stage3;
     endmethod
     method Action storebuffer_empty(Bool e);
       wr_storebuffer_empty<=e;
+    endmethod
+    method Action fwd_from_pipe3 (FwdType fwd);
+      fwding.fwd_from_pipe3(fwd);
+    endmethod
+    method Action fwd_from_pipe4_first (FwdType fwd);
+      fwding.fwd_from_pipe4_first(fwd);
+    endmethod
+    method Action fwd_from_pipe4_second (FwdType fwd);
+      fwding.fwd_from_pipe4_second(fwd);
     endmethod
   endmodule
 endpackage
