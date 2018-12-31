@@ -35,77 +35,101 @@ package fwding1;
   import GetPut::*;
 
   interface Ifc_fwding;
-    method ActionValue#(FwdType#(ELEN)) read_rs1 (Bit#(ELEN) rfvalue, Bit#(3) index);
-    method ActionValue#(FwdType#(ELEN)) read_rs2 (Bit#(ELEN) rfvalue, Bit#(3) index);
-    `ifdef spfpu                                              
-    method ActionValue#(FwdType#(ELEN)) read_rs3 (Bit#(ELEN) rfvalue, Bit#(3) index);
-    `endif
-
-		method Action fwd_from_exe (Bit#(ELEN) d, Bit#(3) index);
-		method Action fwd_from_mem (Bit#(ELEN) d, Bit#(3) index);
-    method Action invalidate_index(Bit#(3) ind);
-    method Action flush_mapping;
+    method Action fwd_from_pipe3 (FwdType fwd);
+    method Action fwd_from_pipe4_first (FwdType fwd);
+    method Action fwd_from_pipe4_second (FwdType fwd);
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs1(Bit#(ELEN) val, Bit#(5) addr 
+                                                  `ifdef spfpu , RFType rftype `endif );
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr 
+                                                  `ifdef spfpu , RFType rftype `endif );
+  `ifdef spfpu
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs3(Bit#(ELEN) val, Bit#(5) addr);
+  `endif
   endinterface
 
   (*synthesize*)
-  (*conflict_free="fwd_from_exe, fwd_from_mem"*)
-  (*conflict_free="fwd_from_exe, invalidate_index"*)
-  (*conflict_free="invalidate_index, fwd_from_mem"*)
   module mkfwding(Ifc_fwding);
-    let verbosity = `VERBOSITY ;
-    Reg#(FwdType#(ELEN)) fwd_data [valueOf(PRFDEPTH)];
-    for(Integer i=0;i<= 32;i=i+ 1)begin
-      if(i<valueOf(PRFDEPTH))
-        fwd_data[i]<- mkReg(tagged Absent); 
-    end
-    method Action flush_mapping;
-      for(Integer i=0;i<valueOf(PRFDEPTH)-1;i=i+1)begin
-        fwd_data[i]<= tagged Absent;
-      end
+    Wire#(FwdType) wr_from_pipe3 <- mkWire();
+    Wire#(FwdType) wr_from_pipe4_first <- mkWire();
+    Wire#(FwdType) wr_from_pipe4_second <- mkWire();
+    method Action fwd_from_pipe3 (FwdType fwd);
+      wr_from_pipe3<=fwd;
     endmethod
-    method ActionValue#(FwdType#(ELEN)) read_rs1 (Bit#(ELEN) rfvalue, Bit#(3) index);
-      FwdType#(ELEN) ret= tagged Present rfvalue;
-      if(index!=fromInteger(valueOf(PRFDEPTH)))begin
-        ret=fwd_data[index];
-        if(verbosity>1)
-          $display($time, "\tFWDING: Reading rs1 from prf. Data: %h index\
-                %d",fwd_data[index[1:0]], index);
-      end
-      return ret;
+    method Action fwd_from_pipe4_first (FwdType fwd);
+      wr_from_pipe4_first<=fwd;
     endmethod
-    method ActionValue#(FwdType#(ELEN)) read_rs2 (Bit#(ELEN) rfvalue, Bit#(3) index);
-      FwdType#(ELEN) ret= tagged Present rfvalue;
-      if(index!=fromInteger(valueOf(PRFDEPTH)))begin
-        ret=fwd_data[index];
-        if(verbosity>1)
-          $display($time, "\tFWDING: Reading rs2 from prf. Data: %h index\
-                %d",fwd_data[index[1:0]], index);
-      end
-      return ret;
+    method Action fwd_from_pipe4_second (FwdType fwd);
+      wr_from_pipe4_second<=fwd;
     endmethod
-    `ifdef spfpu                                                            
-    method ActionValue#(FwdType#(ELEN)) read_rs3 (Bit#(ELEN) rfvalue, Bit#(3) index);
-      FwdType#(ELEN) ret= tagged Present rfvalue;
-      if(index!=fromInteger(valueOf(PRFDEPTH)))
-        ret=fwd_data[index];
-      return ret;
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs1(Bit#(ELEN) val, Bit#(5) addr 
+                                                              `ifdef spfpu , RFType rftype `endif );
+      Bool available = True;
+      Bit#(ELEN) rs1val = val;
+      let {p3_avail, p3_addr, p3_val, p3_rf} = wr_from_pipe3;
+      let {p4_avail, p4_addr, p4_val, p4_rf} = wr_from_pipe4_first;
+      let {p5_avail, p5_addr, p5_val, p5_rf} = wr_from_pipe4_second;
+      if(addr==0 `ifdef spfpu && rftype==IRF `endif )
+        rs1val=0;
+      else if(p3_addr==addr `ifdef spfpu && p3_rf==rftype `endif )
+        rs1val=p3_val;
+      else if(p4_addr==addr `ifdef spfpu && p4_rf == rftype `endif )
+        rs1val=p4_val;
+      else if(p5_addr==addr `ifdef spfpu && p5_rf == rftype `endif )
+        rs1val=p5_val;
+
+      if(p3_addr==addr && !p3_avail `ifdef spfpu && p3_rf==rftype `endif )
+        available=False;
+      else if(p4_addr==addr && !p4_avail `ifdef spfpu && p4_rf==rftype `endif )
+        available=False;
+      else if(p5_addr==addr && !p5_avail `ifdef spfpu && p5_rf==rftype `endif )
+        available=False;
+      return tuple2(available,rs1val);
     endmethod
-    `endif
-		method Action fwd_from_exe (Bit#(ELEN) d, Bit#(3) index);
-      if(verbosity>1)
-        $display($time, "\tFWDING: Got fwded data from exe. Data: %h index: %d", d, index);
-			fwd_data[index]<=tagged Present d;	
-		endmethod
-		method Action fwd_from_mem (Bit#(ELEN) d, Bit#(3) index);
-      if(verbosity>1)
-        $display($time, "\tFWDING: Got fwded data from mem. Data: %h index: %d", d, index);
-			fwd_data[index]<=tagged Present d;	
-		endmethod
-    method Action invalidate_index(Bit#(3) ind);
-      fwd_data[ind]<= tagged Absent;
-      if(verbosity>1)
-        $display($time, "\tFWDING: Sending renamed index for rd: %d", ind);
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr, RFType rftype);
+      Bool available = True;
+      Bit#(ELEN) rs2val = val;
+      let {p3_avail, p3_addr, p3_val, p3_rf} = wr_from_pipe3;
+      let {p4_avail, p4_addr, p4_val, p4_rf} = wr_from_pipe4_first;
+      let {p5_avail, p5_addr, p5_val, p5_rf} = wr_from_pipe4_second;
+      if(addr==0 && rftype==IRF)
+        rs2val=0;
+      else if(p3_addr==addr && p3_rf==rftype)
+        rs2val=p3_val;
+      else if(p4_addr==addr && p4_rf == rftype)
+        rs2val=p4_val;
+      else if(p5_addr==addr && p5_rf == rftype)
+        rs2val=p5_val;
+      if(p3_addr==addr && p3_rf==rftype && !p3_avail)
+        available=False;
+      else if(p4_addr==addr && p4_rf == rftype && !p4_avail)
+        available=False;
+      else if(p5_addr==addr && p5_rf == rftype && !p4_avail)
+        available=False;
+      return tuple2(available,rs2val);
     endmethod
+  `ifdef spfpu
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs3(Bit#(ELEN) val, Bit#(5) addr);
+      Bool available = True;
+      Bit#(ELEN) rs3val = val;
+      let {p3_avail, p3_addr, p3_val, p3_rf} = wr_from_pipe3;
+      let {p4_avail, p4_addr, p4_val, p4_rf} = wr_from_pipe4_first;
+      let {p5_avail, p5_addr, p5_val, p5_rf} = wr_from_pipe4_second;
+      if(p3_addr==addr && p3_rf==FRF)
+        rs3val=p3_val;
+      else if(p4_addr==addr && p4_rf == FRF)
+        rs3val=p4_val;
+      else if(p5_addr==addr && p5_rf == FRF)
+        rs3val=p5_val;
+
+      if(p3_addr==addr && p3_rf==FRF && !p3_avail)
+        available=False;
+      else if(p4_addr==addr && p4_rf == FRF && !p4_avail)
+        available=False;
+      else if(p5_addr==addr && p5_rf == FRF && !p4_avail)
+        available=False;
+      return tuple2(available,rs3val);
+    endmethod
+  `endif
   endmodule
 
 endpackage
