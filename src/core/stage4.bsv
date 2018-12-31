@@ -59,7 +59,6 @@ package stage4;
 		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
 
-    interface Get#(Tuple2#(Bit#(ELEN), Bit#(3))) fwd_from_mem;
     method Action update_wEpoch;
     method Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) store_response;
     method Action start_store(Bool s);
@@ -98,7 +97,6 @@ package stage4;
     Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
     FIFOF#(MemoryReadResp#(1)) ff_memory_response <- mkUGBypassFIFOF();
     // wire that carriues the information for operand forwarding
-    Wire#(Maybe#(Tuple2#(Bit#(ELEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
     Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
     Wire#(Bool) wr_store_start<-mkDWire(False);
@@ -126,14 +124,13 @@ package stage4;
       
       Bit#(1) epoch = field4[0];
       Bit#(7) trapcause = field4[7:1];
-      Bit#(3) rdindex = field4[3:1];
-      Bit#(5) rd = field4[8:4];
-      Op3type rdtype = unpack(field4[9]);
-      Access_type memaccess = unpack(field4[12:10]);
-      Bit#(2) size=field4[14:13];
-      Bit#(1) sign=field4[15];
-      Bit#(1) nanboxing=field4[16];
-      Bit#(4) atomic_op = field4[20:17];
+      Bit#(5) rd = field4[5:1];
+      Op3type rdtype = unpack(field4[6]);
+      Access_type memaccess = unpack(field4[9:7]);
+      Bit#(2) size=field4[11:10];
+      Bit#(1) sign=field4[12];
+      Bit#(1) nanboxing=field4[13];
+      Bit#(4) atomic_op = field4[17:14];
       CommitType temp1=?;
       Bool complete=True;
   
@@ -155,8 +152,7 @@ package stage4;
         temp1=tagged REG CommitRegular{commitvalue:commitvalue,
                                           fflags:fflags,
                                           rdtype:rdtype,
-                                          rd:rd,
-                                          rdindex:rdindex};
+                                          rd:rd},
       end
       else if(committype==SYSTEM_INSTR)begin
         temp1=tagged SYSTEM CommitSystem {rs1:rs1,
@@ -164,8 +160,7 @@ package stage4;
                                           csraddr:csraddr,
                                           func3:func3,
                                           rdtype:rdtype,
-                                          rd:rd,
-                                          rdindex:rdindex};
+                                          rd:rd};
       end
       else if(committype==MEMORY) begin
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
@@ -189,11 +184,9 @@ package stage4;
                     update_data[63:32]='1;
               `endif
               if(err_fault==0 )begin // no bus error
-                wr_operand_fwding <= tagged Valid tuple2(update_data, rdindex);
               `ifdef atomic
                 if(memaccess==Atomic)begin
                   temp1=tagged STORE CommitStore{pc:pc,
-                                                 rdindex:rdindex, 
                                                  rd: rd,  
                                                  commitvalue:update_data};
                   storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
@@ -203,8 +196,7 @@ package stage4;
                   temp1=tagged REG CommitRegular{commitvalue:update_data,
                                                    fflags:0,
                                                    rdtype:rdtype,
-                                                   rd:rd,
-                                                   rdindex:rdindex};
+                                                   rd:rd};
               end
               else begin
                 if(err_fault[0]==1)begin
@@ -241,12 +233,10 @@ package stage4;
           if(verbosity>0)
             $display($time, "\tSTAGE4: PC: %h Store Operation.", simpc);
           temp1=tagged STORE CommitStore{pc:pc,
-                                         rdindex:rdindex
                                        `ifdef atomic
                                          , rd: rd,  
                                          commitvalue:0 
                                        `endif };
-          wr_operand_fwding <= tagged Valid tuple2(0, rdindex);
           storebuffer.allocate(badaddr, storedata, size);
         end
         else if(memaccess==Fence || memaccess==FenceI)begin
@@ -255,8 +245,7 @@ package stage4;
           temp1=tagged REG CommitRegular{commitvalue:?,
                                                  fflags:0,
                                                  rdtype:rdtype,
-                                                 rd:rd,
-                                                 rdindex:rdindex};
+                                                 rd:rd};
         end
       end
       `ifdef rtldump
@@ -284,12 +273,6 @@ package stage4;
         if(verbosity>1)
           $display($time, "\tSTAGE4: Read Response: ", fshow(response));
         ff_memory_response.enq(response);
-      endmethod
-    endinterface;
-    interface fwd_from_mem = interface Get
-      method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(3))) get 
-                                                    if(wr_operand_fwding matches tagged Valid .data);
-        return data;
       endmethod
     endinterface;
     method Action update_wEpoch;

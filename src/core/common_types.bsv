@@ -77,10 +77,11 @@ package common_types;
 
   // ------- The following typdefs are used to define the output from the decode stage -----
   // data structure of the fwding data structure
-  typedef union tagged{
-    Bit#(width) Present;
-  	void Absent;
-  } FwdType#(numeric type width) deriving(Bits,Eq,FShow);
+//  typedef union tagged{
+//    Bit#(width) Present;
+//  	void Absent;
+//  } FwdType#(numeric type width) deriving(Bits,Eq,FShow);
+  typedef Tuple4#(Bool, Bit#(5), Bit#(ELEN), RFType) FwdType;
   
   //                  rs1,   rs2,      rd      op1 type , op2 type
     typedef Tuple5#(Bit#(5), Bit#(5), Bit#(5), Op1type, Op2type) OpType_min;
@@ -88,9 +89,6 @@ package common_types;
     typedef Tuple4#(Bit#(7), Instruction_type, Access_type, Bit#(32)) DecodeMeta; 
                                           // resume_wfi , rerun
     typedef Tuple4#(OpType_min,DecodeMeta, Bool, Bool) DecodeOut;
-
-  //                 rs3     rs3 type , rd type
-    typedef Tuple3#(Bit#(5), RFType, RFType) OpType_fpu;
   // ------------------------------------------------------------------------------------------
 
   `ifdef spfpu
@@ -165,7 +163,9 @@ package common_types;
                  Bit#(2) // epochs
                 ) MetaData;
   typedef Tuple3#(OpMeta, OpData#(msize,t), MetaData) PIPE2_min#(numeric type msize, numeric type t);
-  typedef Tuple2#(Bit#(5), // rs3addr
+  typedef Tuple4#(Bit#(5), // rs3addr
+                 RFType, // rs1type
+                 RFType, // rs2type
                  RFType // rdtype
                 ) OpFpu;
 
@@ -186,16 +186,14 @@ package common_types;
   // access_size          3-bits
   // rdtype               1.bit
   // rd                   5-bits            
-  // rdindex              3-bits            
-  // meta_arrangement:    {atomic_op, nanboxing,access_size,accesstype,rdtype,rd,rdindex} = 20
+  // meta_arrangement:    {atomic_op, nanboxing,access_size,accesstype,rdtype,rd} = 17
 
   // for REGULAR          total: 78
   // rdvalue              ELEN              -done
   // fpu-flags            5 bits            -done
   // rdtype               1 bits            -done
   // rd                   5 bits            -done
-  // rdindex              3 bits            -done
-  // meta1_arrangement:    {rdtype,rd,rdindex} = 9
+  // meta1_arrangement:    {rdtype,rd} = 6
   // meta2_arrangement:    {fpu-flags} = 5
 
   // for SYSTEM_INSTR     total: 90 bits
@@ -205,16 +203,15 @@ package common_types;
   // funct3               3 bits            -done
   // rdtype               1-bit             -done
   // rd                   5-bits            -done
-  // rdindex              3 bits            -done
   // meta2_arrangement:    {lpc,csraddress,funct3} = 17
-  // meta1_arrangement:    {rdtype,rd,rdindex} = 9
+  // meta1_arrangement:    {rdtype,rd} = 6
 
   // Common: epoch 1-bit
 
   typedef Bit#(VADDR)     Tbad_Maddr_Rmeta2_Smeta2;
   typedef Bit#(ELEN)      Mdata_Rrdvalue_Srs1;
   typedef Bit#(VADDR)     Tpc_Mpc;
-  typedef Bit#(21)        Tcause_Mmeta_Rmeta1_Smeta1_epoch;
+  typedef Bit#(18)        Tcause_Mmeta_Rmeta1_Smeta1_epoch;
 
   typedef Tuple5#(PreCommit_type, Tbad_Maddr_Rmeta2_Smeta2, Mdata_Rrdvalue_Srs1,
                                                 Tpc_Mpc,Tcause_Mmeta_Rmeta1_Smeta1_epoch) PIPE3;
@@ -262,15 +259,13 @@ package common_types;
   `ifdef atomic
     Bit#(ELEN) commitvalue;
     Bit#(5) rd;
-  `endif
-    Bit#(3) rdindex;}CommitStore deriving (Bits,Eq,FShow);
+  `endif }CommitStore deriving (Bits,Eq,FShow);
 
   typedef struct{
     Bit#(ELEN) commitvalue;
     Bit#(5) fflags;
     RFType rdtype;
     Bit#(5) rd;
-    Bit#(3) rdindex;
     }CommitRegular deriving(Bits,Eq,FShow);
 
   typedef struct{
@@ -280,7 +275,6 @@ package common_types;
     Bit#(3) func3;
     RFType rdtype;
     Bit#(5) rd;
-    Bit#(3) rdindex;
     }CommitSystem deriving(Bits,Eq,FShow);
 
   typedef union tagged{

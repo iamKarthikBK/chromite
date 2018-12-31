@@ -211,7 +211,7 @@ package stage2;
         MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);
         PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
       `ifdef spfpu
-        OpFpu t5 = tuple2(rs3addr, rdtype);
+        OpFpu t5 = tuple4(rs3addr, rf1type, rf2type, rdtype);
       `endif
 
         txmin.u.enq(t4);

@@ -45,7 +45,6 @@ package stage5;
       interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
     `endif
     method Maybe#(CommitData) commit_rd;
-    method Maybe#(CommitRename) update_renaming();
     method Tuple3#(Bool, Bit#(VADDR), Bool) flush;
     method CSRtoDecode csrs_to_decode;
 	  method Action clint_msip(Bit#(1) intrpt);
@@ -86,7 +85,6 @@ package stage5;
 
     // wire that carries the commit data that needs to be written to the integer register file.
     Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
-    Wire#(Maybe#(CommitRename)) wr_rename <- mkDWire(tagged Invalid);
 
     // wire which signals the entire pipe to be flushed.
     Wire#(Tuple3#(Bool, Bit#(VADDR), Bool)) wr_flush <- mkDWire(tuple3(False, ?, False));
@@ -147,10 +145,8 @@ package stage5;
             if(err==0)begin
             `ifdef spfpu
               wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
-              wr_rename <= tagged Valid (tuple3(s.rd, s.rdindex, IRF)); 
             `else
               wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
-              wr_rename <= tagged Valid (tuple2(s.rd, s.rdindex));
             `endif
             `ifdef rtldump
               Bit#(ELEN) data=s.commitvalue;
@@ -185,10 +181,8 @@ package stage5;
           fl=drain;
         `ifdef spfpu
           wr_commit <= tagged Valid (tuple3(sys.rd, zeroExtend(dest), sys.rdtype));
-          wr_rename <= tagged Valid (tuple3(sys.rd, sys.rdindex, sys.rdtype));
         `else
           wr_commit <= tagged Valid (tuple2(sys.rd, dest));
-          wr_rename <= tagged Valid (tuple2(sys.rd, sys.rdindex));
         `endif
         `ifdef rtldump 
           if(sys.rd==0)
@@ -206,11 +200,9 @@ package stage5;
             $display($time,"\tWBMEM: Regular commit");
         `ifdef spfpu
           wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdtype));
-          wr_rename <= tagged Valid (tuple3(r.rd, r.rdindex, r.rdtype));
           csr.update_fflags(r.fflags); 
         `else
           wr_commit <= tagged Valid (tuple2(r.rd, r.commitvalue));
-          wr_rename <= tagged Valid (tuple2(r.rd, r.rdindex));
         `endif
           rx.u.deq;
         `ifdef rtldump
@@ -249,9 +241,6 @@ package stage5;
   `endif
     method Maybe#(CommitData) commit_rd();
       return wr_commit;
-    endmethod
-    method Maybe#(CommitRename) update_renaming();
-      return wr_rename;
     endmethod
     method flush=wr_flush;
     method csrs_to_decode = csr.csrs_to_decode;
