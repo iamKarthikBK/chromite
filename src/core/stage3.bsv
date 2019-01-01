@@ -408,7 +408,8 @@ package stage3;
       `else
         check_rpc<= tuple3(None, 0, wEpoch);
       `endif
-        $display($time,"\tEXECUTE: Trap instruction. Cause: %d",func_cause);
+        if(verbosity>1)
+          $display($time,"\tEXECUTE: Trap instruction. Cause: %d",func_cause);
         PIPE3 pipedata = tuple5(TRAP, truncate(op1), ?, pc, zeroExtend({func_cause,epochs[0]})); 
         tx.u.enq(pipedata);
       `ifdef rtldump

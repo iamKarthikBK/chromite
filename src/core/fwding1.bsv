@@ -50,6 +50,7 @@ package fwding1;
 
   (*synthesize*)
   module mkfwding(Ifc_fwding);
+    let verbosity = `VERBOSITY ;
     Wire#(Maybe#(FwdType)) wr_from_pipe3        <- mkDWire(tagged Invalid );
     Wire#(Maybe#(FwdType)) wr_from_pipe4_first  <- mkDWire(tagged Invalid );
     Wire#(Maybe#(FwdType)) wr_from_pipe4_second <- mkDWire(tagged Invalid );
@@ -92,7 +93,8 @@ package fwding1;
         else if(p5_addr==addr && p5valid && !p5_avail `ifdef spfpu && p5_rf==rftype `endif )
           available=False;
       end
-      $display($time,"\tFWDING: Returning RS1 Avail: %b Val: %h",available,rs1val);
+      if(verbosity>2)
+        $display($time,"\tFWDING: Returning RS1 Avail: %b Val: %h",available,rs1val);
       return tuple2(available,rs1val);
     endmethod
     method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr, RFType rftype);
@@ -130,7 +132,8 @@ package fwding1;
         else if(p5_addr==addr && p5valid && !p5_avail `ifdef spfpu && p5_rf==rftype `endif )
           available=False;
       end
-      $display($time,"\tFWDING: Returning RS2 Avail: %b Val: %h",available,rs2val);
+      if(verbosity>2)
+        $display($time,"\tFWDING: Returning RS2 Avail: %b Val: %h",available,rs2val);
       return tuple2(available,rs2val);
     endmethod
   `ifdef spfpu
@@ -169,7 +172,8 @@ package fwding1;
         else if(p5_addr==addr && p5valid && !p5_avail && p5_rf==FRF )
           available=False;
       end
-      $display($time,"\tFWDING: Returning RS3 Avail: %b Val: %h",available,rs3val);
+      if(verbosity>2)
+        $display($time,"\tFWDING: Returning RS3 Avail: %b Val: %h",available,rs3val);
       return tuple2(available,rs3val);
     endmethod
   `endif

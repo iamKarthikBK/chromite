@@ -200,7 +200,6 @@ package riscv;
       Bool available = (committype==REGULAR);
       if(present && committype!=TRAP)begin
         stage3.fwd_from_pipe3(tuple4(available,rd,rdval,rdtype));
-        $display($time,"\tRISCV: FWDEXE. Avail: %b RD: %d RDVAL: %h RDTYPE: ", available,rd,rdval,
                                                                   fshow(rdtype));
       end
     endrule
@@ -227,8 +226,6 @@ package riscv;
     `endif
       if(present)begin
         stage3.fwd_from_pipe4_first(tuple4(available,rd,rdval,rdtype));
-        $display($time,"\tRISCV: FWDMEM. Avail: %b RD: %d RDVAL: %h RDTYPE: ", available,rd,rdval,
-                                                                      fshow(rdtype));
       end
     endrule
     rule fwding_from_mem2;
@@ -254,8 +251,6 @@ package riscv;
     `endif
       if(present)begin
         stage3.fwd_from_pipe4_second(tuple4(available,rd,rdval,rdtype));
-        $display($time,"\tRISCV: FWDMEM2. Avail: %b RD: %d RDVAL: %h RDTYPE: ", available,rd,rdval,
-                                                                      fshow(rdtype));
       end
     endrule
     ///////////////////////////////////////////
