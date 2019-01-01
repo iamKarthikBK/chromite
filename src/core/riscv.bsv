@@ -85,8 +85,7 @@ package riscv;
       FIFOF#(Bit#(32)) pipe2inst <- mkLFIFOF();
     `endif
 
-//    FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
-    Ifc_PipeFIFOF#(PIPE3) pipe3 <- mkPipeFIFOF();
+    FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
     `ifdef rtldump
       FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
     `endif
@@ -124,8 +123,8 @@ package riscv;
       mkConnection(pipe2fpu, stage3.rx_fpu);
     `endif
 
-    mkConnection(stage3.tx_out, pipe3.fifo);
-    mkConnection(pipe3.fifo, stage4.rx_min);
+    mkConnection(stage3.tx_out, pipe3);
+    mkConnection(pipe3, stage4.rx_min);
 
     `ifdef rtldump
       mkConnection(stage3.tx_inst,pipe3inst);
@@ -192,15 +191,14 @@ package riscv;
     endrule
 
     rule fwding_from_exe1;
-      let {present, data} = pipe3.first_data;
+      let data = pipe3.first;
       let {committype, field1, field2, field3, field4}=data;
       Bit#(5) rd = field4[5:1];
       RFType rdtype = unpack(field4[6]);
       Bit#(ELEN) rdval = field2;
       Bool available = (committype==REGULAR);
-      if(present && committype!=TRAP)begin
+      if(committype!=TRAP)begin
         stage3.fwd_from_pipe3(tuple4(available,rd,rdval,rdtype));
-                                                                  fshow(rdtype));
       end
     endrule
     rule fwding_from_mem1;
