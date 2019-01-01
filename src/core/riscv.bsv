@@ -74,27 +74,27 @@ package riscv;
     FIFOF#(PIPE1_opt1) pipe1opt1 <-mkSizedFIFOF(2);
     FIFOF#(PIPE1_opt2) pipe1opt2 <-mkSizedFIFOF(2);
 
-    FIFOF#(PIPE2_min#(ELEN,FLEN)) pipe2min <- mkSizedFIFOF(2);
+    FIFOF#(PIPE2_min#(ELEN,FLEN)) pipe2min <- mkLFIFOF();
     `ifdef spfpu
-      FIFOF#(OpFpu) pipe2fpu <- mkSizedFIFOF(2);
+      FIFOF#(OpFpu) pipe2fpu <- mkLFIFOF();
     `endif
     `ifdef bpu
-      FIFOF#(Bit#(2)) pipe2bpu <- mkSizedFIFOF(2);
+      FIFOF#(Bit#(2)) pipe2bpu <- mkLFIFOF();
     `endif
     `ifdef rtldump
-      FIFOF#(Bit#(32)) pipe2inst <- mkSizedFIFOF(2);
+      FIFOF#(Bit#(32)) pipe2inst <- mkLFIFOF();
     `endif
 
 //    FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
-    Ifc_PipeFIFOF#(PIPE3) pipe3 <- mkPipeFIFOF();
+      FIFOF#(PIPE3) pipe3 <- mkLFIFOF();
     `ifdef rtldump
-      FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
+      FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkLFIFOF();
     `endif
 
 //    FIFOF#(PIPE4) pipe4 <-mkSizedFIFOF(2);
-    Ifc_PipeFIFOF#(PIPE4) pipe4 <- mkPipeFIFOF();
+      FIFOF#(PIPE4) pipe4 <- mkLFIFOF();
     `ifdef rtldump
-      FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
+      FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkLFIFOF();
     `endif
 
     mkConnection(stage1.tx_min, pipe1min);
@@ -124,16 +124,16 @@ package riscv;
       mkConnection(pipe2fpu, stage3.rx_fpu);
     `endif
 
-    mkConnection(stage3.tx_out, pipe3.fifo);
-    mkConnection(pipe3.fifo, stage4.rx_min);
+    mkConnection(stage3.tx_out, pipe3);
+    mkConnection(pipe3, stage4.rx_min);
 
     `ifdef rtldump
       mkConnection(stage3.tx_inst,pipe3inst);
       mkConnection(pipe3inst,stage4.rx_inst);
     `endif
 
-    mkConnection(stage4.tx_min,pipe4.fifo);
-    mkConnection(pipe4.fifo,stage5.rx_in);
+    mkConnection(stage4.tx_min,pipe4);
+    mkConnection(pipe4,stage5.rx_in);
 
     `ifdef rtldump
       mkConnection(stage4.tx_inst,pipe4inst);
@@ -144,6 +144,8 @@ package riscv;
 
     rule commit_instruction;
       stage2.commit_rd(stage5.commit_rd);
+      if(stage5.commit_rd matches tagged Valid .c)
+        stage3.latest_commit(c);
     endrule
 
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
@@ -188,6 +190,72 @@ package riscv;
     rule connect_storebuffer_status;
       stage3.storebuffer_empty(stage4.storebuffer_empty);
     endrule
+
+    rule fwding_from_exe1;
+      let data = pipe3.first();
+      let {committype, field1, field2, field3, field4}=data;
+      Bit#(5) rd = field4[5:1];
+      RFType rdtype = unpack(field4[6]);
+      Bit#(ELEN) rdval = field2;
+      Bool available = (committype==REGULAR);
+      if(committype!=TRAP)begin
+        stage3.fwd_from_pipe3(tuple4(available,rd,rdval,rdtype));
+        $display($time,"\tRISCV: FWDEXE. Avail: %b RD: %d RDVAL: %h RDTYPE: ", available,rd,rdval,
+                                                                  fshow(rdtype));
+      end
+    endrule
+    rule fwding_from_mem1;
+      let data = pipe4.first;
+      let {committype , epoch}=data;
+      Bit#(5) rd = 0;
+      RFType rdtype = FRF;
+      Bit#(ELEN) rdval = 0;
+      Bool available = False;
+      if(committype matches tagged REG .r)begin
+        available=True;
+        rd=r.rd;
+        rdval = r.commitvalue;
+        rdtype = r.rdtype;
+      end
+    `ifdef atomic
+      else if (committype matches tagged STORE .s)begin
+        available=True;
+        rd=s.rd;
+        rdval=s.commitvalue;
+        rdtype=IRF;
+      end
+    `endif
+        stage3.fwd_from_pipe4_first(tuple4(available,rd,rdval,rdtype));
+        $display($time,"\tRISCV: FWDMEM. Avail: %b RD: %d RDVAL: %h RDTYPE: ", available,rd,rdval,
+                                                                      fshow(rdtype));
+    endrule
+//    rule fwding_from_mem2;
+//      let {present, data} = pipe4.second_data;
+//      let {committype , epoch}=data;
+//      Bit#(5) rd = 0;
+//      RFType rdtype = FRF;
+//      Bit#(ELEN) rdval = 0;
+//      Bool available = False;
+//      if(committype matches tagged REG .r)begin
+//        available=True;
+//        rd=r.rd;
+//        rdval = r.commitvalue;
+//        rdtype = r.rdtype;
+//      end
+//    `ifdef atomic
+//      else if (committype matches tagged STORE .s)begin
+//        available=True;
+//        rd=s.rd;
+//        rdval=s.commitvalue;
+//        rdtype=IRF;
+//      end
+//    `endif
+//      if(present)begin
+//        stage3.fwd_from_pipe4_second(tuple4(available,rd,rdval,rdtype));
+//        $display($time,"\tRISCV: FWDMEM2. Avail: %b RD: %d RDVAL: %h RDTYPE: ", available,rd,rdval,
+//                                                                      fshow(rdtype));
+//      end
+//    endrule
     ///////////////////////////////////////////
 
     interface inst_request=stage1.inst_request;

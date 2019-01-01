@@ -160,7 +160,8 @@ package registerfile;
       `else
         let{r, d}=in;
       `endif
-        wr_commit<=tuple3(True, r, d);    
+        if(r!=0 || rdtype==FRF)
+          wr_commit<=tuple3(True, r, d);    
 			  if(verbosity>0)begin
           $display($time,"\tRF: Writing Rd: %d(%h) ",r,d `ifdef spfpu , fshow(rdtype) `endif );
         end

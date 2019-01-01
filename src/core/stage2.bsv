@@ -153,6 +153,8 @@ package stage2;
     Reg#(Bool) rg_rerun <- mkReg(False);
     Reg#(Bool) rg_fencei_rerun <- mkReg(False);
     Wire#(Bool) wr_op_complete <-mkDWire(False);
+    Wire#(Bool) wr_flush_from_exe<- mkDWire(False);
+    Wire#(Bool) wr_flush_from_wb<- mkDWire(False);
 
     rule decode_and_fetch(!rg_stall);
       let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=wr_csrs;
@@ -202,7 +204,7 @@ package stage2;
       `else
         Bit#(FLEN) op4=signExtend(imm);
       `endif
-        rg_rerun<=rerun;
+        rg_rerun<=rerun && !wr_flush_from_exe && !wr_flush_from_wb;
         if(instrType==MEMORY && memaccess==FenceI)
           rg_fencei_rerun<=True;
         else 
@@ -212,7 +214,7 @@ package stage2;
         MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);
         PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
       `ifdef spfpu
-        OpFpu t5 = tuple4(rs3addr, rf1type, rf2type, rdtype);
+        OpFpu t5 = tuple5(rs3addr, rf1type, rf2type, rs3type, rdtype);
       `endif
 
         txmin.u.enq(t4);
@@ -226,7 +228,7 @@ package stage2;
         txfpu.u.enq(t5);
       `endif
         if(instrType==TRAP)
-          rg_stall<=True;
+          rg_stall<=True && !wr_flush_from_exe && !wr_flush_from_wb;
 
         if(verbosity>0)begin
           $display($time, "\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpochs: %b WFI: %b ERR: %b", pc, inst, 
@@ -284,12 +286,14 @@ package stage2;
 		method Action update_eEpoch;
 		  if(verbosity>1) 
         $display($time,"\tSTAGE2: updating eEpoch"); 
+      wr_flush_from_exe<=True;
 			eEpoch<=~eEpoch;
 		endmethod
     // This method gets activated when there is a flush from the write-back stage.
 		method Action update_wEpoch;
 			if(verbosity>1)
         $display($time,"\tSTAGE2: updating wEpoch"); 
+      wr_flush_from_wb<=True;
 			wEpoch<=~wEpoch;
 		endmethod
     method Action clear_stall (Bool upd) if(rg_stall);

@@ -165,9 +165,10 @@ package common_types;
                  Bit#(2) // epochs
                 ) MetaData;
   typedef Tuple3#(OpMeta, OpData#(msize,t), MetaData) PIPE2_min#(numeric type msize, numeric type t);
-  typedef Tuple4#(Bit#(5), // rs3addr
+  typedef Tuple5#(Bit#(5), // rs3addr
                  RFType, // rs1type
                  RFType, // rs2type
+                 RFType, // rs3type
                  RFType // rdtype
                 ) OpFpu;
 

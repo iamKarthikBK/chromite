@@ -126,6 +126,7 @@ package stage3;
     method Action fwd_from_pipe3 (FwdType fwd);
     method Action fwd_from_pipe4_first (FwdType fwd);
     method Action fwd_from_pipe4_second (FwdType fwd);
+    method Action latest_commit(CommitData c);
   endinterface
 
   (*synthesize*)
@@ -192,7 +193,7 @@ package stage3;
       let pred = rxbpu.u.first;
     `endif
     `ifdef spfpu
-      let {rs3addr, rs1type, rs2type, rdtype} = rxfpu.u.first;
+      let {rs3addr, rs1type, rs2type, rs3type, rdtype} = rxfpu.u.first;
     `else
       Op3type rdtype = IRF;
     `endif
@@ -209,7 +210,7 @@ package stage3;
                                     rs1type);
       let {rs2avail, rs2} <- fwding.read_rs2(op2, rs2addr,  rs2type);
     `ifdef spfpu
-      let {rs3avail, rs3_imm} <- fwding.read_rs3(zeroExtend(op4), rs3addr);
+      let {rs3avail, rs3_imm} <- fwding.read_rs3(zeroExtend(op4), rs3addr, rs3type);
     `else
       let rs3_imm=op4;
     `endif
@@ -506,6 +507,9 @@ package stage3;
     endmethod
     method Action fwd_from_pipe4_second (FwdType fwd);
       fwding.fwd_from_pipe4_second(fwd);
+    endmethod
+    method Action latest_commit(CommitData c);
+      fwding.latest_commit(c);
     endmethod
   endmodule
 endpackage
