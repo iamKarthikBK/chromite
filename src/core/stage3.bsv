@@ -214,10 +214,15 @@ package stage3;
     `else
       let rs3_imm=op4;
     `endif
+      Bool execute = True;
+      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence || memaccess==Atomic) 
+                                                    && !wr_storebuffer_empty)
+        execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
+      // We first check Epochs only then process the instruction
 
       if(verbosity>0)begin
-        $display($time, "\tEXECUTE: PC: %h epochs: %b currEpochs: %b ", pc, epochs, {eEpoch, 
-                                                                                          wEpoch});
+        $display($time, "\tEXECUTE: PC: %h epochs: %b currEpochs: %b execute: %b", pc, epochs, {eEpoch, 
+                                                                        wEpoch},execute);
         $display($time, "\tEXECUTE: pc: %h, rs1: ", pc, fshow(rs1), " rs2 ", fshow(rs2), 
                                                                 " check_rpc: ", fshow(check_rpc));
       end
@@ -225,11 +230,6 @@ package stage3;
     `ifdef bpu
       Bit#(VADDR) nextpc=pc+ 4; // TODO this should +2 in case of compressed
     `endif
-      Bool execute = True;
-      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence || memaccess==Atomic) 
-                                                    && !wr_storebuffer_empty)
-        execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
-      // We first check Epochs only then process the instruction
       if(!execute_instruction)begin
         `DEQRX
       `ifdef bpu

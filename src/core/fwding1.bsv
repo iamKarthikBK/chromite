@@ -55,6 +55,7 @@ package fwding1;
     Wire#(Maybe#(FwdType)) wr_from_pipe4_second <- mkDWire(tagged Invalid );
     Reg#(CommitData) rg_recent_commit <-mkReg(tuple3(0,0,IRF));
     Reg#(CommitData) rg_recentm1_commit <-mkReg(tuple3(0,0,IRF));
+    Reg#(CommitData) rg_recentm2_commit <-mkReg(tuple3(0,0,IRF));
     method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs1(Bit#(ELEN) val, Bit#(5) addr 
                                                               `ifdef spfpu , RFType rftype `endif );
       Bool available = True;
@@ -64,6 +65,7 @@ package fwding1;
       let {p5_avail, p5_addr, p5_val, p5_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe4_first);
       let {p6_addr,p6_val,p6_rf}=rg_recent_commit;
       let {p7_addr,p7_val,p7_rf}=rg_recentm1_commit;
+      let {p8_addr,p8_val,p8_rf}=rg_recentm2_commit;
       let p3valid = isValid(wr_from_pipe3);
       let p4valid = isValid(wr_from_pipe4_second);
       let p5valid = isValid(wr_from_pipe4_first);
@@ -78,6 +80,8 @@ package fwding1;
           rs1val=p6_val;
         else if(p7_addr==addr `ifdef spfpu && p7_rf == rftype `endif )
           rs1val=p7_val;
+        else if(p8_addr==addr `ifdef spfpu && p8_rf == rftype `endif )
+          rs1val=p8_val;
       end
 
       if(addr!=0 || rftype==FRF)begin
@@ -102,6 +106,7 @@ package fwding1;
       let p5valid = isValid(wr_from_pipe4_first);
       let {p6_addr,p6_val,p6_rf}=rg_recent_commit;
       let {p7_addr,p7_val,p7_rf}=rg_recentm1_commit;
+      let {p8_addr,p8_val,p8_rf}=rg_recentm2_commit;
       if(addr!=0 || rftype==FRF)begin
         if(p3_addr==addr && p3valid `ifdef spfpu && p3_rf==rftype `endif )
           rs2val=p3_val;
@@ -113,6 +118,8 @@ package fwding1;
           rs2val=p6_val;
         else if(p7_addr==addr `ifdef spfpu && p7_rf == rftype `endif )
           rs2val=p7_val;
+        else if(p8_addr==addr `ifdef spfpu && p8_rf == rftype `endif )
+          rs2val=p8_val;
       end
 
       if(addr!=0 || rftype==FRF)begin
@@ -135,6 +142,7 @@ package fwding1;
       let {p5_avail, p5_addr, p5_val, p5_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe4_first);
       let {p6_addr,p6_val,p6_rf}=rg_recent_commit;
       let {p7_addr,p7_val,p7_rf}=rg_recentm1_commit;
+      let {p8_addr,p8_val,p8_rf}=rg_recentm2_commit;
       let p3valid = isValid(wr_from_pipe3);
       let p4valid = isValid(wr_from_pipe4_second);
       let p5valid = isValid(wr_from_pipe4_first);
@@ -149,6 +157,8 @@ package fwding1;
           rs3val=p6_val;
         else if(p7_addr==addr && p7_rf == FRF )
           rs3val=p7_val;
+        else if(p8_addr==addr && p8_rf == FRF )
+          rs3val=p8_val;
       end
 
       if(addr!=0 || rftype==FRF)begin
@@ -175,6 +185,7 @@ package fwding1;
     method Action latest_commit(CommitData c);
       rg_recent_commit<=c;
       rg_recentm1_commit<=rg_recent_commit;
+      rg_recentm2_commit<=rg_recentm1_commit;
     endmethod
   endmodule
 

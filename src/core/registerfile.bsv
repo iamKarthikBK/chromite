@@ -140,7 +140,7 @@ package registerfile;
     method ActionValue#(Bit#(ELEN)) read_rs3(Bit#(5) addr) if(!initialize);
       let {commit, rdaddr, rdval} = wr_commit;
       let rdtype = wr_commit_type;
-      if (commit && addr == rdaddr)
+      if (commit && addr == rdaddr && rdtype==FRF)
         return rdval;
       else 
         return floating_rf.sub(addr);

@@ -65,22 +65,28 @@ package stage4;
     method Bool storebuffer_empty;
   endinterface
 
-  function Bit#(ELEN) fn_atomic_op (Bit#(4) op,  Bit#(ELEN) rs2,  Bit#(ELEN) loaded);
-    Int#(ELEN) s_loaded = unpack(loaded);
-		Int#(ELEN) s_rs2 = unpack(rs2);
+  function Bit#(ELEN) fn_atomic_op (Bit#(5) op,  Bit#(ELEN) rs2,  Bit#(ELEN) loaded);
+    Bit#(ELEN) op1 = loaded;
+    Bit#(ELEN) op2 = rs2;
+    if(op[4]==0)begin
+			op1=signExtend(loaded[31:0]);
+      op2= signExtend(rs2[31:0]);
+    end
+    Int#(ELEN) s_op1 = unpack(op1);
+		Int#(ELEN) s_op2 = unpack(op2);
+    
     case (op[3:0])
-				'b0011:return rs2;
-				'b0000:return (loaded+rs2);
-				'b0010:return (loaded^rs2);
-				'b0110:return (loaded&rs2);
-				'b0100:return (loaded|rs2);
-				'b1100:return min(loaded,rs2);
-				'b1110:return max(loaded,rs2);
-				'b1000:return pack(min(s_loaded,s_rs2));
-				'b1010:return pack(max(s_loaded,s_rs2));
-				default:return loaded;
-        // TODO: Handle LR SC
-			endcase	
+				'b0011:return op2;
+				'b0000:return (op1+op2);
+				'b0010:return (op1^op2);
+				'b0110:return (op1&op2);
+				'b0100:return (op1|op2);
+				'b1100:return min(op1,op2);
+				'b1110:return max(op1,op2);
+				'b1000:return pack(min(s_op1,s_op2));
+				'b1010:return pack(max(s_op1,s_op2));
+				default:return op1;
+			endcase
   endfunction
 
   (*synthesize*)
@@ -130,7 +136,7 @@ package stage4;
       Bit#(2) size=field4[11:10];
       Bit#(1) sign=field4[12];
       Bit#(1) nanboxing=field4[13];
-      Bit#(4) atomic_op = field4[17:14];
+      Bit#(5) atomic_op = {size[0],field4[17:14]};
       CommitType temp1=?;
       Bool complete=True;
   
