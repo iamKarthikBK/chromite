@@ -10,3 +10,5 @@ bin/
 old_vars
 
 src/testbench/sim_main\.h
+
+fpga/
