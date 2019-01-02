@@ -77,17 +77,25 @@ package fwding1;
       let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
     `endif
       Bool pick_p3 = p3_addr == addr && p3valid `ifdef spfpu && p3_rf==rftype `endif ;
-      Bool pick_p4 = !pick_p3 && p4_addr == addr && p4valid `ifdef spfpu && p4_rf==rftype `endif ;
+      `ifdef PIPE2
+        Bool pick_p4 = !pick_p3 && p4_addr == addr && p4valid `ifdef spfpu && p4_rf==rftype `endif ;
+      `else
+        Bool pick_p4=False;
+      `endif
       Bool pick_p5 = !pick_p4 && !pick_p3 && p5_addr == addr && p5valid `ifdef spfpu && p5_rf==rftype `endif ;
       Bool pick_p6 = !pick_p5 && !pick_p3 && !pick_p4 && p6_addr == addr `ifdef spfpu && p6_rf==rftype `endif ;
       Bool pick_p7 = !pick_p6 && !pick_p3 && !pick_p4 && !pick_p5 && p7_addr == addr `ifdef spfpu && p7_rf==rftype `endif ;
+    `ifdef PIPE2
       Bool pick_p8 = !pick_p7 && !pick_p3 && !pick_p4 && !pick_p5 && !pick_p6 && p8_addr == addr `ifdef spfpu && p8_rf==rftype `endif ;
+    `else
+      Bool pick_p8 = False;
+    `endif
       let d3 = duplicate(pack(pick_p3)) & p3_val;
-      let d4 = duplicate(pack(pick_p4)) & p4_val;
+      let d4 = `ifdef PIPE2 duplicate(pack(pick_p4)) & p4_val `else 0 `endif ;
       let d5 = duplicate(pack(pick_p5)) & p5_val;
       let d6 = duplicate(pack(pick_p6)) & p6_val;
       let d7 = duplicate(pack(pick_p7)) & p7_val;
-      let d8 = duplicate(pack(pick_p8)) & p8_val;
+      let d8 = `ifdef PIPE2 duplicate(pack(pick_p8)) & p8_val `else 0 `endif ;
       Bit#(6) pick = {pack(pick_p3), pack(pick_p4), pack(pick_p5), pack(pick_p6), pack(pick_p7),
                               pack(pick_p8)};
       if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
@@ -125,17 +133,25 @@ package fwding1;
       let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
     `endif
       Bool pick_p3 = p3_addr == addr && p3valid `ifdef spfpu && p3_rf==rftype `endif ;
-      Bool pick_p4 = !pick_p3 && p4_addr == addr && p4valid `ifdef spfpu && p4_rf==rftype `endif ;
+      `ifdef PIPE2
+        Bool pick_p4 = !pick_p3 && p4_addr == addr && p4valid `ifdef spfpu && p4_rf==rftype `endif ;
+      `else
+        Bool pick_p4=False;
+      `endif
       Bool pick_p5 = !pick_p4 && !pick_p3 && p5_addr == addr && p5valid `ifdef spfpu && p5_rf==rftype `endif ;
       Bool pick_p6 = !pick_p5 && !pick_p3 && !pick_p4 && p6_addr == addr `ifdef spfpu && p6_rf==rftype `endif ;
       Bool pick_p7 = !pick_p6 && !pick_p3 && !pick_p4 && !pick_p5 && p7_addr == addr `ifdef spfpu && p7_rf==rftype `endif ;
+    `ifdef PIPE2
       Bool pick_p8 = !pick_p7 && !pick_p3 && !pick_p4 && !pick_p5 && !pick_p6 && p8_addr == addr `ifdef spfpu && p8_rf==rftype `endif ;
+    `else
+      Bool pick_p8 = False;
+    `endif
       let d3 = duplicate(pack(pick_p3)) & p3_val;
-      let d4 = duplicate(pack(pick_p4)) & p4_val;
+      let d4 = `ifdef PIPE2 duplicate(pack(pick_p4)) & p4_val `else 0 `endif ;
       let d5 = duplicate(pack(pick_p5)) & p5_val;
       let d6 = duplicate(pack(pick_p6)) & p6_val;
       let d7 = duplicate(pack(pick_p7)) & p7_val;
-      let d8 = duplicate(pack(pick_p8)) & p8_val;
+      let d8 = `ifdef PIPE2 duplicate(pack(pick_p8)) & p8_val `else 0 `endif ;
       Bit#(6) pick = {pack(pick_p3), pack(pick_p4), pack(pick_p5), pack(pick_p6), pack(pick_p7),
                               pack(pick_p8)};
       if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
@@ -158,64 +174,6 @@ package fwding1;
       end
       return tuple2(available,returnval);
     endmethod
-/*    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr `ifdef spfpu
-                                                                          , RFType rftype `endif );
-      Bool available = True;
-      Bit#(ELEN) rs2val = val;
-      let {p3_avail, p3_addr, p3_val `ifdef spfpu ,p3_rf `endif } = fromMaybe(unpack(0),wr_from_pipe3);
-    `ifdef PIPE2
-      let {p4_avail, p4_addr, p4_val `ifdef spfpu .p4_rf `endif } = fromMaybe(unpack(0),wr_from_pipe4_second);
-      let p4valid = isValid(wr_from_pipe4_second);
-    `endif
-      let {p5_avail, p5_addr, p5_val `ifdef spfpu , p5_rf `endif } = fromMaybe(unpack(0),wr_from_pipe4_first);
-      let {p6_addr,p6_val `ifdef spfpu ,p6_rf `endif }=rg_recent_commit;
-      let {p7_addr,p7_val `ifdef spfpu ,p7_rf `endif }=rg_recentm1_commit;
-    `ifdef PIPE2
-      let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
-    `endif
-      let p3valid = isValid(wr_from_pipe3);
-      let p5valid = isValid(wr_from_pipe4_first);
-      Bit#(1) pick_p3 = pack(p3_addr == addr && p3valid);
-      Bit#(1) pick_p4 = pack(p4_addr == addr && p4valid);
-      Bit#(1) pick_p5 = pack(p5_addr == addr && p5valid);
-      Bit#(1) pick_p6 = pack(p6_addr == addr) ;
-      Bit#(1) pick_p7 = pack(p7_addr == addr) ;
-      Bit#(1) pick_p8 = pack(p8_addr == addr) ;
-      Bit#(6) pick = {pick_p3, pick_p4, pick_p5, pick_p6, pick_p7, pick_p8};
-      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
-        if(p3_addr==addr && p3valid `ifdef spfpu && p3_rf==rftype `endif )
-          rs2val=p3_val;
-      `ifdef PIPE2
-        else if(p4_addr==addr && p4valid `ifdef spfpu && p4_rf == rftype `endif )
-          rs2val=p4_val;
-      `endif
-        else if(p5_addr==addr && p5valid `ifdef spfpu && p5_rf == rftype `endif )
-          rs2val=p5_val;
-        else if(p6_addr==addr `ifdef spfpu && p6_rf == rftype `endif )
-          rs2val=p6_val;
-        else if(p7_addr==addr `ifdef spfpu && p7_rf == rftype `endif )
-          rs2val=p7_val;
-      `ifdef PIPE2
-        else if(p8_addr==addr `ifdef spfpu && p8_rf == rftype `endif )
-          rs2val=p8_val;
-      `endif
-      end
-
-//      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
-//        if(p3_addr==addr && p3valid && !p3_avail `ifdef spfpu && p3_rf==rftype `endif )
-//          available=False;
-//      `ifdef PIPE2
-//        else if(p4_addr==addr && p4valid && !p4_avail `ifdef spfpu && p4_rf==rftype `endif )
-//          available=False;
-//      `endif
-//        else if(p5_addr==addr && p5valid && !p5_avail `ifdef spfpu && p5_rf==rftype `endif )
-//          available=False;
-//      end
-      if(verbosity>2)
-        $display($time,"\tFWDING: Returning RS2 Avail: %b Val: %h",available,rs2val);
-      return tuple2(available,rs2val);
-    endmethod
-*/
   `ifdef spfpu
     method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs3(Bit#(ELEN) val, Bit#(5) addr 
                                                               `ifdef spfpu , RFType rftype `endif );
@@ -232,17 +190,25 @@ package fwding1;
       let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
     `endif
       Bool pick_p3 = p3_addr == addr && p3valid `ifdef spfpu && p3_rf==FRF `endif ;
-      Bool pick_p4 = !pick_p3 && p4_addr == addr && p4valid `ifdef spfpu && p4_rf==FRF `endif ;
+    `ifdef PIPE2
+      Bool pick_p4 = !pick_p3 && p4_addr == addr && p4valid `ifdef spfpu && p4_rf==rftype `endif ;
+    `else
+      Bool pick_p4=False;
+    `endif
       Bool pick_p5 = !pick_p4 && !pick_p3 && p5_addr == addr && p5valid `ifdef spfpu && p5_rf==FRF `endif ;
       Bool pick_p6 = !pick_p5 && !pick_p3 && !pick_p4 && p6_addr == addr `ifdef spfpu && p6_rf==FRF `endif ;
       Bool pick_p7 = !pick_p6 && !pick_p3 && !pick_p4 && !pick_p5 && p7_addr == addr `ifdef spfpu && p7_rf==FRF `endif ;
+    `ifdef PIPE2
       Bool pick_p8 = !pick_p7 && !pick_p3 && !pick_p4 && !pick_p5 && !pick_p6 && p8_addr == addr `ifdef spfpu && p8_rf==FRF `endif ;
+    `else
+      Bool pick_p8= False;
+    `endif
       let d3 = duplicate(pack(pick_p3)) & p3_val;
-      let d4 = duplicate(pack(pick_p4)) & p4_val;
+      let d4 = `ifdef PIPE2 duplicate(pack(pick_p4)) & p4_val `else 0 `endif ;
       let d5 = duplicate(pack(pick_p5)) & p5_val;
       let d6 = duplicate(pack(pick_p6)) & p6_val;
       let d7 = duplicate(pack(pick_p7)) & p7_val;
-      let d8 = duplicate(pack(pick_p8)) & p8_val;
+      let d8 = `ifdef PIPE2 duplicate(pack(pick_p8)) & p8_val `else 0 `endif ;
       Bit#(6) pick = {pack(pick_p3), pack(pick_p4), pack(pick_p5), pack(pick_p6), pack(pick_p7),
                               pack(pick_p8)};
       if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
