@@ -123,7 +123,9 @@ package SoC;
 
    	mkConnection(cclass.master_d,	fabric.v_from_masters[`Mem_master_num]);
    	mkConnection(cclass.master_i, fabric.v_from_masters[`Fetch_master_num]);
+  `ifdef cache_control
    	mkConnection(cclass.master_io, fabric.v_from_masters[`IO_master_num]);
+  `endif
    	mkConnection(signature.master, fabric.v_from_masters[`Sign_master_num ]);
 
   	mkConnection(fabric.v_to_slaves[`Memory_slave_num ],main_memory.slave);
