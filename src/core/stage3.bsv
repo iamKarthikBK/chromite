@@ -125,7 +125,9 @@ package stage3;
     method Action storebuffer_empty(Bool e);
     method Action fwd_from_pipe3 (FwdType fwd);
     method Action fwd_from_pipe4_first (FwdType fwd);
+  `ifdef PIPE2
     method Action fwd_from_pipe4_second (FwdType fwd);
+  `endif
     method Action latest_commit(CommitData c);
   endinterface
 
@@ -506,9 +508,11 @@ package stage3;
     method Action fwd_from_pipe4_first (FwdType fwd);
       fwding.fwd_from_pipe4_first(fwd);
     endmethod
+  `ifdef PIPE2
     method Action fwd_from_pipe4_second (FwdType fwd);
       fwding.fwd_from_pipe4_second(fwd);
     endmethod
+  `endif
     method Action latest_commit(CommitData c);
       fwding.latest_commit(c);
     endmethod

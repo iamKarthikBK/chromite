@@ -75,26 +75,35 @@ package riscv;
     FIFOF#(PIPE1_opt2) pipe1opt2 <-mkSizedFIFOF(2);
 
     FIFOF#(PIPE2_min#(ELEN,FLEN)) pipe2min <- mkLFIFOF();
-    `ifdef spfpu
-      FIFOF#(OpFpu) pipe2fpu <- mkLFIFOF();
-    `endif
-    `ifdef bpu
-      FIFOF#(Bit#(2)) pipe2bpu <- mkLFIFOF();
-    `endif
-    `ifdef rtldump
-      FIFOF#(Bit#(32)) pipe2inst <- mkLFIFOF();
-    `endif
+  `ifdef spfpu
+    FIFOF#(OpFpu) pipe2fpu <- mkLFIFOF();
+  `endif
+  `ifdef bpu
+    FIFOF#(Bit#(2)) pipe2bpu <- mkLFIFOF();
+  `endif
+  `ifdef rtldump
+    FIFOF#(Bit#(32)) pipe2inst <- mkLFIFOF();
+  `endif
 
+`ifdef PIPE2
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
-    `ifdef rtldump
-      FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
-    `endif
-
-//    FIFOF#(PIPE4) pipe4 <-mkSizedFIFOF(2);
+  `ifdef rtldump
+    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
+  `endif
     Ifc_PipeFIFOF#(PIPE4) pipe4 <- mkPipeFIFOF();
-    `ifdef rtldump
-      FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
-    `endif
+  `ifdef rtldump
+    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
+  `endif
+`else
+    FIFOF#(PIPE3) pipe3 <- mkLFIFOF();
+  `ifdef rtldump
+    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkLFIFOF();
+  `endif
+    FIFOF#(PIPE4) pipe4 <- mkLFIFOF();
+  `ifdef rtldump
+    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkLFIFOF();
+  `endif
+`endif
 
     mkConnection(stage1.tx_min, pipe1min);
     mkConnection(pipe1min, stage2.rx_min);
@@ -110,34 +119,44 @@ package riscv;
 
     mkConnection(stage2.tx_min, pipe2min);
     mkConnection(pipe2min, stage3.rx_min);
-    `ifdef rtldump
-      mkConnection(stage2.tx_inst, pipe2inst);
-      mkConnection(pipe2inst, stage3.rx_inst);
-    `endif
-    `ifdef bpu
-      mkConnection(stage2.tx_bpu, pipe2bpu);
-      mkConnection(pipe2bpu, stage3.rx_bpu);
-    `endif
-    `ifdef spfpu
-      mkConnection(stage2.tx_fpu, pipe2fpu);
-      mkConnection(pipe2fpu, stage3.rx_fpu);
-    `endif
+  `ifdef rtldump
+    mkConnection(stage2.tx_inst, pipe2inst);
+    mkConnection(pipe2inst, stage3.rx_inst);
+  `endif
+  `ifdef bpu
+    mkConnection(stage2.tx_bpu, pipe2bpu);
+    mkConnection(pipe2bpu, stage3.rx_bpu);
+  `endif
+  `ifdef spfpu
+    mkConnection(stage2.tx_fpu, pipe2fpu);
+    mkConnection(pipe2fpu, stage3.rx_fpu);
+  `endif
 
+  `ifdef PIPE2
     mkConnection(stage3.tx_out, pipe3);
     mkConnection(pipe3, stage4.rx_min);
+  `else
+    mkConnection(stage3.tx_out, pipe3);
+    mkConnection(pipe3, stage4.rx_min);
+  `endif
 
-    `ifdef rtldump
-      mkConnection(stage3.tx_inst,pipe3inst);
-      mkConnection(pipe3inst,stage4.rx_inst);
-    `endif
+  `ifdef rtldump
+    mkConnection(stage3.tx_inst,pipe3inst);
+    mkConnection(pipe3inst,stage4.rx_inst);
+  `endif
 
+  `ifdef PIPE2  
     mkConnection(stage4.tx_min,pipe4.fifo);
     mkConnection(pipe4.fifo,stage5.rx_in);
+  `else
+    mkConnection(stage4.tx_min,pipe4);
+    mkConnection(pipe4,stage5.rx_in);
+  `endif
 
-    `ifdef rtldump
-      mkConnection(stage4.tx_inst,pipe4inst);
-      mkConnection(pipe4inst,stage5.rx_inst);
-    `endif
+  `ifdef rtldump
+    mkConnection(stage4.tx_inst,pipe4inst);
+    mkConnection(pipe4inst,stage5.rx_inst);
+  `endif
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
     let {flush_from_wb, flushpc_from_wb, fenceI}=stage5.flush;
 
@@ -201,6 +220,7 @@ package riscv;
         stage3.fwd_from_pipe3(tuple4(available,rd,rdval,rdtype));
       end
     endrule
+  `ifdef PIPE2
     rule fwding_from_mem1;
       let {present, data} = pipe4.first_data;
       let {committype , epoch}=data;
@@ -251,6 +271,31 @@ package riscv;
         stage3.fwd_from_pipe4_second(tuple4(available,rd,rdval,rdtype));
       end
     endrule
+  `else
+    rule fwding_from_mem1;
+      let data = pipe4.first;
+      let {committype , epoch}=data;
+      Bit#(5) rd = 0;
+      RFType rdtype = FRF;
+      Bit#(ELEN) rdval = 0;
+      Bool available = False;
+      if(committype matches tagged REG .r)begin
+        available=True;
+        rd=r.rd;
+        rdval = r.commitvalue;
+        rdtype = r.rdtype;
+      end
+    `ifdef atomic
+      else if (committype matches tagged STORE .s)begin
+        available=True;
+        rd=s.rd;
+        rdval=s.commitvalue;
+        rdtype=IRF;
+      end
+    `endif
+      stage3.fwd_from_pipe4_first(tuple4(available,rd,rdval,rdtype));
+    endrule
+  `endif
     ///////////////////////////////////////////
 
     interface inst_request=stage1.inst_request;
