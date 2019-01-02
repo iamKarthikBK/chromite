@@ -197,7 +197,7 @@ package stage3;
     `ifdef spfpu
       let {rs3addr, rs1type, rs2type, rs3type, rdtype} = rxfpu.u.first;
     `else
-      Op3type rdtype = IRF;
+      RFType rdtype = IRF;
     `endif
   
       Bit#(VADDR) pc = op3;
@@ -208,16 +208,16 @@ package stage3;
       Bool execute_instruction = ({eEpoch, wEpoch}==epochs);
       let {rs1avail, rs1} <- fwding.read_rs1(
                                     (instrtype==MEMORY || instrtype==JALR)?zeroExtend(op3):op1,
-                                    rs1addr,
-                                    rs1type);
-      let {rs2avail, rs2} <- fwding.read_rs2(op2, rs2addr,  rs2type);
+                                    rs1addr `ifdef spfpu ,rs1type `endif );
+
+      let {rs2avail, rs2} <- fwding.read_rs2(op2, rs2addr `ifdef spfpu , rs2type `endif );
     `ifdef spfpu
       let {rs3avail, rs3_imm} <- fwding.read_rs3(zeroExtend(op4), rs3addr, rs3type);
     `else
       let rs3_imm=op4;
     `endif
       Bool execute = True;
-      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence || memaccess==Atomic) 
+      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence `ifdef atomic ||   memaccess==Atomic `endif )  
                                                     && !wr_storebuffer_empty)
         execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
       // We first check Epochs only then process the instruction
@@ -435,7 +435,7 @@ package stage3;
     `ifdef spfpu
       let {rs3addr, rdtype} = rxfpu.u.first;
     `else
-      Op3type rdtype = IRF;
+      RFType rdtype = IRF;
     `endif
       Bit#(VADDR) pc = (instrtype==MEMORY || instrtype==JALR)?truncate(op1):truncate(op3);
       let {cmtype, out, addr, cause, redirect} <- alu.delayed_output;

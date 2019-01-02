@@ -55,30 +55,30 @@ package fwding1;
     let verbosity = `VERBOSITY ;
     Wire#(Maybe#(FwdType)) wr_from_pipe3        <- mkDWire(tagged Invalid );
     Wire#(Maybe#(FwdType)) wr_from_pipe4_first  <- mkDWire(tagged Invalid );
-    Reg#(CommitData) rg_recent_commit <-mkReg(tuple3(0,0,IRF));
-    Reg#(CommitData) rg_recentm1_commit <-mkReg(tuple3(0,0,IRF));
+    Reg#(CommitData) rg_recent_commit <-mkReg(unpack(0));
+    Reg#(CommitData) rg_recentm1_commit <-mkReg(unpack(0));
   `ifdef PIPE2
     Wire#(Maybe#(FwdType)) wr_from_pipe4_second <- mkDWire(tagged Invalid );
-    Reg#(CommitData) rg_recentm2_commit <-mkReg(tuple3(0,0,IRF));
+    Reg#(CommitData) rg_recentm2_commit <-mkReg(unpack(0));
   `endif
     method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs1(Bit#(ELEN) val, Bit#(5) addr 
                                                               `ifdef spfpu , RFType rftype `endif );
       Bool available = True;
       Bit#(ELEN) rs1val = val;
-      let {p3_avail, p3_addr, p3_val, p3_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe3);
+      let {p3_avail, p3_addr, p3_val `ifdef spfpu ,p3_rf `endif } = fromMaybe(unpack(0),wr_from_pipe3);
     `ifdef PIPE2
-      let {p4_avail, p4_addr, p4_val, p4_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe4_second);
+      let {p4_avail, p4_addr, p4_val `ifdef spfpu .p4_rf `endif } = fromMaybe(unpack(0),wr_from_pipe4_second);
       let p4valid = isValid(wr_from_pipe4_second);
     `endif
-      let {p5_avail, p5_addr, p5_val, p5_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe4_first);
-      let {p6_addr,p6_val,p6_rf}=rg_recent_commit;
-      let {p7_addr,p7_val,p7_rf}=rg_recentm1_commit;
+      let {p5_avail, p5_addr, p5_val `ifdef spfpu , p5_rf `endif } = fromMaybe(unpack(0),wr_from_pipe4_first);
+      let {p6_addr,p6_val `ifdef spfpu ,p6_rf `endif }=rg_recent_commit;
+      let {p7_addr,p7_val `ifdef spfpu ,p7_rf `endif }=rg_recentm1_commit;
     `ifdef PIPE2
-      let {p8_addr,p8_val,p8_rf}=rg_recentm2_commit;
+      let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
     `endif
       let p3valid = isValid(wr_from_pipe3);
       let p5valid = isValid(wr_from_pipe4_first);
-      if(addr!=0 || rftype==FRF)begin
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
         if(p3_addr==addr && p3valid `ifdef spfpu && p3_rf==rftype `endif )
           rs1val=p3_val;
       `ifdef PIPE2
@@ -97,7 +97,7 @@ package fwding1;
       `endif
       end
 
-      if(addr!=0 || rftype==FRF)begin
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
         if(p3_addr==addr && p3valid && !p3_avail `ifdef spfpu && p3_rf==rftype `endif )
           available=False;
       `ifdef PIPE2
@@ -114,23 +114,24 @@ package fwding1;
       end
       return tuple2(available,rs1val);
     endmethod
-    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr, RFType rftype);
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr `ifdef spfpu
+                                                                          , RFType rftype `endif );
       Bool available = True;
       Bit#(ELEN) rs2val = val;
-      let {p3_avail, p3_addr, p3_val, p3_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe3);
+      let {p3_avail, p3_addr, p3_val `ifdef spfpu ,p3_rf `endif } = fromMaybe(unpack(0),wr_from_pipe3);
     `ifdef PIPE2
-      let {p4_avail, p4_addr, p4_val, p4_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe4_second);
+      let {p4_avail, p4_addr, p4_val `ifdef spfpu .p4_rf `endif } = fromMaybe(unpack(0),wr_from_pipe4_second);
       let p4valid = isValid(wr_from_pipe4_second);
     `endif
-      let {p5_avail, p5_addr, p5_val, p5_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe4_first);
-      let {p6_addr,p6_val,p6_rf}=rg_recent_commit;
-      let {p7_addr,p7_val,p7_rf}=rg_recentm1_commit;
+      let {p5_avail, p5_addr, p5_val `ifdef spfpu , p5_rf `endif } = fromMaybe(unpack(0),wr_from_pipe4_first);
+      let {p6_addr,p6_val `ifdef spfpu ,p6_rf `endif }=rg_recent_commit;
+      let {p7_addr,p7_val `ifdef spfpu ,p7_rf `endif }=rg_recentm1_commit;
     `ifdef PIPE2
-      let {p8_addr,p8_val,p8_rf}=rg_recentm2_commit;
+      let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
     `endif
       let p3valid = isValid(wr_from_pipe3);
       let p5valid = isValid(wr_from_pipe4_first);
-      if(addr!=0 || rftype==FRF)begin
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
         if(p3_addr==addr && p3valid `ifdef spfpu && p3_rf==rftype `endif )
           rs2val=p3_val;
       `ifdef PIPE2
@@ -149,7 +150,7 @@ package fwding1;
       `endif
       end
 
-      if(addr!=0 || rftype==FRF)begin
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
         if(p3_addr==addr && p3valid && !p3_avail `ifdef spfpu && p3_rf==rftype `endif )
           available=False;
       `ifdef PIPE2
@@ -167,16 +168,16 @@ package fwding1;
     method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs3(Bit#(ELEN) val, Bit#(5) addr, RFType rftype);
       Bool available = True;
       Bit#(ELEN) rs3val = val;
-      let {p3_avail, p3_addr, p3_val, p3_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe3);
+      let {p3_avail, p3_addr, p3_val, p3_rf} = fromMaybe(unpack(0),wr_from_pipe3);
     `ifdef PIPE2
-      let {p4_avail, p4_addr, p4_val, p4_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe4_second);
+      let {p4_avail, p4_addr, p4_val, p4_rf} = fromMaybe(unpack(0),wr_from_pipe4_second);
       let p4valid = isValid(wr_from_pipe4_second);
     `endif
-      let {p5_avail, p5_addr, p5_val, p5_rf} = fromMaybe(tuple4(False,0,0,IRF),wr_from_pipe4_first);
-      let {p6_addr,p6_val,p6_rf}=rg_recent_commit;
-      let {p7_addr,p7_val,p7_rf}=rg_recentm1_commit;
+      let {p5_avail, p5_addr, p5_val, p5_rf} = fromMaybe(unpack(0),wr_from_pipe4_first);
+      let {p6_addr,p6_val `ifdef spfpu ,p6_rf `endif }=rg_recent_commit;
+      let {p7_addr,p7_val `ifdef spfpu ,p7_rf `endif }=rg_recentm1_commit;
     `ifdef PIPE2
-      let {p8_addr,p8_val,p8_rf}=rg_recentm2_commit;
+      let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
     `endif
       let p3valid = isValid(wr_from_pipe3);
       let p5valid = isValid(wr_from_pipe4_first);

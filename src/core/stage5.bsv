@@ -146,13 +146,21 @@ package stage5;
             `ifdef spfpu
               wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
             `else
-              wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
+              `ifdef atomic
+                wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
+              `else
+                wr_commit <= tagged Valid (tuple2(0, 0));
+              `endif
             `endif
             `ifdef rtldump
-              Bit#(ELEN) data=s.commitvalue;
-              if(s.rd==0)
-                data=0;
-              dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, s.rd, data, IRF));
+              `ifdef atomic
+                Bit#(ELEN) data=s.commitvalue;
+                if(s.rd==0)
+                  data=0;
+                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, s.rd, data, IRF));
+              `else
+                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, 0, 0, IRF));
+              `endif
               rxinst.u.deq;
             `endif
               rx.u.deq;

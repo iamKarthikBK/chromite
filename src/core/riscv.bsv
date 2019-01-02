@@ -217,7 +217,11 @@ package riscv;
       Bit#(ELEN) rdval = field2;
       Bool available = (committype==REGULAR);
       if(committype!=TRAP)begin
+      `ifdef spfpu
         stage3.fwd_from_pipe3(tuple4(available,rd,rdval,rdtype));
+      `else
+        stage3.fwd_from_pipe3(tuple3(available,rd,rdval));
+      `endif
       end
     endrule
   `ifdef PIPE2
@@ -243,7 +247,11 @@ package riscv;
       end
     `endif
       if(present)begin
+      `ifdef spfpu
         stage3.fwd_from_pipe4_first(tuple4(available,rd,rdval,rdtype));
+      `else
+        stage3.fwd_from_pipe4_first(tuple3(available,rd,rdval));
+      `endif
       end
     endrule
     rule fwding_from_mem2;
@@ -268,7 +276,11 @@ package riscv;
       end
     `endif
       if(present)begin
+      `ifdef spfpu
         stage3.fwd_from_pipe4_second(tuple4(available,rd,rdval,rdtype));
+      `else
+        stage3.fwd_from_pipe4_second(tuple3(available,rd,rdval));
+      `endif
       end
     endrule
   `else

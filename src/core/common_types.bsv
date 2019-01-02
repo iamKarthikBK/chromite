@@ -81,7 +81,11 @@ package common_types;
 //    Bit#(width) Present;
 //  	void Absent;
 //  } FwdType#(numeric type width) deriving(Bits,Eq,FShow);
-  typedef Tuple4#(Bool, Bit#(5), Bit#(ELEN), RFType) FwdType;
+  `ifdef spfpu
+    typedef Tuple4#(Bool, Bit#(5), Bit#(ELEN), RFType) FwdType;
+  `else
+    typedef Tuple3#(Bool, Bit#(5), Bit#(ELEN)) FwdType;
+  `endif
   
   //                  rs1,   rs2,      rd      op1 type , op2 type
     typedef Tuple5#(Bit#(5), Bit#(5), Bit#(5), Op1type, Op2type) OpType_min;
