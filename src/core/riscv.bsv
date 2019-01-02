@@ -61,6 +61,10 @@ package riscv;
   endinterface
 
   (*synthesize*)
+  (*preempts="fwding_from_exe1,nofwding_from_exe1"*)
+  `ifndef PIPE2
+  (*preempts="fwding_from_mem1,nofwding_from_mem1"*)
+  `endif
   module mkriscv(Ifc_riscv);
     let verbosity = `VERBOSITY ;
 
@@ -86,7 +90,7 @@ package riscv;
   `endif
 
 `ifdef PIPE2
-    Ifc_PipeFIFOF#(PIPE3) pipe3 <- mkPipeFIFOF();
+    FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
   `ifdef rtldump
     FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
   `endif
@@ -133,8 +137,8 @@ package riscv;
   `endif
 
   `ifdef PIPE2
-    mkConnection(stage3.tx_out, pipe3.fifo);
-    mkConnection(pipe3.fifo, stage4.rx_min);
+    mkConnection(stage3.tx_out, pipe3);
+    mkConnection(pipe3, stage4.rx_min);
   `else
     mkConnection(stage3.tx_out, pipe3);
     mkConnection(pipe3, stage4.rx_min);
@@ -210,22 +214,29 @@ package riscv;
     endrule
 
     rule fwding_from_exe1;
-      $display($time,"\tRISCV: PIPE3 ");
-      let {present,data} = pipe3.first_data;
+      let data = pipe3.first;
       let {committype, field1, field2, field3, field4}=data;
       Bit#(5) rd = field4[5:1];
       RFType rdtype = unpack(field4[6]);
       Bit#(ELEN) rdval = field2;
       Bool available = (committype==REGULAR);
     `ifdef spfpu
-      stage3.fwd_from_pipe3(tuple5(present&&committype!=TRAP, available,rd,rdval,rdtype));
+      stage3.fwd_from_pipe3(tuple5(committype!=TRAP, available,rd,rdval,rdtype));
     `else
-      stage3.fwd_from_pipe3(tuple4(present&&committype!=TRAP, available,rd,rdval));
+      stage3.fwd_from_pipe3(tuple4(committype!=TRAP, available,rd,rdval));
     `endif
     endrule
+  `ifndef PIPE2
+    rule nofwding_from_exe1;
+    `ifdef spfpu
+      stage3.fwd_from_pipe3(tuple5(False, ?, ?, ?, ?));
+    `else
+      stage3.fwd_from_pipe3(tuple4(False, ?, ?, ?));
+    `endif
+    endrule
+  `endif
   `ifdef PIPE2
     rule fwding_from_mem1;
-      $display($time,"\tRISCV: PIPE4 first");
       let {present, data} = pipe4.first_data;
       let {committype , epoch}=data;
       Bit#(5) rd = 0;
@@ -253,7 +264,6 @@ package riscv;
     `endif
     endrule
     rule fwding_from_mem2;
-      $display($time,"\tRISCV: PIPE4 second");
       let {present, data} = pipe4.second_data;
       let {committype , epoch}=data;
       Bit#(5) rd = 0;
@@ -303,9 +313,16 @@ package riscv;
       end
     `endif
     `ifdef spfpu
-      stage3.fwd_from_pipe4_second(tuple5(True, available,rd,rdval,rdtype));
+      stage3.fwd_from_pipe4_first(tuple5(True, available,rd,rdval,rdtype));
     `else
-      stage3.fwd_from_pipe4_second(tuple4(True, available,rd,rdval));
+      stage3.fwd_from_pipe4_first(tuple4(True, available,rd,rdval));
+    `endif
+    endrule
+    rule nofwding_from_mem1;
+    `ifdef spfpu
+      stage3.fwd_from_pipe4_first(tuple5(False, ?, ?, ?, ?));
+    `else
+      stage3.fwd_from_pipe4_first(tuple4(False, ?, ?, ?));
     `endif
     endrule
   `endif
