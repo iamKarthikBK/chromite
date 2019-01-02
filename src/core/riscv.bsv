@@ -321,6 +321,11 @@ package riscv;
     `else
       stage3.fwd_from_pipe4_first(tuple4(True, available,rd,rdval));
     `endif
+    `ifdef spfpu
+      stage2.fwd_from_wb(tuple3(rd,rdval,rdtype));
+    `else
+      stage2.fwd_from_wb(tuple2(rd,rdval));
+    `endif
     endrule
     rule nofwding_from_mem1;
     `ifdef spfpu
