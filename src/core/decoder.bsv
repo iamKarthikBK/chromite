@@ -63,10 +63,8 @@ package decoder;
               return True;
             `endif
           end
-          else if(csr_address[7:0]>'h5 && csr_address[7:0]<'h40)
-            return False;
           else
-            return True;
+            return False;
         end
       `endif
       `ifdef supervisor
