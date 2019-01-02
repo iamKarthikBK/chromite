@@ -226,7 +226,6 @@ package riscv;
       stage3.fwd_from_pipe3(tuple4(committype!=TRAP, available,rd,rdval));
     `endif
     endrule
-  `ifndef PIPE2
     rule nofwding_from_exe1;
     `ifdef spfpu
       stage3.fwd_from_pipe3(tuple5(False, ?, ?, ?, ?));
@@ -234,7 +233,6 @@ package riscv;
       stage3.fwd_from_pipe3(tuple4(False, ?, ?, ?));
     `endif
     endrule
-  `endif
   `ifdef PIPE2
     rule fwding_from_mem1;
       let {present, data} = pipe4.first_data;
@@ -261,6 +259,12 @@ package riscv;
       stage3.fwd_from_pipe4_first(tuple5(present,available,rd,rdval,rdtype));
     `else
       stage3.fwd_from_pipe4_first(tuple4(present,available,rd,rdval));
+    `endif
+    if(present)
+    `ifdef spfpu
+      stage2.fwd_from_wb(tuple3(rd,rdval,rdtype));
+    `else
+      stage2.fwd_from_wb(tuple2(rd,rdval));
     `endif
     endrule
     rule fwding_from_mem2;

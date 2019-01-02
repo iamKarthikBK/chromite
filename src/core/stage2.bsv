@@ -119,6 +119,7 @@ package stage2;
     method Action clear_stall (Bool upd);
 		method Action update_eEpoch;
 		method Action update_wEpoch;
+    method Action fwd_from_wb(CommitData commit);
 	endinterface:Ifc_stage2
 
   (*synthesize*)
@@ -301,6 +302,9 @@ package stage2;
         rg_stall<= False;
         rg_rerun<= False;
       end
+    endmethod
+    method Action fwd_from_wb(CommitData commit);
+      registerfile.fwd_from_wb(commit);
     endmethod
   endmodule
 endpackage

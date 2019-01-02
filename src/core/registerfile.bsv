@@ -62,6 +62,7 @@ package registerfile;
           `ifdef spfpu ,RFType rfselect `endif );
 	`endif
 		method Action commit_rd (Maybe#(CommitData) commit);
+    method Action fwd_from_wb(CommitData commit);
 	endinterface
 
 	(*synthesize*)
@@ -146,6 +147,12 @@ package registerfile;
         return floating_rf.sub(addr);
     endmethod
   `endif
+    method Action fwd_from_wb(CommitData commit);
+      let{r, d, rdtype}=commit;
+      wr_commit_type<=rdtype;
+      if(r!=0 `ifdef spfpu || rdtype==FRF `endif )
+          wr_commit<=tuple3(True, r, d);    
+    endmethod
 
     // This method is fired when the write-back stage performs a commit and needs to update the RF.
     // The value being commited is updated in the respective register file and also bypassed to the
@@ -156,12 +163,9 @@ package registerfile;
       if(commit matches tagged Valid .in)begin
       `ifdef spfpu
         let{r, d, rdtype}=in;
-        wr_commit_type<=rdtype;
       `else
         let{r, d}=in;
       `endif
-        if(r!=0 `ifdef spfpu || rdtype==FRF `endif )
-          wr_commit<=tuple3(True, r, d);    
 			  if(verbosity>0)begin
           $display($time,"\tRF: Writing Rd: %d(%h) ",r,d `ifdef spfpu , fshow(rdtype) `endif );
         end
