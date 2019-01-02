@@ -620,6 +620,10 @@ package decoder;
     // The following instructions define the type of execution to be performed by the following
     // stages.
     Instruction_type inst_type=TRAP;
+    Bool valid_atomic = case(inst[31:27])
+      'd0, 'd1, 'd2, 'd3, 'd4, 'd8, 'd12, 'd16, 'd20, 'd24, 'd28: True;
+      default: False;
+    endcase;
     if(opcode[4:3]=='b11)begin // Jumps,  Branch and CSRs
     	case(opcode[2:0])
     		'b001:if(funct3==0)inst_type=JALR; 
@@ -634,11 +638,12 @@ package decoder;
               else if(funct3!=4) 
                 inst_type=SYSTEM_INSTR;
     	endcase
-    end
+    end 
     else if(opcode[4:3]=='b01)begin // Stores,  LUIs,  MulDiv,  Register Arithmetic
       case (opcode[2:0])  
         'b000 : if(funct3[2]==0 `ifdef RV32  && funct3[1:0]!='b11 `endif ) inst_type=MEMORY; // STORE 
-        'b011 : if(misa[0]==1 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Atomic
+        'b011 : if(misa[0]==1 && (funct3=='b010 `ifdef RV64 || funct3=='b011 `endif ) && valid_atomic ) 
+                          inst_type=MEMORY; // Atomic
         'b001 : if(fs!=0 && (funct3==2 && misa[5]==1) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FStore
         'b101 : inst_type=ALU;      // LUI 
         'b100,'b110: begin 
@@ -676,12 +681,12 @@ package decoder;
                   inst_type=ALU;    
     	endcase
     end
-    `ifdef spfpu
-      else if(opcode[4:3]=='b10 && fs!=0 && ( (funct7[0]==0 && misa[5]==1) || (funct7[0]==1 &&
-          misa[3]==1)) )begin
+  `ifdef spfpu
+    else if(opcode[4:3]=='b10 && opcode[2:0]<5)begin
+      if(fs!=0 && ( (funct7[0]==0 && misa[5]==1) || (funct7[0]==1 && misa[3]==1)) )
         inst_type=FLOAT;
-      end
-    `endif
+    end
+  `endif
 
     // --------- Function for ALU -------------
     // In case of Atomic operations as well,  the immediate portion will ensure the right opcode is
@@ -734,11 +739,16 @@ package decoder;
     else if(inst_type == SYSTEM_INSTR)begin
       if(funct3 == 0)begin
         case(inst[31:20])
-          'h000: begin inst_type=TRAP; trapcause = (misa[20]==1 && prv==User)?`Ecall_from_user: 
-                             (misa[18]==1 && prv==Supervisor)?`Ecall_from_supervisor: 
-                             `Ecall_from_machine;
-                 end
-          'h001: begin inst_type=TRAP; trapcause = `Breakpoint; end
+          'h000: begin inst_type=TRAP; 
+            if(rs1==0 && rd==0)
+              trapcause = (misa[20]==1 && prv==User)?`Ecall_from_user: 
+                          (misa[18]==1 && prv==Supervisor)?`Ecall_from_supervisor: 
+                          `Ecall_from_machine;
+          end
+          'h001: begin inst_type=TRAP; 
+            if(rs1==0 && rd==0)
+              trapcause = `Breakpoint; 
+          end
           'h102: if(misa[18]==0 || prv!=Supervisor) begin inst_type=TRAP;end
           'h302: if(prv!=Machine) begin inst_type=TRAP; end
           default: begin inst_type=TRAP;  end
