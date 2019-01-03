@@ -640,7 +640,7 @@ package decoder;
   Bool validAtomic = (misa[0]==1 && (funct3==2 `ifdef RV64 || funct3==3 `endif ) && validAtomicOp);
   Bool validMul = (misa[12]==1 && funct7==1)?True:False; 
   Bool validOp = (funct3==0 || funct3==5)?(funct7 == 'b0000000 || funct7=='b0100000):(funct7==0);
-  Bool validMul32 = (misa[12]==1 && funct7[0]==1 && (funct3==0 || funct3>3));
+  Bool validMul32 = (misa[12]==1 && funct7==1 && (funct3==0 || funct3>3));
   Bool validOp32  = (funct3==1)?(funct7==0):(funct3==0 || funct3==5)?(funct7=='b0000000||funct7=='b0100000):False;
   Bool validFloat = fs!=0 && ((funct7[0]==0 && misa[5]==1) `ifdef dpfpu || (funct7[0]==1 &&  misa[3]==1) `endif );
   Bool validFNM = inst[26]==0 && validFloat;
