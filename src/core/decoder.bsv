@@ -224,7 +224,9 @@ package decoder;
   (*noinline*)
   function DecodeOut decoder_func_16(Bit#(16) inst, CSRtoDecode csrs);
     
-    let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
+    let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=csrs;
+    Bit#(1) fs = fs_frm[3];
+    Bit#(3) frm = fs_frm[2:0];
     Quadrant quad =unpack(inst[1:0]);
     Bit#(3) funct3 = inst[15:13];
 
@@ -456,7 +458,9 @@ package decoder;
 
   (*noinline*)
   function DecodeOut decoder_func_32(Bit#(32) inst, CSRtoDecode csrs);
-    let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
+    let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=csrs;
+    Bit#(1) fs = fs_frm[3];
+    Bit#(3) frm = fs_frm[2:0];
 
     // ------- Default declarations of all local variables -----------//
 
@@ -634,31 +638,33 @@ package decoder;
       default: False;
     endcase;
   Bool validAtomic = (misa[0]==1 && (funct3==2 `ifdef RV64 || funct3==3 `endif ) && validAtomicOp);
-  Bool validMul = (misa[12]==1 && funct7[0]==1)?True:False; 
+  Bool validMul = (misa[12]==1 && funct7==1)?True:False; 
   Bool validOp = (funct3==0 || funct3==5)?(funct7 == 'b0000000 || funct7=='b0100000):(funct7==0);
   Bool validMul32 = (misa[12]==1 && funct7[0]==1 && (funct3==0 || funct3>3));
   Bool validOp32  = (funct3==1)?(funct7==0):(funct3==0 || funct3==5)?(funct7=='b0000000||funct7=='b0100000):False;
   Bool validFloat = fs!=0 && ((funct7[0]==0 && misa[5]==1) `ifdef dpfpu || (funct7[0]==1 &&  misa[3]==1) `endif );
   Bool validFNM = inst[26]==0 && validFloat;
+  Bool valid_rounding = (funct3=='b111)?(frm!='b101 && frm!='b110):(funct3!='b101 && funct3!='b110);
+  //TODO: RM field check
   Bool validFloatOpF = case(inst[31:27])
-    'b00000, 'b00001, 'b00010, 'b00011: True; // FADD, FSUB, FMUL, FDIV
-    'b01011: (inst[24:20]==0); // FSQRT.S
+    'b00000, 'b00001, 'b00010, 'b00011: valid_rounding; // FADD, FSUB, FMUL, FDIV
+    'b01011: (inst[24:20]==0 && valid_rounding); // FSQRT.S
     'b00100: (funct3<3); // FSGNJ.S FSGNJN.S FSGNJX.S
     'b00101: (funct3<2); // FMIN.S FMAX.S
-    'b11000: (inst[24:21]==0); // FCVT.W.S FCVT.WU.S
+    'b11000: (inst[24:21]==0 && valid_rounding); // FCVT.W.S FCVT.WU.S
     'b11100: (inst[24:20]==0 && (funct3==0 || funct3==1)); // FMV.X.W, FCLASS.S
     'b10100: (funct3<3); //FEQ.S FLT.S FLE.S
-    'b11010: (inst[24:21]==0); // FCVT.S.W FCVT.S.WU
+    'b11010: (inst[24:21]==0 && valid_rounding); // FCVT.S.W FCVT.S.WU
     'b11110: (inst[24:20]==0 && funct3==0); //FMV.W.X
     default: False;
   endcase;
 `ifdef dpfpu
   Bool validFloatOpD = case(inst[31:27])
-    'b11000: (inst[24:21]=='b0001); // FCVT.L.D FCVT.LU.D
+    'b11000: (inst[24:21]=='b0001 && valid_rounding); // FCVT.L.D FCVT.LU.D
     'b11100: (inst[24:20]==0 && funct3==0); // FMV.X.D
-    'b11010: (inst[24:21]=='b0001); // FCVT.D.L FCVT.D.LU
+    'b11010: (inst[24:21]=='b0001 && valid_rounding); // FCVT.D.L FCVT.D.LU
     'b11110: (inst[24:20]==0 && funct3==0); // FMV.D.X
-    'b01000: (inst[24:21]=='b0); // FCVT.S.D
+    'b01000: (inst[24:21]=='b0 && valid_rounding); // FCVT.S.D
     default: False;
   endcase;
 `else 
@@ -698,7 +704,7 @@ package decoder;
       endcase
   `ifdef spfpu
     'b10: case(opcode[2:0])
-      'b000, 'b001, 'b010, 'b011:if(validFNM) inst_type=FLOAT;
+      'b000, 'b001, 'b010, 'b011:if(validFNM && valid_rounding) inst_type=FLOAT;
       'b100: if(validFNM && (validFloatOpF || validFloatOpD)) inst_type=FLOAT;
       endcase
   `endif
@@ -841,7 +847,7 @@ package decoder;
   
   function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs, Bool
     curr_rerun, Bool rerun_fencei) =  actionvalue
-      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=csrs;
+      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=csrs;
       DecodeOut result_decode = decoder_func_32(inst, csrs);
       if(inst[1:0]!='b11 && misa[2]==1)
         result_decode = decoder_func_16(truncate(inst),csrs);
