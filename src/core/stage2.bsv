@@ -158,7 +158,7 @@ package stage2;
     Wire#(Bool) wr_flush_from_wb<- mkDWire(False);
 
     rule decode_and_fetch(!rg_stall);
-      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=wr_csrs;
+      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=wr_csrs;
 	    let pc=rxmin.u.first.program_counter;
 	    let inst=rxmin.u.first.instruction;
 	    let epochs=rxmin.u.first.epochs;

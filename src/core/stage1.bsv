@@ -161,7 +161,7 @@ package stage1;
     // rg_instruction. rg_Action in this case will remain CheckPrev so that the upper bits of this
     // repsonse are probed in the next cycle.
     rule process_instruction;
-        let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs}=wr_csr;
+        let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=wr_csr;
         let {cache_response,err,epoch}=ff_memory_response.first;
         Bit#(32) final_instruction=0;
         Bool compressed=False;

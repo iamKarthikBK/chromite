@@ -706,7 +706,7 @@ package csrfile;
       endcase
     endmethod
     method csrs_to_decode = tuple8(rg_prv, csr_mip, csr_mie, rg_mideleg, misa, rg_mcounteren,
-    rg_mie, |fs);
+    rg_mie, {|fs,frm});
   	method Action clint_msip(Bit#(1) intrpt);
   		rg_msip<=intrpt;
   	endmethod
