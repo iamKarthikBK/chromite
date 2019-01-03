@@ -615,78 +615,121 @@ package decoder;
     `ifdef spfpu // All convert + FSQRToperations do not need rs2 
       else if((opcode[4:2]=='b101 && funct7[5]!='b1) || opcode==`FSTORE_op || opcode[4:2]=='b100)                  
 	      rs2type=FloatingRF; 
-	  `endif
-    
-    // The following instructions define the type of execution to be performed by the following
-    // stages.
-    Instruction_type inst_type=TRAP;
-    Bool valid_atomic = case(inst[31:27])
+    `endif
+// ------------------------------------------------------------------------------------------- //
+  Bit#(6) trapcause=`Illegal_inst;
+  Bool validload = `ifdef RV32 funct3!=3 && funct3!=7 `else funct3!=7 `endif ;
+  Bool validFload = fs!=0 && ((misa[5]==1 &&  funct3==2) `ifdef dpfpu || (misa[3]==1 && funct3==3) `endif ) ;
+`ifdef RV32
+  Bool validImm = (funct3==1)?(funct7==0):(funct3==5)? (funct7 == 'b0000000 || funct7=='b0100000):True;
+  Bool validImm32 = False;
+`else
+  Bool validImm = (funct3==1)?(funct7[6:1]==0):(funct3==5)? (funct7[6:1] == 'b000000 || funct7[6:1]=='b010000):True;
+  Bool validImm32 = (funct3==0)?True:(funct3==1)? (funct7==0):(funct3==5)?(funct7=='b0000000 || funct7=='b0100000):False;
+`endif
+  Bool validStore = `ifdef RV32 funct3<3 `else funct3<4 `endif ;
+  Bool validFStore = (misa[5]==1 && fs!=0 && funct3==2) `ifdef dpfpu || (misa[3]==1 && fs!=0 && funct3==3) `endif ;
+  Bool validAtomicOp = case(inst[31:27])
       'd0, 'd1, 'd2, 'd3, 'd4, 'd8, 'd12, 'd16, 'd20, 'd24, 'd28: True;
       default: False;
     endcase;
-    if(opcode[4:3]=='b11)begin // Jumps,  Branch and CSRs
-    	case(opcode[2:0])
-    		'b001:if(funct3==0)inst_type=JALR; 
-        'b011:inst_type=JAL;
-    		'b000:if(funct3!=2 && funct3!=3) inst_type=BRANCH;
-        'b100:if(funct3==0) begin
-                if(inst[31:20]=='h105) 
-                  inst_type=WFI; 
-                else
-                  inst_type=SYSTEM_INSTR;
-              end
-              else if(funct3!=4) 
-                inst_type=SYSTEM_INSTR;
-    	endcase
-    end 
-    else if(opcode[4:3]=='b01)begin // Stores,  LUIs,  MulDiv,  Register Arithmetic
-      case (opcode[2:0])  
-        'b000 : if(funct3[2]==0 `ifdef RV32  && funct3[1:0]!='b11 `endif ) inst_type=MEMORY; // STORE 
-        'b011 : if(misa[0]==1 && (funct3=='b010 `ifdef RV64 || funct3=='b011 `endif ) && valid_atomic ) 
-                          inst_type=MEMORY; // Atomic
-        'b001 : if(fs!=0 && (funct3==2 && misa[5]==1) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FStore
-        'b101 : inst_type=ALU;      // LUI 
-        'b100,'b110: begin 
-          if(funct7[0]==0)
-            inst_type=ALU;
-        `ifdef muldiv 
-          else if(misa[12]==1)
-            inst_type=MULDIV; 
-        `endif
-          end
-      endcase 
-    end 
-    else if(opcode[4:3]=='b00)begin // Immediate,  Loads,  Fence,  Fence.i
-    	case(opcode[2:0])
-    		'b000: if(funct3!='b111 `ifdef RV32 && funct3!='b011 `endif ) inst_type=MEMORY; // Loads
-        'b011: begin 
-              if(funct3==0) 
-                inst_type=MEMORY; // FENCE 
-              if(funct3==1)
-                inst_type=MEMORY; // FENCE.I
-        end
-        'b001: if(fs!=0 && (misa[5]==1 && funct3==2) || (misa[3]==1 && funct3==3) ) inst_type=MEMORY; // FLoad
-    		'b101: inst_type=ALU;
-        `ifdef RV64
-          'b110: if(funct3[1:0]!='b01) // Immediate-32
-                  inst_type=ALU ;
-                else if(funct7[0]==0)
-                  inst_type=ALU; 
-        `endif
-        'b100:`ifdef RV32 // immediate
-                if(funct3[1:0]=='b01 && funct7[0]==0) // for shift operations operation
-                  inst_type=ALU; 
-                else if(funct3[1:0]!='b01)
-              `endif
-                  inst_type=ALU;    
-    	endcase
-    end
+  Bool validAtomic = (misa[0]==1 && (funct3==2 `ifdef RV64 || funct3==3) `endif && validAtomicOp);
+  Bool validMul = (misa[12]==1 && funct7[0]==1)?True:False; 
+  Bool validOp = (funct3==0 || funct3==5)?(funct7 == 'b0000000 || funct7=='b0100000):(funct7==0);
+  Bool validMul32 = (misa[12]==1 && funct7[0]==1 && (funct3==0 || funct3>3));
+  Bool validOp32  = (funct3==1)?(funct7==0):(funct3==0 || funct3==5)?(funct7=='b0000000||funct7=='b0100000):False;
+  Bool validFloat = fs!=0 && ((funct7[0]==0 && misa[5]==1) `ifdef dpfpu || (funct7[0]==1 && misa[3]==1)) `endif ;
+  Bool validFNM = inst[26]==0 && validFloat;
+  Bool validFloatOpF = case(inst[31:27])
+    'b00000, 'b00001, 'b00010, 'b00011: True; // FADD, FSUB, FMUL, FDIV
+    'b01011: (inst[24:20]==0); // FSQRT.S
+    'b00100: (funct3<3); // FSGNJ.S FSGNJN.S FSGNJX.S
+    'b00101: (funct3<2); // FMIN.S FMAX.S
+    'b11000: (inst[24:21]==0); // FCVT.W.S FCVT.WU.S
+    'b11100: (inst[24:20]==0 && (funct3==0 || funct3==1)); // FMV.X.W, FCLASS.S
+    'b10100: (funct3<3); //FEQ.S FLT.S FLE.S
+    'b11010: (inst[24:21]==0); // FCVT.S.W FCVT.S.WU
+    'b11110: (inst[24:20]==0 && funct3==0); //FMV.W.X
+    default: False;
+  endcase;
+`ifdef dpfpu
+  Bool validFloatOpD = case(inst[31:27])
+    'b11000: (inst[24:21]=='b0001); // FCVT.L.D FCVT.LU.D
+    'b11100: (inst[24:20]==0 && funct3==0); // FMV.X.D
+    'b11010: (inst[24:21]=='b0001); // FCVT.D.L FCVT.D.LU
+    'b11110: (inst[24:20]==0 && funct3==0); // FMV.D.X
+    'b01000: (inst[24:21]=='b0); // FCVT.S.D
+    default: False;
+  endcase;
+`else 
+  Bool validFloatOpD=False;
+`endif
+	Bool address_is_valid=address_valid(inst[31:20]);
+	Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], prv);
+  Instruction_type inst_type = TRAP;
+  case (opcode[4:3])
+    'b00: case(opcode[2:0])
+        'b000: if(validload) inst_type=MEMORY;      // Load
+      `ifdef spfpu 
+        'b001: if(validFload) inst_type=MEMORY;     // F-Load
+      `endif
+        'b011: if(funct3==0 || funct3==1) inst_type = MEMORY;    // Fence, FenceI
+        'b100: if(validImm) inst_type = ALU;        // OP-Imm
+        'b101: inst_type=ALU;                       // AUIPC
+      `ifdef RV64
+        'b110: if(validImm32) inst_type = ALU;      // Op-IMM32
+      `endif
+      endcase
+    'b01: case(opcode[2:0])
+        'b000: if(validStore) inst_type = MEMORY;     // Store
+      `ifdef spfpu
+        'b001: if(validFStore) inst_type = MEMORY;    // F-Store
+      `endif
+      `ifdef atomic
+        'b011: if(validAtomic) inst_type = MEMORY;    // Atomic 
+      `endif
+        'b100: `ifdef muldiv  if(validMul) inst_type=MULDIV; else `endif  // MULDIV
+                if(validOp) inst_type=ALU; // OP
+        'b101: inst_type = ALU;
+      `ifdef RV64
+        'b110: `ifdef muldiv if(validMul32) inst_type=MULDIV; else `endif // MULDIV-32
+              if(validOp32) inst_type=ALU; // OP
+      `endif
+      endcase
   `ifdef spfpu
-    else if(opcode[4:3]=='b10 && opcode[2:0]<5)begin
-      if(fs!=0 && ( (funct7[0]==0 && misa[5]==1) || (funct7[0]==1 && misa[3]==1)) )
-        inst_type=FLOAT;
-    end
+    'b10: case(opcode[2:0])
+      'b000, 'b001, 'b010, 'b011:if(validFNM) inst_type=FLOAT;
+      'b100: if(validFNM && (validFloatOpF || validFloatOpD)) inst_type=FLOAT;
+      endcase
   `endif
+    'b11: case(opcode[2:0])
+      'b000: if(funct3!=2 && funct3!=3) inst_type=BRANCH; // BRANCH
+      'b001: if(funct3==0) inst_type=JALR; // JALR
+      'b011: inst_type=JAL; // jal
+      'b100: case(funct3)
+          'b000: if(inst[31:7]==0) trapcause=(misa[20]==1 && prv==User)?`Ecall_from_user: 
+                                             (misa[18]==1 && prv==Supervisor)?`Ecall_from_supervisor: 
+                                              `Ecall_from_machine;
+                 else if(inst[31:7]=='h2000) trapcause=`Breakpoint ;
+                 else if(inst[31:20]=='h002 && inst[19:15]==0 && inst[11:7]==0 && misa[13]==1) inst_type=SYSTEM_INSTR;
+                 else if(inst[31:20]=='h102 && inst[19:15]==0 && inst[11:7]==0 && misa[18]==1 &&
+                        prv!=User) inst_type=SYSTEM_INSTR; // TODO check TSR==0
+                 else if(inst[31:20]=='h302 && inst[19:15]==0 && inst[11:7]==0 && prv==Machine)
+                        inst_type=SYSTEM_INSTR;
+                 else if(inst[31:20]=='h105 && inst[19:15]==0 && inst[11:7]==0 && prv==Machine)
+                        inst_type=WFI;
+          default: if(funct3!=0 && funct3!=4 && access_is_valid && address_is_valid) 
+                    inst_type=SYSTEM_INSTR;
+      endcase
+    endcase
+  endcase
+  if(inst[1:0]!='b11)begin
+    inst_type=TRAP;
+    trapcause=`Illegal_inst;
+  end
+
+  // checks: TVM=1 TW=1 TSR=0
+// --------------------------------------------------------------------------------------------//
 
     // --------- Function for ALU -------------
     // In case of Atomic operations as well,  the immediate portion will ensure the right opcode is
@@ -729,37 +772,6 @@ package decoder;
 
     if(inst_type==SYSTEM_INSTR)
       immediate_value={'d0,inst[19:15],immediate_value[11:0]};// TODO fix this
-
-		Bool address_is_valid=address_valid(inst[31:20]);
-		Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], prv);
-    Bit#(6) trapcause=`Illegal_inst;
-    if(inst[1:0]!='b11 )begin
-      inst_type=TRAP;
-    end
-    else if(inst_type == SYSTEM_INSTR)begin
-      if(funct3 == 0)begin
-        case(inst[31:20])
-          'h000: begin inst_type=TRAP; 
-            if(rs1==0 && rd==0)
-              trapcause = (misa[20]==1 && prv==User)?`Ecall_from_user: 
-                          (misa[18]==1 && prv==Supervisor)?`Ecall_from_supervisor: 
-                          `Ecall_from_machine;
-          end
-          'h001: begin inst_type=TRAP; 
-            if(rs1==0 && rd==0)
-              trapcause = `Breakpoint; 
-          end
-          'h102: if(misa[18]==0 || prv!=Supervisor) begin inst_type=TRAP;end
-          'h302: if(prv!=Machine) begin inst_type=TRAP; end
-          default: begin inst_type=TRAP;  end
-        endcase
-      end
-      else begin // CSR read write operation
-        if(!(address_is_valid && access_is_valid))begin
-          inst_type=TRAP;
-        end
-      end
-    end
 
     Bit#(7) temp1 = {fn,funct3};
     if(inst_type==TRAP)
