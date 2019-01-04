@@ -65,7 +65,7 @@ package stage5;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
-    method Bool initiate_store;
+    method Tuple2#(Bool,Bool) initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) r);
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
@@ -97,7 +97,7 @@ package stage5;
     let prv=tpl_1(csr.csrs_to_decode);
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
-    Wire#(Bool) wr_initiate_store <- mkDWire(False);
+    Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
     Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <- mkDWire(tagged Invalid);
 
     rule instruction_commit;
@@ -136,7 +136,7 @@ package stage5;
             if(verbosity>0)
               $display($time,"\tSTAGE5: Initiating Store request");
             rg_store_initiated<=True;
-            wr_initiate_store<=True;
+            wr_initiate_store<=tuple2(True,False);
           end
           else if(wr_store_response matches tagged Valid .resp)begin
             if(verbosity>1)
@@ -233,6 +233,9 @@ package stage5;
       else begin
         if(verbosity>1)
           $display($time, "\tWBMEM: Dropping instruction. Epoch: %b rg_epoch: %b",epoch,rg_epoch);
+          if(commit matches tagged STORE .s)
+            wr_initiate_store<=tuple2(False,True);
+        // TODO if the instruction is a Store we need to deque that entry from the store buffer.
         rx.u.deq;
       `ifdef rtldump
         rxinst.u.deq;

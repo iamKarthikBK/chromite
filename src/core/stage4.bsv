@@ -61,7 +61,7 @@ package stage4;
 
     method Action update_wEpoch;
     method Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) store_response;
-    method Action start_store(Bool s);
+    method Action start_store(Tuple2#(Bool,Bool) s);
     method Bool storebuffer_empty;
   endinterface
 
@@ -106,6 +106,8 @@ package stage4;
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
     Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
     Wire#(Bool) wr_store_start<-mkDWire(False);
+    Wire#(Bool) wr_clear_sb<-mkDWire(False);
+    Wire#(Bool) wr_deq_storebuffer1<-mkDWire(False);
 
 
     rule check_operation;
@@ -143,15 +145,7 @@ package stage4;
       // check store_buffer entries
       let {storemask,storehit} <- storebuffer.check_address(badaddr); 
       Bit#(TLog#(ELEN)) loadoffset = {badaddr[offset:0],3'b0}; // parameterize for XLEN
-
-      if(rg_epoch!=epoch)begin
-        rxmin.u.deq;
-        `ifdef rtldump
-          rxinst.u.deq;
-        `endif
-        complete=False;
-      end
-      else if(committype==TRAP)begin
+      if(committype==TRAP)begin
         temp1=tagged TRAP (CommitTrap{cause:trapcause, badaddr:badaddr, pc:pc});
       end
       else if(committype==REGULAR)begin
@@ -224,7 +218,8 @@ package stage4;
               end
             end
             else begin
-              complete=False;
+              if(rg_epoch==epoch)
+                complete=False;
             if(verbosity>0)
               $display($time,"\tSTAGE4: Dropping Memory Read Response");
             end
@@ -268,6 +263,12 @@ package stage4;
       end
     endrule
 
+    rule deque_store_buffer(wr_clear_sb || wr_deq_storebuffer1);
+      storebuffer.deque;
+      if(wr_clear_sb)
+        storebuffer.clear_queue;
+    endrule
+
     interface rx_min = rxmin.e;
     interface tx_min = txmin.e;
   `ifdef rtldump
@@ -284,8 +285,9 @@ package stage4;
     method Action update_wEpoch;
       rg_epoch<=~rg_epoch;
     endmethod
-    method Action start_store(Bool s);
-      wr_store_start<=s;
+    method Action start_store(Tuple2#(Bool,Bool) s);
+      wr_store_start<=tpl_1(s);
+      wr_clear_sb<=tpl_2(s);
     endmethod
 		interface memory_write_request = interface Get
       method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) get if(wr_store_start);
@@ -297,7 +299,7 @@ package stage4;
       method Action put(MemoryWriteResp r);
         if(verbosity>1)
           $display($time,"\tSTAGE4: Recieved Write response: %b",r);
-        storebuffer.deque;
+        wr_deq_storebuffer1<=True;
         wr_store_response<=tagged Valid (tuple2(r,storebuffer.write_address));
       endmethod
     endinterface;
