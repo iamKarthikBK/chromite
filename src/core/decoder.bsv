@@ -599,7 +599,7 @@ package decoder;
   			  ||opcode[4:2] == 'b001 || opcode==`JAL_op || opcode==`JALR_op	|| // AUIPC or JAL or JALR
           (opcode[4:2]=='b101 && funct7[5]==1 && (misa[3]|misa[5])==1) )
 			rs2=0;
-		if (opcode==`BRANCH_op || opcode[4:1]=='b0100)	
+		if (opcode==`BRANCH_op || opcode[4:1]=='b0100 || (opcode=='b00011))	
 			rd=0;
 
 		if(opcode==`JAL_op || opcode==`JALR_op|| opcode==`AUIPC_op || opcode=='b01000 
