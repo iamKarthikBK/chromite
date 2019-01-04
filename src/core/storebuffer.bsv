@@ -49,12 +49,14 @@ package storebuffer;
     method Bit#(VADDR) write_address;
     method Action deque;
     method Bool storebuffer_empty;
+    method Action clear_queue;
   endinterface
 
   (*synthesize*)
   module mkstorebuffer(Ifc_storebuffer);
     let verbosity = `VERBOSITY ;
     let offset = valueOf(XLEN)==64?2:1;
+    Reg#(Bool) valid_data[ `buffsize ][2];
     Reg#(Bit#(VADDR)) store_addr [ `buffsize ];
     Reg#(Bit#(ELEN))  store_data [ `buffsize ];
     Reg#(Bit#(2)) store_size [ `buffsize ];
@@ -62,6 +64,7 @@ package storebuffer;
       store_addr[i] <- mkReg(0);
       store_data[i] <- mkReg(0);
       store_size[i] <- mkReg(0);
+      valid_data[i] <- mkCReg(2,False);
     end
     Reg#(Bit#(TLog#( `buffsize ))) rg_head <- mkReg(0);
     Reg#(Bit#(TLog#( `buffsize ))) rg_tail <- mkReg(0);
@@ -71,12 +74,14 @@ package storebuffer;
       Bit#(TLog#(ELEN)) shiftamt1 = {store_addr[rg_tail-1][offset:0],3'b0}; // parameterize for XLEN
       Bit#(ELEN) storemask1 = 0;
       Bit#(ELEN) storemask2 = 0;
+      Bool validm1 = valid_data[rg_tail-1][1];
+      Bool valid = valid_data[rg_tail][1];
       `ifdef RV64
         Bit#(TSub#(VADDR,3)) wordaddr = truncateLSB(addr);
       `else
         Bit#(TSub#(VADDR,2)) wordaddr = truncateLSB(addr);
       `endif
-      if(truncateLSB(store_addr[rg_tail-1]) == wordaddr)begin
+      if(truncateLSB(store_addr[rg_tail-1]) == wordaddr && validm1)begin
         Bit#(ELEN) temp = store_size[rg_tail-1]==0?'hff:
                           store_size[rg_tail-1]==1?'hffff:
                           store_size[rg_tail-1]==2?'hffffffff:'1;
@@ -86,7 +91,7 @@ package storebuffer;
                                      store_data[rg_tail-1],store_size[rg_tail-1], temp, rg_tail-1);
         storemask1 = temp;               // 'h00_00_00_FF
       end
-      if(truncateLSB(store_addr[rg_tail]) == wordaddr)begin
+      if(truncateLSB(store_addr[rg_tail]) == wordaddr && valid)begin
         Bit#(TLog#(ELEN)) shiftamt2 = {store_addr[rg_tail][offset:0],3'b0}; // parameterize for XLEN
         Bit#(ELEN) temp = store_size[rg_tail]==0?'hff:
                           store_size[rg_tail]==1?'hffff:
@@ -110,28 +115,32 @@ package storebuffer;
       else if(size==2)
         data=duplicate(data[31:0]);
       if(verbosity>0)
-        $display($time,"\tSOREBUFFER: Enquing Store Addr: %h Data: %h size: %b into Tail: %d",
+        $display($time,"\tSTOREBUFFER: Enquing Store Addr: %h Data: %h size: %b into Tail: %d",
               addr, data, size, rg_tail);
       store_addr[rg_tail]<=addr;
       store_data[rg_tail]<=data;
       store_size[rg_tail]<=size;
       rg_tail<=rg_tail+1;
       storequeue.enq(True);
+      valid_data[rg_tail][1]<=True;
     endmethod
     method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) perform_store ;
       if(verbosity>0)
         $display($time,"\tSTAGE4: Sending Store request for Addr:%h Data: %h size: %b",
           store_addr[rg_head], store_data[rg_head], store_size[rg_head]);
-      rg_head<=rg_head+1;
       return tuple3(truncate(store_addr[rg_head]),store_data[rg_head],store_size[rg_head]);
     endmethod
     method Bit#(VADDR) write_address;
-      return store_addr[rg_head-1];
+      return store_addr[rg_head];
     endmethod
     method Action deque;
+      rg_head<=rg_head+1;
       storequeue.deq;
     endmethod
     method Bool storebuffer_empty=!storequeue.notEmpty;
+    method Action clear_queue;
+      valid_data[rg_head][0]<=False;
+    endmethod
   endmodule
 endpackage
 

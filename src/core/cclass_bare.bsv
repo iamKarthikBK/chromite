@@ -159,9 +159,11 @@ package cclass_bare;
   
     rule handle_fetch_request ;
 	    let {inst_addr, fence, epoch, prefetch} <- riscv.inst_request.get;
-      Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
-      if(upperbits!=0)
-        inst_addr=0;
+      if(vaddr>paddr) begin
+        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+       if(upperbits!=0)
+          inst_addr=0;
+      end
 			AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(inst_addr), aruser: ?, 
             arlen: 0, arsize: 2, arburst: 'b01, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
 			fetch_xactor.i_rd_addr.enq(read_request);	

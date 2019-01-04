@@ -59,29 +59,34 @@ package stage4;
 		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
 
-    interface Get#(Tuple2#(Bit#(ELEN), Bit#(3))) fwd_from_mem;
     method Action update_wEpoch;
     method Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) store_response;
-    method Action start_store(Bool s);
+    method Action start_store(Tuple2#(Bool,Bool) s);
     method Bool storebuffer_empty;
   endinterface
 
-  function Bit#(ELEN) fn_atomic_op (Bit#(4) op,  Bit#(ELEN) rs2,  Bit#(ELEN) loaded);
-    Int#(ELEN) s_loaded = unpack(loaded);
-		Int#(ELEN) s_rs2 = unpack(rs2);
+  function Bit#(ELEN) fn_atomic_op (Bit#(5) op,  Bit#(ELEN) rs2,  Bit#(ELEN) loaded);
+    Bit#(ELEN) op1 = loaded;
+    Bit#(ELEN) op2 = rs2;
+    if(op[4]==0)begin
+			op1=signExtend(loaded[31:0]);
+      op2= signExtend(rs2[31:0]);
+    end
+    Int#(ELEN) s_op1 = unpack(op1);
+		Int#(ELEN) s_op2 = unpack(op2);
+    
     case (op[3:0])
-				'b0011:return rs2;
-				'b0000:return (loaded+rs2);
-				'b0010:return (loaded^rs2);
-				'b0110:return (loaded&rs2);
-				'b0100:return (loaded|rs2);
-				'b1100:return min(loaded,rs2);
-				'b1110:return max(loaded,rs2);
-				'b1000:return pack(min(s_loaded,s_rs2));
-				'b1010:return pack(max(s_loaded,s_rs2));
-				default:return loaded;
-        // TODO: Handle LR SC
-			endcase	
+				'b0011:return op2;
+				'b0000:return (op1+op2);
+				'b0010:return (op1^op2);
+				'b0110:return (op1&op2);
+				'b0100:return (op1|op2);
+				'b1100:return min(op1,op2);
+				'b1110:return max(op1,op2);
+				'b1000:return pack(min(s_op1,s_op2));
+				'b1010:return pack(max(s_op1,s_op2));
+				default:return op1;
+			endcase
   endfunction
 
   (*synthesize*)
@@ -98,10 +103,11 @@ package stage4;
     Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
     FIFOF#(MemoryReadResp#(1)) ff_memory_response <- mkUGBypassFIFOF();
     // wire that carriues the information for operand forwarding
-    Wire#(Maybe#(Tuple2#(Bit#(ELEN), Bit#(3)))) wr_operand_fwding <- mkDWire(tagged Invalid);
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
     Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
     Wire#(Bool) wr_store_start<-mkDWire(False);
+    Wire#(Bool) wr_clear_sb<-mkDWire(False);
+    Wire#(Bool) wr_deq_storebuffer1<-mkDWire(False);
 
 
     rule check_operation;
@@ -126,37 +132,27 @@ package stage4;
       
       Bit#(1) epoch = field4[0];
       Bit#(7) trapcause = field4[7:1];
-      Bit#(3) rdindex = field4[3:1];
-      Bit#(5) rd = field4[8:4];
-      Op3type rdtype = unpack(field4[9]);
-      Access_type memaccess = unpack(field4[12:10]);
-      Bit#(2) size=field4[14:13];
-      Bit#(1) sign=field4[15];
-      Bit#(1) nanboxing=field4[16];
-      Bit#(4) atomic_op = field4[20:17];
+      Bit#(5) rd = field4[5:1];
+      RFType rdtype = unpack(field4[6]);
+      Access_type memaccess = unpack(field4[9:7]);
+      Bit#(2) size=field4[11:10];
+      Bit#(1) sign=field4[12];
+      Bit#(1) nanboxing=field4[13];
+      Bit#(5) atomic_op = {size[0],field4[17:14]};
       CommitType temp1=?;
       Bool complete=True;
   
       // check store_buffer entries
       let {storemask,storehit} <- storebuffer.check_address(badaddr); 
       Bit#(TLog#(ELEN)) loadoffset = {badaddr[offset:0],3'b0}; // parameterize for XLEN
-
-      if(rg_epoch!=epoch)begin
-        rxmin.u.deq;
-        `ifdef rtldump
-          rxinst.u.deq;
-        `endif
-        complete=False;
-      end
-      else if(committype==TRAP)begin
+      if(committype==TRAP)begin
         temp1=tagged TRAP (CommitTrap{cause:trapcause, badaddr:badaddr, pc:pc});
       end
       else if(committype==REGULAR)begin
         temp1=tagged REG CommitRegular{commitvalue:commitvalue,
                                           fflags:fflags,
                                           rdtype:rdtype,
-                                          rd:rd,
-                                          rdindex:rdindex};
+                                          rd:rd};
       end
       else if(committype==SYSTEM_INSTR)begin
         temp1=tagged SYSTEM CommitSystem {rs1:rs1,
@@ -164,8 +160,7 @@ package stage4;
                                           csraddr:csraddr,
                                           func3:func3,
                                           rdtype:rdtype,
-                                          rd:rd,
-                                          rdindex:rdindex};
+                                          rd:rd};
       end
       else if(committype==MEMORY) begin
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
@@ -189,11 +184,9 @@ package stage4;
                     update_data[63:32]='1;
               `endif
               if(err_fault==0 )begin // no bus error
-                wr_operand_fwding <= tagged Valid tuple2(update_data, rdindex);
               `ifdef atomic
                 if(memaccess==Atomic)begin
                   temp1=tagged STORE CommitStore{pc:pc,
-                                                 rdindex:rdindex, 
                                                  rd: rd,  
                                                  commitvalue:update_data};
                   storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
@@ -203,8 +196,7 @@ package stage4;
                   temp1=tagged REG CommitRegular{commitvalue:update_data,
                                                    fflags:0,
                                                    rdtype:rdtype,
-                                                   rd:rd,
-                                                   rdindex:rdindex};
+                                                   rd:rd};
               end
               else begin
                 if(err_fault[0]==1)begin
@@ -226,7 +218,8 @@ package stage4;
               end
             end
             else begin
-              complete=False;
+              if(rg_epoch==epoch)
+                complete=False;
             if(verbosity>0)
               $display($time,"\tSTAGE4: Dropping Memory Read Response");
             end
@@ -240,13 +233,11 @@ package stage4;
         else if(memaccess==Store)begin
           if(verbosity>0)
             $display($time, "\tSTAGE4: PC: %h Store Operation.", simpc);
-          temp1=tagged STORE CommitStore{pc:pc,
-                                         rdindex:rdindex
+          temp1=tagged STORE CommitStore{pc:pc
                                        `ifdef atomic
                                          , rd: rd,  
                                          commitvalue:0 
                                        `endif };
-          wr_operand_fwding <= tagged Valid tuple2(0, rdindex);
           storebuffer.allocate(badaddr, storedata, size);
         end
         else if(memaccess==Fence || memaccess==FenceI)begin
@@ -255,8 +246,7 @@ package stage4;
           temp1=tagged REG CommitRegular{commitvalue:?,
                                                  fflags:0,
                                                  rdtype:rdtype,
-                                                 rd:rd,
-                                                 rdindex:rdindex};
+                                                 rd:rd};
         end
       end
       `ifdef rtldump
@@ -273,6 +263,12 @@ package stage4;
       end
     endrule
 
+    rule deque_store_buffer(wr_clear_sb || wr_deq_storebuffer1);
+      storebuffer.deque;
+      if(wr_clear_sb)
+        storebuffer.clear_queue;
+    endrule
+
     interface rx_min = rxmin.e;
     interface tx_min = txmin.e;
   `ifdef rtldump
@@ -286,17 +282,12 @@ package stage4;
         ff_memory_response.enq(response);
       endmethod
     endinterface;
-    interface fwd_from_mem = interface Get
-      method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(3))) get 
-                                                    if(wr_operand_fwding matches tagged Valid .data);
-        return data;
-      endmethod
-    endinterface;
     method Action update_wEpoch;
       rg_epoch<=~rg_epoch;
     endmethod
-    method Action start_store(Bool s);
-      wr_store_start<=s;
+    method Action start_store(Tuple2#(Bool,Bool) s);
+      wr_store_start<=tpl_1(s);
+      wr_clear_sb<=tpl_2(s);
     endmethod
 		interface memory_write_request = interface Get
       method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) get if(wr_store_start);
@@ -308,7 +299,7 @@ package stage4;
       method Action put(MemoryWriteResp r);
         if(verbosity>1)
           $display($time,"\tSTAGE4: Recieved Write response: %b",r);
-        storebuffer.deque;
+        wr_deq_storebuffer1<=True;
         wr_store_response<=tagged Valid (tuple2(r,storebuffer.write_address));
       endmethod
     endinterface;

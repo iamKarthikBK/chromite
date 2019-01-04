@@ -110,8 +110,6 @@ package stage3;
   `endif
     method Action update_wEpoch;
     method Tuple2#(Flush_type, Bit#(VADDR)) flush_from_exe;
-    interface Put#(Tuple2#(Bit#(ELEN), Bit#(TLog#(PRFDEPTH)))) fwd_from_mem;
-    method Action invalidate_index(Bit#(TLog#(PRFDEPTH)) ind);
     `ifdef bpu
   		method Maybe#(Training_data#(VADDR)) training_data;
 		  method Maybe#(Bit#(VADDR)) ras_push;
@@ -125,6 +123,12 @@ package stage3;
 		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
     method Action csr_misa_c (Bit#(1) m);
     method Action storebuffer_empty(Bool e);
+    method Action fwd_from_pipe3 (FwdType fwd);
+    method Action fwd_from_pipe4_first (FwdType fwd);
+  `ifdef PIPE2
+    method Action fwd_from_pipe4_second (FwdType fwd);
+  `endif
+    method Action latest_commit(CommitData c);
   endinterface
 
   (*synthesize*)
@@ -168,7 +172,6 @@ package stage3;
 		Reg#(Bit#(1)) eEpoch <-mkReg(0);
 		Reg#(Bit#(1)) wEpoch <-mkReg(0);
     Reg#(Flush_type) wr_flush_from_exe <- mkDWire(None);
-    Reg#(Flush_type) wr_flush_mapping <- mkDReg(None);
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDWire(0);
 		FIFOF#(MemoryReadReq#(VADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
@@ -178,13 +181,9 @@ package stage3;
     Reg#(Maybe#(Bit#(VADDR))) rg_loadreserved_addr <- mkReg(tagged Invalid);
   `endif
 
-    rule flush_mapping(wr_flush_mapping!=None||wr_flush_from_wb);
-      fwding.flush_mapping;
-    endrule
-
     rule execute_operation `ifdef multicycle (!rg_stall) `endif ;
       let {opmeta, opdata, metadata} = rxmin.u.first;
-      let {rs1addr, rs2addr, rd_index, op3, instrtype} = opmeta;
+      let {rs1addr, rs2addr, op3, instrtype} = opmeta;
       let {op1, op2, op4}=opdata;
       let {rd, func_cause, memaccess, word32, epochs}=metadata;
       Bit#(3) funct3=truncate(func_cause);
@@ -196,9 +195,9 @@ package stage3;
       let pred = rxbpu.u.first;
     `endif
     `ifdef spfpu
-      let {rs3addr, rdtype} = rxfpu.u.first;
+      let {rs3addr, rs1type, rs2type, rs3type, rdtype} = rxfpu.u.first;
     `else
-      Op3type rdtype = IRF;
+      RFType rdtype = IRF;
     `endif
   
       Bit#(VADDR) pc = op3;
@@ -207,18 +206,25 @@ package stage3;
       end
       
       Bool execute_instruction = ({eEpoch, wEpoch}==epochs);
-      let rs1<- fwding.read_rs1((instrtype==MEMORY || instrtype==JALR)?zeroExtend(op3):op1, 
-        truncate(rs1addr) );
-      let rs2<- fwding.read_rs2(op2, truncate(rs2addr) );
+      let {rs1avail, rs1} <- fwding.read_rs1(
+                                    (instrtype==MEMORY || instrtype==JALR)?zeroExtend(op3):op1,
+                                    rs1addr `ifdef spfpu ,rs1type `endif );
+
+      let {rs2avail, rs2} <- fwding.read_rs2(op2, rs2addr `ifdef spfpu , rs2type `endif );
     `ifdef spfpu
-      let rs3_imm<- fwding.read_rs3(zeroExtend(op4), rs3addr);
+      let {rs3avail, rs3_imm} <- fwding.read_rs3(zeroExtend(op4), rs3addr, rs3type);
     `else
-      let x4=op4;
+      let rs3_imm=op4;
     `endif
+      Bool execute = True;
+      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence `ifdef atomic ||   memaccess==Atomic `endif )  
+                                                    && !wr_storebuffer_empty)
+        execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
+      // We first check Epochs only then process the instruction
 
       if(verbosity>0)begin
-        $display($time, "\tEXECUTE: PC: %h epochs: %b currEpochs: %b ", pc, epochs, {eEpoch, 
-                                                                                          wEpoch});
+        $display($time, "\tEXECUTE: PC: %h epochs: %b currEpochs: %b execute: %b", pc, epochs, {eEpoch, 
+                                                                        wEpoch},execute);
         $display($time, "\tEXECUTE: pc: %h, rs1: ", pc, fshow(rs1), " rs2 ", fshow(rs2), 
                                                                 " check_rpc: ", fshow(check_rpc));
       end
@@ -226,11 +232,6 @@ package stage3;
     `ifdef bpu
       Bit#(VADDR) nextpc=pc+ 4; // TODO this should +2 in case of compressed
     `endif
-      Bool execute = True;
-      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence || memaccess==Atomic) 
-                                                    && !wr_storebuffer_empty)
-        execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
-      // We first check Epochs only then process the instruction
       if(!execute_instruction)begin
         `DEQRX
       `ifdef bpu
@@ -248,7 +249,6 @@ package stage3;
                                      (redirect_result==CheckNPC && pc!=npc) `endif ))begin
         // generate flush here
         wr_flush_from_exe<=CheckRPC;
-        wr_flush_mapping<=CheckRPC;
         if(redirect_result==CheckRPC)begin
           if(verbosity>0)
             $display($time, "\tEXECUTE: Raising a flush due to pc mismatch. New PC: %h", 
@@ -269,26 +269,25 @@ package stage3;
       end
       else if(instrtype!=TRAP && execute)begin
 
-        if(rs1 matches tagged Present .x1 &&& rs2 matches tagged Present .x2 
-                                `ifdef spfpu &&& rs3_imm matches tagged Present .x4 `endif )begin
-          Bit#(ELEN) new_op1=x1;
+        if(rs1avail && rs2avail `ifdef spfpu && rs3avail `endif )begin
+          Bit#(ELEN) new_op1=rs1;
           Bit#(VADDR) t3=op3;
           // TODO: here we need to exchange op1 (which has been fetched from the prf) and op3 in
           // case of JALR. See if this can be avoided.
           if(instrtype==JALR || instrtype==MEMORY)begin 
             new_op1=op1;
-            t3=truncate(x1);
+            t3=truncate(rs1);
           end
           `ifdef supervisor
-            sfence_rs1<=x1;
-            sfence_rs2<=x2;
+            sfence_rs1<=rs1;
+            sfence_rs2<=rs2;
           `endif
           `ifdef multicycle
-            let {done, cmtype, out, addr, cause, redirect} <- alu.get_inputs(fn, new_op1, x2, t3, 
-                truncate(x4), instrtype, funct3, memaccess, word32 `ifdef bpu ,pred `endif ,
+            let {done, cmtype, out, addr, cause, redirect} <- alu.get_inputs(fn, new_op1, rs2, t3, 
+                truncate(rs3_imm), instrtype, funct3, memaccess, word32 `ifdef bpu ,pred `endif ,
                 wr_misa_c, truncate(pc));
           `else
-            let {cmtype, out, addr, cause, redirect} = fn_alu(fn, new_op1, x2, t3, truncate(x4), 
+            let {cmtype, out, addr, cause, redirect} = fn_alu(fn, new_op1, rs2, t3, truncate(rs3_imm), 
                       instrtype, funct3, memaccess, word32 `ifdef bpu ,pred `endif , wr_misa_c,
                     truncate(pc));
             Bool done=True;
@@ -296,7 +295,7 @@ package stage3;
           if(verbosity>1)begin
             $display($time, "\tEXECUTE: cmtype: ", fshow(cmtype), " out: %h addr: %h trap:", out,
                  addr, cause, " redirect ", fshow(redirect));
-            $display($time, "\tEXECUTE: x1: %h,  x2: %h,  op3: %h, x4: %h", new_op1, x2, t3, x4);
+            $display($time, "\tEXECUTE: x1: %h, x2: %h, op3: %h, x4: %h", new_op1, rs2, t3, rs3_imm);
             $display($time, "\tEXECUTE: wr_storebuffer_empty: %b",wr_storebuffer_empty);
           end
 
@@ -353,13 +352,11 @@ package stage3;
               end
             end
           `endif
-            if(cmtype==REGULAR)
-              fwding.fwd_from_exe(out, rd_index);
             if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
               ff_memory_read_request.enq(tuple3(addr, epochs[0], funct3));
             end
-            Bit#(9) smeta1 = {pack(rdtype),rd,rd_index};
-            Bit#(20) mmeta = {fn,nanboxing,funct3,pack(memaccess),smeta1};
+            Bit#(6) smeta1 = {pack(rdtype),rd};
+            Bit#(17) mmeta = {fn,nanboxing,funct3,pack(memaccess),smeta1};
             Tbad_Maddr_Rmeta2_Smeta2 tple1 = 
               case(cmtype)
                 REGULAR: 0;
@@ -368,9 +365,9 @@ package stage3;
 
             Mdata_Rrdvalue_Srs1 tple2 =
               case(cmtype)
-                  MEMORY: x2;
+                  MEMORY: rs2;
                   REGULAR: out;
-                  SYSTEM_INSTR: if(funct3[2]==1) zeroExtend(x4[16:12]); else out;
+                  SYSTEM_INSTR: if(funct3[2]==1) zeroExtend(rs3_imm[16:12]); else out;
                   default:0;
               endcase;
     
@@ -413,6 +410,8 @@ package stage3;
       `else
         check_rpc<= tuple3(None, 0, wEpoch);
       `endif
+        if(verbosity>1)
+          $display($time,"\tEXECUTE: Trap instruction. Cause: %d",func_cause);
         PIPE3 pipedata = tuple5(TRAP, truncate(op1), ?, pc, zeroExtend({func_cause,epochs[0]})); 
         tx.u.enq(pipedata);
       `ifdef rtldump
@@ -424,7 +423,7 @@ package stage3;
   `ifdef multicycle
     rule capture_stalled_output(rg_stall);
       let {opmeta, opdata, metadata} = rxmin.u.first;
-      let {rs1addr, rs2addr, rd_index, op3, instrtype} = opmeta;
+      let {rs1addr, rs2addr, op3, instrtype} = opmeta;
       let {op1, op2, op4}=opdata;
       let {rd, func_cause, memaccess, word32, epochs}=metadata;
     `ifdef rtldump
@@ -436,7 +435,7 @@ package stage3;
     `ifdef spfpu
       let {rs3addr, rdtype} = rxfpu.u.first;
     `else
-      Op3type rdtype = IRF;
+      RFType rdtype = IRF;
     `endif
       Bit#(VADDR) pc = (instrtype==MEMORY || instrtype==JALR)?truncate(op1):truncate(op3);
       let {cmtype, out, addr, cause, redirect} <- alu.delayed_output;
@@ -447,7 +446,7 @@ package stage3;
       end
         
       PIPE3 pipedata = tuple5(REGULAR, zeroExtend(fflags), out, pc, 
-                              zeroExtend({pack(rdtype),rd,rd_index,epochs[0]}) ); 
+                              zeroExtend({pack(rdtype),rd,epochs[0]}) ); 
       Bool execute_instruction = ({eEpoch, wEpoch}==epochs);
 
       if(execute_instruction)begin
@@ -455,7 +454,6 @@ package stage3;
         txinst.u.enq(tuple2(pc,instruction));
       `endif
         tx.u.enq(pipedata);
-        fwding.fwd_from_exe(out, rd_index);
       end
       rg_stall<= False;
       `DEQRX
@@ -480,13 +478,6 @@ package stage3;
       wr_flush_from_wb<= True;
     endmethod
     method flush_from_exe=tuple2(wr_flush_from_exe, wr_redirect_pc);
-    interface fwd_from_mem= interface Put
-      method Action put (Tuple2#(Bit#(ELEN), Bit#(TLog#(PRFDEPTH))) inputs);
-        let {d, index}=inputs;
-        fwding.fwd_from_mem(d, index);
-      endmethod
-    endinterface;
-    method Action invalidate_index(Bit#(TLog#(PRFDEPTH)) ind)=fwding.invalidate_index(ind);
   `ifdef bpu
   	method training_data=wr_training_data;
 	  method ras_push=wr_ras_push;
@@ -510,6 +501,20 @@ package stage3;
     endmethod
     method Action storebuffer_empty(Bool e);
       wr_storebuffer_empty<=e;
+    endmethod
+    method Action fwd_from_pipe3 (FwdType fwd);
+      fwding.fwd_from_pipe3(fwd);
+    endmethod
+    method Action fwd_from_pipe4_first (FwdType fwd);
+      fwding.fwd_from_pipe4_first(fwd);
+    endmethod
+  `ifdef PIPE2
+    method Action fwd_from_pipe4_second (FwdType fwd);
+      fwding.fwd_from_pipe4_second(fwd);
+    endmethod
+  `endif
+    method Action latest_commit(CommitData c);
+      fwding.latest_commit(c);
     endmethod
   endmodule
 endpackage

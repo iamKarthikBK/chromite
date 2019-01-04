@@ -45,7 +45,6 @@ package stage5;
       interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
     `endif
     method Maybe#(CommitData) commit_rd;
-    method Maybe#(CommitRename) update_renaming();
     method Tuple3#(Bool, Bit#(VADDR), Bool) flush;
     method CSRtoDecode csrs_to_decode;
 	  method Action clint_msip(Bit#(1) intrpt);
@@ -66,7 +65,7 @@ package stage5;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
-    method Bool initiate_store;
+    method Tuple2#(Bool,Bool) initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) r);
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
@@ -86,7 +85,6 @@ package stage5;
 
     // wire that carries the commit data that needs to be written to the integer register file.
     Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
-    Wire#(Maybe#(CommitRename)) wr_rename <- mkDWire(tagged Invalid);
 
     // wire which signals the entire pipe to be flushed.
     Wire#(Tuple3#(Bool, Bit#(VADDR), Bool)) wr_flush <- mkDWire(tuple3(False, ?, False));
@@ -99,7 +97,7 @@ package stage5;
     let prv=tpl_1(csr.csrs_to_decode);
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
-    Wire#(Bool) wr_initiate_store <- mkDWire(False);
+    Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
     Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <- mkDWire(tagged Invalid);
 
     rule instruction_commit;
@@ -138,7 +136,7 @@ package stage5;
             if(verbosity>0)
               $display($time,"\tSTAGE5: Initiating Store request");
             rg_store_initiated<=True;
-            wr_initiate_store<=True;
+            wr_initiate_store<=tuple2(True,False);
           end
           else if(wr_store_response matches tagged Valid .resp)begin
             if(verbosity>1)
@@ -147,16 +145,22 @@ package stage5;
             if(err==0)begin
             `ifdef spfpu
               wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
-              wr_rename <= tagged Valid (tuple3(s.rd, s.rdindex, IRF)); 
             `else
-              wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
-              wr_rename <= tagged Valid (tuple2(s.rd, s.rdindex));
+              `ifdef atomic
+                wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
+              `else
+                wr_commit <= tagged Valid (tuple2(0, 0));
+              `endif
             `endif
             `ifdef rtldump
-              Bit#(ELEN) data=s.commitvalue;
-              if(s.rd==0)
-                data=0;
-              dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, s.rd, data, IRF));
+              `ifdef atomic
+                Bit#(ELEN) data=s.commitvalue;
+                if(s.rd==0)
+                  data=0;
+                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, s.rd, data, IRF));
+              `else
+                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, 0, 0, IRF));
+              `endif
               rxinst.u.deq;
             `endif
               rx.u.deq;
@@ -185,10 +189,8 @@ package stage5;
           fl=drain;
         `ifdef spfpu
           wr_commit <= tagged Valid (tuple3(sys.rd, zeroExtend(dest), sys.rdtype));
-          wr_rename <= tagged Valid (tuple3(sys.rd, sys.rdindex, sys.rdtype));
         `else
           wr_commit <= tagged Valid (tuple2(sys.rd, dest));
-          wr_rename <= tagged Valid (tuple2(sys.rd, sys.rdindex));
         `endif
         `ifdef rtldump 
           if(sys.rd==0)
@@ -206,11 +208,9 @@ package stage5;
             $display($time,"\tWBMEM: Regular commit");
         `ifdef spfpu
           wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdtype));
-          wr_rename <= tagged Valid (tuple3(r.rd, r.rdindex, r.rdtype));
           csr.update_fflags(r.fflags); 
         `else
           wr_commit <= tagged Valid (tuple2(r.rd, r.commitvalue));
-          wr_rename <= tagged Valid (tuple2(r.rd, r.rdindex));
         `endif
           rx.u.deq;
         `ifdef rtldump
@@ -233,6 +233,9 @@ package stage5;
       else begin
         if(verbosity>1)
           $display($time, "\tWBMEM: Dropping instruction. Epoch: %b rg_epoch: %b",epoch,rg_epoch);
+          if(commit matches tagged STORE .s)
+            wr_initiate_store<=tuple2(False,True);
+        // TODO if the instruction is a Store we need to deque that entry from the store buffer.
         rx.u.deq;
       `ifdef rtldump
         rxinst.u.deq;
@@ -249,9 +252,6 @@ package stage5;
   `endif
     method Maybe#(CommitData) commit_rd();
       return wr_commit;
-    endmethod
-    method Maybe#(CommitRename) update_renaming();
-      return wr_rename;
     endmethod
     method flush=wr_flush;
     method csrs_to_decode = csr.csrs_to_decode;

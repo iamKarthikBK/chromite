@@ -511,7 +511,8 @@ package csrfile;
         end
         `MTVEC: begin 
           rg_mtvec<= word[paddr- 1:2]; 
-          rg_mode<=word[1:0];
+          if(word[1:0]<2)
+            rg_mode<=word[1:0];
         end
         `MSTATUS: begin 
             rg_uie<= word[0];
@@ -601,7 +602,8 @@ package csrfile;
         `ifdef supervisor
           `STVEC: begin 
             rg_stvec<= word[vaddr- 1:2]; 
-            rg_smode<=word[1:0];
+            if(word[1:0]<2)
+              rg_smode<=word[1:0];
           end
           `SSCRATCH: sscratch<= word;
           // make sure only valid values of satp-mode field cause a change in the satp reg
@@ -685,7 +687,8 @@ package csrfile;
           end
           `UTVEC: begin 
             rg_utvec<= word[paddr- 1:2]; 
-            rg_umode<=word[1:0];
+            if(word[1:0]<2)
+              rg_umode<=word[1:0];
           end
           `UEPC: begin word=word>>1;rg_uepc<= truncate(word); end
           `UTVAL: rg_utval<= truncate(word);
@@ -703,7 +706,7 @@ package csrfile;
       endcase
     endmethod
     method csrs_to_decode = tuple8(rg_prv, csr_mip, csr_mie, rg_mideleg, misa, rg_mcounteren,
-    rg_mie, |fs);
+    rg_mie, {|fs,frm});
   	method Action clint_msip(Bit#(1) intrpt);
   		rg_msip<=intrpt;
   	endmethod

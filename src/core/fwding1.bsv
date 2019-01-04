@@ -33,79 +33,293 @@ package fwding1;
   `include "common_params.bsv"
   import Vector::*;
   import GetPut::*;
+  import BUtils::*;
 
   interface Ifc_fwding;
-    method ActionValue#(FwdType#(ELEN)) read_rs1 (Bit#(ELEN) rfvalue, Bit#(3) index);
-    method ActionValue#(FwdType#(ELEN)) read_rs2 (Bit#(ELEN) rfvalue, Bit#(3) index);
-    `ifdef spfpu                                              
-    method ActionValue#(FwdType#(ELEN)) read_rs3 (Bit#(ELEN) rfvalue, Bit#(3) index);
-    `endif
-
-		method Action fwd_from_exe (Bit#(ELEN) d, Bit#(3) index);
-		method Action fwd_from_mem (Bit#(ELEN) d, Bit#(3) index);
-    method Action invalidate_index(Bit#(3) ind);
-    method Action flush_mapping;
+    method Action fwd_from_pipe3 (FwdType fwd);
+    method Action fwd_from_pipe4_first (FwdType fwd);
+  `ifdef PIPE2
+    method Action fwd_from_pipe4_second (FwdType fwd);
+  `endif
+    method Action latest_commit(CommitData c);
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs1(Bit#(ELEN) val, Bit#(5) addr 
+                                                  `ifdef spfpu , RFType rftype `endif );
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr 
+                                                  `ifdef spfpu , RFType rftype `endif );
+  `ifdef spfpu
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs3(Bit#(ELEN) val, Bit#(5) addr, RFType rftype);
+  `endif
   endinterface
 
   (*synthesize*)
-  (*conflict_free="fwd_from_exe, fwd_from_mem"*)
-  (*conflict_free="fwd_from_exe, invalidate_index"*)
-  (*conflict_free="invalidate_index, fwd_from_mem"*)
   module mkfwding(Ifc_fwding);
     let verbosity = `VERBOSITY ;
-    Reg#(FwdType#(ELEN)) fwd_data [valueOf(PRFDEPTH)];
-    for(Integer i=0;i<= 32;i=i+ 1)begin
-      if(i<valueOf(PRFDEPTH))
-        fwd_data[i]<- mkReg(tagged Absent); 
-    end
-    method Action flush_mapping;
-      for(Integer i=0;i<valueOf(PRFDEPTH)-1;i=i+1)begin
-        fwd_data[i]<= tagged Absent;
-      end
-    endmethod
-    method ActionValue#(FwdType#(ELEN)) read_rs1 (Bit#(ELEN) rfvalue, Bit#(3) index);
-      FwdType#(ELEN) ret= tagged Present rfvalue;
-      if(index!=fromInteger(valueOf(PRFDEPTH)))begin
-        ret=fwd_data[index];
-        if(verbosity>1)
-          $display($time, "\tFWDING: Reading rs1 from prf. Data: %h index\
-                %d",fwd_data[index[1:0]], index);
-      end
-      return ret;
-    endmethod
-    method ActionValue#(FwdType#(ELEN)) read_rs2 (Bit#(ELEN) rfvalue, Bit#(3) index);
-      FwdType#(ELEN) ret= tagged Present rfvalue;
-      if(index!=fromInteger(valueOf(PRFDEPTH)))begin
-        ret=fwd_data[index];
-        if(verbosity>1)
-          $display($time, "\tFWDING: Reading rs2 from prf. Data: %h index\
-                %d",fwd_data[index[1:0]], index);
-      end
-      return ret;
-    endmethod
-    `ifdef spfpu                                                            
-    method ActionValue#(FwdType#(ELEN)) read_rs3 (Bit#(ELEN) rfvalue, Bit#(3) index);
-      FwdType#(ELEN) ret= tagged Present rfvalue;
-      if(index!=fromInteger(valueOf(PRFDEPTH)))
-        ret=fwd_data[index];
-      return ret;
-    endmethod
+    Wire#(FwdType) wr_from_pipe3        <- mkWire();
+    Wire#(FwdType) wr_from_pipe4_first  <- mkWire();
+    Reg#(CommitData) rg_recent_commit <-mkReg(unpack(0));
+    Reg#(CommitData) rg_recentm1_commit <-mkReg(unpack(0));
+  `ifdef PIPE2
+    Wire#(FwdType) wr_from_pipe4_second <- mkWire();
+    Reg#(CommitData) rg_recentm2_commit <-mkReg(unpack(0));
+  `endif
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs1(Bit#(ELEN) val, Bit#(5) addr 
+                                                              `ifdef spfpu , RFType rftype `endif );
+      Bool available = True;
+      Bit#(ELEN) returnval=val;
+      let {p3valid, p3_avail, p3_addr, p3_val `ifdef spfpu ,p3_rf `endif } = wr_from_pipe3;
+    `ifdef PIPE2
+      let {p4valid, p4_avail, p4_addr, p4_val `ifdef spfpu ,p4_rf `endif } = wr_from_pipe4_second;
     `endif
-		method Action fwd_from_exe (Bit#(ELEN) d, Bit#(3) index);
-      if(verbosity>1)
-        $display($time, "\tFWDING: Got fwded data from exe. Data: %h index: %d", d, index);
-			fwd_data[index]<=tagged Present d;	
-		endmethod
-		method Action fwd_from_mem (Bit#(ELEN) d, Bit#(3) index);
-      if(verbosity>1)
-        $display($time, "\tFWDING: Got fwded data from mem. Data: %h index: %d", d, index);
-			fwd_data[index]<=tagged Present d;	
-		endmethod
-    method Action invalidate_index(Bit#(3) ind);
-      fwd_data[ind]<= tagged Absent;
-      if(verbosity>1)
-        $display($time, "\tFWDING: Sending renamed index for rd: %d", ind);
+      let {p5valid, p5_avail, p5_addr, p5_val `ifdef spfpu , p5_rf `endif } =wr_from_pipe4_first;
+      let {p6_addr,p6_val `ifdef spfpu ,p6_rf `endif }=rg_recent_commit;
+      let {p7_addr,p7_val `ifdef spfpu ,p7_rf `endif }=rg_recentm1_commit;
+    `ifdef PIPE2
+      let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
+    `endif
+      Bool pick_p3 = p3_addr == addr && p3valid `ifdef spfpu && p3_rf==rftype `endif ;
+      `ifdef PIPE2
+        Bool pick_p4 = !pick_p3 && p4_addr == addr && p4valid `ifdef spfpu && p4_rf==rftype `endif ;
+      `else
+        Bool pick_p4=False;
+      `endif
+      Bool pick_p5 = !pick_p4 && !pick_p3 && p5_addr == addr && p5valid `ifdef spfpu && p5_rf==rftype `endif ;
+      Bool pick_p6 = !pick_p5 && !pick_p3 && !pick_p4 && p6_addr == addr `ifdef spfpu && p6_rf==rftype `endif ;
+      Bool pick_p7 = !pick_p6 && !pick_p3 && !pick_p4 && !pick_p5 && p7_addr == addr `ifdef spfpu && p7_rf==rftype `endif ;
+    `ifdef PIPE2
+      Bool pick_p8 = !pick_p7 && !pick_p3 && !pick_p4 && !pick_p5 && !pick_p6 && p8_addr == addr `ifdef spfpu && p8_rf==rftype `endif ;
+    `else
+      Bool pick_p8 = False;
+    `endif
+      let d3 = duplicate(pack(pick_p3)) & p3_val;
+      let d4 = `ifdef PIPE2 duplicate(pack(pick_p4)) & p4_val `else 0 `endif ;
+      let d5 = duplicate(pack(pick_p5)) & p5_val;
+      let d6 = duplicate(pack(pick_p6)) & p6_val;
+      let d7 = duplicate(pack(pick_p7)) & p7_val;
+      let d8 = `ifdef PIPE2 duplicate(pack(pick_p8)) & p8_val `else 0 `endif ;
+      Bit#(6) pick = {pack(pick_p3), pack(pick_p4), pack(pick_p5), pack(pick_p6), pack(pick_p7),
+                              pack(pick_p8)};
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
+        if(pick!=0)
+          returnval = d3|d4|d5|d6|d7|d8;
+      end
+
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
+        if(pick_p3 && !p3_avail)
+          available=False;
+      `ifdef PIPE2
+        else if(pick_p4 && !p4_avail )
+          available=False;
+      `endif
+        else if(pick_p5 && !p5_avail )
+          available=False;
+      end
+      if(verbosity>2)begin
+        $display($time,"\tFWDING: Returning RS1 Avail: %b Val: %h",available,returnval);
+      end
+      return tuple2(available,returnval);
+    endmethod
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr 
+                                                              `ifdef spfpu , RFType rftype `endif );
+      Bool available = True;
+      Bit#(ELEN) returnval=val;
+      let {p3valid, p3_avail, p3_addr, p3_val `ifdef spfpu ,p3_rf `endif } = wr_from_pipe3;
+    `ifdef PIPE2
+      let {p4valid, p4_avail, p4_addr, p4_val `ifdef spfpu ,p4_rf `endif } = wr_from_pipe4_second;
+    `endif
+      let {p5valid, p5_avail, p5_addr, p5_val `ifdef spfpu , p5_rf `endif } =wr_from_pipe4_first;
+      let {p6_addr,p6_val `ifdef spfpu ,p6_rf `endif }=rg_recent_commit;
+      let {p7_addr,p7_val `ifdef spfpu ,p7_rf `endif }=rg_recentm1_commit;
+    `ifdef PIPE2
+      let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
+    `endif
+      Bool pick_p3 = p3_addr == addr && p3valid `ifdef spfpu && p3_rf==rftype `endif ;
+      `ifdef PIPE2
+        Bool pick_p4 = !pick_p3 && p4_addr == addr && p4valid `ifdef spfpu && p4_rf==rftype `endif ;
+      `else
+        Bool pick_p4=False;
+      `endif
+      Bool pick_p5 = !pick_p4 && !pick_p3 && p5_addr == addr && p5valid `ifdef spfpu && p5_rf==rftype `endif ;
+      Bool pick_p6 = !pick_p5 && !pick_p3 && !pick_p4 && p6_addr == addr `ifdef spfpu && p6_rf==rftype `endif ;
+      Bool pick_p7 = !pick_p6 && !pick_p3 && !pick_p4 && !pick_p5 && p7_addr == addr `ifdef spfpu && p7_rf==rftype `endif ;
+    `ifdef PIPE2
+      Bool pick_p8 = !pick_p7 && !pick_p3 && !pick_p4 && !pick_p5 && !pick_p6 && p8_addr == addr `ifdef spfpu && p8_rf==rftype `endif ;
+    `else
+      Bool pick_p8 = False;
+    `endif
+      let d3 = duplicate(pack(pick_p3)) & p3_val;
+      let d4 = `ifdef PIPE2 duplicate(pack(pick_p4)) & p4_val `else 0 `endif ;
+      let d5 = duplicate(pack(pick_p5)) & p5_val;
+      let d6 = duplicate(pack(pick_p6)) & p6_val;
+      let d7 = duplicate(pack(pick_p7)) & p7_val;
+      let d8 = `ifdef PIPE2 duplicate(pack(pick_p8)) & p8_val `else 0 `endif ;
+      Bit#(6) pick = {pack(pick_p3), pack(pick_p4), pack(pick_p5), pack(pick_p6), pack(pick_p7),
+                              pack(pick_p8)};
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
+        if(pick!=0)
+          returnval = d3|d4|d5|d6|d7|d8;
+      end
+
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
+        if(pick_p3 && !p3_avail)
+          available=False;
+      `ifdef PIPE2
+        else if(pick_p4 && !p4_avail )
+          available=False;
+      `endif
+        else if(pick_p5 && !p5_avail )
+          available=False;
+      end
+      if(verbosity>2)begin
+        $display($time,"\tFWDING: Returning RS1 Avail: %b Val: %h",available,returnval);
+      end
+      return tuple2(available,returnval);
+    endmethod
+  `ifdef spfpu
+    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs3(Bit#(ELEN) val, Bit#(5) addr 
+                                                              `ifdef spfpu , RFType rftype `endif );
+      Bool available = True;
+      Bit#(ELEN) returnval=val;
+      let {p3valid, p3_avail, p3_addr, p3_val `ifdef spfpu ,p3_rf `endif } = wr_from_pipe3;
+    `ifdef PIPE2
+      let {p4valid, p4_avail, p4_addr, p4_val `ifdef spfpu ,p4_rf `endif } = wr_from_pipe4_second;
+    `endif
+      let {p5valid, p5_avail, p5_addr, p5_val `ifdef spfpu , p5_rf `endif } =wr_from_pipe4_first;
+      let {p6_addr,p6_val `ifdef spfpu ,p6_rf `endif }=rg_recent_commit;
+      let {p7_addr,p7_val `ifdef spfpu ,p7_rf `endif }=rg_recentm1_commit;
+    `ifdef PIPE2
+      let {p8_addr,p8_val `ifdef spfpu ,p8_rf `endif }=rg_recentm2_commit;
+    `endif
+      Bool pick_p3 = p3_addr == addr && p3valid `ifdef spfpu && p3_rf==FRF `endif ;
+    `ifdef PIPE2
+      Bool pick_p4 = !pick_p3 && p4_addr == addr && p4valid `ifdef spfpu && p4_rf==rftype `endif ;
+    `else
+      Bool pick_p4=False;
+    `endif
+      Bool pick_p5 = !pick_p4 && !pick_p3 && p5_addr == addr && p5valid `ifdef spfpu && p5_rf==FRF `endif ;
+      Bool pick_p6 = !pick_p5 && !pick_p3 && !pick_p4 && p6_addr == addr `ifdef spfpu && p6_rf==FRF `endif ;
+      Bool pick_p7 = !pick_p6 && !pick_p3 && !pick_p4 && !pick_p5 && p7_addr == addr `ifdef spfpu && p7_rf==FRF `endif ;
+    `ifdef PIPE2
+      Bool pick_p8 = !pick_p7 && !pick_p3 && !pick_p4 && !pick_p5 && !pick_p6 && p8_addr == addr `ifdef spfpu && p8_rf==FRF `endif ;
+    `else
+      Bool pick_p8= False;
+    `endif
+      let d3 = duplicate(pack(pick_p3)) & p3_val;
+      let d4 = `ifdef PIPE2 duplicate(pack(pick_p4)) & p4_val `else 0 `endif ;
+      let d5 = duplicate(pack(pick_p5)) & p5_val;
+      let d6 = duplicate(pack(pick_p6)) & p6_val;
+      let d7 = duplicate(pack(pick_p7)) & p7_val;
+      let d8 = `ifdef PIPE2 duplicate(pack(pick_p8)) & p8_val `else 0 `endif ;
+      Bit#(6) pick = {pack(pick_p3), pack(pick_p4), pack(pick_p5), pack(pick_p6), pack(pick_p7),
+                              pack(pick_p8)};
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
+        if(pick!=0)
+          returnval = d3|d4|d5|d6|d7|d8;
+      end
+
+      if(addr!=0 `ifdef spfpu || rftype==FRF `endif )begin
+        if(pick_p3 && !p3_avail)
+          available=False;
+      `ifdef PIPE2
+        else if(pick_p4 && !p4_avail )
+          available=False;
+      `endif
+        else if(pick_p5 && !p5_avail )
+          available=False;
+      end
+      if(verbosity>2)begin
+        $display($time,"\tFWDING: Returning RS1 Avail: %b Val: %h",available,returnval);
+      end
+      return tuple2(available,returnval);
+    endmethod
+  `endif
+    method Action fwd_from_pipe3 (FwdType fwd);
+      wr_from_pipe3 <= fwd;
+    endmethod
+    method Action fwd_from_pipe4_first (FwdType fwd);
+      wr_from_pipe4_first<= fwd;
+    endmethod
+  `ifdef PIPE2
+    method Action fwd_from_pipe4_second (FwdType fwd);
+      wr_from_pipe4_second <= fwd;
+    endmethod
+  `endif
+    method Action latest_commit(CommitData c);
+      rg_recent_commit<=c;
+      rg_recentm1_commit<=rg_recent_commit;
+  `ifdef PIPE2
+      rg_recentm2_commit<=rg_recentm1_commit;
+  `endif
     endmethod
   endmodule
+  
+//  interface Ifc_Tb;
+//    method Action fwd_from_pipe3 (FwdType fwd);
+//    method Action fwd_from_pipe4_first (FwdType fwd);
+//  `ifdef PIPE2
+//    method Action fwd_from_pipe4_second (FwdType fwd);
+//  `endif
+//    method Action latest_commit(CommitData c);
+//    method Action read_rs1(Bit#(ELEN) val, Bit#(5) addr 
+//                                                  `ifdef spfpu , RFType rftype `endif );
+////    method Action read_rs2(Bit#(ELEN) val, Bit#(5) addr 
+////                                                  `ifdef spfpu , RFType rftype `endif );
+//    method Bit#(ELEN) result_out;
+//  `ifdef spfpu
+//    method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs3(Bit#(ELEN) val, Bit#(5) addr, RFType rftype);
+//  `endif
+//  endinterface
+//
+//  module mkTb(Ifc_Tb);
+//    Ifc_fwding fwding <-mkfwding();
+//    Reg#(FwdType) rg_pipe3 <- mkReg(?);
+//    Reg#(FwdType) rg_pipe4 <- mkReg(?);
+//    Reg#(FwdType) rg_pipe4_1 <- mkReg(?);
+//    Reg#(Tuple2#(Bit#(ELEN),Bit#(5))) rg_req1 <- mkReg(unpack(0));
+//    Reg#(Tuple2#(Bit#(ELEN),Bit#(5))) rg_req2 <- mkReg(unpack(0));
+//    Reg#(CommitData) rg_commit <- mkReg(unpack(0));
+//
+//    Reg#(Bit#(ELEN)) rg_result<- mkReg(0);
+//    rule connect;
+//      fwding.fwd_from_pipe3(rg_pipe3);
+//      fwding.fwd_from_pipe4_first(rg_pipe4);
+//      fwding.fwd_from_pipe4_second(rg_pipe4_1);
+//    endrule
+//    rule read_operands;
+//      let {val1,addr1} = rg_req1;
+//      let {val2,addr2} = rg_req2;
+//      let {avail1,op1} <- fwding.read_rs1(val1,addr1);
+////      let {avail2,op2} <- fwding.read_rs2(val2,addr2);
+//      if(avail1)
+//        rg_result <= op1+op1;
+//    endrule
+//
+//    rule rllatest_commit;
+//      fwding.latest_commit(rg_commit);
+//    endrule
+//
+//    method Action fwd_from_pipe3 (FwdType fwd);
+//      rg_pipe3<=fwd;
+//    endmethod
+//    method Action fwd_from_pipe4_first (FwdType fwd);
+//      rg_pipe4<=fwd;
+//    endmethod
+//  `ifdef PIPE2
+//    method Action fwd_from_pipe4_second (FwdType fwd);
+//      rg_pipe4_1<=fwd;
+//    endmethod
+//  `endif
+//    method Action latest_commit(CommitData c);
+//      rg_commit<=c;
+//    endmethod
+//    method Action read_rs1(Bit#(ELEN) val, Bit#(5) addr 
+//                                                  `ifdef spfpu , RFType rftype `endif );
+//      rg_req1<=tuple2(val,addr);
+//    endmethod
+////    method Action read_rs2(Bit#(ELEN) val, Bit#(5) addr 
+////                                                  `ifdef spfpu , RFType rftype `endif );
+////      rg_req2<=tuple2(val,addr);
+////    endmethod
+//    method result_out=rg_result;
+//  endmodule
 
 endpackage
