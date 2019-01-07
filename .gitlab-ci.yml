@@ -10,6 +10,7 @@ build64:
         - make regress opts='--filter=rv64[^!si].*p --parallel=90 --sub'
         - make regress opts='--filter=rv64[^!si].*p --final'
         - make aapg opts='--config=rv64imafdc_bringup --test_count=3'
+        - make regress opts='--list=aapg.list --sub --parallel=100' CONFIG_ISA=RV64IMAFDC
         - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
         - make torture opts="--config=all"
         - make regress opts="--list=riscv-torture.list --parallel=40 --sub"
