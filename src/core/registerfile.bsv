@@ -148,8 +148,10 @@ package registerfile;
     endmethod
   `endif
     method Action fwd_from_wb(CommitData commit);
-      let{r, d, rdtype}=commit;
+      let{r, d `ifdef spfpu , rdtype `endif }=commit;
+    `ifdef spfpu
       wr_commit_type<=rdtype;
+    `endif
       if(r!=0 `ifdef spfpu || rdtype==FRF `endif )
           wr_commit<=tuple3(True, r, d);    
     endmethod
