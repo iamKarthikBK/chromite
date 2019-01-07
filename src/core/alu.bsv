@@ -150,7 +150,7 @@ package alu;
 	  	exception=True;
       cause=`Inst_addr_misaligned ;
     end
-    if(inst_type==MEMORY && ((funct3[1:0]==1 && effective_address[0]!=0) || 
+    if((memaccess!=Fence && memaccess!=FenceI) && inst_type==MEMORY && ((funct3[1:0]==1 && effective_address[0]!=0) || 
                             (funct3[1:0]==2 && effective_address[1:0]!=0)
              `ifdef RV64 || (funct3[1:0]==3 && effective_address[2:0]!=0) `endif ))begin
       cause = memaccess==Load? `Load_addr_misaligned: `Store_addr_misaligned;
