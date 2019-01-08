@@ -398,7 +398,9 @@ package stage3;
           `else
             check_rpc<= tuple3(None, 0, wEpoch);
           `endif
+          `ifdef multicycle
             rg_stall<= True;
+          `endif
           end
         end
       end
