@@ -98,7 +98,11 @@ package alu;
 						(fn[1]==1)?op2[valueOf(XLEN)-1]:op1[valueOf(XLEN)-1]);
 	  // SLL SRL SRA
     //word32 is bool, shift_amt is used to describe the amount of shift
+  `ifdef RV64
 	  Bit#(6) shift_amt={((!word32)?op2[5]:0), op2[4:0]};
+  `else
+	  Bit#(5) shift_amt=op2[4:0];
+  `endif
 
 	  `ifdef RV64
 	  	Bit#(TDiv#(XLEN, 2)) upper_bits=word32?signExtend(fn[3]&op1[31]):op1[63:32];
