@@ -9,11 +9,36 @@ build64:
         - make link_verilator generate_boot_files
         - make regress opts='--filter=rv64[^!si].*p --parallel=90 --sub'
         - make regress opts='--filter=rv64[^!si].*p --final'
-        - make aapg opts="--test_count=30 --parallel=90 --sub"
-        - make regress opts='--list=aapg.list --final'
+        - make aapg opts='--config=rv64imafdc_bringup --test_count=3'
+        - make regress opts='--list=aapg.list --sub --parallel=100' CONFIG_ISA=RV64IMAFDC
+        - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
         - make torture opts="--config=all"
         - make regress opts="--list=riscv-torture.list --parallel=40 --sub"
         - make regress opts="--list=riscv-torture.list --final"
+        - make restore
+        - make generate_verilog SYNTH=SIM MUL=fpga ISA=RV64IMAFD MULSTAGES=8 DIVSTAGES=64 VERBOSITY=0
+        - make link_verilator generate_boot_files
+        - make aapg opts='--config=rv64imafd_bringup --test_count=3'
+        - make regress opts='--list=aapg.list --sub --parallel=100' CONFIG_ISA=RV64IMAFD
+        - make regress opts='--list=aapg.list --final'
+        - make restore
+        - make generate_verilog SYNTH=SIM MUL=fpga ISA=RV64IMAC MULSTAGES=8 DIVSTAGES=64 VERBOSITY=0
+        - make link_verilator generate_boot_files
+        - make aapg opts='--config=rv64imac_bringup --test_count=3'
+        - make regress opts='--list=aapg.list --sub --parallel=100' CONFIG_ISA=RV64IMAC
+        - make regress opts='--list=aapg.list --final'
+        - make restore
+        - make generate_verilog SYNTH=SIM MUL=fpga ISA=RV64IMC MULSTAGES=8 DIVSTAGES=64 VERBOSITY=0
+        - make link_verilator generate_boot_files
+        - make aapg opts='--config=rv64imc_bringup --test_count=3'
+        - make regress opts='--list=aapg.list --sub --parallel=100' CONFIG_ISA=RV64IMC
+        - make regress opts='--list=aapg.list --final'
+        - make restore
+        - make generate_verilog SYNTH=SIM MUL=fpga ISA=RV64IC VERBOSITY=0
+        - make link_verilator generate_boot_files
+        - make aapg opts='--config=rv64ic_bringup --test_count=3'
+        - make regress opts='--list=aapg.list --sub --parallel=100' CONFIG_ISA=RV64IC
+        - make regress opts='--list=aapg.list --final'
     only:
         - master 
     tags:
@@ -28,8 +53,8 @@ build32:
         - make patch
         - make generate_verilog SYNTH=SIM MUL=fpga ISA=RV32IMAFC MULSTAGES=4 DIVSTAGES=32 VERBOSITY=0
         - make link_verilator generate_boot_files
-        - make regress opts='--filter=rv32[^!si][^!ud].*p --parallel=90 --sub' CONFIG_ISA=RV64IMAFC
-        - make regress opts='--filter=rv32[^!si][^!ud].*p --final' CONFIG_ISA=RV64IMAFC
+        - make regress opts='--filter=rv32[^!si][^!ud].*p --parallel=90 --sub' CONFIG_ISA=RV32IMAFC
+        - make regress opts='--filter=rv32[^!si][^!ud].*p --final' CONFIG_ISA=RV32IMAFC
     only:
         - master
     tags:
