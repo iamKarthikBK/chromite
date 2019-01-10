@@ -79,6 +79,9 @@ package stage3;
   import GetPut::*;
   import FIFOF::*;
   import SpecialFIFOs::*;
+`ifdef dcache
+  import cache_types::*;
+`endif
 
   `define DEQRX \
     rxmin.u.deq; \
@@ -120,7 +123,11 @@ package stage3;
     `ifdef supervisor
       method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
     `endif
+  `ifdef dcache
+		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
+  `else 
 		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
+  `endif
     method Action csr_misa_c (Bit#(1) m);
     method Action storebuffer_empty(Bool e);
     method Action fwd_from_pipe3 (FwdType fwd);
@@ -174,7 +181,11 @@ package stage3;
     Reg#(Flush_type) wr_flush_from_exe <- mkDWire(None);
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDWire(0);
+  `ifdef dcache
+		FIFOF#(DCore_request#(VADDR,ELEN,1)) ff_memory_request <-mkBypassFIFOF;
+  `else 
 		FIFOF#(MemoryReadReq#(VADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
+  `endif
     Wire#(Bit#(1)) wr_misa_c<-mkWire();
     Wire#(Bool) wr_storebuffer_empty<-mkWire();
   `ifdef atomic
@@ -352,9 +363,16 @@ package stage3;
               end
             end
           `endif
+          `ifdef dcache
+            if(cmtype==MEMORY)begin
+              ff_memory_request.enq(tuple6(addr,memaccess==FenceI || memaccess==Fence,
+                                                 epochs[0],truncate(pack(memaccess)),funct3,rs2));
+            end
+          `else
             if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
               ff_memory_read_request.enq(tuple3(addr, epochs[0], funct3));
             end
+          `endif
             Bit#(6) smeta1 = {pack(rdtype),rd};
             Bit#(17) mmeta = {fn,nanboxing,funct3,pack(memaccess),smeta1};
             Tbad_Maddr_Rmeta2_Smeta2 tple1 = 
@@ -489,12 +507,21 @@ package stage3;
       wr_roundingmode<= rm;
     endmethod
   `endif
+  `ifdef dcache
+    interface memory_request = interface Get
+      method ActionValue#(DCore_request#(VADDR,ELEN,1)) get;
+        ff_memory_request.deq;
+        return ff_memory_request.first;
+      endmethod
+    endinterface;
+  `else 
 		interface memory_read_request = interface Get 
 			method ActionValue#(MemoryReadReq#(VADDR,1)) get ;
 				ff_memory_read_request.deq;
 				return ff_memory_read_request.first;
 			endmethod
 		endinterface;
+  `endif
   `ifdef supervisor
     method sfence_operands= tuple2(sfence_rs1,sfence_rs2);
   `endif

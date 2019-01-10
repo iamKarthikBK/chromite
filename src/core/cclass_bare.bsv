@@ -41,9 +41,12 @@ package cclass_bare;
   import riscv:: * ;
   import common_types:: * ;
   import FIFOF::*;
-  `ifdef icache
-    import l1icache::*;
-  `endif
+`ifdef icache
+  import l1icache::*;
+`endif
+`ifdef dcache
+  import l1dcache::*;
+`endif
   `include "common_params.bsv"
 
   `define Mem_master_num 0
@@ -54,19 +57,30 @@ package cclass_bare;
 	import Connectable 				:: *;
   import GetPut:: *;
   import BUtils::*;
-  
-  `ifdef icache
+ 
+  `ifdef cache_control
     function Bool isIO(Bit#(VADDR) addr, Bool cacheable);
 	    if(!cacheable)
 	  	  return True;
 	    else
 	  	  return False;
     endfunction
+  `endif
 
+  `ifdef icache
     (*synthesize*)
     module mkicache(Ifc_l1icache#(`iwords, `iblocks, `isets, `iways, VADDR, `ifbsize, 3));
        let ifc();
 	   mkl1icache#(isIO,"PLRU") _temp(ifc);
+	   return (ifc);
+    endmodule
+  `endif
+
+  `ifdef dcache
+    (*synthesize*)
+    module mkdcache(Ifc_l1dcache#(`dwords, `dblocks, `dsets, `dways ,VADDR, `dfbsize ,2,1));//`dwords, `dblocks, `dsets, `dways, VADDR, `dfbsize, 2, 1));
+       let ifc();
+	   mkl1dcache#(isIO,"PLRU") _temp(ifc);
 	   return (ifc);
     endmodule
   `endif
@@ -83,9 +97,9 @@ package cclass_bare;
     interface Put#(Bit#(1)) sb_clint_mtip;
     interface Put#(Bit#(64)) sb_clint_mtime;
     interface Put#(Bit#(1)) sb_externalinterrupt;
-    `ifdef rtldump
-      interface Get#(DumpType) io_dump;
-    `endif
+  `ifdef rtldump
+    interface Get#(DumpType) io_dump;
+  `endif
   endinterface: Ifc_cclass_axi4
 
   (*synthesize*)
@@ -182,6 +196,60 @@ package cclass_bare;
         $display($time, "\tCORE: Fetch Response ", fshow(response));
     endrule
   `endif
+
+  `ifdef dcache
+    let dcache <- mkdcache;
+	  mkConnection(riscv.memory_request, dcache.core_req); //icache integration
+	  //mkConnection(dcache.core_resp, riscv.memory_response); // icache integration
+    rule drive_dcache_enable;
+		  dcache.cache_enable(unpack(riscv.mv_cacheenable[1]));
+    endrule
+	  
+    rule handle_dcache_line_request;
+	  	let {inst_addr, burst_len, burst_size} <- dcache.read_mem_req.get;
+      if(vaddr>paddr)begin
+        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+        if(upperbits!=0)
+          inst_addr=0;
+      end
+	  	AXI4_Rd_Addr#(PADDR, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+        arlen: burst_len , arsize: 2, arburst: 'b10, arid:`Mem_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
+	    memory_xactor.i_rd_addr.enq(dcache_request);
+	  	if(verbosity!=0)
+	  	  $display($time, "\tCORE: DCACHE Line Requesting ", fshow(dcache_request));
+	  endrule
+
+	  rule handle_dcache_line_resp;
+	    let fab_resp <- pop_o (memory_xactor.o_rd_data);
+	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
+      dcache.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
+	  	if(verbosity!=0)
+	  	  $display($time, "\tCORE: DCACHE Line Response ", fshow(fab_resp));
+	  endrule
+	  
+//    rule handle_dcache_nc_request;
+//	  	let {inst_addr, burst_len, burst_size} <- dcache.nc_read_req.get;
+//      if(vaddr>paddr)begin
+//        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+//        if(upperbits!=0)
+//          inst_addr=0;
+//      end
+//	  	AXI4_Rd_Addr#(PADDR, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+//        arlen: burst_len , arsize: 2, arburst: 'b10, arid:`IO_master_num }; // arburst: 00-FIXED 01-INCR 10-WRAP
+//	    io_xactor.i_rd_addr.enq(dcache_request);
+//	  	if(verbosity!=0)
+//	  	  $display($time, "\tCORE: DCACHE IO-Read Requesting ", fshow(dcache_request));
+//	  endrule
+//
+//	  rule handle_dcache_nc_resp;
+//	    let fab_resp <- pop_o (io_xactor.o_rd_data);
+//	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
+//      dcache.nc_read_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
+//	  	if(verbosity!=0)
+//	  	  $display($time, "\tCORE: DCACHE IO-Read Response ", fshow(fab_resp));
+//	  endrule
+
+  `else
     rule handle_memory_read_request;
       let {addr,epoch,access}<- riscv.memory_read_request.get;
       if(vaddr>paddr)begin
@@ -245,75 +313,7 @@ package cclass_bare;
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Write Response ", fshow(response));
     endrule
-
-//    rule handle_memory_write_request;
-//	    if(access != Fence && access != FenceI) begin
-//        if(size==0)
-//          data=duplicate(data[7:0]);
-//        else if(size==1)
-//          data=duplicate(data[15:0]);
-//        else if(size==2)
-//          data=duplicate(data[31:0]);
-//		  	Bit#(TDiv#(ELEN, 8)) write_strobe=size==0?'b1:size==1?'b11:size==2?'hf:'1;
-//        Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(address);
-//		  	if(size!=3)begin			// 8-bit write;
-//		  		write_strobe=write_strobe<<byte_offset;
-//		  	end
-//        if(access != Store) begin
-//        end
-//        else begin
-//		  	   AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(address), awuser:0, awlen: 0, 
-//              awsize: zeroExtend(size), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
-//  	  		let w  = AXI4_Wr_Data {wdata: data, wstrb: write_strobe, wlast:True, wid:`Mem_master_num};
-//          if(verbosity!=0)begin
-//            $display($time, "\tCORE: Memory write Request ", fshow(aw));
-//            $display($time, "\tCORE: Memory write Request ", fshow(w));
-//          end
-//	    		memory_xactor.i_wr_addr.enq(aw);
-//		    	memory_xactor.i_wr_data.enq(w);
-//        end
-//      end
-//      memory_state<= Response;
-//    endrule
-//    
-//	// Rule to handle memory response of Load and Atomic type instr 
-//    rule handle_memoryRead_response(memory_state == Response && (tpl_2(memory_request) == Load 
-//                                      `ifdef atomic || tpl_2(memory_request) ==Atomic `endif ));
-//      let {address, access, size, sign}=  memory_request;
-//			let response <- pop_o (memory_xactor.o_rd_data);	
-//			let bus_error = !(response.rresp==AXI4_OKAY);
-//      let rdata=response.rdata;
-//      if(size==0)
-//          rdata=sign==1?signExtend(rdata[7:0]):zeroExtend(rdata[7:0]);
-//      else if(size==1)
-//          rdata=sign==1?signExtend(rdata[15:0]):zeroExtend(rdata[15:0]);
-//      else if(size==2)
-//          rdata=sign==1?signExtend(rdata[31:0]):zeroExtend(rdata[31:0]);
-//      memory_state<= Request;
-//    endrule
-//
-//
-//	  // Rule to hande memory response of Store type instr
-//	  rule handle_memoryWrite_response(memory_state == Response && tpl_2(memory_request) == Store);
-//      let {address, access, size, sign}=  memory_request;
-//	  	let response<-pop_o(memory_xactor.o_wr_resp);
-//	  	let bus_error = !(response.bresp==AXI4_OKAY);
-//	  	riscv.memory_response.put(tagged Valid tuple3(0,  {pack(bus_error),0}, access));
-//      if(verbosity!=0)
-//        $display($time, "\tCORE: Memory Write Response ", fshow(response));
-//      memory_state<= Request;
-//    endrule
-//
-//      
-//	  // rule to handle fence reponse.Contents of memory_request is sent back. 
-//	  rule handle_fence_response(memory_state == Response && (tpl_2(memory_request) == Fence ||
-//                                                                  tpl_2(memory_request) == FenceI));
-//	  	let {address, access, size, sign}=  memory_request;
-//	  	riscv.memory_response.put(tagged Valid tuple3(0, 0, access)); // data is dont care, bus error is false.
-//	  	memory_state <= Request;
-//	  	if(verbosity!=0)
-//	  		$display($time, "\tCORE: Data memory serviced fence request");
-//	  endrule
+  `endif
 
     interface sb_clint_msip = interface Put
   	  method Action put(Bit#(1) intrpt);

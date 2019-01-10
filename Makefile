@@ -101,6 +101,9 @@ endif
 ifeq ($(ICACHE), enable)
   define_macros += -D icache=True
 endif
+ifeq ($(DCACHE), enable)
+  define_macros += -D dcache=True
+endif
 
 
 ifeq ($(COVERAGE), none)
@@ -118,6 +121,8 @@ define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAG
 								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True \
 								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
 								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL) -D icachereset=$(IRESET) \
+								 -D dwords=$(DWORDS) -D dblocks=$(DBLOCKS) -D dways=$(DWAYS) -D dsets=$(DSETS) \
+								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) \
 								 -D PIPE$(PIPE)=True \
 
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/

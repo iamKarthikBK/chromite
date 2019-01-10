@@ -39,12 +39,19 @@ package riscv;
   import common_types::*;
   import CustomFIFOs::*;
   `include "common_params.bsv"
+`ifdef cache_control
+  import cache_types::*;
+`endif
   
   interface Ifc_riscv;
     
   	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
     interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
-    interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
+  `ifdef dcache
+		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
+  `else 
+		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
+  `endif
     interface Put#(MemoryReadResp#(1)) memory_read_response;
 		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
@@ -339,7 +346,11 @@ package riscv;
 
     interface inst_request=stage1.inst_request;
     interface inst_response=stage1.inst_response;
+  `ifdef dcache
+    interface memory_request=stage3.memory_request;
+  `else
     interface memory_read_request=stage3.memory_read_request;
+  `endif
     method Action clint_msip(Bit#(1) intrpt)=stage5.clint_msip(intrpt);
     method Action clint_mtip(Bit#(1) intrpt)=stage5.clint_mtip(intrpt);
     method Action clint_mtime(Bit#(64) c_mtime)=stage5.clint_mtime(c_mtime);
