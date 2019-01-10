@@ -445,6 +445,7 @@ package decoder;
   `ifdef RV32
     else if(imm_value[5]!=0 && quad==Q2 && funct3=='b000) // SLLI should have [5] set to 0 in RV32
       inst_type=TRAP;
+  `endif
     
     
     Bit#(7) temp1 = {fn,f3};
