@@ -37,7 +37,7 @@ build64:
     only:
         - master 
     tags:
-        - c-class-build-regression
+        - c-class-build-rv64
 
 build32:
     variables:
@@ -75,4 +75,4 @@ build32:
     only:
         - master
     tags:
-        - c-class-build-regression
+        - c-class-build-rv32
