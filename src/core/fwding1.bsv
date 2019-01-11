@@ -170,7 +170,7 @@ package fwding1;
           available=False;
       end
       if(verbosity>2)begin
-        $display($time,"\tFWDING: Returning RS1 Avail: %b Val: %h",available,returnval);
+        $display($time,"\tFWDING: Returning RS2 Avail: %b Val: %h",available,returnval);
       end
       return tuple2(available,returnval);
     endmethod
@@ -227,7 +227,7 @@ package fwding1;
           available=False;
       end
       if(verbosity>2)begin
-        $display($time,"\tFWDING: Returning RS1 Avail: %b Val: %h",available,returnval);
+        $display($time,"\tFWDING: Returning RS3 Avail: %b Val: %h",available,returnval);
       end
       return tuple2(available,returnval);
     endmethod
