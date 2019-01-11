@@ -57,8 +57,6 @@ c-class-rv32-nightly:
       - make aapg opts='--config=rv32ic_bringup --test_count=30  --aapg_opts='--arch=rv32''
       - make regress opts='--list=aapg.list --sub --parallel=100' CONFIG_ISA=RV32IC
       - make regress opts='--list=aapg.list --final'
-    only:
-        - master
     tags:
         - c-class-build-rv32
 
@@ -100,7 +98,5 @@ c-class-rv64-nightly:
       - make aapg opts='--config=rv64ic_bringup --test_count=30'
       - make regress opts='--list=aapg.list --sub --parallel=100' CONFIG_ISA=RV64IC
       - make regress opts='--list=aapg.list --final'
-    only:
-        - master 
     tags:
         - c-class-build-rv64
