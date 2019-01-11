@@ -74,6 +74,8 @@ package riscv;
     Ifc_stage4 stage4 <- mkstage4();
     Ifc_stage5 stage5 <- mkstage5();
 
+    Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
+
     FIFOF#(PIPE1_min) pipe1min <-mkSizedFIFOF(2);
     FIFOF#(PIPE1_opt1) pipe1opt1 <-mkSizedFIFOF(2);
     FIFOF#(PIPE1_opt2) pipe1opt2 <-mkSizedFIFOF(2);
@@ -164,6 +166,10 @@ package riscv;
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
     let {flush_from_wb, flushpc_from_wb, fenceI}=stage5.flush;
 
+    rule update_wEpoch(flush_from_wb);
+      rg_wEpoch<=~rg_wEpoch;
+    endrule
+
     rule commit_instruction;
       stage2.commit_rd(stage5.commit_rd);
       if(stage5.commit_rd matches tagged Valid .c)
@@ -221,9 +227,9 @@ package riscv;
       Bit#(ELEN) rdval = field2;
       Bool available = (committype==REGULAR);
     `ifdef spfpu
-      stage3.fwd_from_pipe3(tuple5(committype!=TRAP, available,rd,rdval,rdtype));
+      stage3.fwd_from_pipe3(tuple5(committype!=TRAP && field4[0]==rg_wEpoch, available,rd,rdval,rdtype));
     `else
-      stage3.fwd_from_pipe3(tuple4(committype!=TRAP, available,rd,rdval));
+      stage3.fwd_from_pipe3(tuple4(committype!=TRAP && field4[0]==rg_wEpoch, available,rd,rdval));
     `endif
     endrule
     rule nofwding_from_exe1;
@@ -256,11 +262,11 @@ package riscv;
       end
     `endif
     `ifdef spfpu
-      stage3.fwd_from_pipe4_first(tuple5(present,available,rd,rdval,rdtype));
+      stage3.fwd_from_pipe4_first(tuple5(present && epoch == rg_wEpoch,available,rd,rdval,rdtype));
     `else
-      stage3.fwd_from_pipe4_first(tuple4(present,available,rd,rdval));
+      stage3.fwd_from_pipe4_first(tuple4(present && epoch == rg_wEpoch,available,rd,rdval));
     `endif
-    if(present)
+    if(present && epoch == rg_wEpoch)
     `ifdef spfpu
       stage2.fwd_from_wb(tuple3(rd,rdval,rdtype));
     `else
@@ -289,9 +295,9 @@ package riscv;
       end
     `endif
     `ifdef spfpu
-      stage3.fwd_from_pipe4_second(tuple5(present, available,rd,rdval,rdtype));
+      stage3.fwd_from_pipe4_second(tuple5(present && epoch == rg_wEpoch, available,rd,rdval,rdtype));
     `else
-      stage3.fwd_from_pipe4_second(tuple4(present, available,rd,rdval));
+      stage3.fwd_from_pipe4_second(tuple4(present && epoch == rg_wEpoch, available,rd,rdval));
     `endif
     endrule
   `else
@@ -317,15 +323,17 @@ package riscv;
       end
     `endif
     `ifdef spfpu
-      stage3.fwd_from_pipe4_first(tuple5(True, available,rd,rdval,rdtype));
+      stage3.fwd_from_pipe4_first(tuple5(epoch==rg_wEpoch, available,rd,rdval,rdtype));
     `else
-      stage3.fwd_from_pipe4_first(tuple4(True, available,rd,rdval));
+      stage3.fwd_from_pipe4_first(tuple4(epoch==rg_wEpoch, available,rd,rdval));
     `endif
-    `ifdef spfpu
-      stage2.fwd_from_wb(tuple3(rd,rdval,rdtype));
-    `else
-      stage2.fwd_from_wb(tuple2(rd,rdval));
-    `endif
+      if(epoch == rg_wEpoch)begin
+      `ifdef spfpu
+        stage2.fwd_from_wb(tuple3(rd,rdval,rdtype));
+      `else
+        stage2.fwd_from_wb(tuple2(rd,rdval));
+      `endif
+      end
     endrule
     rule nofwding_from_mem1;
     `ifdef spfpu
