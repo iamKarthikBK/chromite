@@ -52,9 +52,17 @@ package riscv;
   `else 
 		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
   `endif
+  `ifdef dcache
+    interface Put#(DCore_response#(ELEN,1)) memory_response;
+    method Action storebuffer_empty(Bool e);
+    method Tuple2#(Bool,Bool) initiate_store;
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action store_is_cached(Bool c);
+  `else
     interface Put#(MemoryReadResp#(1)) memory_read_response;
 		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
+  `endif 
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);
     method Action clint_mtime(Bit#(64) c_mtime);
@@ -65,6 +73,7 @@ package riscv;
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
   `endif
+
   endinterface
 
   (*synthesize*)
@@ -82,6 +91,9 @@ package riscv;
     Ifc_stage5 stage5 <- mkstage5();
 
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
+  `ifdef dcache
+    Wire#(Bool) wr_storebuffer_empty<- mkWire();
+  `endif
 
     FIFOF#(PIPE1_min) pipe1min <-mkSizedFIFOF(2);
     FIFOF#(PIPE1_opt1) pipe1opt1 <-mkSizedFIFOF(2);
@@ -207,12 +219,21 @@ package riscv;
       stage3.update_wEpoch();
       stage4.update_wEpoch();
     endrule
+  `ifdef dcache
+    rule connect_storebuffer_status;
+      stage3.storebuffer_empty(wr_storebuffer_empty);
+    endrule
+  `else
     rule connect_store_request;
       stage4.start_store(stage5.initiate_store);
     endrule
     rule connect_store_response;
       stage5.write_resp(stage4.store_response);
     endrule
+    rule connect_storebuffer_status;
+      stage3.storebuffer_empty(stage4.storebuffer_empty);
+    endrule
+  `endif
     // TODO RAS support will enable the following rule.
 //    rule ras_push_connect;
 //      stage1.push_ras(stage3.ras_push);
@@ -222,9 +243,6 @@ package riscv;
         stage3.roundingmode(stage5.roundingmode);
       endrule
     `endif
-    rule connect_storebuffer_status;
-      stage3.storebuffer_empty(stage4.storebuffer_empty);
-    endrule
 
     rule fwding_from_exe1;
       let data = pipe3.first;
@@ -365,9 +383,23 @@ package riscv;
     `ifdef rtldump
       interface dump=stage5.dump;
     `endif
+  `ifdef dcache
+    interface memory_response=stage4.memory_response;
+    method Action storebuffer_empty(Bool e);
+      wr_storebuffer_empty<=e;
+    endmethod
+    method initiate_store =stage5.initiate_store;
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+      stage5.write_resp(r);
+    endmethod
+    method Action store_is_cached(Bool c);
+      stage5.store_is_cached(c);
+    endmethod
+  `else
     interface memory_read_response=stage4.memory_read_response;
 		interface memory_write_request=stage4.memory_write_request;
     interface memory_write_response=stage4.memory_write_response;
+  `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=stage5.set_external_interrupt(ex_i);
   `ifdef cache_control
     method mv_cacheenable = stage5.mv_cacheenable;

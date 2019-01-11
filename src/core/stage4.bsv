@@ -42,10 +42,14 @@ package stage4;
   `ifndef dcache
     `define BUFFSIZE 2
   `endif
+`ifdef dcache
+  import cache_types::*;
+`else
+  import storebuffer::*;
+`endif
 
   import common_types::*;
   `include "common_params.bsv"
-  import storebuffer::*;
 
   interface Ifc_stage4;
     interface RXe#(PIPE3) rx_min;
@@ -54,15 +58,20 @@ package stage4;
       interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
       interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;
     `endif
+  `ifdef dcache
+    interface Put#(DCore_response#(ELEN,1)) memory_response;
+  `else
     interface Put#(MemoryReadResp#(1)) memory_read_response;
-
-		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
+		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
+  `endif 
 
     method Action update_wEpoch;
-    method Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) store_response;
+  `ifndef dcache
+    method Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) store_response;
     method Action start_store(Tuple2#(Bool,Bool) s);
     method Bool storebuffer_empty;
+  `endif
   endinterface
 
   function Bit#(ELEN) fn_atomic_op (Bit#(5) op,  Bit#(ELEN) rs2,  Bit#(ELEN) loaded);
@@ -98,16 +107,22 @@ package stage4;
     RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
     TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst <-mkTX;
   `endif
+  `ifndef dcache
     Ifc_storebuffer storebuffer <- mkstorebuffer();
+  `endif
     // wire that captures the response coming from the external memory or cache.
     Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
-    FIFOF#(MemoryReadResp#(1)) ff_memory_response <- mkUGBypassFIFOF();
-    // wire that carriues the information for operand forwarding
-    Reg#(Bit#(1)) rg_epoch <- mkReg(0);
-    Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
+  `ifdef dcache
+    FIFOF#(DCore_response#(ELEN,1)) ff_memory_response <- mkUGBypassFIFOF();
+  `else
+    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
     Wire#(Bool) wr_store_start<-mkDWire(False);
     Wire#(Bool) wr_clear_sb<-mkDWire(False);
     Wire#(Bool) wr_deq_storebuffer1<-mkDWire(False);
+    FIFOF#(MemoryReadResp#(1)) ff_memory_response <- mkUGBypassFIFOF();
+  `endif
+    // wire that carriues the information for operand forwarding
+    Reg#(Bit#(1)) rg_epoch <- mkReg(0);
 
 
     rule check_operation;
@@ -143,7 +158,9 @@ package stage4;
       Bool complete=True;
   
       // check store_buffer entries
+    `ifndef dcache
       let {storemask,storehit} <- storebuffer.check_address(badaddr); 
+    `endif
       Bit#(TLog#(ELEN)) loadoffset = {badaddr[offset:0],3'b0}; // parameterize for XLEN
       if(committype==TRAP)begin
         temp1=tagged TRAP (CommitTrap{cause:trapcause, badaddr:badaddr, pc:pc});
@@ -163,13 +180,16 @@ package stage4;
                                           rd:rd};
       end
       else if(committype==MEMORY) begin
+      `ifndef dcache
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
+      `endif
           if(verbosity>0)
             $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
           if(ff_memory_response.notEmpty)begin
             let {data, err_fault, epochs}=ff_memory_response.first;
             ff_memory_response.deq;
             if(epochs==rg_epoch)begin
+            `ifndef dcache
               Bit#(ELEN) update_data = data<<loadoffset;
               update_data= (update_data&~storemask)|(storehit);
               update_data= update_data>>{loadoffset};
@@ -179,20 +199,32 @@ package stage4;
                 update_data=sign==0?signExtend(update_data[15:0]):zeroExtend(update_data[15:0]);
               else if(size==2)
                   update_data=sign==0?signExtend(update_data[31:0]):zeroExtend(update_data[31:0]);
-              `ifdef dpfpu
-                if(nanboxing==1)
-                    update_data[63:32]='1;
-              `endif
+            `endif
+              Bit#(ELEN) update_data=data;
+            `ifdef dpfpu
+              if(nanboxing==1)
+                  update_data[63:32]='1;
+            `endif
               if(err_fault==0 )begin // no bus error
               `ifdef atomic
                 if(memaccess==Atomic)begin
                   temp1=tagged STORE CommitStore{pc:pc,
                                                  rd: rd,  
                                                  commitvalue:update_data};
+                `ifndef dcache
                   storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
+                `endif
                 end
                 else
               `endif
+                if(memaccess==Store)begin
+                  temp1=tagged STORE CommitStore{pc:pc
+                                       `ifdef atomic
+                                         , rd: rd,  
+                                         commitvalue:0 
+                                       `endif };
+                end
+                else  
                   temp1=tagged REG CommitRegular{commitvalue:update_data,
                                                    fflags:0,
                                                    rdtype:rdtype,
@@ -229,6 +261,7 @@ package stage4;
             if(verbosity>0)
               $display($time,"\tSTAGE4: Waiting for Memory Read Response");
           end
+      `ifndef dcache
         end
         else if(memaccess==Store)begin
           if(verbosity>0)
@@ -248,6 +281,7 @@ package stage4;
                                                  rdtype:rdtype,
                                                  rd:rd};
         end
+      `endif
       end
       `ifdef rtldump
         if(verbosity>1)
@@ -263,11 +297,13 @@ package stage4;
       end
     endrule
 
+  `ifndef dcache
     rule deque_store_buffer(wr_clear_sb || wr_deq_storebuffer1);
       storebuffer.deque;
       if(wr_clear_sb)
         storebuffer.clear_queue;
     endrule
+  `endif
 
     interface rx_min = rxmin.e;
     interface tx_min = txmin.e;
@@ -275,6 +311,15 @@ package stage4;
     interface rx_inst = rxinst.e;
     interface tx_inst = txinst.e;
   `endif
+  `ifdef dcache
+    interface  memory_response= interface Put
+      method Action put (DCore_response#(ELEN,1) response)if(ff_memory_response.notFull);
+        if(verbosity>1)
+          $display($time, "\tSTAGE4: Read Response: ", fshow(response));
+        ff_memory_response.enq(response);
+      endmethod
+    endinterface;
+  `else
     interface  memory_read_response= interface Put
       method Action put (MemoryReadResp#(1) response)if(ff_memory_response.notFull);
         if(verbosity>1)
@@ -282,9 +327,11 @@ package stage4;
         ff_memory_response.enq(response);
       endmethod
     endinterface;
+  `endif
     method Action update_wEpoch;
       rg_epoch<=~rg_epoch;
     endmethod
+  `ifndef dcache
     method Action start_store(Tuple2#(Bool,Bool) s);
       wr_store_start<=tpl_1(s);
       wr_clear_sb<=tpl_2(s);
@@ -305,6 +352,7 @@ package stage4;
     endinterface;
     method store_response = wr_store_response;
     method storebuffer_empty = storebuffer.storebuffer_empty;
+  `endif
   endmodule
 endpackage
 

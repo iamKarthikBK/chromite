@@ -66,7 +66,10 @@ package stage5;
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
     method Tuple2#(Bool,Bool) initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+  `ifdef dcache
+    method Action store_is_cached(Bool c);
+  `endif
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
   `endif
@@ -98,7 +101,10 @@ package stage5;
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
-    Wire#(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR)))) wr_store_response <- mkDWire(tagged Invalid);
+    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR)))) wr_store_response <- mkDWire(tagged Invalid);
+  `ifdef dcache
+    Wire#(Bool) wr_store_is_cached <- mkDWire(False);
+  `endif
 
     rule instruction_commit;
       let {commit, epoch}=rx.u.first;
@@ -132,6 +138,76 @@ package stage5;
             $display($time, "\tWBMEM: Received TRAP: ", t.cause, " New PC: %h",jump_address);
         end
         else if (commit matches tagged STORE .s)begin
+        `ifdef dcache
+          wr_initiate_store <= tuple2(unpack(rg_epoch),True);
+          if ( wr_store_is_cached)begin
+            `ifdef spfpu
+              wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
+            `else
+              `ifdef atomic
+                wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
+              `else
+                wr_commit <= tagged Valid (tuple2(0, 0));
+              `endif
+            `endif
+            `ifdef rtldump
+              `ifdef atomic
+                Bit#(ELEN) data=s.commitvalue;
+                if(s.rd==0)
+                  data=0;
+                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, s.rd, data, IRF));
+              `else
+                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, 0, 0, IRF));
+              `endif
+              rxinst.u.deq;
+            `endif
+              rx.u.deq;
+          end
+          else if(wr_store_response matches tagged Valid .resp) begin
+            if(verbosity>1)
+              $display($time,"\tSTAGE5: Store response Received: ",fshow(resp));
+            let {err, badaddr} = resp;
+            if(err==0)begin
+            `ifdef spfpu
+              wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
+            `else
+              `ifdef atomic
+                wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
+              `else
+                wr_commit <= tagged Valid (tuple2(0, 0));
+              `endif
+            `endif
+            `ifdef rtldump
+              `ifdef atomic
+                Bit#(ELEN) data=s.commitvalue;
+                if(s.rd==0)
+                  data=0;
+                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, s.rd, data, IRF));
+              `else
+                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, 0, 0, IRF));
+              `endif
+              rxinst.u.deq;
+            `endif
+              rx.u.deq;
+            end
+            else begin
+              Bit#(7) trapcause='1;
+              trapcause=`Store_access_fault;
+              let newpc <- csr.take_trap(trapcause, s.pc, badaddr);
+              fl=True;
+              jump_address=newpc;
+              rx.u.deq;
+            `ifdef rtldump
+              rxinst.u.deq;
+            `endif
+            end
+          end
+          else begin
+            if(verbosity>1)
+              $display($time,"\tSTAGE5: Waiting for Store response");
+          end
+          
+        `else
           if(!rg_store_initiated)begin // if store has not started yet.
             if(verbosity>0)
               $display($time,"\tSTAGE5: Initiating Store request");
@@ -182,6 +258,7 @@ package stage5;
             if(verbosity>1)
               $display($time,"\tSTAGE5: Waiting for Store response");
           end
+        `endif
         end
         else if(commit matches tagged SYSTEM .sys)begin
           let {drain, newpc, dest}<-csr.system_instruction(sys.csraddr, sys.rs1, sys.func3, sys.lpc);
@@ -286,9 +363,14 @@ package stage5;
 	  method Action set_external_interrupt(Bit#(1) ex_i)=csr.set_external_interrupt(ex_i);
     method csr_misa_c=csr.csr_misa_c;
     method initiate_store=wr_initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(2),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
       wr_store_response<=r;
     endmethod
+  `ifdef dcache
+    method Action store_is_cached(Bool c);
+      wr_store_is_cached<=c;
+    endmethod
+  `endif
   `ifdef cache_control
     method mv_cacheenable = csr.mv_cacheenable;
   `endif
