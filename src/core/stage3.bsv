@@ -366,9 +366,13 @@ package stage3;
           `endif
           `ifdef dcache
             if(cmtype==MEMORY)begin
-              //ff_memory_request.enq(tuple6(addr,memaccess==FenceI || memaccess==Fence,
+            `ifdef atomic
+              wr_memory_request<= (tuple7(addr,memaccess==FenceI || memaccess==Fence,
+                                      epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn}));
+            `else
               wr_memory_request<= (tuple6(addr,memaccess==FenceI || memaccess==Fence,
                                                  epochs[0],truncate(pack(memaccess)),funct3,rs2));
+            `endif
             end
           `else
             if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
