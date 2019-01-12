@@ -226,6 +226,7 @@ package cclass_bare;
 	  
     rule dirve_storebuffer_empyty;
       riscv.storebuffer_empty(dcache.storebuffer_empty);
+      riscv.cache_is_available(dcache.cache_available);
     endrule
 
     rule initiate_store(tpl_2(riscv.initiate_store));

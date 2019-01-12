@@ -83,9 +83,9 @@ package stage3;
   import cache_types::*;
 `endif
 
-  `define DEQRX \
-    rxmin.u.deq; \
-    `ifdef rtldump \
+  `define DEQRX     \
+    rxmin.u.deq;    \
+    `ifdef rtldump  \
       rxinst.u.deq; \
     `endif          \
     `ifdef bpu      \
@@ -113,22 +113,25 @@ package stage3;
   `endif
     method Action update_wEpoch;
     method Tuple2#(Flush_type, Bit#(VADDR)) flush_from_exe;
-    `ifdef bpu
-  		method Maybe#(Training_data#(VADDR)) training_data;
-		  method Maybe#(Bit#(VADDR)) ras_push;
-    `endif
-    `ifdef spfpu
-      method Action roundingmode(Bit#(3) rm);
-    `endif
-    `ifdef supervisor
-      method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
-    `endif
+  `ifdef bpu
+  	method Maybe#(Training_data#(VADDR)) training_data;
+	  method Maybe#(Bit#(VADDR)) ras_push;
+  `endif
+  `ifdef spfpu
+    method Action roundingmode(Bit#(3) rm);
+  `endif
+  `ifdef supervisor
+    method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
+  `endif
   `ifdef dcache
 		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
+    (*always_enabled*)
+    method Action cache_is_available(Bool avail);
   `else 
 		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
   `endif
     method Action csr_misa_c (Bit#(1) m);
+    (*always_enabled*)
     method Action storebuffer_empty(Bool e);
     method Action fwd_from_pipe3 (FwdType fwd);
     method Action fwd_from_pipe4_first (FwdType fwd);
@@ -144,37 +147,34 @@ package stage3;
     let verbosity = `VERBOSITY ;
 
 		RX#(PIPE2_min#(ELEN,FLEN)) rxmin <-mkRX;								// receive from the decode stage
-    `ifdef rtldump
-      RX#(Bit#(32)) rxinst <- mkRX;
-    `endif
-    `ifdef spfpu
-      RX#(OpFpu) rxfpu <- mkRX;
-    `endif
-    `ifdef bpu
-      RX#(Bit#(2)) rxbpu <-mkRX;
-    `endif
-		TX#(PIPE3) tx <-mkTX;							// send to the memory stage;
-    `ifdef rtldump
-      TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst<-mkTX;
-    `endif
-    `ifdef bpu
-      Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(VADDR))) check_rpc <- mkReg(tuple3(None, 0, 0));
-		  Reg#(Maybe#(Training_data#(VADDR))) wr_training_data <-mkDReg(tagged Invalid);
-		  Wire#(Maybe#(Bit#(VADDR))) wr_ras_push<-mkDWire(tagged Invalid);
-    `else
-      Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(1))) check_rpc <- mkReg(tuple3(None, 0, 0));
-    `endif
-    `ifdef spfpu
-      Wire#(Bit#(3)) wr_roundingmode <- mkWire();
-    `endif
-    `ifdef multicycle
-      Ifc_alu alu <- mkalu();
-      Reg#(Bool) rg_stall <- mkReg(False);
-    `endif
-    `ifdef supervisor
-      Reg#(Bit#(XLEN)) sfence_rs1 <- mkReg(0);
-      Reg#(Bit#(XLEN)) sfence_rs2 <- mkReg(0);
-    `endif
+  `ifdef rtldump
+    RX#(Bit#(32)) rxinst <- mkRX;
+  `endif
+  `ifdef spfpu
+    RX#(OpFpu) rxfpu <- mkRX;
+    Wire#(Bit#(3)) wr_roundingmode <- mkWire();
+  `endif
+  `ifdef bpu
+    RX#(Bit#(2)) rxbpu <-mkRX;
+    Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(VADDR))) check_rpc <- mkReg(tuple3(None, 0, 0));
+	  Reg#(Maybe#(Training_data#(VADDR))) wr_training_data <-mkDReg(tagged Invalid);
+	  Wire#(Maybe#(Bit#(VADDR))) wr_ras_push<-mkDWire(tagged Invalid);
+  `endif
+	TX#(PIPE3) tx <-mkTX;							// send to the memory stage;
+  `ifdef rtldump
+    TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst<-mkTX;
+  `endif
+  `ifndef bpu
+    Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(1))) check_rpc <- mkReg(tuple3(None, 0, 0));
+  `endif
+  `ifdef multicycle
+    Ifc_alu alu <- mkalu();
+    Reg#(Bool) rg_stall <- mkReg(False);
+  `endif
+  `ifdef supervisor
+    Reg#(Bit#(XLEN)) sfence_rs1 <- mkReg(0);
+    Reg#(Bit#(XLEN)) sfence_rs2 <- mkReg(0);
+  `endif
     Ifc_fwding fwding <- mkfwding();
 		Reg#(Bit#(1)) eEpoch <-mkReg(0);
 		Reg#(Bit#(1)) wEpoch <-mkReg(0);
@@ -182,7 +182,9 @@ package stage3;
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDWire(0);
   `ifdef dcache
-		FIFOF#(DCore_request#(VADDR,ELEN,1)) ff_memory_request <-mkBypassFIFOF;
+//		FIFOF#(DCore_request#(VADDR,ELEN,1)) ff_memory_request <-mkBypassFIFOF;
+    Wire#(DCore_request#(VADDR, ELEN, 1)) wr_memory_request <- mkWire;
+    Wire#(Bool) wr_cache_avail <- mkWire;
   `else 
 		FIFOF#(MemoryReadReq#(VADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
   `endif
@@ -192,7 +194,7 @@ package stage3;
     Reg#(Maybe#(Bit#(VADDR))) rg_loadreserved_addr <- mkReg(tagged Invalid);
   `endif
 
-    rule execute_operation `ifdef multicycle (!rg_stall) `endif ;
+    rule execute_operation ( wr_cache_avail `ifdef multicycle && !rg_stall `endif );
       let {opmeta, opdata, metadata} = rxmin.u.first;
       let {rs1addr, rs2addr, op3, instrtype} = opmeta;
       let {op1, op2, op4}=opdata;
@@ -231,7 +233,6 @@ package stage3;
       if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence `ifdef atomic ||   memaccess==Atomic `endif )  
                                                     && !wr_storebuffer_empty)
         execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
-      // We first check Epochs only then process the instruction
 
       if(verbosity>0)begin
         $display($time, "\tEXECUTE: PC: %h epochs: %b currEpochs: %b execute: %b", pc, epochs, {eEpoch, 
@@ -365,7 +366,8 @@ package stage3;
           `endif
           `ifdef dcache
             if(cmtype==MEMORY)begin
-              ff_memory_request.enq(tuple6(addr,memaccess==FenceI || memaccess==Fence,
+              //ff_memory_request.enq(tuple6(addr,memaccess==FenceI || memaccess==Fence,
+              wr_memory_request<= (tuple6(addr,memaccess==FenceI || memaccess==Fence,
                                                  epochs[0],truncate(pack(memaccess)),funct3,rs2));
             end
           `else
@@ -508,10 +510,12 @@ package stage3;
     endmethod
   `endif
   `ifdef dcache
+    method Action cache_is_available(Bool avail);
+      wr_cache_avail<= avail;
+    endmethod
     interface memory_request = interface Get
       method ActionValue#(DCore_request#(VADDR,ELEN,1)) get;
-        ff_memory_request.deq;
-        return ff_memory_request.first;
+        return wr_memory_request;
       endmethod
     endinterface;
   `else 

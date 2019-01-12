@@ -68,6 +68,7 @@ package stage5;
     method Tuple2#(Bool,Bool) initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
   `ifdef dcache
+    (*always_enabled*)
     method Action store_is_cached(Bool c);
   `endif
   `ifdef cache_control
