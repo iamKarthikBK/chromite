@@ -273,7 +273,7 @@ package cclass_bare;
       end
     endrule
     rule send_burst_write_data(rg_burst_count!=0);
-      Bool last = rg_burst_count==fromInteger(`dblocks-1 );
+      Bool last = rg_burst_count==fromInteger(`dblocks -1 );
   	  let w  = AXI4_Wr_Data {wdata: truncate(rg_write_data), wstrb: '1, wlast:last, wid:`Mem_master_num};
       Bit#(TAdd#(TAdd#(TLog#(`dwords),1), 3)) shift = {`dwords ,3'b0};
       rg_write_data<=rg_write_data>>shift;
@@ -282,12 +282,17 @@ package cclass_bare;
       else
         rg_burst_count<=rg_burst_count+1;
 		  memory_xactor.i_wr_data.enq(w);
+      if(verbosity!=0)
+      $display($time,"\tCORE: DCACHE Write Data: %h rg_burst_count: %d last: %b", 
+                                                      rg_write_data,rg_burst_count, last);
     endrule
 
     rule handle_dcache_line_write_resp;
       let response<-pop_o(memory_xactor.o_wr_resp);
 	  	let bus_error = !(response.bresp==AXI4_OKAY);
 	  	dcache.write_mem_resp.put(bus_error);
+	  	if(verbosity!=0)
+	  	  $display($time, "\tCORE: DCACHE Write Line Response ", fshow(response));
     endrule
 	  
     rule handle_dcache_nc_request;
