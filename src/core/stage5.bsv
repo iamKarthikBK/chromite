@@ -319,7 +319,11 @@ package stage5;
         if(verbosity>1)
           $display($time, "\tWBMEM: Dropping instruction. Epoch: %b rg_epoch: %b",epoch,rg_epoch);
           if(commit matches tagged STORE .s)
+          `ifdef dcache
+            wr_initiate_store<=tuple2(unpack(rg_epoch),True);
+          `else
             wr_initiate_store<=tuple2(False,True);
+          `endif
         // TODO if the instruction is a Store we need to deque that entry from the store buffer.
         rx.u.deq;
       `ifdef rtldump

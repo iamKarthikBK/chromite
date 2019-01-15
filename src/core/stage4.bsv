@@ -252,6 +252,12 @@ package stage4;
             else begin
               if(rg_epoch==epoch)
                 complete=False;
+            `ifdef dcache
+              if(memaccess==Store `ifdef atomic || memaccess==Atomic `endif )
+                temp1=tagged STORE CommitStore{pc:pc,
+                                               rd:0,  
+                                               commitvalue:0};
+            `endif
             if(verbosity>0)
               $display($time,"\tSTAGE4: Dropping Memory Read Response");
             end
