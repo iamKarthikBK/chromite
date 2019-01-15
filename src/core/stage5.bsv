@@ -140,8 +140,8 @@ package stage5;
         end
         else if (commit matches tagged STORE .s)begin
         `ifdef dcache
-          wr_initiate_store <= tuple2(unpack(rg_epoch),True);
-          if ( wr_store_is_cached)begin
+          if (!rg_store_initiated && wr_store_is_cached)begin
+            wr_initiate_store <= tuple2(unpack(rg_epoch),True);
             `ifdef spfpu
               wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
             `else
@@ -164,7 +164,14 @@ package stage5;
             `endif
               rx.u.deq;
           end
+          else if(!rg_store_initiated)begin
+            wr_initiate_store <= tuple2(unpack(rg_epoch),True);
+            rg_store_initiated<=True;
+            if(verbosity>0)
+              $display($time,"\tSTAGE5: Initiating Store request");
+          end
           else if(wr_store_response matches tagged Valid .resp) begin
+            rg_store_initiated<=False;
             if(verbosity>1)
               $display($time,"\tSTAGE5: Store response Received: ",fshow(resp));
             let {err, badaddr} = resp;
