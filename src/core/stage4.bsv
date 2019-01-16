@@ -233,7 +233,7 @@ package stage4;
               else begin
                 if(err_fault[0]==1)begin
                 `ifdef atomic 
-                  if(memaccess==Atomic)
+                  if(memaccess!=Load)
                     temp1=tagged TRAP CommitTrap{cause:`Store_access_fault, badaddr:badaddr, pc:pc};
                   else
                 `endif
@@ -241,7 +241,7 @@ package stage4;
                 end
                 else begin
                 `ifdef atomic 
-                  if(memaccess==Atomic)
+                  if(memaccess!=Load)
                     temp1=tagged TRAP CommitTrap{cause:`Store_pagefault, badaddr:badaddr, pc:pc};
                   else
                 `endif

@@ -236,6 +236,12 @@ package cclass_bare;
       riscv.store_is_cached(dcache.cacheable_store);
     endrule
 
+    // Currently it is possible that the cache can generate a write-request followed by a
+    // read-request, but the fabric (due to contention) latches the read first to the slave followed
+    // by the write-req. This could lead to wrong behavior. To avoid this it is necessary to ensure
+    // that if a write-request has been initiated no read-requests should be latched unless the
+    // write-response has arrived.
+
     rule handle_dcache_line_read_request;
 	  	let {addr, burst_len, burst_size} <- dcache.read_mem_req.get;
       if(vaddr>paddr)begin
