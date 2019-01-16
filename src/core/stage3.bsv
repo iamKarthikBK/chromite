@@ -79,10 +79,13 @@ package stage3;
   import GetPut::*;
   import FIFOF::*;
   import SpecialFIFOs::*;
+`ifdef dcache
+  import cache_types::*;
+`endif
 
-  `define DEQRX \
-    rxmin.u.deq; \
-    `ifdef rtldump \
+  `define DEQRX     \
+    rxmin.u.deq;    \
+    `ifdef rtldump  \
       rxinst.u.deq; \
     `endif          \
     `ifdef bpu      \
@@ -110,18 +113,25 @@ package stage3;
   `endif
     method Action update_wEpoch;
     method Tuple2#(Flush_type, Bit#(VADDR)) flush_from_exe;
-    `ifdef bpu
-  		method Maybe#(Training_data#(VADDR)) training_data;
-		  method Maybe#(Bit#(VADDR)) ras_push;
-    `endif
-    `ifdef spfpu
-      method Action roundingmode(Bit#(3) rm);
-    `endif
-    `ifdef supervisor
-      method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
-    `endif
+  `ifdef bpu
+  	method Maybe#(Training_data#(VADDR)) training_data;
+	  method Maybe#(Bit#(VADDR)) ras_push;
+  `endif
+  `ifdef spfpu
+    method Action roundingmode(Bit#(3) rm);
+  `endif
+  `ifdef supervisor
+    method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
+  `endif
+  `ifdef dcache
+		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
+    (*always_enabled*)
+    method Action cache_is_available(Bool avail);
+  `else 
 		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
+  `endif
     method Action csr_misa_c (Bit#(1) m);
+    (*always_enabled*)
     method Action storebuffer_empty(Bool e);
     method Action fwd_from_pipe3 (FwdType fwd);
     method Action fwd_from_pipe4_first (FwdType fwd);
@@ -137,51 +147,54 @@ package stage3;
     let verbosity = `VERBOSITY ;
 
 		RX#(PIPE2_min#(ELEN,FLEN)) rxmin <-mkRX;								// receive from the decode stage
-    `ifdef rtldump
-      RX#(Bit#(32)) rxinst <- mkRX;
-    `endif
-    `ifdef spfpu
-      RX#(OpFpu) rxfpu <- mkRX;
-    `endif
-    `ifdef bpu
-      RX#(Bit#(2)) rxbpu <-mkRX;
-    `endif
-		TX#(PIPE3) tx <-mkTX;							// send to the memory stage;
-    `ifdef rtldump
-      TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst<-mkTX;
-    `endif
-    `ifdef bpu
-      Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(VADDR))) check_rpc <- mkReg(tuple3(None, 0, 0));
-		  Reg#(Maybe#(Training_data#(VADDR))) wr_training_data <-mkDReg(tagged Invalid);
-		  Wire#(Maybe#(Bit#(VADDR))) wr_ras_push<-mkDWire(tagged Invalid);
-    `else
-      Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(1))) check_rpc <- mkReg(tuple3(None, 0, 0));
-    `endif
-    `ifdef spfpu
-      Wire#(Bit#(3)) wr_roundingmode <- mkWire();
-    `endif
-    `ifdef multicycle
-      Ifc_alu alu <- mkalu();
-      Reg#(Bool) rg_stall <- mkReg(False);
-    `endif
-    `ifdef supervisor
-      Reg#(Bit#(XLEN)) sfence_rs1 <- mkReg(0);
-      Reg#(Bit#(XLEN)) sfence_rs2 <- mkReg(0);
-    `endif
+  `ifdef rtldump
+    RX#(Bit#(32)) rxinst <- mkRX;
+  `endif
+  `ifdef spfpu
+    RX#(OpFpu) rxfpu <- mkRX;
+    Wire#(Bit#(3)) wr_roundingmode <- mkWire();
+  `endif
+  `ifdef bpu
+    RX#(Bit#(2)) rxbpu <-mkRX;
+    Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(VADDR))) check_rpc <- mkReg(tuple3(None, 0, 0));
+	  Reg#(Maybe#(Training_data#(VADDR))) wr_training_data <-mkDReg(tagged Invalid);
+	  Wire#(Maybe#(Bit#(VADDR))) wr_ras_push<-mkDWire(tagged Invalid);
+  `endif
+	TX#(PIPE3) tx <-mkTX;							// send to the memory stage;
+  `ifdef rtldump
+    TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst<-mkTX;
+  `endif
+  `ifndef bpu
+    Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(1))) check_rpc <- mkReg(tuple3(None, 0, 0));
+  `endif
+  `ifdef multicycle
+    Ifc_alu alu <- mkalu();
+    Reg#(Bool) rg_stall <- mkReg(False);
+  `endif
+  `ifdef supervisor
+    Reg#(Bit#(XLEN)) sfence_rs1 <- mkReg(0);
+    Reg#(Bit#(XLEN)) sfence_rs2 <- mkReg(0);
+  `endif
     Ifc_fwding fwding <- mkfwding();
 		Reg#(Bit#(1)) eEpoch <-mkReg(0);
 		Reg#(Bit#(1)) wEpoch <-mkReg(0);
     Reg#(Flush_type) wr_flush_from_exe <- mkDWire(None);
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDWire(0);
+  `ifdef dcache
+//		FIFOF#(DCore_request#(VADDR,ELEN,1)) ff_memory_request <-mkBypassFIFOF;
+    Wire#(DCore_request#(VADDR, ELEN, 1)) wr_memory_request <- mkWire;
+    Wire#(Bool) wr_cache_avail <- mkWire;
+  `else 
 		FIFOF#(MemoryReadReq#(VADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
+  `endif
     Wire#(Bit#(1)) wr_misa_c<-mkWire();
     Wire#(Bool) wr_storebuffer_empty<-mkWire();
   `ifdef atomic
     Reg#(Maybe#(Bit#(VADDR))) rg_loadreserved_addr <- mkReg(tagged Invalid);
   `endif
 
-    rule execute_operation `ifdef multicycle (!rg_stall) `endif ;
+    rule execute_operation ( wr_cache_avail `ifdef multicycle && !rg_stall `endif );
       let {opmeta, opdata, metadata} = rxmin.u.first;
       let {rs1addr, rs2addr, op3, instrtype} = opmeta;
       let {op1, op2, op4}=opdata;
@@ -220,7 +233,6 @@ package stage3;
       if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence `ifdef atomic ||   memaccess==Atomic `endif )  
                                                     && !wr_storebuffer_empty)
         execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
-      // We first check Epochs only then process the instruction
 
       if(verbosity>0)begin
         $display($time, "\tEXECUTE: PC: %h epochs: %b currEpochs: %b execute: %b", pc, epochs, {eEpoch, 
@@ -352,9 +364,21 @@ package stage3;
               end
             end
           `endif
+          `ifdef dcache
+            if(cmtype==MEMORY)begin
+            `ifdef atomic
+              wr_memory_request<= (tuple7(addr,memaccess==FenceI || memaccess==Fence,
+                                      epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn}));
+            `else
+              wr_memory_request<= (tuple6(addr,memaccess==FenceI || memaccess==Fence,
+                                                 epochs[0],truncate(pack(memaccess)),funct3,rs2));
+            `endif
+            end
+          `else
             if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
               ff_memory_read_request.enq(tuple3(addr, epochs[0], funct3));
             end
+          `endif
             Bit#(6) smeta1 = {pack(rdtype),rd};
             Bit#(17) mmeta = {fn,nanboxing,funct3,pack(memaccess),smeta1};
             Tbad_Maddr_Rmeta2_Smeta2 tple1 = 
@@ -489,12 +513,23 @@ package stage3;
       wr_roundingmode<= rm;
     endmethod
   `endif
+  `ifdef dcache
+    method Action cache_is_available(Bool avail);
+      wr_cache_avail<= avail;
+    endmethod
+    interface memory_request = interface Get
+      method ActionValue#(DCore_request#(VADDR,ELEN,1)) get;
+        return wr_memory_request;
+      endmethod
+    endinterface;
+  `else 
 		interface memory_read_request = interface Get 
 			method ActionValue#(MemoryReadReq#(VADDR,1)) get ;
 				ff_memory_read_request.deq;
 				return ff_memory_read_request.first;
 			endmethod
 		endinterface;
+  `endif
   `ifdef supervisor
     method sfence_operands= tuple2(sfence_rs1,sfence_rs2);
   `endif

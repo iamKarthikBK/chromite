@@ -39,15 +39,33 @@ package riscv;
   import common_types::*;
   import CustomFIFOs::*;
   `include "common_params.bsv"
+`ifdef cache_control
+  import cache_types::*;
+`endif
   
   interface Ifc_riscv;
     
   	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
     interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
-    interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
+  `ifdef dcache
+		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
+  `else 
+		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
+  `endif
+  `ifdef dcache
+    interface Put#(DCore_response#(ELEN,1)) memory_response;
+    (*always_enabled*)
+    method Action storebuffer_empty(Bool e);
+    method Tuple2#(Bool,Bool) initiate_store;
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action store_is_cached(Bool c);
+    (*always_enabled*)
+    method Action cache_is_available(Bool avail);
+  `else
     interface Put#(MemoryReadResp#(1)) memory_read_response;
 		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
+  `endif 
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);
     method Action clint_mtime(Bit#(64) c_mtime);
@@ -58,6 +76,7 @@ package riscv;
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
   `endif
+
   endinterface
 
   (*synthesize*)
@@ -200,12 +219,17 @@ package riscv;
       stage3.update_wEpoch();
       stage4.update_wEpoch();
     endrule
+  `ifndef dcache
     rule connect_store_request;
       stage4.start_store(stage5.initiate_store);
     endrule
     rule connect_store_response;
       stage5.write_resp(stage4.store_response);
     endrule
+    rule connect_storebuffer_status;
+      stage3.storebuffer_empty(stage4.storebuffer_empty);
+    endrule
+  `endif
     // TODO RAS support will enable the following rule.
 //    rule ras_push_connect;
 //      stage1.push_ras(stage3.ras_push);
@@ -215,9 +239,6 @@ package riscv;
         stage3.roundingmode(stage5.roundingmode);
       endrule
     `endif
-    rule connect_storebuffer_status;
-      stage3.storebuffer_empty(stage4.storebuffer_empty);
-    endrule
 
     rule fwding_from_exe1;
       let data = pipe3.first;
@@ -347,16 +368,37 @@ package riscv;
 
     interface inst_request=stage1.inst_request;
     interface inst_response=stage1.inst_response;
+  `ifdef dcache
+    interface memory_request=stage3.memory_request;
+  `else
     interface memory_read_request=stage3.memory_read_request;
+  `endif
     method Action clint_msip(Bit#(1) intrpt)=stage5.clint_msip(intrpt);
     method Action clint_mtip(Bit#(1) intrpt)=stage5.clint_mtip(intrpt);
     method Action clint_mtime(Bit#(64) c_mtime)=stage5.clint_mtime(c_mtime);
     `ifdef rtldump
       interface dump=stage5.dump;
     `endif
+  `ifdef dcache
+    interface memory_response=stage4.memory_response;
+    method Action storebuffer_empty(Bool e);
+      stage3.storebuffer_empty(e);
+    endmethod
+    method initiate_store =stage5.initiate_store;
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+      stage5.write_resp(r);
+    endmethod
+    method Action store_is_cached(Bool c);
+      stage5.store_is_cached(c);
+    endmethod
+    method Action cache_is_available(Bool avail);
+      stage3.cache_is_available(avail);
+    endmethod
+  `else
     interface memory_read_response=stage4.memory_read_response;
 		interface memory_write_request=stage4.memory_write_request;
     interface memory_write_response=stage4.memory_write_response;
+  `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=stage5.set_external_interrupt(ex_i);
   `ifdef cache_control
     method mv_cacheenable = stage5.mv_cacheenable;

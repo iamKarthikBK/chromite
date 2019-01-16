@@ -355,7 +355,9 @@ package csrfile;
     // 0-bit is cache enable for instruction cache
     // 1-bit is cache enable for data cache
     // Address: 'h800
-    Reg#(Bit#(2)) rg_cachecontrol <- mkReg(`icachereset ); 
+    Bit#(1) lv_denable =fromInteger(valueOf(`dcachereset ));
+    Bit#(1) lv_ienable =fromInteger(valueOf(`icachereset ));
+    Reg#(Bit#(2)) rg_cachecontrol <- mkReg({lv_denable,lv_ienable}); 
   `endif
     
     Bit#(12) csr_mip= {rg_meip, heip, seip, rg_ueip, rg_mtip, htie, stie, rg_utip, rg_msip,
