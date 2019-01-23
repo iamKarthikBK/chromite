@@ -46,7 +46,7 @@ package riscv;
   interface Ifc_riscv;
     
   	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
-    interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
+    interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
   `ifdef dcache
 		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
   `else 

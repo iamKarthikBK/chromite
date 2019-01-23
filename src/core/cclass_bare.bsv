@@ -42,7 +42,7 @@ package cclass_bare;
   import common_types:: * ;
   import FIFOF::*;
 `ifdef icache
-  import l1icache::*;
+  import imem::*;
 `endif
 `ifdef dcache
   import l1dcache::*;
@@ -68,15 +68,15 @@ package cclass_bare;
 	  	  return False;
     endfunction
   `endif
-
-  `ifdef icache
-    (*synthesize*)
-    module mkicache(Ifc_l1icache#(`iwords, `iblocks, `isets, `iways, VADDR, `ifbsize, 3));
-       let ifc();
-	   mkl1icache#(isIO,"PLRU") _temp(ifc);
-	   return (ifc);
-    endmodule
-  `endif
+//
+//  `ifdef icache
+//    (*synthesize*)
+//    module mkicache(Ifc_l1icache#(`iwords, `iblocks, `isets, `iways, VADDR, `ifbsize, 3));
+//       let ifc();
+//	   mkl1icache#(isIO,"PLRU") _temp(ifc);
+//	   return (ifc);
+//    endmodule
+//  `endif
 
   `ifdef dcache
     (*synthesize*)
@@ -107,7 +107,7 @@ package cclass_bare;
   (*synthesize*)
   `ifdef dcache
     `ifdef icache
-      (*preempts="handle_dcache_nc_request,handle_icache_nc_request"*)
+      (*preempts="handle_dcache_nc_request,handle_imem_nc_request"*)
     `endif
   `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
@@ -137,53 +137,52 @@ package cclass_bare;
     endrule
   `endif
   `ifdef icache
-	  let icache<-mkicache;
-	  mkConnection(riscv.inst_request, icache.core_req); //icache integration
-	  mkConnection(icache.core_resp, riscv.inst_response); // icache integration
-     
-    rule drive_constants;
-		  icache.cache_enable(unpack(riscv.mv_cacheenable[0]));
+//	  let icache<-mkicache;
+//	  mkConnection(riscv.inst_request, icache.core_req); //icache integration
+//	  mkConnection(icache.core_resp, riscv.inst_response); // icache integration
+	  Ifc_imem imem <- mkimem;
+	  mkConnection(riscv.inst_request, imem.core_req); //imem integration
+	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
+
+    // TODO: send the following from CSR
+    rule tlb_csr_info;
+      imem.satp_from_csr.put(0);
+      imem.curr_priv.put('d3);
     endrule
 
-	  rule handle_icache_line_request;
-	  	let {inst_addr, burst_len, burst_size} <- icache.read_mem_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          inst_addr=0;
-      end
-	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+    rule drive_constants;
+		  imem.cache_enable(unpack(riscv.mv_cacheenable[0]));
+    endrule
+
+	  rule handle_imem_line_request;
+	  	let {inst_addr, burst_len, burst_size} <- imem.read_mem_req.get;
+	  	AXI4_Rd_Addr#(PADDR, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
         arlen: burst_len , arsize: 2, arburst: 'b10, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    fetch_xactor.i_rd_addr.enq(icache_request);
+	    fetch_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: ICACHE Line Requesting ", fshow(icache_request));
+	  	  $display($time, "\tCORE: ICACHE Line Requesting ", fshow(imem_request));
 	  endrule
 
-	  rule handle_icache_line_resp;
+	  rule handle_imem_line_resp;
 	    let fab_resp <- pop_o (fetch_xactor.o_rd_data);
 	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
-      icache.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
+      imem.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
 	  	if(verbosity!=0)
 	  	  $display($time, "\tCORE: ICACHE Line Response ", fshow(fab_resp));
 	  endrule
 	  
-    rule handle_icache_nc_request;
-	  	let {inst_addr, burst_len, burst_size} <- icache.nc_read_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          inst_addr=0;
-      end
-	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+    rule handle_imem_nc_request;
+	  	let {inst_addr, burst_len, burst_size} <- imem.nc_read_req.get;
+	  	AXI4_Rd_Addr#(PADDR, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
         arlen: burst_len , arsize: 2, arburst: 'b10, arid:1 }; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    io_xactor.i_rd_addr.enq(icache_request);
+	    io_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: Icache IO Requesting ", fshow(icache_request));
+	  	  $display($time, "\tCORE: Icache IO Requesting ", fshow(imem_request));
 	  endrule
 
-    rule handle_icache_nc_read_response(wr_io_read_response.rid==1);
+    rule handle_imem_nc_read_response(wr_io_read_response.rid==1);
 	  	Bool bus_error = !(wr_io_read_response.rresp==AXI4_OKAY);
-      icache.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
+      imem.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
 	  	if(verbosity!=0)
 	  	  $display($time, "\tCORE: ICACHE IO Response ", fshow(wr_io_read_response));
 	  endrule
@@ -208,7 +207,7 @@ package cclass_bare;
     rule handle_fetch_response;
 			let response <- pop_o (fetch_xactor.o_rd_data);	
 			Bool bus_error = !(response.rresp==AXI4_OKAY);
-      riscv.inst_response.put(tuple3(truncate(response.rdata), bus_error,ff_epoch.first));
+      riscv.inst_response.put(tuple4(truncate(response.rdata),bus_error, `Inst_access_fault, ff_epoch.first));
       ff_epoch.deq;
       fetch_state<= Request;
       if(verbosity!=0)
@@ -218,8 +217,8 @@ package cclass_bare;
 
   `ifdef dcache
     let dcache <- mkdcache;
-	  mkConnection(riscv.memory_request, dcache.core_req); //icache integration
-	  mkConnection(dcache.core_resp, riscv.memory_response); // icache integration
+	  mkConnection(riscv.memory_request, dcache.core_req); //dcache integration
+	  mkConnection(dcache.core_resp, riscv.memory_response); // dcache integration
     rule drive_dcache_enable;
 		  dcache.cache_enable(unpack(riscv.mv_cacheenable[1]));
     endrule

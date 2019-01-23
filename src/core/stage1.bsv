@@ -56,7 +56,7 @@ package stage1;
 
     // instruction response from the memory subsytem or the memory bus
     //                     inst , error , epoch 
-    interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
+    interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
 
     // instruction along with other results to be sent to the next stage
     interface TXe#(PIPE1_min) tx_min;
@@ -111,7 +111,7 @@ package stage1;
     Reg#(Bit#(16)) rg_instruction <- mkReg(0);
 
     // This FIFO receives the response from the memory subsytem (a.k.a cache)
-    FIFOF#(Tuple3#(Bit#(32),Bool,Bit#(3))) ff_memory_response<-mkSizedFIFOF(2);
+    FIFOF#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) ff_memory_response<-mkSizedFIFOF(2);
 
     // FIFO to interface with the next pipeline stage
 		TX#(PIPE1_min) txmin<-mkTX;
@@ -162,7 +162,7 @@ package stage1;
     // repsonse are probed in the next cycle.
     rule process_instruction;
         let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=wr_csr;
-        let {cache_response,err,epoch}=ff_memory_response.first;
+        let {cache_response,err,cause,epoch}=ff_memory_response.first;
         Bit#(32) final_instruction=0;
         Bool compressed=False;
         Bool enque_instruction=True;
@@ -262,7 +262,7 @@ package stage1;
     // Explicit Conditions: None
     // Implicit Conditions: ff_memory_response.notFull
 		interface inst_response= interface Put
-			method Action put (Tuple3#(Bit#(32),Bool,Bit#(3)) resp);
+			method Action put (Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3)) resp);
         if(verbosity>1)
           $display($time,"\tSTAGE1: Recevied response from the Memory: ",fshow(resp));
         ff_memory_response.enq(resp);
