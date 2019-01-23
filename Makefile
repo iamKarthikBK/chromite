@@ -60,7 +60,7 @@ ifeq ($(BPU),enable)
   define_macros += -D bpu=True
 endif
 ifeq ($(MMU),enable)
-  define_macros += -D MMU=True
+  define_macros += -D mmu=True
 endif
 ifeq ($(PERF),enable)
   define_macros	+= -D perf=True
@@ -104,6 +104,9 @@ endif
 ifeq ($(DCACHE), enable)
   define_macros += -D dcache=True
 endif
+ifeq ($(PMP), enable)
+	define_macros += -D pmp=True
+endif
 
 
 ifeq ($(COVERAGE), none)
@@ -121,9 +124,9 @@ define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAG
 								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True \
 								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
 								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL) -D icachereset=$(IRESET) \
-								 -D dwords=$(DWORDS) -D dblocks=$(DBLOCKS) -D dways=$(DWAYS) -D dsets=$(DSETS) \
-								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) \
-								 -D PIPE$(PIPE)=True \
+								 -D iesize=$(IESIZE) -D dwords=$(DWORDS) -D dblocks=$(DBLOCKS) -D dways=$(DWAYS) \
+								 -D dsets=$(DSETS) -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) \
+								 -D PIPE$(PIPE)=True -D paddr=32 -D vaddr=64 -D PMPSIZE=$(PMPSIZE)
 
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/
 M_EXT:=./src/core/m_ext/
