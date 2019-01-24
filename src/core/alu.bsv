@@ -78,8 +78,8 @@ package alu;
   `include "common_params.bsv"
 
 	(*noinline*)
-	function ALU_OUT fn_alu (Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(VADDR) op3, 
-      Bit#(VADDR) imm_value, Instruction_type inst_type, Funct3 funct3,
+	function ALU_OUT fn_alu (Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(`vaddr) op3, 
+      Bit#(`vaddr) imm_value, Instruction_type inst_type, Funct3 funct3,
       Access_type memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c,
       Bit#(2) lpc);
 
@@ -143,7 +143,7 @@ package alu;
     //    which can happen either due to JALR/JAL or due to a taken branch. There is no notion of
     //    misprediction here.
     // generate the effective address to jump to 
-		Bit#(VADDR) effective_address=op3+ truncate(imm_value);
+		Bit#(`vaddr) effective_address=op3+ truncate(imm_value);
     if(inst_type==JALR)
       effective_address[0]=0;
 
@@ -184,7 +184,7 @@ package alu;
     else if(inst_type == SYSTEM_INSTR)
       committype = SYSTEM_INSTR;
 	
-	  Bit#(VADDR) effaddr_csrdata = (inst_type==SYSTEM_INSTR)? 
+	  Bit#(`vaddr) effaddr_csrdata = (inst_type==SYSTEM_INSTR)? 
                                             zeroExtend({lpc,imm_value[11:0],funct3}): 
                                             effective_address;
 
@@ -194,8 +194,8 @@ package alu;
 
 `ifdef multicycle
   interface Ifc_alu;
-	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
-        `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(VADDR) imm_value `endif , 
+	method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(`vaddr) op3, 
+        `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(`vaddr) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Access_type
         memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c, Bit#(2) lpc );
 		method ActionValue#(ALU_OUT) delayed_output;
@@ -238,8 +238,8 @@ package alu;
       `endif
     `endif
 
-	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(VADDR) op3, 
-        `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(VADDR) imm_value `endif , 
+	  method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs ( Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, Bit#(`vaddr) op3, 
+        `ifdef spfpu Bit#(ELEN) imm_value `else Bit#(`vaddr) imm_value `endif , 
         Instruction_type inst_type, Funct3 funct3, Access_type
         memaccess, Bool word32 `ifdef bpu , Bit#(2) prediction `endif , Bit#(1) misa_c, Bit#(2) lpc );
       `ifdef muldiv

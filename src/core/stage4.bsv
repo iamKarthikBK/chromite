@@ -55,20 +55,20 @@ package stage4;
     interface RXe#(PIPE3) rx_min;
     interface TXe#(PIPE4) tx_min;
     `ifdef rtldump
-      interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
-      interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;
+      interface RXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) rx_inst;
+      interface TXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) tx_inst;
     `endif
   `ifdef dcache
     interface Put#(DCore_response#(ELEN,1)) memory_response;
   `else
     interface Put#(MemoryReadResp#(1)) memory_read_response;
     interface Put#(MemoryWriteResp) memory_write_response;
-		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
+		interface Get#(MemoryWriteReq#(`vaddr,1,ELEN)) memory_write_request;
   `endif 
 
     method Action update_wEpoch;
   `ifndef dcache
-    method Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) store_response;
+    method Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) store_response;
     method Action start_store(Tuple2#(Bool,Bool) s);
     method Bool storebuffer_empty;
   `endif
@@ -104,8 +104,8 @@ package stage4;
     RX#(PIPE3) rxmin <- mkRX;
     TX#(PIPE4) txmin <- mkTX;
   `ifdef rtldump
-    RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
-    TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst <-mkTX;
+    RX#(Tuple2#(Bit#(`vaddr),Bit#(32))) rxinst <-mkRX;
+    TX#(Tuple2#(Bit#(`vaddr),Bit#(32))) txinst <-mkTX;
   `endif
   `ifndef dcache
     Ifc_storebuffer storebuffer <- mkstorebuffer();
@@ -115,7 +115,7 @@ package stage4;
   `ifdef dcache
     FIFOF#(DCore_response#(ELEN,1)) ff_memory_response <- mkUGBypassFIFOF();
   `else
-    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
+    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr)))) wr_store_response <-mkDWire(tagged Invalid);
     Wire#(Bool) wr_store_start<-mkDWire(False);
     Wire#(Bool) wr_clear_sb<-mkDWire(False);
     Wire#(Bool) wr_deq_storebuffer1<-mkDWire(False);
@@ -133,7 +133,7 @@ package stage4;
       let {simpc,inst}=rxinst.u.first;
     `endif
 
-      Bit#(VADDR) badaddr = field1;
+      Bit#(`vaddr) badaddr = field1;
       Bit#(5) fflags=truncate(field1);
       Bit#(3) func3= field1[2:0];
       Bit#(12) csraddr = field1[14:3];
@@ -143,7 +143,7 @@ package stage4;
       Bit#(ELEN) commitvalue = field2;
       Bit#(XLEN) rs1 = truncate(field2);
       
-      Bit#(VADDR) pc = field3;
+      Bit#(`vaddr) pc = field3;
       
       Bit#(1) epoch = field4[0];
       Bit#(7) trapcause = field4[7:1];
@@ -346,7 +346,7 @@ package stage4;
       wr_clear_sb<=tpl_2(s);
     endmethod
 		interface memory_write_request = interface Get
-      method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) get if(wr_store_start);
+      method ActionValue#(MemoryWriteReq#(`vaddr,1,ELEN)) get if(wr_store_start);
         let x <- storebuffer.perform_store;
         return x;
       endmethod

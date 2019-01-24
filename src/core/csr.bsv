@@ -42,10 +42,10 @@ package csr;
   import ConfigReg::*;
 	
   interface Ifc_csr;
-	  method ActionValue#(Tuple3#(Bool, Bit#(VADDR), Bit#(XLEN))) system_instruction(
+	  method ActionValue#(Tuple3#(Bool, Bit#(`vaddr), Bit#(XLEN))) system_instruction(
             Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
     method CSRtoDecode csrs_to_decode;
-    method ActionValue#(Bit#(VADDR)) take_trap(Bit#(7) type_cause, Bit#(VADDR) pc, Bit#(VADDR) badaddr);
+    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(7) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(64) c_mtime);
@@ -78,10 +78,10 @@ package csr;
     `ifdef supervisor
       Wire#(Bool) wr_sfence_command <- mkDWire(False);
     `endif 
-	  method ActionValue#(Tuple3#(Bool, Bit#(VADDR), Bit#(XLEN))) system_instruction(
+	  method ActionValue#(Tuple3#(Bool, Bit#(`vaddr), Bit#(XLEN))) system_instruction(
          Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
       Bool flush = False;
-      Bit#(VADDR) jump_add=0;
+      Bit#(`vaddr) jump_add=0;
 	  	let csrread<-csrfile.read_csr(csr_address);
       Bit#(XLEN) writecsrdata=0;
 	  	Bit#(XLEN) destination_value=0;
@@ -130,7 +130,7 @@ package csr;
 	  	return tuple3(flush,jump_add,destination_value);
 	  endmethod
 	
-    method ActionValue#(Bit#(VADDR)) take_trap(Bit#(7) type_cause, Bit#(VADDR) pc, Bit#(VADDR) badaddr);
+    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(7) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
 		  Bit#(5) cause_code = truncate(type_cause);
 //		  if(!(cause_core==`Inst_addr_misaligned || cause_code==`Inst_access_fault || 
 //           cause_code==`Load_access_fault || cause_code==`Load_addr_misaligned || 

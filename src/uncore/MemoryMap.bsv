@@ -17,7 +17,7 @@ package MemoryMap;
   import common_types::*;
 	/*========================= */
 
-function Bool is_IO_Addr(Bit#(PADDR) addr);
+function Bool is_IO_Addr(Bit#(`paddr) addr);
 		if(addr>=`MemoryBase && addr<=`MemoryEnd)
 	    		return (False);
 		else if(addr>=`BootRomBase && addr<=`BootRomEnd )

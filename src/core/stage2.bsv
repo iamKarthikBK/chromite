@@ -197,7 +197,7 @@ package stage2;
         Bit#(ELEN) op2=(rs2type==Constant2)?'d2: // constant2 only is C enabled.
                         (rs2type==Constant4)?'d4:
                         (rs2type==Immediate)?signExtend(imm):rs2;
-        Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
+        Bit#(`vaddr) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
         if(instrType==TRAP && func_cause == `Illegal_inst )
             op1=zeroExtend(inst); // for badaddr
       `ifdef spfpu

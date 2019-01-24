@@ -48,22 +48,22 @@ package riscv;
   	interface Get#(ICore_request#( `vaddr, 3)) inst_request;
     interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
   `ifdef dcache
-		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
+		interface Get#(DCore_request#(`vaddr,ELEN,1)) memory_request;
   `else 
-		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
+		interface Get#(MemoryReadReq#(`vaddr,1)) memory_read_request;
   `endif
   `ifdef dcache
     interface Put#(DCore_response#(ELEN,1)) memory_response;
     (*always_enabled*)
     method Action storebuffer_empty(Bool e);
     method Tuple2#(Bool,Bool) initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
     method Action store_is_cached(Bool c);
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
   `else
     interface Put#(MemoryReadResp#(1)) memory_read_response;
-		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
+		interface Get#(MemoryWriteReq#(`vaddr,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
   `endif 
     method Action clint_msip(Bit#(1) intrpt);
@@ -113,20 +113,20 @@ package riscv;
 `ifdef PIPE2
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
+    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
   `endif
     Ifc_PipeFIFOF#(PIPE4) pipe4 <- mkPipeFIFOF();
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
+    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
   `endif
 `else
     FIFOF#(PIPE3) pipe3 <- mkLFIFOF();
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkLFIFOF();
+    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe3inst <-mkLFIFOF();
   `endif
     FIFOF#(PIPE4) pipe4 <- mkLFIFOF();
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkLFIFOF();
+    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe4inst <-mkLFIFOF();
   `endif
 `endif
 
@@ -385,7 +385,7 @@ package riscv;
       stage3.storebuffer_empty(e);
     endmethod
     method initiate_store =stage5.initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
       stage5.write_resp(r);
     endmethod
     method Action store_is_cached(Bool c);

@@ -43,10 +43,10 @@ package storebuffer;
   import common_types::*;
 
   interface Ifc_storebuffer;
-    method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(VADDR) addr);
-    method Action allocate(Bit#(VADDR) addr, Bit#(ELEN) data, Bit#(2) size);
-    method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) perform_store;
-    method Bit#(VADDR) write_address;
+    method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(`vaddr) addr);
+    method Action allocate(Bit#(`vaddr) addr, Bit#(ELEN) data, Bit#(2) size);
+    method ActionValue#(MemoryWriteReq#(`vaddr,1,ELEN)) perform_store;
+    method Bit#(`vaddr) write_address;
     method Action deque;
     method Bool storebuffer_empty;
     method Action clear_queue;
@@ -57,7 +57,7 @@ package storebuffer;
     let verbosity = `VERBOSITY ;
     let offset = valueOf(XLEN)==64?2:1;
     Reg#(Bool) valid_data[ `buffsize ][2];
-    Reg#(Bit#(VADDR)) store_addr [ `buffsize ];
+    Reg#(Bit#(`vaddr)) store_addr [ `buffsize ];
     Reg#(Bit#(ELEN))  store_data [ `buffsize ];
     Reg#(Bit#(2)) store_size [ `buffsize ];
     for(Integer i=0;i< `buffsize ;i=i+1)begin
@@ -70,16 +70,16 @@ package storebuffer;
     Reg#(Bit#(TLog#( `buffsize ))) rg_tail <- mkReg(0);
     FIFOF#(Bool) storequeue <- mkSizedFIFOF(2);
 
-    method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(VADDR) addr);
+    method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(`vaddr) addr);
       Bit#(TLog#(ELEN)) shiftamt1 = {store_addr[rg_tail-1][offset:0],3'b0}; // parameterize for XLEN
       Bit#(ELEN) storemask1 = 0;
       Bit#(ELEN) storemask2 = 0;
       Bool validm1 = valid_data[rg_tail-1][1];
       Bool valid = valid_data[rg_tail][1];
       `ifdef RV64
-        Bit#(TSub#(VADDR,3)) wordaddr = truncateLSB(addr);
+        Bit#(TSub#(`vaddr,3)) wordaddr = truncateLSB(addr);
       `else
-        Bit#(TSub#(VADDR,2)) wordaddr = truncateLSB(addr);
+        Bit#(TSub#(`vaddr,2)) wordaddr = truncateLSB(addr);
       `endif
       if(truncateLSB(store_addr[rg_tail-1]) == wordaddr && validm1)begin
         Bit#(ELEN) temp = store_size[rg_tail-1]==0?'hff:
@@ -107,7 +107,7 @@ package storebuffer;
       let data2 = storemask2& store_data[rg_tail];
       return tuple2(storemask1|storemask2,data1|data2);
     endmethod
-    method Action allocate(Bit#(VADDR) addr, Bit#(ELEN) data, Bit#(2) size);
+    method Action allocate(Bit#(`vaddr) addr, Bit#(ELEN) data, Bit#(2) size);
       if(size==0)
         data=duplicate(data[7:0]);
       else if(size==1)
@@ -124,13 +124,13 @@ package storebuffer;
       storequeue.enq(True);
       valid_data[rg_tail][1]<=True;
     endmethod
-    method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) perform_store ;
+    method ActionValue#(MemoryWriteReq#(`vaddr,1,ELEN)) perform_store ;
       if(verbosity>0)
         $display($time,"\tSTAGE4: Sending Store request for Addr:%h Data: %h size: %b",
           store_addr[rg_head], store_data[rg_head], store_size[rg_head]);
       return tuple3(truncate(store_addr[rg_head]),store_data[rg_head],store_size[rg_head]);
     endmethod
-    method Bit#(VADDR) write_address;
+    method Bit#(`vaddr) write_address;
       return store_addr[rg_head];
     endmethod
     method Action deque;

@@ -42,10 +42,10 @@ package stage5;
   interface Ifc_stage5;
     interface RXe#(PIPE4) rx_in;
     `ifdef rtldump
-      interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
+      interface RXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) rx_inst;
     `endif
     method Maybe#(CommitData) commit_rd;
-    method Tuple3#(Bool, Bit#(VADDR), Bool) flush;
+    method Tuple3#(Bool, Bit#(`vaddr), Bool) flush;
     method CSRtoDecode csrs_to_decode;
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
@@ -66,7 +66,7 @@ package stage5;
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
     method Tuple2#(Bool,Bool) initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
   `ifdef dcache
     (*always_enabled*)
     method Action store_is_cached(Bool c);
@@ -83,7 +83,7 @@ package stage5;
 
     RX#(PIPE4) rx<-mkRX;
   `ifdef rtldump
-    RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
+    RX#(Tuple2#(Bit#(`vaddr),Bit#(32))) rxinst <-mkRX;
   `endif
     Ifc_csr csr <- mkcsr();
 
@@ -91,7 +91,7 @@ package stage5;
     Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
 
     // wire which signals the entire pipe to be flushed.
-    Wire#(Tuple3#(Bool, Bit#(VADDR), Bool)) wr_flush <- mkDWire(tuple3(False, ?, False));
+    Wire#(Tuple3#(Bool, Bit#(`vaddr), Bool)) wr_flush <- mkDWire(tuple3(False, ?, False));
 
     // the local epoch register
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
@@ -102,7 +102,7 @@ package stage5;
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
-    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR)))) wr_store_response <- mkDWire(tagged Invalid);
+    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr)))) wr_store_response <- mkDWire(tagged Invalid);
   `ifdef dcache
     Wire#(Bool) wr_store_is_cached <- mkDWire(False);
   `endif
@@ -113,7 +113,7 @@ package stage5;
       let {simpc,inst}=rxinst.u.first;
     `endif
       Bool fenceI=False;
-      Bit#(VADDR) jump_address=?;
+      Bit#(`vaddr) jump_address=?;
       Bool fl = False;
       `ifdef rtldump
         if(verbosity>0)
@@ -375,7 +375,7 @@ package stage5;
 	  method Action set_external_interrupt(Bit#(1) ex_i)=csr.set_external_interrupt(ex_i);
     method csr_misa_c=csr.csr_misa_c;
     method initiate_store=wr_initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
       wr_store_response<=r;
     endmethod
   `ifdef dcache

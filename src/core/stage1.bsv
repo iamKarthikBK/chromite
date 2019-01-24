@@ -67,7 +67,7 @@ package stage1;
   `endif
 
     // flush from the write-back or exe stage.
-    method Action flush(Bit#(VADDR) newpc `ifdef icache ,Bool fence `ifdef mmu ,Bool sfence `endif
+    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef mmu ,Bool sfence `endif
                                                                         `endif ); //fence integration
 		method Action update_eEpoch;
 		method Action update_wEpoch;
@@ -85,9 +85,9 @@ package stage1;
     // this wire carries the current values of certain csrs.
     Wire#(CSRtoDecode) wr_csr <-mkWire();
     // This register holds the request address to be sent to the cache.
-    Reg#(Bit#(VADDR)) rg_icache_request <- mkReg(`resetpc );
+    Reg#(Bit#(`vaddr)) rg_icache_request <- mkReg(`resetpc );
     // This register holds the PC value that needs to be sent to the next stage in the pipe.
-    Reg#(Bit#(VADDR)) rg_pc <- mkReg(`resetpc );
+    Reg#(Bit#(`vaddr)) rg_pc <- mkReg(`resetpc );
   `ifdef icache
     // This register indicates if a fence of the i-cache was requested and is set during a flush
     // from the write back stage. Once the fence request is sent this is register is de-asserted.
@@ -298,7 +298,7 @@ package stage1;
     // This method will fire when a flush from the write back stage or execute stage is initiated.
     // Explicit Conditions: None
     // Implicit Conditions: None
-    method Action flush(Bit#(VADDR) newpc `ifdef icache ,Bool fence `ifdef mmu ,Bool sfence `endif
+    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef mmu ,Bool sfence `endif
                                                                   `endif ); //fence integration
   `ifdef icache
 		  if(fence)

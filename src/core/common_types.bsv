@@ -33,19 +33,16 @@ package common_types;
 
   `ifdef RV64
   	typedef 64 XLEN;
-    typedef 64 VADDR ;
   `else
     typedef 32 XLEN;
-    typedef 32 VADDR ;
   `endif
   `ifdef dpfpu
     typedef 64 FLEN;
   `elsif spfpu
     typedef 32 FLEN;
   `else
-    typedef VADDR FLEN;
+    typedef `vaddr FLEN;
   `endif
-	typedef 32 PADDR ;
 	typedef Bit #(3)  Funct3;
   typedef 7 PRFDEPTH;
   typedef 8 RAS_DEPTH;
@@ -120,10 +117,10 @@ package common_types;
   `endif
 
   // define all tuples here
-  typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(VADDR), Bit#(6), Flush_type) ALU_OUT;
+  typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(`vaddr), Bit#(6), Flush_type) ALU_OUT;
   
-  typedef Tuple5#(Bit#(PADDR), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
-  typedef Tuple4#(Bit#(PADDR), Access_type, Bit#(2), Bit#(1)) CoreRequest;
+  typedef Tuple5#(Bit#(`paddr), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
+  typedef Tuple4#(Bit#(`paddr), Access_type, Bit#(2), Bit#(1)) CoreRequest;
 
   typedef Tuple3#(Bit#(5), Bool, Bit#(XLEN)) OpFwding;
   // rg_prv,  csr_mip, csr_mie, csr_mideleg, csr_misa, csr_counteren, rg_mie, {fs,frm}
@@ -156,7 +153,7 @@ package common_types;
 
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
-  	Bit#(VADDR) program_counter;
+  	Bit#(`vaddr) program_counter;
   	Bit#(32) instruction;
   	Bit#(2) epochs;
     Bit#(1) accesserr;
@@ -170,12 +167,12 @@ package common_types;
 
   typedef Tuple4#(Bit#(5), // rs1addr
                  Bit#(5), // rs2addr
-                 Bit#(VADDR), // pc_rs1,
+                 Bit#(`vaddr), // pc_rs1,
                  Instruction_type)  OpMeta;
   typedef Tuple3#(
                  Bit#(msize), // rs1_pc
                  Bit#(msize), // rs2_instruction(for badaddr)
-                 Bit#(t))     // rs3_imm. Incase fpu is on then t = FLEN else VADDR
+                 Bit#(t))     // rs3_imm. Incase fpu is on then t = FLEN else `vaddr
                  OpData#(numeric type msize, numeric type t);
   typedef Tuple5#(Bit#(5), // rd
                  Bit#(7), // {fn,f3} or cause
@@ -196,13 +193,13 @@ package common_types;
 
   //for TRAP type commit: total : 85
   // cause                7 bits            
-  // badaddr              VADDR             -done
-  // pc                   VADDR             -done
+  // badaddr              `vaddr             -done
+  // pc                   `vaddr             -done
 
   // for MEMORY type      total: 156
-  // address              VADDR             -done
+  // address              `vaddr             -done
   // data                 ELEN              -done
-  // pc                   VADDR             -done required to generate TRAP
+  // pc                   `vaddr             -done required to generate TRAP
   // atomic op            4-bits      
   // accesstype           3-bits            
   // access_size          3-bits
@@ -230,9 +227,9 @@ package common_types;
 
   // Common: epoch 1-bit
 
-  typedef Bit#(VADDR)     Tbad_Maddr_Rmeta2_Smeta2;
+  typedef Bit#(`vaddr)     Tbad_Maddr_Rmeta2_Smeta2;
   typedef Bit#(ELEN)      Mdata_Rrdvalue_Srs1;
-  typedef Bit#(VADDR)     Tpc_Mpc;
+  typedef Bit#(`vaddr)     Tpc_Mpc;
   typedef Bit#(18)        Tcause_Mmeta_Rmeta1_Smeta1_epoch;
 
   typedef Tuple5#(PreCommit_type, Tbad_Maddr_Rmeta2_Smeta2, Mdata_Rrdvalue_Srs1,
@@ -243,11 +240,11 @@ package common_types;
 
   //for TRAP type commit: total : 85
   // cause                7 bits            
-  // badaddr              VADDR             -done
-  // pc                   VADDR             -done
+  // badaddr              `vaddr             -done
+  // pc                   `vaddr             -done
 
   // for STORE type      total: 42
-  // pc                   VADDR           
+  // pc                   `vaddr           
   // rdindex              3-bits
 
   // for REGULAR          total: 78
@@ -273,11 +270,11 @@ package common_types;
   // Common: epoch 1-bit
   typedef struct{
     Bit#(7) cause;
-    Bit#(VADDR) badaddr;
-    Bit#(VADDR) pc;}CommitTrap deriving(Bits,Eq,FShow);
+    Bit#(`vaddr) badaddr;
+    Bit#(`vaddr) pc;}CommitTrap deriving(Bits,Eq,FShow);
 
   typedef struct{
-    Bit#(VADDR) pc;
+    Bit#(`vaddr) pc;
   `ifdef atomic
     Bit#(ELEN) commitvalue;
     Bit#(5) rd;

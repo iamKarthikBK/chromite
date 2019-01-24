@@ -578,7 +578,7 @@ package decoder;
     
 
     // Following table describes what the ALU will need for some critical operations. Based on this
-    // the next set of logic is implemented. rs1+ rs2 is a XLEN bit adder. rs3+ rs4 is PADDR bit
+    // the next set of logic is implemented. rs1+ rs2 is a XLEN bit adder. rs3+ rs4 is `paddr bit
     // adder.
     // Now PC can be present either in rs1 or rs3. This has been done to reduce the mux to the ALU
     // in the next stage. There will only be a mux in the next stage to identify the PC and send it

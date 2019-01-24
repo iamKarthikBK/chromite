@@ -59,7 +59,7 @@ package cclass_bare;
   import BUtils::*;
  
   `ifdef cache_control
-    function Bool isIO(Bit#(VADDR) addr, Bool cacheable);
+    function Bool isIO(Bit#(`vaddr) addr, Bool cacheable);
 	    if(!cacheable)
 	  	  return True;
       else if(addr<'h8000000)
@@ -71,7 +71,7 @@ package cclass_bare;
 //
 //  `ifdef icache
 //    (*synthesize*)
-//    module mkicache(Ifc_l1icache#(`iwords, `iblocks, `isets, `iways, VADDR, `ifbsize, 3));
+//    module mkicache(Ifc_l1icache#(`iwords, `iblocks, `isets, `iways, `vaddr, `ifbsize, 3));
 //       let ifc();
 //	   mkl1icache#(isIO,"PLRU") _temp(ifc);
 //	   return (ifc);
@@ -80,7 +80,7 @@ package cclass_bare;
 
   `ifdef dcache
     (*synthesize*)
-    module mkdcache(Ifc_l1dcache#(`dwords, `dblocks, `dsets, `dways ,VADDR, `dfbsize ,2,1));//`dwords, `dblocks, `dsets, `dways, VADDR, `dfbsize, 2, 1));
+    module mkdcache(Ifc_l1dcache#(`dwords, `dblocks, `dsets, `dways ,`vaddr, `dfbsize ,2,1));//`dwords, `dblocks, `dsets, `dways, `vaddr, `dfbsize, 2, 1));
        let ifc();
 	   mkl1dcache#(isIO,"PLRU") _temp(ifc);
 	   return (ifc);
@@ -90,10 +90,10 @@ package cclass_bare;
 
   typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
   interface Ifc_cclass_axi4;
-		interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_d;
-		interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_i;
+		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_d;
+		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_i;
   `ifdef cache_control
-    interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_io;
+    interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_io;
   `endif
     interface Put#(Bit#(1)) sb_clint_msip;
     interface Put#(Bit#(1)) sb_clint_mtip;
@@ -111,13 +111,13 @@ package cclass_bare;
     `endif
   `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
-    let vaddr = valueOf(VADDR);
-    let paddr = valueOf(PADDR);
+    let vaddr = valueOf(`vaddr);
+    let paddr = valueOf(`paddr);
     Ifc_riscv riscv <- mkriscv();
-		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
-		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
 `ifdef cache_control
-		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) io_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) io_xactor <- mkAXI4_Master_Xactor;
     Wire#(AXI4_Rd_Data#(ELEN,USERSPACE)) wr_io_read_response <- mkWire();
   `ifdef dcache
     Reg#(Bit#(8)) rg_burst_count <- mkReg(0);
@@ -153,7 +153,7 @@ package cclass_bare;
 
 	  rule handle_imem_line_request;
 	  	let {inst_addr, burst_len, burst_size} <- imem.read_mem_req.get;
-	  	AXI4_Rd_Addr#(PADDR, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
         arlen: burst_len , arsize: 2, arburst: 'b10, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    fetch_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
@@ -170,7 +170,7 @@ package cclass_bare;
 	  
     rule handle_imem_nc_request;
 	  	let {inst_addr, burst_len, burst_size} <- imem.nc_read_req.get;
-	  	AXI4_Rd_Addr#(PADDR, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
         arlen: burst_len , arsize: 2, arburst: 'b10, arid:1 }; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    io_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
@@ -189,11 +189,11 @@ package cclass_bare;
     rule handle_fetch_request ;
 	    let {inst_addr,epoch} <- riscv.inst_request.get;
       if(vaddr>paddr) begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+        Bit#(TSub#(`vaddr,`paddr)) upperbits = inst_addr[vaddr-1:paddr];
        if(upperbits!=0)
           inst_addr=0;
       end
-			AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(inst_addr), aruser: ?, 
+			AXI4_Rd_Addr#(`paddr, 0) read_request = AXI4_Rd_Addr {araddr: truncate(inst_addr), aruser: ?, 
             arlen: 0, arsize: 2, arburst: 'b01, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
 			fetch_xactor.i_rd_addr.enq(read_request);	
       ff_epoch.enq(epoch);   	
@@ -241,11 +241,11 @@ package cclass_bare;
     rule handle_dcache_line_read_request;
 	  	let {addr, burst_len, burst_size} <- dcache.read_mem_req.get;
       if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = addr[vaddr-1:paddr];
+        Bit#(TSub#(`vaddr,`paddr)) upperbits = addr[vaddr-1:paddr];
         if(upperbits!=0)
           addr=0;
       end
-	  	AXI4_Rd_Addr#(PADDR, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
+	  	AXI4_Rd_Addr#(`paddr, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
         arlen: burst_len , arsize: burst_size, arburst: 'b10, arid:`Mem_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    memory_xactor.i_rd_addr.enq(dcache_request);
 	  	if(verbosity!=0)
@@ -262,7 +262,7 @@ package cclass_bare;
 
     rule handle_dcache_line_write_request(rg_burst_count==0);
       let {addr, burst_len, size, data} <- dcache.write_mem_req.get;
-		  AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: burst_len, 
+		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: burst_len, 
           awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
 
   	  let w  = AXI4_Wr_Data {wdata: truncate(data), wstrb: '1, wlast:False, wid:`Mem_master_num};
@@ -300,11 +300,11 @@ package cclass_bare;
     rule handle_dcache_nc_request;
 	  	let {inst_addr, burst_len, burst_size} <- dcache.nc_read_req.get;
       if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+        Bit#(TSub#(`vaddr,`paddr)) upperbits = inst_addr[vaddr-1:paddr];
         if(upperbits!=0)
           inst_addr=0;
       end
-	  	AXI4_Rd_Addr#(PADDR, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+	  	AXI4_Rd_Addr#(`paddr, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
         arlen: burst_len , arsize: zeroExtend(burst_size[1:0]), arburst: 'b10, arid:2 }; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    io_xactor.i_rd_addr.enq(dcache_request);
 	  	if(verbosity!=0)
@@ -321,7 +321,7 @@ package cclass_bare;
     rule handle_dcache_nc_write_request;
       let {addr, burst_len, size, data} <- dcache.nc_write_req.get;
       if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = addr[vaddr-1:paddr];
+        Bit#(TSub#(`vaddr,`paddr)) upperbits = addr[vaddr-1:paddr];
         if(upperbits!=0)
           addr=0;
       end
@@ -335,7 +335,7 @@ package cclass_bare;
       Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(addr);
   	  if(size!=3)// 8-bit write;
   	  	write_strobe=write_strobe<<byte_offset;
-		  AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: 0, 
+		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: 0, 
           awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`IO_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
 
   	  let w  = AXI4_Wr_Data {wdata: data, wstrb: write_strobe, wlast:True, wid:`Mem_master_num};
@@ -358,12 +358,12 @@ package cclass_bare;
     rule handle_memory_read_request;
       let {addr,epoch,access}<- riscv.memory_read_request.get;
       if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = addr[vaddr-1:paddr];
+        Bit#(TSub#(`vaddr,`paddr)) upperbits = addr[vaddr-1:paddr];
         if(upperbits!=0)
           addr=0;
       end
       ff_rd_epochs.enq(tuple2(access,epoch));
-      AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(addr), aruser: 0, arlen: 0, 
+      AXI4_Rd_Addr#(`paddr, 0) read_request = AXI4_Rd_Addr {araddr: truncate(addr), aruser: 0, arlen: 0, 
         arsize: zeroExtend(access[1:0]), arburst:'b01, arid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Read Request ", fshow(read_request));
@@ -386,7 +386,7 @@ package cclass_bare;
     rule handle_memory_write_request;
       let {address,data,size}<- riscv.memory_write_request.get; 
       if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = address[vaddr-1:paddr];
+        Bit#(TSub#(`vaddr,`paddr)) upperbits = address[vaddr-1:paddr];
         if(upperbits!=0)
           address=0;
       end
@@ -400,7 +400,7 @@ package cclass_bare;
       Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(address);
   	  if(size!=3)// 8-bit write;
   	  	write_strobe=write_strobe<<byte_offset;
-		  AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(address), awuser:0, awlen: 0, 
+		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(address), awuser:0, awlen: 0, 
           awsize: zeroExtend(size), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
   	  let w  = AXI4_Wr_Data {wdata: data, wstrb: write_strobe, wlast:True, wid:`Mem_master_num};
       if(verbosity!=0)begin
