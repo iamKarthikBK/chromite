@@ -51,11 +51,10 @@ package stage1;
 
 	interface Ifc_stage1;
     //instruction request to the memory subsytem or the memory bus.
-    //                         addr, fence, epoch, prefetch 
-  	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
+ 	  interface Get#(ICore_request#( `vaddr, 3)) inst_request;
 
     // instruction response from the memory subsytem or the memory bus
-    //                     inst , error , epoch 
+    //                     inst , trap, cause, epoch 
     interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
 
     // instruction along with other results to be sent to the next stage
@@ -68,7 +67,8 @@ package stage1;
   `endif
 
     // flush from the write-back or exe stage.
-    method Action flush(Bit#(VADDR) newpc, Bool fence); //fence integration
+    method Action flush(Bit#(VADDR) newpc `ifdef icache ,Bool fence `ifdef mmu ,Bool sfence `endif
+                                                                        `endif ); //fence integration
 		method Action update_eEpoch;
 		method Action update_wEpoch;
 
@@ -85,12 +85,17 @@ package stage1;
     // this wire carries the current values of certain csrs.
     Wire#(CSRtoDecode) wr_csr <-mkWire();
     // This register holds the request address to be sent to the cache.
-    Reg#(Bit#(VADDR)) rg_icache_request <- mkReg('h1000);
+    Reg#(Bit#(VADDR)) rg_icache_request <- mkReg(`resetpc );
     // This register holds the PC value that needs to be sent to the next stage in the pipe.
-    Reg#(Bit#(VADDR)) rg_pc <- mkReg('h1000);
+    Reg#(Bit#(VADDR)) rg_pc <- mkReg(`resetpc );
+  `ifdef icache
     // This register indicates if a fence of the i-cache was requested and is set during a flush
     // from the write back stage. Once the fence request is sent this is register is de-asserted.
     Reg#(Bool) rg_fence <-mkReg(False);
+    `ifdef mmu
+      Reg#(Bool) rg_sfence <-mkReg(False);
+    `endif
+  `endif
 
     // The following registers are use to the maintain epochs from various pipeline stages:
     // writeback, execute stage and fetch stage.
@@ -247,14 +252,28 @@ package stage1;
     // both of which are being updated in this method as well. This conflict is acceptable since we
     // do not wish to populate the cache with an unwanted request and initiate a new request asap.
     interface inst_request=interface Get
-      method ActionValue#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) get;
+      method ActionValue#(ICore_request#( `vaddr, 3)) get;
+      `ifdef icache
 		    if(rg_fence==True)
 			    rg_fence<=False; // reset fence once the command is sent
+        `ifdef mmu
+          else if(rg_sfence==True)
+            rg_sfence<=False;
+        `endif
         else
+      `endif
           rg_icache_request<=rg_icache_request+4;
         if(verbosity>1)
           $display($time,"\tSTAGE1: Sending Request for Addr: %h to Memory",rg_icache_request);
-        return tuple4(rg_icache_request,rg_fence,{rg_iEpoch,rg_eEpoch,rg_wEpoch},False);
+      `ifdef icache
+        `ifdef mmu
+          return tuple4(rg_icache_request,rg_fence, rg_sfence, {rg_iEpoch,rg_eEpoch,rg_wEpoch});
+        `else
+          return tuple3(rg_icache_request,rg_fence,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
+        `endif
+      `else
+        return tuple2(rg_icache_request,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
+      `endif
       endmethod
     endinterface;
 
@@ -279,15 +298,23 @@ package stage1;
     // This method will fire when a flush from the write back stage or execute stage is initiated.
     // Explicit Conditions: None
     // Implicit Conditions: None
-    method Action flush(Bit#(VADDR) newpc, Bool fence); //fence integration
+    method Action flush(Bit#(VADDR) newpc `ifdef icache ,Bool fence `ifdef mmu ,Bool sfence `endif
+                                                                  `endif ); //fence integration
+  `ifdef icache
 		  if(fence)
 		  	rg_fence<=True;
+    `ifdef mmu
+      if(sfence)
+        rg_sfence<=True;
+    `endif
+  `endif
       rg_pc<=newpc;
       rg_icache_request<={truncateLSB(newpc),2'b0};
       if(newpc[1:0]!=0)
         rg_discard_lower<=True;
       if(verbosity>1)
-        $display($time, "\tSTAGE1: Received Flush. PC: %h Fence: %b ",newpc,fence); 
+        $display($time, "\tSTAGE1: Received Flush. PC: %h",newpc `ifdef icache ," Fence: %b",fence 
+        `ifdef mmu ," Sfence: ",sfence `endif `endif ); 
       ff_memory_response.clear();
     endmethod
     method Action update_eEpoch;

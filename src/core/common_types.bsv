@@ -52,6 +52,21 @@ package common_types;
   typedef 0 USERSPACE ;
   typedef TMax#(XLEN, FLEN) ELEN;
 
+  // ---------------- following types are used to define the memory interfaces from the core ---//
+`ifdef icache
+  `ifdef mmu
+    typedef Tuple4#(Bit#(addr), Bool, Bool, Bit#(esize)) ICore_request#(numeric type addr, 
+                                                                            numeric type esize);
+  `else                                                                          
+                    // addr, Fence, epoch
+    typedef Tuple3#(Bit#(addr), Bool, Bit#(esize)) ICore_request#(numeric type addr, 
+                                                                            numeric type esize);
+  `endif
+`else
+                    // addr,epoch
+    typedef Tuple2#(Bit#(addr), Bit#(esize)) ICore_request#(numeric type addr, numeric type esize);
+`endif
+  // ------------------------------------------------------------------------------------- //
 
   //------ The follwing contain common tuples across the stages ------------- 
 	typedef enum {ALU, MEMORY, BRANCH, JAL, JALR, SYSTEM_INSTR, TRAP, WFI

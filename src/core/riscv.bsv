@@ -45,7 +45,7 @@ package riscv;
   
   interface Ifc_riscv;
     
-  	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
+  	interface Get#(ICore_request#( `vaddr, 3)) inst_request;
     interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
   `ifdef dcache
 		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
@@ -197,9 +197,9 @@ package riscv;
 
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
       if(flush_from_wb)
-        stage1.flush(flushpc_from_wb, fenceI);
+        stage1.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef mmu , False `endif `endif ); // TODO Sfence
       else
-        stage1.flush(flushpc_from_exe, False); // can never send a fence request.
+        stage1.flush(flushpc_from_exe `ifdef icache , False `ifdef mmu , False `endif `endif ); // EXE can never send a fence request.
     endrule
     rule connect_csrs;
       stage2.csrs(stage5.csrs_to_decode);

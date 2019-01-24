@@ -137,9 +137,6 @@ package cclass_bare;
     endrule
   `endif
   `ifdef icache
-//	  let icache<-mkicache;
-//	  mkConnection(riscv.inst_request, icache.core_req); //icache integration
-//	  mkConnection(icache.core_resp, riscv.inst_response); // icache integration
 	  Ifc_imem imem <- mkimem;
 	  mkConnection(riscv.inst_request, imem.core_req); //imem integration
 	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
@@ -190,7 +187,7 @@ package cclass_bare;
   `else 
   
     rule handle_fetch_request ;
-	    let {inst_addr, fence, epoch, prefetch} <- riscv.inst_request.get;
+	    let {inst_addr,epoch} <- riscv.inst_request.get;
       if(vaddr>paddr) begin
         Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
        if(upperbits!=0)
