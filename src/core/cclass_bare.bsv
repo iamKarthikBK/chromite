@@ -266,7 +266,7 @@ package cclass_bare;
     rule handle_dcache_line_write_request(rg_burst_count==0);
       let {addr, burst_len, size, data} <- dcache.write_mem_req.get;
 		  AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: burst_len, 
-          awsize: zeroExtend(size[1:0]), awburst: 'b10, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
+          awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
 
   	  let w  = AXI4_Wr_Data {wdata: truncate(data), wstrb: '1, wlast:False, wid:`Mem_master_num};
       rg_burst_count<=rg_burst_count+1;
