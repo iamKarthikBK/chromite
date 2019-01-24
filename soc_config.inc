@@ -6,7 +6,7 @@ MUL=asic
 PERF=enable
 COREFABRIC=AXI4
 SYNTH=SIM
-VERBOSITY=3
+VERBOSITY=0
 PREFETCH=enable
 DEBUG=disable
 OPENOCD=disable
@@ -18,6 +18,7 @@ DIVSTAGES=64
 FPGA=xc7a100tcsg324-1
 SYNTHTOP=mkriscv
 RESETPC=4096
+PADDR=32
 
 # Verilator options
 COVERAGE=none
