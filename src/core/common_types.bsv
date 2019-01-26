@@ -181,7 +181,10 @@ package common_types;
   	Bit#(`vaddr) program_counter;
   	Bit#(32) instruction;
   	Bit#(2) epochs;
-    Bit#(1) accesserr;
+    Bool trap ;
+  `ifdef supervisor
+    Bit#(1) cause;
+  `endif
   }PIPE1_min deriving (Bits,Eq);
 
   typedef struct{Bit#(2) prediction;} PIPE1_opt1 deriving(Bits,Eq,FShow);

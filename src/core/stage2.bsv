@@ -97,9 +97,6 @@ package stage2;
     `ifdef bpu
   		interface RXe#(PIPE1_opt1) rx_opt1;
     `endif
-    `ifdef supervisor
-  		interface RXe#(PIPE1_opt2) rx_opt2;
-    `endif
 		interface TXe#(PIPE2_min#(ELEN,FLEN)) tx_min;
   `ifdef spfpu
     interface TXe#(OpFpu) tx_fpu;
@@ -131,9 +128,6 @@ package stage2;
   `ifdef bpu
     RX#(PIPE1_opt1) rxopt1 <-mkRX;
   `endif
-  `ifdef supervisor
-  	RX#(PIPE1_opt2) rxopt2 <-mkRX;
-  `endif
 		TX#(PIPE2_min#(ELEN,FLEN)) txmin <-mkTX;
   `ifdef spfpu
     TX#(OpFpu) txfpu <- mkTX;
@@ -162,16 +156,15 @@ package stage2;
 	    let pc=rxmin.u.first.program_counter;
 	    let inst=rxmin.u.first.instruction;
 	    let epochs=rxmin.u.first.epochs;
-      let accesserr=rxmin.u.first.accesserr;
-      Bit#(2) err={1'b0,accesserr};
+      let trap=rxmin.u.first.trap;
+    `ifdef supervisor
+      let trapcause = rxmin.u.first.cause;
+    `endif
     `ifdef bpu
   	  let pred=rxopt1.u.first.prediction;
     `endif
-    `ifdef supervisor
-      err[1]=rxopt2.u.first.pagefault;
-    `endif
-      let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,err,wr_csrs, rg_rerun,
-                                                                                  rg_fencei_rerun);
+      let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,trap, 
+              `ifdef supervisor trapcause, `endif wr_csrs, rg_rerun, rg_fencei_rerun);
       let {rs1addr,rs2addr,rd,rs1type,rs2type} = optype;
       let {func_cause, instrType, memaccess, imm} = meta;
       Bit#(3) funct3 = truncate(func_cause);
@@ -233,7 +226,7 @@ package stage2;
 
         if(verbosity>0)begin
           $display($time, "\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpochs: %b WFI: %b ERR: %b", pc, inst, 
-              epochs, {eEpoch, wEpoch}, instrType==WFI, err);
+              epochs, {eEpoch, wEpoch}, instrType==WFI, trap);
           $display($time, "\tDECODE: rs1addr: %d rs2addr: %d", rs1addr, rs2addr 
               `ifdef spfpu ," rs3addr: %d",rs3addr `endif );
           $display($time, "\tDECODE: rs1type: ", fshow(rs1type), " rs2type ", fshow(rs2type)
@@ -254,9 +247,6 @@ package stage2;
     `ifdef bpu
       rxopt1.u.deq;
     `endif
-    `ifdef supervisor
-      rxopt2.u.deq;
-    `endif
     endrule
 
 		method tx_min=txmin.e;
@@ -272,9 +262,6 @@ package stage2;
 		method rx_min=rxmin.e;
   `ifdef bpu
 		method rx_opt1=rxopt1.e;
-  `endif
-  `ifdef supervisor
-		method rx_opt2=rxopt2.e;
   `endif
     method Action csrs (CSRtoDecode csr);
       wr_csrs<= csr;

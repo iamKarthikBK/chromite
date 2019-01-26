@@ -62,9 +62,6 @@ package stage1;
   `ifdef bpu
     interface TXe#(PIPE1_opt1) tx_opt1;
   `endif
-  `ifdef supervisor
-    interface TXe#(PIPE1_opt2) tx_opt2;
-  `endif
 
     // flush from the write-back or exe stage.
     method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef supervisor ,Bool sfence `endif
@@ -122,9 +119,6 @@ package stage1;
 		TX#(PIPE1_min) txmin<-mkTX;
     `ifdef bpu
   		TX#(PIPE1_opt1) txopt1<-mkTX;
-    `endif
-    `ifdef supervisor
-  		TX#(PIPE1_opt2) txopt2<-mkTX;
     `endif
     
     // RuleName: process_instruction
@@ -219,7 +213,10 @@ package stage1;
 				let pipedata=PIPE1_min{program_counter:rg_pc,
                       instruction:final_instruction,
                       epochs:{rg_eEpoch,rg_wEpoch},
-                      accesserr:pack(err)}; 
+                      trap: err
+                    `ifdef supervisor
+                      ,cause:cause[0]
+                    `endif }; 
         if(compressed  && enque_instruction && misa[2]==1)begin
           rg_pc<=rg_pc+2;
         end
@@ -230,9 +227,6 @@ package stage1;
           txmin.u.enq(pipedata);
         `ifdef bpu
           tx_opt1.u.enq(PIPE1_opt1{prediction:0}); // TODO fix when supporting bpu
-        `endif
-        `ifdef supervisor
-          tx_opt2.u.enq(PIPE1_opt2{pagefault:0}); // TODO fix when TLB is integrated
         `endif
           if(verbosity!=0) begin
             $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Epoch: %b", rg_pc, final_instruction,
@@ -291,9 +285,6 @@ package stage1;
 		interface tx_min = txmin.e;
   `ifdef bpu
 		interface tx_opt1 = txopt1.e;
-  `endif
-  `ifdef supervisor
-		interface tx_opt2 = txopt2.e;
   `endif
     // This method will fire when a flush from the write back stage or execute stage is initiated.
     // Explicit Conditions: None

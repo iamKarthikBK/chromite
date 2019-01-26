@@ -39,21 +39,18 @@ package riscv;
   import common_types::*;
   import CustomFIFOs::*;
   `include "common_params.bsv"
-`ifdef cache_control
-  import cache_types::*;
-`endif
   
   interface Ifc_riscv;
     
   	interface Get#(ICore_request#( `vaddr, 3)) inst_request;
     interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
   `ifdef dcache
-		interface Get#(DCore_request#(`vaddr,ELEN,1)) memory_request;
+		interface Get#(DMem_request#(`vaddr,ELEN,1)) memory_request;
   `else 
 		interface Get#(MemoryReadReq#(`vaddr,1)) memory_read_request;
   `endif
   `ifdef dcache
-    interface Put#(DCore_response#(ELEN,1)) memory_response;
+    interface Put#(DMem_response#(ELEN,1)) memory_response;
     (*always_enabled*)
     method Action storebuffer_empty(Bool e);
     method Tuple2#(Bool,Bool) initiate_store;
@@ -97,7 +94,6 @@ package riscv;
 
     FIFOF#(PIPE1_min) pipe1min <-mkSizedFIFOF(2);
     FIFOF#(PIPE1_opt1) pipe1opt1 <-mkSizedFIFOF(2);
-    FIFOF#(PIPE1_opt2) pipe1opt2 <-mkSizedFIFOF(2);
 
     FIFOF#(PIPE2_min#(ELEN,FLEN)) pipe2min <- mkLFIFOF();
   `ifdef spfpu
@@ -136,10 +132,6 @@ package riscv;
   `ifdef bpu
     mkConnection(stage1.tx_opt1,pipeopt1);
     mkConnection(pipeopt1,stage2.rx_opt1);
-  `endif
-  `ifdef supervisor
-    mkConnection(stage1.tx_opt2,pipeopt2);
-    mkConnection(pipeopt2,stage2.rx_opt2);
   `endif
 
     mkConnection(stage2.tx_min, pipe2min);

@@ -850,8 +850,9 @@ package decoder;
     return word32;
   endfunction
   
-  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs, Bool
-    curr_rerun, Bool rerun_fencei) =  actionvalue
+  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bool trap, 
+                `ifdef supervisor Bit#(1) cause, `endif CSRtoDecode csrs, Bool curr_rerun, 
+                Bool rerun_fencei) =  actionvalue
       let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=csrs;
       DecodeOut result_decode = decoder_func_32(inst, csrs);
       if(inst[1:0]!='b11 && misa[2]==1)
@@ -875,14 +876,16 @@ package decoder;
         func_cause={1'b1, icause};
         x_inst_type=TRAP;
       end
-      else if(err[0]==1) begin
+      else if(trap `ifdef supervisor && cause==1 `endif ) begin
         x_inst_type=TRAP;
         func_cause = `Inst_access_fault ;
       end
-      else if(err[1]==1 && misa[18]==1) begin
+    `ifdef supervisor
+      else if(trap && cause==0) begin
         x_inst_type=TRAP;
         func_cause= `Inst_pagefault;
       end
+    `endif
 
       if(x_inst_type == TRAP)begin
         x_rs2addr=0;
