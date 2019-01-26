@@ -79,9 +79,6 @@ package stage3;
   import GetPut::*;
   import FIFOF::*;
   import SpecialFIFOs::*;
-`ifdef dcache
-  import cache_types::*;
-`endif
 
   `define DEQRX     \
     rxmin.u.deq;    \
@@ -119,9 +116,6 @@ package stage3;
   `endif
   `ifdef spfpu
     method Action roundingmode(Bit#(3) rm);
-  `endif
-  `ifdef supervisor
-    method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
   `endif
   `ifdef dcache
 		interface Get#(DCore_request#(`vaddr,ELEN,1)) memory_request;
@@ -170,10 +164,6 @@ package stage3;
   `ifdef multicycle
     Ifc_alu alu <- mkalu();
     Reg#(Bool) rg_stall <- mkReg(False);
-  `endif
-  `ifdef supervisor
-    Reg#(Bit#(XLEN)) sfence_rs1 <- mkReg(0);
-    Reg#(Bit#(XLEN)) sfence_rs2 <- mkReg(0);
   `endif
     Ifc_fwding fwding <- mkfwding();
 		Reg#(Bit#(1)) eEpoch <-mkReg(0);
@@ -290,10 +280,6 @@ package stage3;
             new_op1=op1;
             t3=truncate(rs1);
           end
-          `ifdef supervisor
-            sfence_rs1<=rs1;
-            sfence_rs2<=rs2;
-          `endif
           `ifdef multicycle
             let {done, cmtype, out, addr, cause, redirect} <- alu.get_inputs(fn, new_op1, rs2, t3, 
                 truncate(rs3_imm), instrtype, funct3, memaccess, word32 `ifdef bpu ,pred `endif ,
@@ -529,9 +515,6 @@ package stage3;
 				return ff_memory_read_request.first;
 			endmethod
 		endinterface;
-  `endif
-  `ifdef supervisor
-    method sfence_operands= tuple2(sfence_rs1,sfence_rs2);
   `endif
     method Action csr_misa_c (Bit#(1) m);
       wr_misa_c <= m;
