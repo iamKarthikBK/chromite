@@ -51,7 +51,7 @@ package common_types;
 
   // ---------------- following types are used to define the memory interfaces from the core ---//
 `ifdef icache
-  `ifdef mmu
+  `ifdef supervisor
     typedef Tuple4#(Bit#(addr), Bool, Bool, Bit#(esize)) ICore_request#(numeric type addr, 
                                                                             numeric type esize);
   `else                                                                          
@@ -62,6 +62,31 @@ package common_types;
 `else
                     // addr,epoch
     typedef Tuple2#(Bit#(addr), Bit#(esize)) ICore_request#(numeric type addr, numeric type esize);
+`endif
+`ifdef dcache
+  `ifdef supervisor
+    `ifdef atomic
+                    // addr, Fence, sFence, epoch, access_type, access_size data,  atomic_op
+      typedef Tuple8#(Bit#(addr), Bool, Bool, Bit#(esize), Bit#(2), Bit#(3), Bit#(data),  Bit#(5)) 
+                      DMem_request#(numeric type addr, numeric type data, numeric type esize);
+    `else
+                    // addr, Fence, sFence epoch, access_type, access_size data,  atomic_op
+      typedef Tuple7#(Bit#(addr), Bool, Bool, Bit#(esize), Bit#(1), Bit#(3), Bit#(data)) 
+                      DMem_request#(numeric type addr, numeric type data, numeric type esize);
+    `endif
+  `else                                                                          
+    `ifdef atomic
+                      // addr, Fence, epoch, access_type, access_size data,  atomic_op
+      typedef Tuple7#(Bit#(addr), Bool, Bit#(esize), Bit#(2), Bit#(3), Bit#(data),  Bit#(5)) 
+                        DMem_request#(numeric type addr, numeric type data, numeric type esize);
+    `else
+                      // addr, Fence, epoch, access_type, access_size data,  atomic_op
+      typedef Tuple6#(Bit#(addr), Bool, Bit#(esize), Bit#(1), Bit#(3), Bit#(data)) 
+                        DMem_request#(numeric type addr, numeric type data, numeric type esize);
+    `endif
+  `endif
+  typedef Tuple4#(Bit#(data), Bool, Bit#(6), Bit#(esize)) DMem_response#(numeric type data, 
+                                                                          numeric type esize);
 `endif
   // ------------------------------------------------------------------------------------- //
 
@@ -140,8 +165,8 @@ package common_types;
     Bit#(esize),// epoch
     Bit#(3))    // access_size
     MemoryReadReq#(numeric type addr, numeric type esize);
-                    // data , err    , eopch size
-  typedef Tuple3#(Bit#(ELEN), Bit#(2), Bit#(esize)) MemoryReadResp#(numeric type esize);
+                    // data , trap, cause, eopch size
+  typedef Tuple4#(Bit#(ELEN), Bool, Bit#(6), Bit#(esize)) MemoryReadResp#(numeric type esize);
   
   typedef Tuple3#(
     Bit#(addr), // ADDR
@@ -269,7 +294,7 @@ package common_types;
 
   // Common: epoch 1-bit
   typedef struct{
-    Bit#(7) cause;
+    Bit#(6) cause;
     Bit#(`vaddr) badaddr;
     Bit#(`vaddr) pc;}CommitTrap deriving(Bits,Eq,FShow);
 

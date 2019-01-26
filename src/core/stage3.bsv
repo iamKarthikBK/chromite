@@ -118,7 +118,7 @@ package stage3;
     method Action roundingmode(Bit#(3) rm);
   `endif
   `ifdef dcache
-		interface Get#(DCore_request#(`vaddr,ELEN,1)) memory_request;
+		interface Get#(DMem_request#(`vaddr,ELEN,1)) memory_request;
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
   `else 
@@ -172,8 +172,7 @@ package stage3;
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(`vaddr)) wr_redirect_pc <- mkDWire(0);
   `ifdef dcache
-//		FIFOF#(DCore_request#(`vaddr,ELEN,1)) ff_memory_request <-mkBypassFIFOF;
-    Wire#(DCore_request#(`vaddr, ELEN, 1)) wr_memory_request <- mkWire;
+    Wire#(DMem_request#(`vaddr, ELEN, 1)) wr_memory_request <- mkWire;
     Wire#(Bool) wr_cache_avail <- mkWire;
   `else 
 		FIFOF#(MemoryReadReq#(`vaddr,1)) ff_memory_read_request <-mkBypassFIFOF;
@@ -352,6 +351,15 @@ package stage3;
           `endif
           `ifdef dcache
             if(cmtype==MEMORY)begin
+          `ifdef supervisor
+            `ifdef atomic
+              wr_memory_request<= (tuple8(addr,memaccess==FenceI || memaccess==Fence,False,
+                                      epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn}));
+            `else
+              wr_memory_request<= (tuple7(addr,memaccess==FenceI || memaccess==Fence,False,
+                                                 epochs[0],truncate(pack(memaccess)),funct3,rs2));
+            `endif
+          `else
             `ifdef atomic
               wr_memory_request<= (tuple7(addr,memaccess==FenceI || memaccess==Fence,
                                       epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn}));
@@ -359,6 +367,7 @@ package stage3;
               wr_memory_request<= (tuple6(addr,memaccess==FenceI || memaccess==Fence,
                                                  epochs[0],truncate(pack(memaccess)),funct3,rs2));
             `endif
+          `endif
             end
           `else
             if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
@@ -504,7 +513,7 @@ package stage3;
       wr_cache_avail<= avail;
     endmethod
     interface memory_request = interface Get
-      method ActionValue#(DCore_request#(`vaddr,ELEN,1)) get;
+      method ActionValue#(DMem_request#(`vaddr, ELEN ,1)) get;
         return wr_memory_request;
       endmethod
     endinterface;
