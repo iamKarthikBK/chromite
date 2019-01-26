@@ -67,7 +67,7 @@ package stage1;
   `endif
 
     // flush from the write-back or exe stage.
-    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef mmu ,Bool sfence `endif
+    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef supervisor ,Bool sfence `endif
                                                                         `endif ); //fence integration
 		method Action update_eEpoch;
 		method Action update_wEpoch;
@@ -92,7 +92,7 @@ package stage1;
     // This register indicates if a fence of the i-cache was requested and is set during a flush
     // from the write back stage. Once the fence request is sent this is register is de-asserted.
     Reg#(Bool) rg_fence <-mkReg(False);
-    `ifdef mmu
+    `ifdef supervisor
       Reg#(Bool) rg_sfence <-mkReg(False);
     `endif
   `endif
@@ -256,7 +256,7 @@ package stage1;
       `ifdef icache
 		    if(rg_fence==True)
 			    rg_fence<=False; // reset fence once the command is sent
-        `ifdef mmu
+        `ifdef supervisor
           else if(rg_sfence==True)
             rg_sfence<=False;
         `endif
@@ -266,7 +266,7 @@ package stage1;
         if(verbosity>1)
           $display($time,"\tSTAGE1: Sending Request for Addr: %h to Memory",rg_icache_request);
       `ifdef icache
-        `ifdef mmu
+        `ifdef supervisor
           return tuple4(rg_icache_request,rg_fence, rg_sfence, {rg_iEpoch,rg_eEpoch,rg_wEpoch});
         `else
           return tuple3(rg_icache_request,rg_fence,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
@@ -298,12 +298,12 @@ package stage1;
     // This method will fire when a flush from the write back stage or execute stage is initiated.
     // Explicit Conditions: None
     // Implicit Conditions: None
-    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef mmu ,Bool sfence `endif
+    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef supervisor ,Bool sfence `endif
                                                                   `endif ); //fence integration
   `ifdef icache
 		  if(fence)
 		  	rg_fence<=True;
-    `ifdef mmu
+    `ifdef supervisor
       if(sfence)
         rg_sfence<=True;
     `endif
@@ -314,7 +314,7 @@ package stage1;
         rg_discard_lower<=True;
       if(verbosity>1)
         $display($time, "\tSTAGE1: Received Flush. PC: %h",newpc `ifdef icache ," Fence: %b",fence 
-        `ifdef mmu ," Sfence: ",sfence `endif `endif ); 
+        `ifdef supervisor ," Sfence: ",sfence `endif `endif ); 
       ff_memory_response.clear();
     endmethod
     method Action update_eEpoch;
