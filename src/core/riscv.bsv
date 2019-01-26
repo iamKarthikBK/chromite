@@ -197,9 +197,9 @@ package riscv;
 
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
       if(flush_from_wb)
-        stage1.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef mmu , False `endif `endif ); // TODO Sfence
+        stage1.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef supervisor , False `endif `endif ); // TODO Sfence
       else
-        stage1.flush(flushpc_from_exe `ifdef icache , False `ifdef mmu , False `endif `endif ); // EXE can never send a fence request.
+        stage1.flush(flushpc_from_exe `ifdef icache , False `ifdef supervisor , False `endif `endif ); // EXE can never send a fence request.
     endrule
     rule connect_csrs;
       stage2.csrs(stage5.csrs_to_decode);
