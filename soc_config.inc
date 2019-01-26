@@ -1,5 +1,4 @@
 ISA=RV64IMAFDC
-MMU=enable
 AXI=enable
 BPU=disable
 MUL=asic
@@ -10,9 +9,9 @@ VERBOSITY=0
 PREFETCH=enable
 DEBUG=disable
 OPENOCD=disable
-USERTRAPS=False
-USER=True
-SUPERVISOR=disable
+USERTRAPS=disable
+USER=enable
+SUPERVISOR=enable
 MULSTAGES=8
 DIVSTAGES=64
 FPGA=xc7a100tcsg324-1
@@ -26,7 +25,7 @@ TRACE=disable
 THREADS=1
 
 # DebugOptions
-RTLDUMP=True
+RTLDUMP=enable
 ASSERTIONS=enable
 
 # Instruction cache

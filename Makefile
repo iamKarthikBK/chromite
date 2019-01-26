@@ -59,9 +59,6 @@ endif
 ifeq ($(BPU),enable)
   define_macros += -D bpu=True
 endif
-ifeq ($(MMU),enable)
-  define_macros += -D mmu=True
-endif
 ifeq ($(PERF),enable)
   define_macros	+= -D perf=True
 endif
@@ -83,13 +80,13 @@ endif
 ifeq ($(COREFABRIC), AXI4Lite)
   define_macros += -D CORE_AXI4Lite=True
 endif
-ifeq ($(USERTRAPS), True)
+ifeq ($(USERTRAPS), enable)
   define_macros += -D usertraps=True
 endif
-ifeq ($(USER), True)
+ifeq ($(USER), enable)
   define_macros += -D user=True
 endif
-ifeq ($(RTLDUMP), True)
+ifeq ($(RTLDUMP), enable)
   define_macros += -D rtldump=True
 endif
 ifeq ($(SUPERVISOR),  enable)
