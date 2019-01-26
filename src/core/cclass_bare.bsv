@@ -193,7 +193,7 @@ package cclass_bare;
     rule dtlb_csr_info;
       dmem.satp_from_csr.put(0);
       dmem.curr_priv.put('d3);
-      dmem.mstatus_from_csr(0);
+      dmem.mstatus_from_csr.put(0);
     endrule
   `endif
     rule drive_dmem_enable;
