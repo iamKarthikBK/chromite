@@ -111,12 +111,6 @@ package csr;
               end
 	  		    endcase
         default: begin
-          `ifdef supervisor
-            if(csr_address==`SATP )begin
-              flush=True;
-              jump_add=pc+4; // TODO get rid of addr if possible. We can do a replay mechanism here
-            end
-          `endif
           destination_value=csrread;
           if(funct3[1:0] == 'd1)
             writecsrdata = op1;
