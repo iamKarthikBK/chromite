@@ -199,9 +199,7 @@ package stage5;
               rx.u.deq;
             end
             else begin
-              Bit#(7) trapcause='1;
-              trapcause=`Store_access_fault;
-              let newpc <- csr.take_trap(trapcause, s.pc, badaddr);
+              let newpc <- csr.take_trap(`Store_access_fault, s.pc, badaddr);
               fl=True;
               jump_address=newpc;
               rx.u.deq;
