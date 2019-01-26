@@ -45,7 +45,7 @@ package cclass_bare;
   import imem::*;
 `endif
 `ifdef dcache
-  import l1dcache::*;
+  import dmem::*;
 `endif
   `include "common_params.bsv"
 
@@ -57,35 +57,6 @@ package cclass_bare;
 	import Connectable 				:: *;
   import GetPut:: *;
   import BUtils::*;
- 
-  `ifdef cache_control
-    function Bool isIO(Bit#(`vaddr) addr, Bool cacheable);
-	    if(!cacheable)
-	  	  return True;
-      else if(addr<'h8000000)
-        return True;
-	    else
-	  	  return False;
-    endfunction
-  `endif
-//
-//  `ifdef icache
-//    (*synthesize*)
-//    module mkicache(Ifc_l1icache#(`iwords, `iblocks, `isets, `iways, `vaddr, `ifbsize, 3));
-//       let ifc();
-//	   mkl1icache#(isIO,"PLRU") _temp(ifc);
-//	   return (ifc);
-//    endmodule
-//  `endif
-
-  `ifdef dcache
-    (*synthesize*)
-    module mkdcache(Ifc_l1dcache#(`dwords, `dblocks, `dsets, `dways ,`vaddr, `dfbsize ,2,1));//`dwords, `dblocks, `dsets, `dways, `vaddr, `dfbsize, 2, 1));
-       let ifc();
-	   mkl1dcache#(isIO,"PLRU") _temp(ifc);
-	   return (ifc);
-    endmodule
-  `endif
 
 
   typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
@@ -107,7 +78,7 @@ package cclass_bare;
   (*synthesize*)
   `ifdef dcache
     `ifdef icache
-      (*preempts="handle_dcache_nc_request,handle_imem_nc_request"*)
+      (*preempts="handle_dmem_nc_request,handle_imem_nc_request"*)
     `endif
   `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
@@ -142,11 +113,12 @@ package cclass_bare;
 	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
 
     // TODO: send the following from CSR
+  `ifdef supervisor
     rule tlb_csr_info;
       imem.satp_from_csr.put(0);
       imem.curr_priv.put('d3);
     endrule
-
+  `endif
     rule drive_constants;
 		  imem.cache_enable(unpack(riscv.mv_cacheenable[0]));
     endrule
@@ -157,7 +129,7 @@ package cclass_bare;
         arlen: burst_len , arsize: 2, arburst: 'b10, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    fetch_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: ICACHE Line Requesting ", fshow(imem_request));
+	  	  $display($time, "\tCORE: IMEM Line Requesting ", fshow(imem_request));
 	  endrule
 
 	  rule handle_imem_line_resp;
@@ -165,7 +137,7 @@ package cclass_bare;
 	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
       imem.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: ICACHE Line Response ", fshow(fab_resp));
+	  	  $display($time, "\tCORE: IMEM Line Response ", fshow(fab_resp));
 	  endrule
 	  
     rule handle_imem_nc_request;
@@ -181,7 +153,7 @@ package cclass_bare;
 	  	Bool bus_error = !(wr_io_read_response.rresp==AXI4_OKAY);
       imem.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: ICACHE IO Response ", fshow(wr_io_read_response));
+	  	  $display($time, "\tCORE: IMEM IO Response ", fshow(wr_io_read_response));
 	  endrule
 
   `else 
@@ -213,23 +185,31 @@ package cclass_bare;
   `endif
 
   `ifdef dcache
-    let dcache <- mkdcache;
-	  mkConnection(riscv.memory_request, dcache.core_req); //dcache integration
-	  mkConnection(dcache.core_resp, riscv.memory_response); // dcache integration
-    rule drive_dcache_enable;
-		  dcache.cache_enable(unpack(riscv.mv_cacheenable[1]));
+    let dmem <- mkdmem;
+	  mkConnection(riscv.memory_request, dmem.core_req); //dmem integration
+	  mkConnection(dmem.core_resp, riscv.memory_response); // dmem integration
+    // TODO send info from CSR
+  `ifdef supervisor
+    rule dtlb_csr_info;
+      dmem.satp_from_csr.put(0);
+      dmem.curr_priv.put('d3);
+      dmem.mstatus_from_csr(0);
+    endrule
+  `endif
+    rule drive_dmem_enable;
+		  dmem.cache_enable(unpack(riscv.mv_cacheenable[1]));
     endrule
 	  
     rule dirve_storebuffer_empyty;
-      riscv.storebuffer_empty(dcache.storebuffer_empty);
-      riscv.cache_is_available(dcache.cache_available);
+      riscv.storebuffer_empty(dmem.storebuffer_empty);
+      riscv.cache_is_available(dmem.cache_available);
     endrule
 
     rule initiate_store(tpl_2(riscv.initiate_store));
-      dcache.perform_store(pack(tpl_1(riscv.initiate_store)));
+      dmem.perform_store(pack(tpl_1(riscv.initiate_store)));
     endrule
     rule connect_store_status;
-      riscv.store_is_cached(dcache.cacheable_store);
+      riscv.store_is_cached(dmem.cacheable_store);
     endrule
 
     // Currently it is possible that the cache can generate a write-request followed by a
@@ -238,30 +218,25 @@ package cclass_bare;
     // that if a write-request has been initiated no read-requests should be latched unless the
     // write-response has arrived.
 
-    rule handle_dcache_line_read_request;
-	  	let {addr, burst_len, burst_size} <- dcache.read_mem_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(`vaddr,`paddr)) upperbits = addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          addr=0;
-      end
-	  	AXI4_Rd_Addr#(`paddr, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
+    rule handle_dmem_line_read_request;
+	  	let {addr, burst_len, burst_size} <- dmem.read_mem_req.get;
+	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
         arlen: burst_len , arsize: burst_size, arburst: 'b10, arid:`Mem_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    memory_xactor.i_rd_addr.enq(dcache_request);
+	    memory_xactor.i_rd_addr.enq(dmem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: DCACHE Line Requesting ", fshow(dcache_request));
+	  	  $display($time, "\tCORE: DMEM Line Requesting ", fshow(dmem_request));
 	  endrule
 
-	  rule handle_dcache_line_resp;
+	  rule handle_dmem_line_resp;
 	    let fab_resp <- pop_o (memory_xactor.o_rd_data);
 	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
-      dcache.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
+      dmem.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: DCACHE Line Response ", fshow(fab_resp));
+	  	  $display($time, "\tCORE: DMEM Line Response ", fshow(fab_resp));
 	  endrule
 
-    rule handle_dcache_line_write_request(rg_burst_count==0);
-      let {addr, burst_len, size, data} <- dcache.write_mem_req.get;
+    rule handle_dmem_line_write_request(rg_burst_count==0);
+      let {addr, burst_len, size, data} <- dmem.write_mem_req.get;
 		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: burst_len, 
           awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
 
@@ -271,7 +246,7 @@ package cclass_bare;
 	    memory_xactor.i_wr_addr.enq(aw);
 		  memory_xactor.i_wr_data.enq(w);
       if(verbosity!=0)begin
-	  	  $display($time, "\tCORE: DCACHE Line Write Addr: Request ", fshow(aw));
+	  	  $display($time, "\tCORE: DMEM Line Write Addr: Request ", fshow(aw));
       end
     endrule
     rule send_burst_write_data(rg_burst_count!=0);
@@ -285,46 +260,36 @@ package cclass_bare;
         rg_burst_count<=rg_burst_count+1;
 		  memory_xactor.i_wr_data.enq(w);
       if(verbosity!=0)
-      $display($time,"\tCORE: DCACHE Write Data: %h rg_burst_count: %d last: %b", 
+      $display($time,"\tCORE: DMEM Write Data: %h rg_burst_count: %d last: %b", 
                                                       rg_write_data,rg_burst_count, last);
     endrule
 
-    rule handle_dcache_line_write_resp;
+    rule handle_dmem_line_write_resp;
       let response<-pop_o(memory_xactor.o_wr_resp);
 	  	let bus_error = !(response.bresp==AXI4_OKAY);
-	  	dcache.write_mem_resp.put(bus_error);
+	  	dmem.write_mem_resp.put(bus_error);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: DCACHE Write Line Response ", fshow(response));
+	  	  $display($time, "\tCORE: DMEM Write Line Response ", fshow(response));
     endrule
 	  
-    rule handle_dcache_nc_request;
-	  	let {inst_addr, burst_len, burst_size} <- dcache.nc_read_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(`vaddr,`paddr)) upperbits = inst_addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          inst_addr=0;
-      end
-	  	AXI4_Rd_Addr#(`paddr, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+    rule handle_dmem_nc_request;
+	  	let {inst_addr, burst_len, burst_size} <- dmem.nc_read_req.get;
+	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
         arlen: burst_len , arsize: zeroExtend(burst_size[1:0]), arburst: 'b10, arid:2 }; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    io_xactor.i_rd_addr.enq(dcache_request);
+	    io_xactor.i_rd_addr.enq(dmem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: DCACHE IO-Read Requesting ", fshow(dcache_request));
+	  	  $display($time, "\tCORE: DMEM IO-Read Requesting ", fshow(dmem_request));
 	  endrule
 
-    rule handle_dcache_nc_read_response(wr_io_read_response.rid==2);
+    rule handle_dmem_nc_read_response(wr_io_read_response.rid==2);
 	  	Bool bus_error = !(wr_io_read_response.rresp==AXI4_OKAY);
-      dcache.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
+      dmem.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: ICACHE IO Response ", fshow(wr_io_read_response));
+	  	  $display($time, "\tCORE: IMEM IO Response ", fshow(wr_io_read_response));
 	  endrule
 
-    rule handle_dcache_nc_write_request;
-      let {addr, burst_len, size, data} <- dcache.nc_write_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(`vaddr,`paddr)) upperbits = addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          addr=0;
-      end
+    rule handle_dmem_nc_write_request;
+      let {addr, burst_len, size, data} <- dmem.nc_write_req.get;
       if(size==0)
         data=duplicate(data[7:0]);
       else if(size==1)
