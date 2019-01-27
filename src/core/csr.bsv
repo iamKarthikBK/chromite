@@ -58,7 +58,6 @@ package csr;
       method Bool send_sfence;
 		`endif
     `ifdef spfpu
-  		method Bit#(3) roundingmode;
       method Action update_fflags(Bit#(5) flags);
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
@@ -148,7 +147,6 @@ package csr;
       method send_sfence= wr_sfence_command;
 		`endif
     `ifdef spfpu
-  		method roundingmode=csrfile.roundingmode;
       method Action update_fflags(Bit#(5) flags);
         csrfile.update_fflags(flags);
       endmethod

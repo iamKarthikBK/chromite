@@ -60,9 +60,6 @@ package stage5;
 			method Chmod perm_to_TLB;
       method Bool send_sfence;
 		`endif
-    `ifdef spfpu
-  		method Bit#(3) roundingmode;
-    `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
     method Tuple2#(Bool,Bool) initiate_store;
@@ -367,9 +364,6 @@ package stage5;
 			method perm_to_TLB=csr.perm_to_TLB;
       method send_sfence=csr.send_sfence;
 		`endif
-    `ifdef spfpu
-  		method roundingmode=csr.roundingmode;
-    `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=csr.set_external_interrupt(ex_i);
     method csr_misa_c=csr.csr_misa_c;
     method initiate_store=wr_initiate_store;

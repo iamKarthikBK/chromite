@@ -226,11 +226,6 @@ package riscv;
 //    rule ras_push_connect;
 //      stage1.push_ras(stage3.ras_push);
 //    endrule
-    `ifdef spfpu
-      rule connect_roundingmode;
-        stage3.roundingmode(stage5.roundingmode);
-      endrule
-    `endif
 
     rule fwding_from_exe1;
       let data = pipe3.first;

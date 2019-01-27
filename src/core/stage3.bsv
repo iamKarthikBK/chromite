@@ -114,9 +114,6 @@ package stage3;
   	method Maybe#(Training_data#(`vaddr)) training_data;
 	  method Maybe#(Bit#(`vaddr)) ras_push;
   `endif
-  `ifdef spfpu
-    method Action roundingmode(Bit#(3) rm);
-  `endif
   `ifdef dcache
 		interface Get#(DMem_request#(`vaddr,ELEN,1)) memory_request;
     (*always_enabled*)
@@ -146,7 +143,6 @@ package stage3;
   `endif
   `ifdef spfpu
     RX#(OpFpu) rxfpu <- mkRX;
-    Wire#(Bit#(3)) wr_roundingmode <- mkWire();
   `endif
   `ifdef bpu
     RX#(Bit#(2)) rxbpu <-mkRX;
@@ -502,11 +498,6 @@ package stage3;
   `ifdef bpu
   	method training_data=wr_training_data;
 	  method ras_push=wr_ras_push;
-  `endif
-  `ifdef spfpu
-    method Action roundingmode(Bit#(3) rm);
-      wr_roundingmode<= rm;
-    endmethod
   `endif
   `ifdef dcache
     method Action cache_is_available(Bool avail);

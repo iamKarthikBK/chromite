@@ -783,7 +783,8 @@ package decoder;
 
     if(inst_type==SYSTEM_INSTR)
       immediate_value={'d0,inst[19:15],immediate_value[11:0]};// TODO fix this
-
+    if(inst_type==FLOAT && funct3=='b111)
+      funct3=frm;
     Bit#(7) temp1 = {fn,funct3};
     if(inst_type==TRAP)
       temp1={1'b0,trapcause};

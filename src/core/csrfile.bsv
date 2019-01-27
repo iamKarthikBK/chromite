@@ -53,7 +53,6 @@ package csrfile;
 		method Chmod perm_to_TLB;
 	`endif
   `ifdef spfpu
-  	method Bit#(3) roundingmode;
     method Action update_fflags(Bit#(5) flags);
   `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
@@ -874,7 +873,6 @@ package csrfile;
 	    endmethod
 	  `endif
     `ifdef spfpu
-  		method roundingmode=frm;
       method Action update_fflags(Bit#(5) flags);
         if((flags|fflags) != fflags)begin
           fflags<=flags|fflags;
