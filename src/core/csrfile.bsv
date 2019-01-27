@@ -39,27 +39,29 @@ package csrfile;
   interface Ifc_csrfile;
     method ActionValue#(Bit#(XLEN)) read_csr (Bit#(12) addr);
     method Action write_csr(Bit#(12) addr,  Bit#(XLEN) word, Bit#(2) lpc);
-    method CSRtoDecode csrs_to_decode;
-	  method Action clint_msip(Bit#(1) intrpt);
-		method Action clint_mtip(Bit#(1) intrpt);
-		method Action clint_mtime(Bit#(64) c_mtime);
     method ActionValue#(Bit#(`vaddr)) upd_on_ret `ifdef non_m_traps (Privilege_mode prv) `endif ;
     method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(6) cause, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
     method Action incr_minstret;
-    method Bool interrupt;
-  `ifdef RV64 method Bool inferred_xlen; `endif // False-32bit,  True-64bit 
+  // ------------------------ csrs to other pipeline stages ---------------------------------//
+    method CSRtoDecode csrs_to_decode;
 	`ifdef supervisor
-		method Bit#(XLEN) send_satp;
-		method Chmod perm_to_TLB;
+		method Bit#(XLEN) csr_satp;
 	`endif
   `ifdef spfpu
     method Action update_fflags(Bit#(5) flags);
   `endif
-	  method Action set_external_interrupt(Bit#(1) ex_i);
-    method Bit#(1) csr_misa_c;
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
   `endif
+    method Bit#(1) csr_misa_c;
+    method Bit#(2) curr_priv;
+    method Bit#(XLEN) csr_mstatus;
+  //-------------------------- sideband connections -----------------------------------------//
+	  method Action clint_msip(Bit#(1) intrpt);
+		method Action clint_mtip(Bit#(1) intrpt);
+		method Action clint_mtime(Bit#(64) c_mtime);
+	  method Action set_external_interrupt(Bit#(1) ex_i);
+  // ---------------------------------------------------------------------------------------//
   endinterface
 
   function Reg#(Bit#(a)) extInterruptReg(Reg#(Bit#(a)) r1, Reg#(Bit#(a)) r2);
@@ -848,29 +850,12 @@ package csrfile;
       `else
         Bit#(TMul#(2, XLEN)) instr ={minstreth, minstret};
         instr=instr+1;
-        minstreth<= truncateLSB(instr); minstret <= truncate(instr);
+        minstreth<= truncateLSB(instr); 
+        minstret <= truncate(instr);
       `endif
     endmethod
-    `ifdef RV64
-      method Bool inferred_xlen; // False-32bit,  True-64bit
-        if(rg_prv==Machine)
-          return unpack(rg_mxl[1]);
-      `ifdef supervisor
-        else if(rg_prv==Supervisor)
-          return unpack(sxl[1]);
-      `endif
-        else 
-          return unpack(uxl[1]);
-      endmethod
-    `endif
-    method interrupt = unpack(|(csr_mie&csr_mip));
 	  `ifdef supervisor
-	    method Bit#(XLEN) send_satp;
-	    	return satp;
-	    endmethod
-	    method Chmod perm_to_TLB;
-	    	return Chmod {mprv : rg_mprv, sum : sum, mxr : mxr, mpp : unpack(rg_mpp), prv : rg_prv};
-	    endmethod
+	    method csr_satp = satp;
 	  `endif
     `ifdef spfpu
       method Action update_fflags(Bit#(5) flags);
@@ -898,6 +883,17 @@ package csrfile;
       `endif
 	  endmethod
     method csr_misa_c=misa_c;
+    method curr_priv=pack(rg_prv);
+    method Bit#(XLEN) csr_mstatus;
+      `ifdef RV64
+        return {sd, 27'd0, sxl, uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
+                  hpp, spp, rg_mpie, hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
+
+      `else
+        return {'d0, sd, 8'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp, hpp, spp, rg_mpie,
+                hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
+      `endif
+    endmethod
   `ifdef cache_control
     method mv_cacheenable = rg_cachecontrol;
   `endif

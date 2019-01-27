@@ -112,11 +112,10 @@ package cclass_bare;
 	  mkConnection(riscv.inst_request, imem.core_req); //imem integration
 	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
 
-    // TODO: send the following from CSR
   `ifdef supervisor
     rule tlb_csr_info;
-      imem.satp_from_csr.put(0);
-      imem.curr_priv.put('d3);
+      imem.satp_from_csr.put(riscv.csr_satp);
+      imem.curr_priv.put(riscv.curr_priv);
     endrule
   `endif
     rule drive_constants;
@@ -188,12 +187,11 @@ package cclass_bare;
     let dmem <- mkdmem;
 	  mkConnection(riscv.memory_request, dmem.core_req); //dmem integration
 	  mkConnection(dmem.core_resp, riscv.memory_response); // dmem integration
-    // TODO send info from CSR
   `ifdef supervisor
     rule dtlb_csr_info;
-      dmem.satp_from_csr.put(0);
-      dmem.curr_priv.put('d3);
-      dmem.mstatus_from_csr.put(0);
+      dmem.satp_from_csr.put(riscv.csr_satp);
+      dmem.curr_priv.put(riscv.curr_priv);
+      dmem.mstatus_from_csr.put(riscv.csr_mstatus);
     endrule
   `endif
     rule drive_dmem_enable;

@@ -50,12 +50,8 @@ package csr;
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(64) c_mtime);
     method Action incr_minstret;
-    method Bool interrupt;
-    `ifdef RV64 method Bool inferred_xlen; `endif // False-32bit,  True-64bit 
 		`ifdef supervisor
-			method Bit#(XLEN) send_satp;
-			method Chmod perm_to_TLB;
-      method Bool send_sfence;
+			method Bit#(XLEN) csr_satp;
 		`endif
     `ifdef spfpu
       method Action update_fflags(Bit#(5) flags);
@@ -65,6 +61,8 @@ package csr;
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
   `endif
+    method Bit#(2) curr_priv;
+    method Bit#(XLEN) csr_mstatus;
   endinterface:Ifc_csr
 
 
@@ -74,9 +72,6 @@ package csr;
     let verbosity=`VERBOSITY ;
   
     Ifc_csrfile csrfile <- mkcsrfile();
-    `ifdef supervisor
-      Wire#(Bool) wr_sfence_command <- mkDWire(False);
-    `endif 
 	  method ActionValue#(Tuple3#(Bool, Bit#(`vaddr), Bit#(XLEN))) system_instruction(
          Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
       Bool flush = False;
@@ -93,7 +88,6 @@ package csr;
               'h0, `ifdef supervisor 'h1, `endif 'h3:begin // URET, SRET, MRET
                 `ifdef supervisor
                   if(csr_address[5]==1 && csr_address[11:8]==1) begin // SFENCE
-                    wr_sfence_command<=True;
                     if(verbosity>1)
                       $display($time,"\tCSR: SFENCE executed");
                   end
@@ -139,12 +133,8 @@ package csr;
 	  	csrfile.clint_mtime(c_mtime);
 	  endmethod
     method incr_minstret=csrfile.incr_minstret;
-    `ifdef RV64 method inferred_xlen = csrfile.inferred_xlen; `endif // False-32bit,  True-64bit 
-    method  interrupt=csrfile.interrupt;
 		`ifdef supervisor
-			method send_satp=csrfile.send_satp;
-			method perm_to_TLB=csrfile.perm_to_TLB;
-      method send_sfence= wr_sfence_command;
+			method csr_satp=csrfile.csr_satp;
 		`endif
     `ifdef spfpu
       method Action update_fflags(Bit#(5) flags);
@@ -156,5 +146,7 @@ package csr;
   `ifdef cache_control
     method mv_cacheenable = csrfile.mv_cacheenable;
   `endif
+    method curr_priv = csrfile.curr_priv;
+    method csr_mstatus= csrfile.csr_mstatus;
   endmodule
 endpackage

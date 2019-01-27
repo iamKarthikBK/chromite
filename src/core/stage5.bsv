@@ -50,15 +50,11 @@ package stage5;
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(64) c_mtime);
-    method Bool interrupt;
     `ifdef rtldump
       interface Get#(DumpType) dump;
     `endif
-    `ifdef RV64 method Bool inferred_xlen; `endif // False-32bit,  True-64bit 
 		`ifdef supervisor
-			method Bit#(XLEN) send_satp;
-			method Chmod perm_to_TLB;
-      method Bool send_sfence;
+			method Bit#(XLEN) csr_satp;
 		`endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
@@ -71,6 +67,8 @@ package stage5;
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
   `endif
+    method Bit#(2) curr_priv;
+    method Bit#(XLEN) csr_mstatus;
   endinterface
 
   (*synthesize*)
@@ -357,12 +355,8 @@ package stage5;
         endmethod
       endinterface;
     `endif
-    `ifdef RV64 method Bool inferred_xlen = csr.inferred_xlen; `endif // False-32bit,  True-64bit 
-    method  interrupt=csr.interrupt;
 		`ifdef supervisor
-			method send_satp=csr.send_satp;
-			method perm_to_TLB=csr.perm_to_TLB;
-      method send_sfence=csr.send_sfence;
+			method csr_satp=csr.csr_satp;
 		`endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=csr.set_external_interrupt(ex_i);
     method csr_misa_c=csr.csr_misa_c;
@@ -378,5 +372,7 @@ package stage5;
   `ifdef cache_control
     method mv_cacheenable = csr.mv_cacheenable;
   `endif
+    method curr_priv = csr.curr_priv;
+    method csr_mstatus= csr.csr_mstatus;
   endmodule
 endpackage
