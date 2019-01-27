@@ -120,7 +120,7 @@ package stage1;
     `ifdef bpu
   		TX#(PIPE1_opt1) txopt1<-mkTX;
     `endif
-    
+
     // RuleName: process_instruction
     // Explicit Conditions: None
     // Implicit Conditions: 
@@ -166,12 +166,16 @@ package stage1;
         Bool compressed=False;
         Bool enque_instruction=True;
         // if epochs do not match then drop the instruction
+        if(verbosity>2)
+          $display($time,"\tSTAGE1: Analyzing Response: ",fshow(ff_memory_response.first), 
+          "rg_action: ",fshow(rg_action), " misa[c]:%b rg_discard:%b",misa[2],rg_discard_lower);
         if({rg_iEpoch,rg_eEpoch,rg_wEpoch}!=epoch)begin
           ff_memory_response.deq;
           rg_action<=None;
           enque_instruction=False;
           if(verbosity>0)
-            $display($time,"\tSTAGE1: Dropping Instruction from Cache");
+            $display($time,"\tSTAGE1: Dropping Instruction from Cache. CurrEpoch: %b RespEpoch: %b ",
+              {rg_iEpoch,rg_eEpoch,rg_wEpoch},epoch, fshow(ff_memory_response.first));
         end
         else if(rg_discard_lower && misa[2]==1)begin
           rg_discard_lower<=False;
@@ -258,7 +262,8 @@ package stage1;
       `endif
           rg_icache_request<=rg_icache_request+4;
         if(verbosity>1)
-          $display($time,"\tSTAGE1: Sending Request for Addr: %h to Memory",rg_icache_request);
+          $display($time,"\tSTAGE1: Sending Request for Addr: %h to Memory Epoch:%b",
+              rg_icache_request, {rg_iEpoch,rg_eEpoch,rg_wEpoch});
       `ifdef icache
         `ifdef supervisor
           return tuple4(rg_icache_request,rg_fence, rg_sfence, {rg_iEpoch,rg_eEpoch,rg_wEpoch});
@@ -303,6 +308,8 @@ package stage1;
       rg_icache_request<={truncateLSB(newpc),2'b0};
       if(newpc[1:0]!=0)
         rg_discard_lower<=True;
+      else
+        rg_discard_lower<=False;
       if(verbosity>1)
         $display($time, "\tSTAGE1: Received Flush. PC: %h",newpc `ifdef icache ," Fence: %b",fence 
         `ifdef supervisor ," Sfence: ",sfence `endif `endif ); 
