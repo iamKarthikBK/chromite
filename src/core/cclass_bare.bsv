@@ -47,6 +47,13 @@ package cclass_bare;
 `ifdef dcache
   import dmem::*;
 `endif
+`ifdef supervisor
+  `ifdef RV64
+    import ptwalk_rv64::*;
+  `else
+    import ptwalk_rv32::*;
+  `endif
+`endif
   `include "common_params.bsv"
 
   `define Mem_master_num 0
@@ -58,6 +65,9 @@ package cclass_bare;
   import GetPut:: *;
   import BUtils::*;
 
+  `ifdef supervisor
+    typedef enum {None,IWalk,DWalk} PTWState deriving(Bits,Eq,FShow);
+  `endif
 
   typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
   interface Ifc_cclass_axi4;
@@ -79,12 +89,20 @@ package cclass_bare;
   `ifdef dcache
     `ifdef icache
       (*preempts="handle_dmem_nc_request,handle_imem_nc_request"*)
+      (*preempts="ptwalk_to_mem,handle_dmem_nc_request"*)
     `endif
+  `endif
+  `ifdef supervisor
+    (*preempts="dtlb_req_to_ptwalk,itlb_req_to_ptwalk"*)
   `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
     let vaddr = valueOf(`vaddr);
     let paddr = valueOf(`paddr);
     Ifc_riscv riscv <- mkriscv();
+  `ifdef supervisor
+    Ifc_ptwalk_rv64#(9) ptwalk <- mkptwalk_rv64;
+    Reg#(PTWState) rg_ptw_state <- mkReg(None);
+  `endif
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
 `ifdef cache_control
@@ -142,10 +160,10 @@ package cclass_bare;
     rule handle_imem_nc_request;
 	  	let {inst_addr, burst_len, burst_size} <- imem.nc_read_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
-        arlen: burst_len , arsize: 2, arburst: 'b10, arid:1 }; // arburst: 00-FIXED 01-INCR 10-WRAP
+        arlen: 0, arsize: 2, arburst: 'b01, arid:1 }; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    io_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: Icache IO Requesting ", fshow(imem_request));
+	  	  $display($time, "\tCORE: IMEM IO Requesting ", fshow(imem_request));
 	  endrule
 
     rule handle_imem_nc_read_response(wr_io_read_response.rid==1);
@@ -273,7 +291,7 @@ package cclass_bare;
     rule handle_dmem_nc_request;
 	  	let {inst_addr, burst_len, burst_size} <- dmem.nc_read_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
-        arlen: burst_len , arsize: zeroExtend(burst_size[1:0]), arburst: 'b10, arid:2 }; // arburst: 00-FIXED 01-INCR 10-WRAP
+        arlen: 0, arsize: zeroExtend(burst_size[1:0]), arburst: 'b01, arid:2 }; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    io_xactor.i_rd_addr.enq(dmem_request);
 	  	if(verbosity!=0)
 	  	  $display($time, "\tCORE: DMEM IO-Read Requesting ", fshow(dmem_request));
@@ -283,7 +301,7 @@ package cclass_bare;
 	  	Bool bus_error = !(wr_io_read_response.rresp==AXI4_OKAY);
       dmem.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: IMEM IO Response ", fshow(wr_io_read_response));
+	  	  $display($time, "\tCORE: DMEM IO Response ", fshow(wr_io_read_response));
 	  endrule
 
     rule handle_dmem_nc_write_request;
@@ -381,6 +399,55 @@ package cclass_bare;
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Write Response ", fshow(response));
     endrule
+  `endif
+
+  `ifdef supervisor
+    rule csrs_to_ptwalk;
+      ptwalk.satp_from_csr.put(riscv.csr_satp);
+      ptwalk.curr_priv.put(riscv.curr_priv);
+      ptwalk.mstatus_from_csr.put(riscv.csr_mstatus);
+    endrule
+
+    rule itlb_req_to_ptwalk(rg_ptw_state==None);
+      let req<-imem.req_to_ptw.get();
+      ptwalk.from_tlb.put(req);
+      rg_ptw_state<=IWalk;
+    endrule
+
+    rule ptwalk_resp_to_itlb(rg_ptw_state==IWalk);
+      let resp<-ptwalk.to_tlb.get();
+      imem.resp_from_ptw.put(resp);
+      rg_ptw_state<=None;
+    endrule
+
+    rule dtlb_req_to_ptwalk(rg_ptw_state==None);
+      let req<-dmem.req_to_ptw.get();
+      ptwalk.from_tlb.put(req);
+      rg_ptw_state<=DWalk;
+    endrule
+
+    rule ptwalk_resp_to_dtlb(rg_ptw_state==DWalk);
+      let resp<-ptwalk.to_tlb.get();
+      dmem.resp_from_ptw.put(resp);
+      rg_ptw_state<=None;
+    endrule
+    
+    rule ptwalk_to_mem;
+	  	let addr <- ptwalk.request_to_cache.get;
+	  	AXI4_Rd_Addr#(`paddr, 0) ptwalk_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
+        arlen: 0, arsize: 3, arburst: 'b01, arid:3 }; // arburst: 00-FIXED 01-INCR 10-WRAP
+	    io_xactor.i_rd_addr.enq(ptwalk_request);
+	  	if(verbosity!=0)
+	  	  $display($time, "\tCORE: PTW IO-Read Requesting ", fshow(ptwalk_request));
+	  endrule
+
+    rule memory_response_to_ptwalk(wr_io_read_response.rid==3);
+	  	Bool bus_error = !(wr_io_read_response.rresp==AXI4_OKAY);
+      ptwalk.response_frm_cache.put(tuple2(truncate(wr_io_read_response.rdata), pack(bus_error)));
+	  	if(verbosity!=0)
+	  	  $display($time, "\tCORE: PTW IO Response to PTWALK: ", fshow(wr_io_read_response));
+	  endrule
+
   `endif
 
     interface sb_clint_msip = interface Put
