@@ -179,7 +179,7 @@ package riscv;
     mkConnection(pipe4inst,stage5.rx_inst);
   `endif
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
-    let {flush_from_wb, flushpc_from_wb, fenceI}=stage5.flush;
+    let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor ,sfence `endif }=stage5.flush;
 
     rule update_wEpoch(flush_from_wb);
       rg_wEpoch<=~rg_wEpoch;
@@ -193,7 +193,7 @@ package riscv;
 
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
       if(flush_from_wb)
-        stage1.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef supervisor , False `endif `endif ); // TODO Sfence
+        stage1.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef supervisor , sfence `endif `endif ); // TODO Sfence
       else
         stage1.flush(flushpc_from_exe `ifdef icache , False `ifdef supervisor , False `endif `endif ); // EXE can never send a fence request.
     endrule

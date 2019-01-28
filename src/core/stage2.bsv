@@ -147,6 +147,9 @@ package stage2;
     Reg#(Bool) rg_wfi <- mkReg(False);
     Reg#(Bool) rg_rerun <- mkReg(False);
     Reg#(Bool) rg_fencei_rerun <- mkReg(False);
+  `ifdef supervisor
+    Reg#(Bool) rg_sfence_rerun <- mkReg(False);
+  `endif
     Wire#(Bool) wr_op_complete <-mkDWire(False);
     Wire#(Bool) wr_flush_from_exe<- mkDWire(False);
     Wire#(Bool) wr_flush_from_wb<- mkDWire(False);
@@ -164,7 +167,8 @@ package stage2;
   	  let pred=rxopt1.u.first.prediction;
     `endif
       let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,trap, 
-              `ifdef supervisor trapcause, `endif wr_csrs, rg_rerun, rg_fencei_rerun);
+              `ifdef supervisor trapcause, `endif wr_csrs, rg_rerun, rg_fencei_rerun 
+              `ifdef supervisor ,rg_sfence_rerun `endif );
       let {rs1addr,rs2addr,rd,rs1type,rs2type} = optype;
       let {func_cause, instrType, memaccess, imm} = meta;
       Bit#(3) funct3 = truncate(func_cause);
@@ -203,6 +207,13 @@ package stage2;
           rg_fencei_rerun<=True;
         else 
           rg_fencei_rerun<=False;
+      `ifdef supervisor
+        if(instrType==MEMORY && memaccess==SFence)
+          rg_sfence_rerun<=True;
+        else 
+          rg_sfence_rerun<=False;
+      `endif
+
         OpMeta t1 = tuple4(rs1addr, rs2addr, op3, instrType);
         OpData#(ELEN,FLEN) t2 = tuple3(op1, op2, op4);
         MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);

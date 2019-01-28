@@ -215,8 +215,9 @@ package stage3;
       let rs3_imm=op4;
     `endif
       Bool execute = True;
-      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence `ifdef atomic ||   memaccess==Atomic `endif )  
-                                                    && !wr_storebuffer_empty)
+      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence 
+                              `ifdef atomic ||   memaccess==Atomic `endif 
+                              `ifdef supervisor || memaccess==SFence `endif )  && !wr_storebuffer_empty)
         execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
 
       if(verbosity>0)begin

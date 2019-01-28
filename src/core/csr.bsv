@@ -86,21 +86,11 @@ package csr;
 	  	case(funct3)
         'd0:case (csr_address[11:8])
               'h0, `ifdef supervisor 'h1, `endif 'h3:begin // URET, SRET, MRET
-                `ifdef supervisor
-                  if(csr_address[5]==1 && csr_address[11:8]==1) begin // SFENCE
-                    if(verbosity>1)
-                      $display($time,"\tCSR: SFENCE executed");
-                  end
-                  else begin
-                `endif
-                  let temp<-csrfile.upd_on_ret( `ifdef non_m_traps unpack(csr_address[9:8]) `endif );
-                  jump_add=temp;
-                  flush=True;
-                  if(verbosity>1)
+                let temp<-csrfile.upd_on_ret( `ifdef non_m_traps unpack(csr_address[9:8]) `endif );
+                jump_add=temp;
+                flush=True;
+                if(verbosity>1)
                   $display($time,"\tCSR: RET Function: %h",csr_address);
-                `ifdef supervisor
-                  end
-                `endif
               end
 	  		    endcase
         default: begin

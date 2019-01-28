@@ -177,6 +177,14 @@ package stage4;
                                           rdtype:rdtype,
                                           rd:rd};
       end
+    `ifdef supervisor 
+      else if(committype==MEMORY && memaccess==SFence)begin
+        temp1=tagged REG CommitRegular{commitvalue:0,
+                                          fflags:0,
+                                          rdtype:IRF,
+                                          rd:0};
+      end
+    `endif
       else if(committype==MEMORY) begin
       `ifndef dcache
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin

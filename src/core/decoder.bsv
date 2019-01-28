@@ -575,6 +575,10 @@ package decoder;
     if(opcode=='b01011)
       mem_access=Atomic;
   `endif
+  `ifdef supervisor
+    if(opcode=='b11100 && funct7=='b0001001 && funct3==0) // SFENCE
+      mem_access=SFence;
+  `endif
     
 
     // Following table describes what the ALU will need for some critical operations. Based on this
@@ -609,7 +613,8 @@ package decoder;
 
 		if(opcode==`JAL_op || opcode==`JALR_op|| opcode==`AUIPC_op || opcode=='b01000 
         || opcode=='b00011  ||  opcode=='b000000 `ifdef atomic || opcode=='b01011 `endif 
-        `ifdef spfpu || opcode=='b01001 || opcode=='b00001 `endif )	 // Store, Load, Atomic
+        `ifdef spfpu || opcode=='b01001 || opcode=='b00001 `endif 	 // Store, Load, Atomic
+        `ifdef supervisor || (opcode=='b11100 && inst[31:25]=='b00001001) `endif )
 			rs1type=PC;
     `ifdef spfpu
 	    else if(opcode[4:2]=='b100 || (opcode[4:2]=='b101 && // (F(N)MADD or F(N)SUB)  
@@ -729,6 +734,9 @@ package decoder;
                         inst_type=SYSTEM_INSTR;
                  else if(inst[31:20]=='h105 && inst[19:15]==0 && inst[11:7]==0 && prv==Machine)
                         inst_type=WFI;
+              `ifdef supervisor
+                 else if(inst[31:25]=='b0001001 && inst[11:7]==0) inst_type=MEMORY; // SFENCE
+              `endif
           default: if(funct3!=0 && funct3!=4 && access_is_valid && address_is_valid) 
                     inst_type=SYSTEM_INSTR;
       endcase
@@ -789,7 +797,8 @@ package decoder;
     if(inst_type==TRAP)
       temp1={1'b0,trapcause};
 
-    Bool rerun = mem_access==Fence || mem_access==FenceI || inst_type==SYSTEM_INSTR;
+    Bool rerun = mem_access==Fence || mem_access==FenceI || inst_type==SYSTEM_INSTR 
+                `ifdef supervisor || mem_access==SFence `endif ;
 
 
     OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
@@ -852,8 +861,8 @@ package decoder;
   endfunction
   
   function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bool trap, 
-                `ifdef supervisor Bit#(1) cause, `endif CSRtoDecode csrs, Bool curr_rerun, 
-                Bool rerun_fencei) =  actionvalue
+                `ifdef supervisor Bit#(6) cause, `endif CSRtoDecode csrs, Bool curr_rerun, 
+                Bool rerun_fencei `ifdef supervisor ,Bool rerun_sfence `endif ) =  actionvalue
       let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=csrs;
       DecodeOut result_decode = decoder_func_32(inst, csrs);
       if(inst[1:0]!='b11 && misa[2]==1)
@@ -870,7 +879,7 @@ package decoder;
 
       if(curr_rerun)begin
         x_inst_type=TRAP;
-        func_cause=rerun_fencei?`IcacheFence : `Rerun ;
+        func_cause=rerun_fencei?`IcacheFence : rerun_sfence?`SFence: `Rerun ;
         t4=False;
       end
       else if(takeinterrupt)begin

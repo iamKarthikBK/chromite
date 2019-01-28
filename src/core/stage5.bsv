@@ -45,7 +45,11 @@ package stage5;
       interface RXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) rx_inst;
     `endif
     method Maybe#(CommitData) commit_rd;
+  `ifdef supervisor
+    method Tuple4#(Bool, Bit#(`vaddr), Bool, Bool) flush;
+  `else
     method Tuple3#(Bool, Bit#(`vaddr), Bool) flush;
+  `endif  
     method CSRtoDecode csrs_to_decode;
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
@@ -86,7 +90,11 @@ package stage5;
     Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
 
     // wire which signals the entire pipe to be flushed.
+  `ifdef supervisor
+    Wire#(Tuple4#(Bool, Bit#(`vaddr), Bool, Bool)) wr_flush <- mkDWire(tuple4(False, ?, False, False));
+  `else
     Wire#(Tuple3#(Bool, Bit#(`vaddr), Bool)) wr_flush <- mkDWire(tuple3(False, ?, False));
+  `endif
 
     // the local epoch register
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
@@ -108,6 +116,9 @@ package stage5;
       let {simpc,inst}=rxinst.u.first;
     `endif
       Bool fenceI=False;
+    `ifdef supervisor
+      Bool sFence=False;
+    `endif
       Bit#(`vaddr) jump_address=?;
       Bool fl = False;
       `ifdef rtldump
@@ -116,10 +127,13 @@ package stage5;
       `endif
       if(rg_epoch==epoch)begin
         if(commit matches tagged TRAP .t)begin
-          if(t.cause==`Rerun || t.cause==`IcacheFence )begin
+          if(t.cause==`Rerun || t.cause==`IcacheFence `ifdef supervisor || t.cause==`SFence `endif )begin
             fl=True;
             jump_address=t.pc;
             fenceI=(t.cause==`IcacheFence );
+            `ifdef supervisor
+              sFence = (t.cause==`SFence);
+            `endif
           end
           else begin
             let newpc <- csr.take_trap(t.cause, t.pc, t.badaddr);
@@ -303,7 +317,11 @@ package stage5;
         end
         
         // if it is a branch/JAL_R instruction generate a flush signal to the pipe. 
+      `ifdef supervisor
+        wr_flush<=tuple4(fl, jump_address, fenceI, sFence);
+      `else
         wr_flush<=tuple3(fl, jump_address, fenceI);
+      `endif
         if(fl)begin
           rg_epoch <= ~rg_epoch;
         end
