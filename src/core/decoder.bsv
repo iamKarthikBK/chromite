@@ -791,8 +791,10 @@ package decoder;
 
     if(inst_type==SYSTEM_INSTR)
       immediate_value={'d0,inst[19:15],immediate_value[11:0]};// TODO fix this
+  `ifdef spfpu
     if(inst_type==FLOAT && funct3=='b111)
       funct3=frm;
+  `endif
     Bit#(7) temp1 = {fn,funct3};
     if(inst_type==TRAP)
       temp1={1'b0,trapcause};
@@ -886,22 +888,18 @@ package decoder;
         func_cause={1'b1, icause};
         x_inst_type=TRAP;
       end
-      else if(trap `ifdef supervisor && cause==1 `endif ) begin
+      else if(trap) begin
         x_inst_type=TRAP;
-        func_cause = `Inst_access_fault ;
+        func_cause = {1'b0,cause} ;
       end
-    `ifdef supervisor
-      else if(trap && cause==0) begin
-        x_inst_type=TRAP;
-        func_cause= `Inst_pagefault;
-      end
-    `endif
 
       if(x_inst_type == TRAP)begin
         x_rs2addr=0;
         x_rs2type=IntegerRF;
         x_rs1addr=0;
-        if(func_cause == `Inst_access_fault || func_cause==`Inst_pagefault )
+        if(func_cause == `Inst_access_fault || (func_cause==`Inst_access_faultC && misa[3]==1) 
+            `ifdef supervisor ||  func_cause==`Inst_pagefault || 
+                                  (func_cause==`Inst_pagefaultC && misa[3]==1) `endif )
           x_rs1type=PC;
         else
           x_rs1type=IntegerRF;

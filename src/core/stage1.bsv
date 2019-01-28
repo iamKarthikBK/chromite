@@ -108,6 +108,7 @@ package stage1;
     // ignored. This happens because, when there is jump to non-4-byte aligned address the cache
     // still receives a previous 4-byte-ailgned address from the fetch stage.
     Reg#(Bool) rg_discard_lower <- mkReg(False);
+    Reg#(Bool) rg_receiving_upper <- mkReg(False);
 
     // This register holds the 16-bits of instruction from the previous cache response if required.
     Reg#(Bit#(16)) rg_instruction <- mkReg(0);
@@ -184,6 +185,7 @@ package stage1;
             rg_instruction<=cache_response[31:16];
             rg_action<=CheckPrev;
             enque_instruction=False;
+            rg_receiving_upper<=True;
           end
           else begin
             compressed=True;
@@ -207,6 +209,8 @@ package stage1;
             final_instruction={cache_response[15:0],rg_instruction};
             rg_instruction<=truncateLSB(cache_response);
             ff_memory_response.deq;
+            if(rg_receiving_upper)
+              rg_receiving_upper<=False;
           end
           else begin
             compressed=True;
@@ -214,12 +218,14 @@ package stage1;
             rg_action<=None;
           end
         end
+        if(rg_receiving_upper && err)
+          cause[5]=1;
 				let pipedata=PIPE1_min{program_counter:rg_pc,
                       instruction:final_instruction,
                       epochs:{rg_eEpoch,rg_wEpoch},
                       trap: err
                     `ifdef supervisor
-                      ,cause:cause[0]
+                      ,cause:cause
                     `endif }; 
         if(compressed  && enque_instruction && misa[2]==1)begin
           rg_pc<=rg_pc+2;
@@ -233,8 +239,8 @@ package stage1;
           tx_opt1.u.enq(PIPE1_opt1{prediction:0}); // TODO fix when supporting bpu
         `endif
           if(verbosity!=0) begin
-            $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Epoch: %b", rg_pc, final_instruction,
-                                                                                        err, epoch);
+            $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Cause:%d Epoch: %b", rg_pc, final_instruction,
+                                                                          err, cause, epoch);
             $display($time,"\tSTAGE1: rg_action: ",fshow(rg_action)," compressed: %b final_inst:\
   %h rg_instruction: %h enque_instruction: %b curr_epoch: %b", compressed, final_instruction, 
               rg_instruction, enque_instruction,{rg_iEpoch,rg_eEpoch,rg_wEpoch});

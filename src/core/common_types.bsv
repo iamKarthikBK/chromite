@@ -185,7 +185,7 @@ package common_types;
   	Bit#(2) epochs;
     Bool trap ;
   `ifdef supervisor
-    Bit#(1) cause;
+    Bit#(6) cause;
   `endif
   }PIPE1_min deriving (Bits,Eq);
 

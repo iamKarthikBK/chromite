@@ -138,8 +138,13 @@
 `define Inst_pagefault        12
 `define Load_pagefault        13
 `define Store_pagefault       15
+//------------ internal encodings --------------//
+`define Inst_access_faultC    44
+`define Inst_pagefaultC       33
 `define Rerun                 31
 `define IcacheFence           30
+`define SFence                29
+// --------------------------------------------//
 `define User_soft_int         0
 `define Supervisor_soft_int   1
 `define Machine_soft_int      3

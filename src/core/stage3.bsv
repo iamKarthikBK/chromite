@@ -350,10 +350,10 @@ package stage3;
             if(cmtype==MEMORY)begin
           `ifdef supervisor
             `ifdef atomic
-              wr_memory_request<= (tuple8(addr,memaccess==FenceI || memaccess==Fence,False,
+              wr_memory_request<=(tuple8(addr,memaccess==FenceI||memaccess==Fence,memaccess==SFence,
                                       epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn}));
             `else
-              wr_memory_request<= (tuple7(addr,memaccess==FenceI || memaccess==Fence,False,
+              wr_memory_request<=(tuple7(addr,memaccess==FenceI||memaccess==Fence,memaccess==SFence,
                                                  epochs[0],truncate(pack(memaccess)),funct3,rs2));
             `endif
           `else
