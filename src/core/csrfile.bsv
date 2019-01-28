@@ -319,7 +319,15 @@ package csrfile;
 	    Reg#(Bit#(`vaddr)) stval  		<- mkReg(0);
       // SEPC register
 	    Reg#(Bit#(TSub#(`vaddr, 1))) sepc  		<- mkReg(0);
-      Reg#(Bit#(XLEN)) satp      <- mkReg(0);
+      Reg#(Bit#(`asidwidth)) satp_asid <- mkReg(0);
+    `ifdef RV64
+      Reg#(Bit#(44)) satp_ppn <- mkReg(0);
+      Reg#(Bit#(4)) satp_mode <- mkReg(0);
+    `else
+      Reg#(Bit#(22)) satp_ppm <- mkReg(0);
+      Reg#(Bit#(1)) satp_mode<- mkReg(0);
+    `endif
+
       // SEDELEG and SIDELEG registers
       `ifdef usertraps
         Reg#(Bit#(12)) sideleg <-mkReg(0);
@@ -446,7 +454,7 @@ package csrfile;
           if (addr == `SEPC ) data=signExtend({sepc,1'b0});
           if (addr == `SCAUSE ) data= {sinterrupt, 'd0, scause};
           if (addr == `STVAL ) data= signExtend(stval);//?
-          if (addr == `SATP ) data = satp;
+          if (addr == `SATP ) data = {satp_mode,'d0,satp_asid,satp_ppn};
           `ifdef usertraps
             if (addr == `SIDELEG ) data= {'d0, sideleg};
             if (addr == `SEDELEG ) data= {'d0, sedeleg};
@@ -612,9 +620,17 @@ package csrfile;
           // make sure only valid values of satp-mode field cause a change in the satp reg
           `SATP: begin
             `ifdef RV64
-              if(word[63:60]==0 || word[63:60]==8)
+              if(word[63:60]==0 || word[63:60]==8)begin // transparent or sv39
+                satp_mode<=word[63:60];
+                satp_ppn<=truncate(word);
+                satp_asid<=truncate(word[59:44]);
+              end
+            `else
+              satp_mode<=word[31];
+              satp_ppn<=truncate(word);
+              satp_asid<=truncate(word[30:22]);
             `endif
-              satp<= word;
+
           end
           `SCAUSE: begin
             scause<= truncate(word);
@@ -855,7 +871,7 @@ package csrfile;
       `endif
     endmethod
 	  `ifdef supervisor
-	    method csr_satp = satp;
+	    method csr_satp = {satp_mode,'d0,satp_asid,satp_ppn};
 	  `endif
     `ifdef spfpu
       method Action update_fflags(Bit#(5) flags);
