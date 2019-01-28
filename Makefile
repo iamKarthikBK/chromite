@@ -11,7 +11,8 @@ include soc_config.inc
 ifeq (, $(wildcard ${TOOLS_DIR}/shakti-tools/insert_license.sh))
   VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout
 else
-  VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout -verilog-filter ${TOOLS_DIR}/shakti-tools/insert_license.sh
+  VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout -verilog-filter ${TOOLS_DIR}/shakti-tools/insert_license.sh \
+									 -verilog-filter ${TOOLS_DIR}/shakti-tools/rename_translate.sh
   VERILOGLICENSE:= cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt ./verilog
 endif
 SHAKTI_HOME=$(PWD)

@@ -47,7 +47,7 @@ package SoC;
   import bootrom:: *;
   import uart::*;
   import clint::*;
-  import sign_dump::*;
+  import Tbsign_dump::*;
   import err_slave::*;
   // package imports
   import Connectable:: *;
@@ -111,7 +111,7 @@ package SoC;
     let curr_clk<-exposeCurrentClock;
     let curr_reset<-exposeCurrentReset;
     Ifc_cclass_axi4 cclass <- mkcclass_axi4();
-    Ifc_sign_dump signature<- mksign_dump();
+    Ifc_Tbsign_dump signature<- mkTbsign_dump();
     AXI4_Fabric_IFC #(`Num_Masters, `Num_Slaves, `paddr, ELEN, USERSPACE) 
                                                     fabric <- mkAXI4_Fabric(fn_slave_map);
  		Ifc_bram_axi4#(`paddr, ELEN, USERSPACE, `Addr_space) main_memory <- mkbram_axi4(`MemoryBase, 
