@@ -245,7 +245,9 @@ package stage4;
               if(rg_epoch==epoch)
                 complete=False;
             `ifdef dcache
-              if(memaccess==Store `ifdef atomic || memaccess==Atomic `endif )
+              if(trap)
+                temp1=tagged TRAP CommitTrap{cause:cause, badaddr:badaddr, pc:pc};
+              else if(memaccess==Store `ifdef atomic || memaccess==Atomic `endif )
                 temp1=tagged STORE CommitStore{pc:pc
                                               `ifdef atomic 
                                                 , rd:0,  
