@@ -775,7 +775,12 @@ package csrfile;
         return {lv_mepc,1'b0};
       end
     endmethod
-    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(6) cause, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
+    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(6) c, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
+      Bit#(6) cause = c;
+      if(c==`Inst_access_faultC || c==`Inst_pagefaultC )begin
+        cause[5]=0;
+        tval=tval+2;
+      end
 
       `ifdef non_m_traps
           Privilege_mode prv=Machine;
