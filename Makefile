@@ -126,7 +126,7 @@ define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAG
 								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) -D desize=$(DESIZE) \
 								 -D dsbsize=$(DSBSIZE) \
 								 -D PIPE$(PIPE)=True -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
-								 -D resetpc=$(RESETPC) 
+								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH)
 
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/
 M_EXT:=./src/core/m_ext/
