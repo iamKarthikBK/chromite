@@ -259,8 +259,12 @@ package csrfile;
       Reg#(Bit#(1)) soft_ueip <- mkReg(0);
       Reg#(Bit#(1)) ext_ueip <- mkReg(0);
       Reg#(Bit#(1)) rg_ueip = extInterruptReg(soft_ueip, ext_ueip); 
+      Reg#(Bit#(1)) rg_utip <- mkReg(0);
+      Reg#(Bit#(1)) rg_usip <- mkReg(0);
     `else
       Bit#(1) rg_ueip = 0;
+      Bit#(1) rg_utip = 0;
+      Bit#(1) rg_usip = 0;
     `endif
     Reg#(Bit#(1)) rg_mtip <- mkReg(0);
     Bit#(1) htip = 0;
@@ -269,7 +273,6 @@ package csrfile;
     `else
       Bit#(1) stip = 0;
     `endif
-      Reg#(Bit#(1)) rg_utip <- mkReg(0);
 	  Reg#(Bit#(1)) rg_msip <- mkReg(0);
     Bit#(1) hsip = 0;
     `ifdef supervisor
@@ -277,7 +280,6 @@ package csrfile;
     `else
       Bit#(1) ssip = 0;
     `endif
-      Reg#(Bit#(1)) rg_usip <- mkReg(0);
 
     `ifdef RV64
 	  	Reg#(Bit#(XLEN)) mcycle <- mkReg(0);
@@ -369,8 +371,8 @@ package csrfile;
     Reg#(Bit#(2)) rg_cachecontrol <- mkReg({lv_denable,lv_ienable}); 
   `endif
     
-    Bit#(12) csr_mip= {rg_meip, heip, seip, rg_ueip, rg_mtip, htie, stie, rg_utip, rg_msip,
-                          hsip, ssip, rg_usip};
+    Bit#(12) csr_mip= {rg_meip, heip, misa_s&seip, misa_n&rg_ueip, rg_mtip, htie, misa_s&stie, 
+                       misa_n&rg_utip, misa_s&rg_msip, hsip, misa_s&ssip, misa_n&rg_usip};
     Bit#(12) csr_mie= {rg_meie, heie, seie, rg_ueie, rg_mtie, htie, stie, rg_utie, rg_msie,
                           hsie, ssie, rg_usie};
     rule increment_cycle_counter;
@@ -419,8 +421,8 @@ package csrfile;
 	`endif
         if (addr == `MIE ) data= {'d0, rg_meie, heie, seie, misa_n&rg_ueie, rg_mtie, htie, stie,
                                               misa_n&rg_utie, rg_msie, hsie, ssie, misa_n&rg_usie};
-        if (addr == `MIP ) data= {'d0, rg_meip, heip, seip, misa_n&rg_ueip, rg_mtip, htie, stie,
-                          misa_n&rg_utip, rg_msip, hsip, ssip, misa_n&rg_usip};
+        if (addr == `MIP ) data= {'d0, rg_meip, heip, misa_s&seip, misa_n&rg_ueip, rg_mtip, htie, stie,
+                          misa_n&rg_utip, rg_msip, hsip, misa_s&ssip, misa_n&rg_usip};
         if (addr == `MCYCLE ) data= mcycle;
         if (addr == `MINSTRET ) data= minstret;
         `ifndef RV64
@@ -446,8 +448,8 @@ package csrfile;
               data= {'d0, sd, 11'd0, mxr, sum, 1'd0, xs, fs, 2'd0, hpp, spp, rg_mpie,
                       hpie, spie, rg_upie, 1'd0, hie, sie, rg_uie};
           if (addr == `STVEC ) begin data = signExtend({rg_stvec, rg_smode}); end
-          if (addr == `SIP ) data = {'d0, seip, misa_n&rg_ueip, 2'd0, stip, misa_n&rg_utip, 2'd0, ssip,
-                                                                                      misa_n&rg_usip};
+          if (addr == `SIP ) data = {'d0, misa_s&seip, misa_n&rg_ueip, 2'd0, stip&misa_s,
+                                      misa_n&rg_utip, 2'd0, misa_s&ssip,misa_n&rg_usip};
           if (addr == `SIE ) data = {'d0, seie, misa_n&rg_ueie, 2'd0, stie, misa_n&rg_utie, 2'd0, ssie,
                                                                                       misa_n&rg_usie};
           if (addr == `SSCRATCH ) data = sscratch;
@@ -473,8 +475,9 @@ package csrfile;
         `ifdef usertraps
           if (addr == `UIE) data= {'d0, rg_meie, heie, seie, rg_mideleg[8]&rg_ueie, rg_mtie, htie, 
                          stie, rg_mideleg[4]&rg_utie, rg_msie, hsie, ssie, rg_mideleg[0]&rg_usie}; 
-          if (addr == `UIP) data= {'d0, rg_meip, heip, seip, rg_mideleg[8]&rg_ueip, rg_mtip, htie, 
-                         stie, rg_mideleg[4]&rg_utip, rg_msip, hsip, ssip, rg_mideleg[0]&rg_usip};
+          if (addr == `UIP) data= {'d0, rg_meip, heip, misa_s&seip, rg_mideleg[8]&rg_ueip&misa_n, rg_mtip, htie, 
+                         stie, rg_mideleg[4]&rg_utip&misa_n, rg_msip, hsip, misa_s&ssip,
+                         rg_mideleg[0]&rg_usip&misa_n};
         `endif
         if (addr == `UCYCLE ) data= mcycle;
         if (addr == `UINSTRET ) data= minstret;
@@ -573,15 +576,19 @@ package csrfile;
           `endif
         end
         `MIP: begin
-            rg_usip<= word[0];
-            rg_utip<= word[4];
           `ifdef usertraps
-            soft_ueip<= word[8];
+            if(misa_n==1)begin
+              rg_usip<= word[0];
+              rg_utip<= word[4];
+              soft_ueip<= word[8];
+            end
           `endif
           `ifdef supervisor
+          if(misa_s==1)begin
             ssip<= word[1];
             stip<= word[5];
             soft_seip<= word[9];
+          end
           `endif
         end
         `MCYCLE: begin
@@ -647,11 +654,14 @@ package csrfile;
               end
           `endif
           `SIP: begin
+            if(misa_n==1)begin
             `ifdef usertraps
               rg_usip<= word[0];
               soft_ueip<= word[8];
             `endif
+            end
             `ifdef supervisor
+            if(misa_s==1)
               ssip<= word[1];
             `endif
           end
@@ -701,8 +711,10 @@ package csrfile;
             rg_ueie<= word[8];
           end
           `UIP: begin
+            if(misa_n)begin
               rg_usip<= word[0];
-              rg_utip<= word[4];
+              soft_ueip<= word[8];
+            end
           end
           `UTVEC: begin 
             rg_utvec<= word[paddr- 1:2]; 
