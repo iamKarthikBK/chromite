@@ -889,7 +889,8 @@ package csrfile;
       endmethod
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
-	  	if(rg_prv == Machine) begin
+  // TODO. seip and ueip can be updated by the PLIC. This is creating schedule conflicts
+	  	if(rg_prv == Machine) begin 
 	  		rg_meip <= pack(ex_i);
 	  	end
       `ifdef supervisor
