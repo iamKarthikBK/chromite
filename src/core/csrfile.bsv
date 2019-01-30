@@ -576,12 +576,12 @@ package csrfile;
             rg_usip<= word[0];
             rg_utip<= word[4];
           `ifdef usertraps
-            rg_ueip<= word[8];
+            soft_ueip<= word[8];
           `endif
           `ifdef supervisor
             ssip<= word[1];
             stip<= word[5];
-            seip<= word[9];
+            soft_seip<= word[9];
           `endif
         end
         `MCYCLE: begin
@@ -649,7 +649,7 @@ package csrfile;
           `SIP: begin
             `ifdef usertraps
               rg_usip<= word[0];
-              rg_ueip<= word[8];
+              soft_ueip<= word[8];
             `endif
             `ifdef supervisor
               ssip<= word[1];
@@ -893,16 +893,16 @@ package csrfile;
 	  	if(rg_prv == Machine) begin 
 	  		rg_meip <= pack(ex_i);
 	  	end
-      `ifdef supervisor
-  	  	else if(rg_prv == Supervisor) begin
-	    		ext_seip <= pack(ex_i);
-	    	end
-      `endif
-      `ifdef usertraps
-  	  	else if(rg_prv == User) begin
-	    		ext_ueip <= pack(ex_i);
-	    	end
-      `endif
+    `ifdef supervisor
+  		else if(rg_prv == Supervisor) begin
+	  		ext_seip <= pack(ex_i);
+	  	end
+    `endif
+    `ifdef usertraps
+  		else if(rg_prv == User) begin
+	  		ext_ueip <= pack(ex_i);
+	  	end
+    `endif
 	  endmethod
     method csr_misa_c=misa_c;
     method curr_priv=pack(rg_prv);

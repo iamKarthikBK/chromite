@@ -68,6 +68,8 @@ package csr;
 
   (*synthesize*)
   (*mutually_exclusive="system_instruction, take_trap"*)
+  (*conflict_free="system_instruction,set_external_interrupt"*)
+  (*conflict_free="take_trap,set_external_interrupt"*)
   module mkcsr(Ifc_csr);
     let verbosity=`VERBOSITY ;
   
