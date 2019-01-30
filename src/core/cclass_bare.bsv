@@ -89,11 +89,11 @@ package cclass_bare;
   `ifdef dcache
     `ifdef icache
       (*preempts="handle_dmem_nc_request,handle_imem_nc_request"*)
-      (*preempts="ptwalk_to_mem,handle_dmem_nc_request"*)
     `endif
   `endif
   `ifdef supervisor
     (*preempts="dtlb_req_to_ptwalk,itlb_req_to_ptwalk"*)
+    (*preempts="ptwalk_request_to_dcache,core_req_to_dmem"*)
   `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
     let vaddr = valueOf(`vaddr);
@@ -203,7 +203,12 @@ package cclass_bare;
 
   `ifdef dcache
     let dmem <- mkdmem;
-	  mkConnection(riscv.memory_request, dmem.core_req); //dmem integration
+//	  mkConnection(riscv.memory_request, dmem.core_req); //dmem integration
+    rule core_req_to_dmem;
+      $display($time,"\tCORE: Core requesting to DMEM");
+      let req<-riscv.memory_request.get;
+      dmem.core_req.put(req);
+    endrule
 	  mkConnection(dmem.core_resp, riscv.memory_response); // dmem integration
   `ifdef supervisor
     rule dtlb_csr_info;
@@ -413,6 +418,12 @@ package cclass_bare;
       ptwalk.from_tlb.put(req);
       rg_ptw_state<=IWalk;
     endrule
+    
+    rule dtlb_req_to_ptwalk(rg_ptw_state==None);
+      let req<-dmem.req_to_ptw.get();
+      ptwalk.from_tlb.put(req);
+      rg_ptw_state<=DWalk;
+    endrule
 
     rule ptwalk_resp_to_itlb(rg_ptw_state==IWalk);
       let resp<-ptwalk.to_tlb.get();
@@ -420,34 +431,23 @@ package cclass_bare;
       rg_ptw_state<=None;
     endrule
 
-    rule dtlb_req_to_ptwalk(rg_ptw_state==None);
-      let req<-dmem.req_to_ptw.get();
-      ptwalk.from_tlb.put(req);
-      rg_ptw_state<=DWalk;
-    endrule
-
     rule ptwalk_resp_to_dtlb(rg_ptw_state==DWalk);
       let resp<-ptwalk.to_tlb.get();
       dmem.resp_from_ptw.put(resp);
       rg_ptw_state<=None;
     endrule
+    rule ptwalk_request_to_dcache;
+	  	let req <- ptwalk.request_to_cache.get;
+      `ifdef atomic
+        let {va, sfence, epoch, access, size, data, atomicop,core_ptw} =req;
+        dmem.core_req.put(tuple2(tuple8(va,False,sfence,epoch,access,size,data,atomicop),core_ptw));
+      `else
+        let {va, sfence, epoch, access, size, data, core_ptw} =req;
+        dmem.core_req.put(tuple2(tuple4(va,False,sfence,epoch,access,size,data),core_ptw));
+      `endif
+    endrule
+    mkConnection(dmem.ptw_resp,ptwalk.response_frm_cache);
     
-    rule ptwalk_to_mem;
-	  	let addr <- ptwalk.request_to_cache.get;
-	  	AXI4_Rd_Addr#(`paddr, 0) ptwalk_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
-        arlen: 0, arsize: 3, arburst: 'b01, arid:3 }; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    io_xactor.i_rd_addr.enq(ptwalk_request);
-	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: PTW IO-Read Requesting ", fshow(ptwalk_request));
-	  endrule
-
-    rule memory_response_to_ptwalk(wr_io_read_response.rid==3);
-	  	Bool bus_error = !(wr_io_read_response.rresp==AXI4_OKAY);
-      ptwalk.response_frm_cache.put(tuple2(truncate(wr_io_read_response.rdata), pack(bus_error)));
-	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: PTW IO Response to PTWALK: ", fshow(wr_io_read_response));
-	  endrule
-
   `endif
 
     interface sb_clint_msip = interface Put

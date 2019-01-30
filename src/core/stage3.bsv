@@ -115,7 +115,7 @@ package stage3;
 	  method Maybe#(Bit#(`vaddr)) ras_push;
   `endif
   `ifdef dcache
-		interface Get#(DMem_request#(`vaddr,ELEN,1)) memory_request;
+		interface Get#(Tuple2#(DMem_request#(`vaddr ,ELEN,1),Bool)) memory_request;
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
   `else 
@@ -168,7 +168,7 @@ package stage3;
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
     Reg#(Bit#(`vaddr)) wr_redirect_pc <- mkDWire(0);
   `ifdef dcache
-    Wire#(DMem_request#(`vaddr, ELEN, 1)) wr_memory_request <- mkWire;
+    Wire#(Tuple2#(DMem_request#(`vaddr, ELEN, 1),Bool)) wr_memory_request <- mkWire;
     Wire#(Bool) wr_cache_avail <- mkWire;
   `else 
 		FIFOF#(MemoryReadReq#(`vaddr,1)) ff_memory_read_request <-mkBypassFIFOF;
@@ -350,19 +350,19 @@ package stage3;
             if(cmtype==MEMORY)begin
           `ifdef supervisor
             `ifdef atomic
-              wr_memory_request<=(tuple8(addr,memaccess==FenceI||memaccess==Fence,memaccess==SFence,
-                                      epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn}));
+              wr_memory_request<=tuple2((tuple8(addr,memaccess==FenceI||memaccess==Fence,memaccess==SFence,
+                    epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn})),False);
             `else
-              wr_memory_request<=(tuple7(addr,memaccess==FenceI||memaccess==Fence,memaccess==SFence,
-                                                 epochs[0],truncate(pack(memaccess)),funct3,rs2));
+              wr_memory_request<=tuple2((tuple7(addr,memaccess==FenceI||memaccess==Fence,memaccess==SFence,
+                                        epochs[0],truncate(pack(memaccess)),funct3,rs2)),False);
             `endif
           `else
             `ifdef atomic
-              wr_memory_request<= (tuple7(addr,memaccess==FenceI || memaccess==Fence,
-                                      epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn}));
+              wr_memory_request<= tuple2((tuple7(addr,memaccess==FenceI || memaccess==Fence,
+                            epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn})),False);
             `else
-              wr_memory_request<= (tuple6(addr,memaccess==FenceI || memaccess==Fence,
-                                                 epochs[0],truncate(pack(memaccess)),funct3,rs2));
+              wr_memory_request<= tuple2((tuple6(addr,memaccess==FenceI || memaccess==Fence,
+                                       epochs[0],truncate(pack(memaccess)),funct3,rs2)),False);
             `endif
           `endif
             end
@@ -505,7 +505,7 @@ package stage3;
       wr_cache_avail<= avail;
     endmethod
     interface memory_request = interface Get
-      method ActionValue#(DMem_request#(`vaddr, ELEN ,1)) get;
+      method ActionValue#(Tuple2#(DMem_request#(`vaddr, ELEN ,1),Bool)) get;
         return wr_memory_request;
       endmethod
     endinterface;

@@ -45,7 +45,7 @@ package riscv;
   	interface Get#(ICore_request#( `vaddr, 3)) inst_request;
     interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
   `ifdef dcache
-		interface Get#(DMem_request#(`vaddr,ELEN,1)) memory_request;
+		interface Get#(Tuple2#(DMem_request#(`vaddr ,ELEN,1),Bool)) memory_request;
   `else 
 		interface Get#(MemoryReadReq#(`vaddr,1)) memory_read_request;
   `endif
