@@ -42,91 +42,182 @@ package decoder;
   import common_types::*;
   import BUtils::*;
   `include "common_params.bsv"
-	  
-  (*noinline*)
-  function Bool address_valid(Bit#(12) csr_address);
-		case(csr_address[11:8])
-      `ifdef user
-        'h0: begin
-          if(csr_address[7:0]>'h00 && csr_address[7:0]<'h4)begin 
-            `ifndef spfpu 
-              return False;
-            `else
-              return True;
+
+  function Bool address_valid(Bit#(12) addr, Bit#(26) misa);
+    Bool valid=False;
+    case(addr[9:8])
+      // user level CSRS
+      'b00: case(addr[11:10]) 
+              'b00: case (addr[7:0])
+                `ifdef user
+                  // User Trap setup and user trap handling registers
+                  'h0, 'h4, 'h5, 'h40, 'h41, 'h42, 'h43, 'h44: valid=unpack(misa[13]&misa[20]);
+                `endif
+                `ifdef spfpu
+                  // user floating point csrs
+                  'h1, 'h2, 'h3: valid=True;
+                `endif
+              endcase
+              // User Counters/Timers
+            `ifdef user
+              'b11: case(addr[7:5])
+                  'b000: valid=True;
+                `ifdef RV32
+                  'b100: valid=True;
+                `endif
+              endcase
             `endif
-          end
-          else if (csr_address[7:0]=='h00 || csr_address[7:0]=='h4 || csr_address[7:0]=='h5 ||
-          (csr_address[7:0]>='h40 && csr_address[7:0]<= 'h44)) begin
-            `ifndef usertraps  
-              return False;
-            `else
-              return True;
+            `ifdef cache_control
+              'b10: valid=(addr[7:0]==0);
             `endif
-          end
-          else
-            return False;
-        end
-      `endif
-      `ifdef supervisor
-        'h1: begin
-          if((csr_address[7:0]>'h6 && csr_address[7:0]<'h40) ||
-             (csr_address[7:0]>'h44 && csr_address[7:0]<'h80) ||
-             (csr_address[7:0]>'h80))
-            return False;
-          else
-            return True;
-        end
-      `endif
-			'h3: begin // machine read-write registers
-				if((csr_address[7:0]>'h6 && csr_address[7:0]<=('h22+ `Counters)) || 
-				  (csr_address[7:0]>('h23+ `Counters) && csr_address[7:0]<'h40) ||
-				  (csr_address[7:0]>'h44 && csr_address[7:0]<='hA0) ||
-				  (csr_address[7:0]>'hA3 && csr_address[7:0]<'hB8) ||
-				  (csr_address[7:0]>'hbf))
-					return False;
-				else
-					return True;
-			end
-      `ifdef Debug
-        'h7:begin
-          if(csr_address[7:0]<'hA0 || (csr_address[7:0]>'hA3 && csr_address[7:0]<'hb0) ||
-              csr_address[7:0]>'hB2)
-            return False;
-          else
-            return True;
-        end
-      `endif
-    `ifdef cache_control
-      'h8: begin
-        if(csr_address[7:0]!=0)
-          return False;
-        else
-          return True;
-      end
+            endcase
+      // supervisor level CSRS
+    `ifdef supervisor
+      'b01: case(addr[11:10])
+              'b00: case(addr[7:4])
+                // supervisor trap setup
+                'h0:case(addr[3:0])
+                  'h0, 'h1, 'h4, 'h5, 'h6: valid=unpack(misa[18]);
+                `ifdef usertraps
+                  'h2, 'h3: valid=unpack(misa[13]&misa[20]);
+                `endif
+                endcase
+                // supervisor trap handling.
+                'h4: case(addr[3:0]) 
+                  'h0, 'h1, 'h2, 'h3, 'h4: valid=unpack(misa[18]);
+                endcase
+                // supervisor protection and translation
+                'h8: if(addr[3:0]==0) valid=unpack(misa[18]);
+              endcase
+            endcase
     `endif
-			'hB:begin
-				if( (csr_address[7:0]>('h2+ `Counters) `ifndef RV64 && csr_address[7:0]<'h80) ||
-             csr_address[7:0]>('h82+ `Counters)) `else )) `endif 
-					return False; 
-				else
-					return True;
-			end
-			'hC:begin
-				if( (csr_address[7:0]>('h2+ `Counters) `ifndef RV64 && csr_address[7:0]<'h80) ||
-             csr_address[7:0]>('h82+ `Counters)) `else )) `endif 
-					return False; 
-				else
-					return True;
-			end
-			'hF:begin // MAchine MRO registers
-				if(csr_address[7:0]<'h11 || csr_address[7:0]>'h14)
-					return False;
-				else
-					return True;
-			end
-			default:return False;
-		endcase
-	endfunction
+    // machine level CSRS
+    'b11: case(addr[11:10]) 
+            // machine info registers
+            'b11: if(addr[7:4]==1)
+                    case(addr[3:0])
+                      'h1, 'h2, 'h3, 'h4: valid=True;
+                    endcase
+            'b00: case(addr[7:4])
+                    // Machine Trap Setup
+                  'h0:case(addr[3:0]) 
+                        'h0, 'h1, 'h4, 'h5, 'h6: valid=True;
+                      `ifdef non_m_traps
+                        'h2, 'h3: if( ((misa[13]&misa[20])==1) || misa[18]==1) valid=True;
+                      `endif
+                      endcase
+                  // Machine counter Setup
+                  'h2: if(addr[3:0]>2) valid=True;
+                  'h3: valid=True;
+                    // Machine Trap Handling
+                  'h4:case(addr[3:0])
+                        'h0, 'h1, 'h2, 'h3, 'h4: valid=True;
+                      endcase
+                    // Maching Protection and Translation
+                  'hA:case(addr[3:0])
+                        'h0, 'h2 `ifdef RV32 ,'h1,'h3 `endif : valid=True;
+                      endcase
+                    // PMP ADDR registers
+                  'hB: if((`PMPSIZE!=0 ) && addr[3:0]<=fromInteger(valueOf(TSub#(`PMPSIZE,1) ))) valid=True;
+                  endcase
+              // Machine Counter/Timers
+           'b10: `ifdef RV32 if(addr[6:5]==0) `else if(addr[7:5]==0) `endif valid=True;
+              // Debug Trace
+          `ifdef debug
+            'b01: case(addr[7:4]) 
+                    'hA: if(addr[3:0]<4) valid=True;
+                    'hB: if(addr[3:0]<3) valid=True;
+                  endcase
+          `endif
+          endcase
+    endcase
+    return valid;
+  endfunction
+	  
+//  (*noinline*)
+//  function Bool address_valid(Bit#(12) csr_address);
+//		case(csr_address[11:8])
+//      `ifdef user
+//        'h0: begin
+//          if(csr_address[7:0]>'h00 && csr_address[7:0]<'h4)begin 
+//            `ifndef spfpu 
+//              return False;
+//            `else
+//              return True;
+//            `endif
+//          end
+//          else if (csr_address[7:0]=='h00 || csr_address[7:0]=='h4 || csr_address[7:0]=='h5 ||
+//          (csr_address[7:0]>='h40 && csr_address[7:0]<= 'h44)) begin
+//            `ifndef usertraps  
+//              return False;
+//            `else
+//              return True;
+//            `endif
+//          end
+//          else
+//            return False;
+//        end
+//      `endif
+//      `ifdef supervisor
+//        'h1: begin
+//          if((csr_address[7:0]>'h6 && csr_address[7:0]<'h40) ||
+//             (csr_address[7:0]>'h44 && csr_address[7:0]<'h80) ||
+//             (csr_address[7:0]>'h80))
+//            return False;
+//          else
+//            return True;
+//        end
+//      `endif
+//			'h3: begin // machine read-write registers
+//				if((csr_address[7:0]>'h6 && csr_address[7:0]<=('h22+ `Counters)) || 
+//				  (csr_address[7:0]>('h23+ `Counters) && csr_address[7:0]<'h40) ||
+//				  (csr_address[7:0]>'h44 && csr_address[7:0]<='hA0) ||
+//				  (csr_address[7:0]>'hA3 && csr_address[7:0]<'hB8) ||
+//				  (csr_address[7:0]>'hbf))
+//					return False;
+//				else
+//					return True;
+//			end
+//      `ifdef Debug
+//        'h7:begin
+//          if(csr_address[7:0]<'hA0 || (csr_address[7:0]>'hA3 && csr_address[7:0]<'hb0) ||
+//              csr_address[7:0]>'hB2)
+//            return False;
+//          else
+//            return True;
+//        end
+//      `endif
+//    `ifdef cache_control
+//      'h8: begin
+//        if(csr_address[7:0]!=0)
+//          return False;
+//        else
+//          return True;
+//      end
+//    `endif
+//			'hB:begin
+//				if( (csr_address[7:0]>('h2+ `Counters) `ifndef RV64 && csr_address[7:0]<'h80) ||
+//             csr_address[7:0]>('h82+ `Counters)) `else )) `endif 
+//					return False; 
+//				else
+//					return True;
+//			end
+//			'hC:begin
+//				if( (csr_address[7:0]>('h2+ `Counters) `ifndef RV64 && csr_address[7:0]<'h80) ||
+//             csr_address[7:0]>('h82+ `Counters)) `else )) `endif 
+//					return False; 
+//				else
+//					return True;
+//			end
+//			'hF:begin // MAchine MRO registers
+//				if(csr_address[7:0]<'h11 || csr_address[7:0]>'h14)
+//					return False;
+//				else
+//					return True;
+//			end
+//			default:return False;
+//		endcase
+//	endfunction
 	
   (*noinline*)
   function Bool hasCSRPermission(Bit#(12) address, Bool write,  Privilege_mode prv);
@@ -644,7 +735,8 @@ package decoder;
   Bool validStore = `ifdef RV32 funct3<3 `else funct3<4 `endif ;
   Bool validFStore = (misa[5]==1 && fs!=0 && funct3==2) `ifdef dpfpu || (misa[3]==1 && fs!=0 && funct3==3) `endif ;
   Bool validAtomicOp = case(inst[31:27])
-      'd0, 'd1, 'd2, 'd3, 'd4, 'd8, 'd12, 'd16, 'd20, 'd24, 'd28: True;
+      'd0, 'd1, 'd3, 'd4, 'd8, 'd12, 'd16, 'd20, 'd24, 'd28: True;
+      'd2: if (inst[24:20]==0) True; else False;
       default: False;
     endcase;
   Bool validAtomic = (misa[0]==1 && (funct3==2 `ifdef RV64 || funct3==3 `endif ) && validAtomicOp);
@@ -680,7 +772,7 @@ package decoder;
 `else 
   Bool validFloatOpD=False;
 `endif
-	Bool address_is_valid=address_valid(inst[31:20]);
+	Bool address_is_valid=address_valid(inst[31:20],misa);
 	Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], prv);
   Instruction_type inst_type = TRAP;
   case (opcode[4:3])
