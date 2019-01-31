@@ -457,41 +457,38 @@ package csrfile;
           if (addr == `SCAUSE ) data= {sinterrupt, 'd0, scause};
           if (addr == `STVAL ) data= signExtend(stval);//?
           if (addr == `SATP ) data = {satp_mode,'d0,satp_asid,satp_ppn};
-          `ifdef usertraps
-            if (addr == `SIDELEG ) data= {'d0, sideleg};
-            if (addr == `SEDELEG ) data= {'d0, sedeleg};
-          `endif
+        `ifdef usertraps
+          if (addr == `SIDELEG ) data= {'d0, sideleg};
+          if (addr == `SEDELEG ) data= {'d0, sedeleg};
+        `endif
         `endif
         // =============== User level CSRs ================//
-        if (addr == `USTATUS )
+        `ifdef usertraps
+          if (addr == `USTATUS )
           `ifdef RV64
-            if(uxl==2)
-              data= {sd, 27'd0, 2'd0, uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
+            data= {sd, 27'd0, 2'd0, uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
                     hpp, spp, rg_mpie, hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
-            else if(uxl==1)
-          `endif
+          `else
             data= {'d0, sd, 8'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp, hpp, spp, rg_mpie,
                     hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
-        `ifdef usertraps
+          `endif
           if (addr == `UIE) data= {'d0, rg_meie, heie, seie, rg_mideleg[8]&rg_ueie, rg_mtie, htie, 
                          stie, rg_mideleg[4]&rg_utie, rg_msie, hsie, ssie, rg_mideleg[0]&rg_usie}; 
+          if (addr == `UTVEC ) data= {'d0, rg_utvec, rg_umode};
+          if (addr == `USCRATCH ) data= rg_uscratch;
+          if (addr == `UEPC ) data= signExtend({rg_uepc,1'b0});
+          if (addr == `UTVAL ) data= signExtend(rg_utval);
+          if (addr == `UCAUSE ) data= {rg_uinterrupt, 'd0, rg_ucause};
           if (addr == `UIP) data= {'d0, rg_meip, heip, misa_s&seip, rg_mideleg[8]&rg_ueip&misa_n, rg_mtip, htie, 
                          stie, rg_mideleg[4]&rg_utip&misa_n, rg_msip, hsip, misa_s&ssip,
                          rg_mideleg[0]&rg_usip&misa_n};
         `endif
         if (addr == `UCYCLE ) data= mcycle;
         if (addr == `UINSTRET ) data= minstret;
-        `ifndef RV64
-          if (addr == `UCYCLEH ) data= mcycleh;
-          if (addr == `UINSTRETH ) data= minstreth;
-        `endif
-        `ifdef usertraps
-          if (addr == `UTVEC ) data= {'d0, rg_utvec, rg_umode};
-          if (addr == `UEPC ) data= signExtend({rg_uepc,1'b0});
-          if (addr == `UTVAL ) data= signExtend(rg_utval);
-          if (addr == `UCAUSE ) data= {rg_uinterrupt, 'd0, rg_ucause};
-        `endif
-        if (addr == `USCRATCH ) data= rg_uscratch;
+      `ifndef RV64
+        if (addr == `UCYCLEH ) data= mcycleh;
+        if (addr == `UINSTRETH ) data= minstreth;
+      `endif
         if (addr == `UTIME ) data= truncate(rg_clint_mtime);
         if (addr == `FFLAGS ) data=zeroExtend(fflags);
         if (addr == `FRM ) data=zeroExtend(frm);
