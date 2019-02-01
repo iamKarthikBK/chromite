@@ -78,6 +78,10 @@ package riscv;
 	`ifdef supervisor
 		method Bit#(XLEN) csr_satp;
 	`endif
+  `ifdef pmp
+    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
+    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+  `endif
   endinterface
 
   (*synthesize*)
@@ -399,6 +403,10 @@ package riscv;
 		`ifdef supervisor
 			method csr_satp=stage5.csr_satp;
 		`endif
+  `ifdef pmp
+    method pmp_cfg=stage5.pmp_cfg;
+    method pmp_addr=stage5.pmp_addr;
+  `endif
   endmodule
 
 endpackage

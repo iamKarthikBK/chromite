@@ -39,6 +39,7 @@ package stage5;
   import csr::*;
   import csrfile::*;
   import DReg::*;
+  import Vector::*;
   interface Ifc_stage5;
     interface RXe#(PIPE4) rx_in;
     `ifdef rtldump
@@ -73,6 +74,10 @@ package stage5;
   `endif
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
+  `ifdef pmp
+    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
+    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+  `endif
   endinterface
 
   (*synthesize*)
@@ -392,5 +397,9 @@ package stage5;
   `endif
     method curr_priv = csr.curr_priv;
     method csr_mstatus= csr.csr_mstatus;
+  `ifdef pmp
+    method pmp_cfg=csr.pmp_cfg;
+    method pmp_addr=csr.pmp_addr;
+  `endif
   endmodule
 endpackage

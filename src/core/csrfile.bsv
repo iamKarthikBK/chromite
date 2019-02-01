@@ -36,6 +36,7 @@ package csrfile;
   `include "csr.defines"
   import ConcatReg::*;
   import BUtils::*;
+  import Vector::*;
   interface Ifc_csrfile;
     method ActionValue#(Bit#(XLEN)) read_csr (Bit#(12) addr);
     method Action write_csr(Bit#(12) addr,  Bit#(XLEN) word, Bit#(2) lpc);
@@ -62,6 +63,10 @@ package csrfile;
 		method Action clint_mtime(Bit#(64) c_mtime);
 	  method Action set_external_interrupt(Bit#(1) ex_i);
   // ---------------------------------------------------------------------------------------//
+  `ifdef pmp
+    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
+    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+  `endif
   endinterface
 
   function Reg#(Bit#(a)) extInterruptReg(Reg#(Bit#(a)) r1, Reg#(Bit#(a)) r2);
@@ -363,6 +368,38 @@ package csrfile;
      Reg#(Bit#(5)) fflags <- mkReg(0);
      Reg#(Bit#(3)) frm <- mkReg(0);
 	  //////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////// Physical Memory Protection /////////////////////////////////
+    `ifdef pmp
+      Vector#(`PMPSIZE, Reg#(Bit#(8))) v_pmp_cfg <- replicateM(mkReg(0));
+      Vector#(`PMPSIZE, Reg#(Bit#(`paddr ))) v_pmp_addr <- replicateM(mkReg(0));
+    `ifdef RV64
+      Bit#(XLEN) csr_pmpcfg0=0;
+      Bit#(XLEN) csr_pmpcfg2=0;
+      for(Integer i=0;i<`PMPSIZE ;i=i+1)begin
+        if(i<8)
+          csr_pmpcfg0[i*8+7:i*8]=v_pmp_cfg[i];
+        else 
+          csr_pmpcfg2[(i-8)*8+7:(i-8)*8]=v_pmp_cfg[i];
+      end
+
+   `else RV32
+      Bit#(XLEN) csr_pmpcfg0=0;
+      Bit#(XLEN) csr_pmpcfg1=0;
+      Bit#(XLEN) csr_pmpcfg2=0;
+      Bit#(XLEN) csr_pmpcfg3=0;
+      for(Integer i=0;i<`PMPSIZE ;i=i+1)begin
+        if(i<4)
+          csr_pmpcfg0[i*8+7:i*8]=v_pmp_cfg[i];
+        else if(i<8)
+          csr_pmpcfg1[(i-4)*8+7:(i-4)*8]=v_pmp_cfg[i];
+        else if(i<12)
+          csr_pmpcfg2[(i-8)*8+7:(i-8)*8]=v_pmp_cfg[i];
+        else 
+          csr_pmpcfg2[(i-12)*8+7:(i-12)*8]=v_pmp_cfg[i];
+      end
+    `endif
+    `endif
+	  //////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////// None Standard User RW CSRs /////////////////////////////////
   `ifdef cache_control
     // 0-bit is cache enable for instruction cache
@@ -372,6 +409,7 @@ package csrfile;
     Bit#(1) lv_ienable =fromInteger(valueOf(`icachereset ));
     Reg#(Bit#(2)) rg_cachecontrol <- mkReg({lv_denable,lv_ienable}); 
   `endif
+	  //////////////////////////////////////////////////////////////////////////////////////////
     
     Bit#(12) csr_mip= {rg_meip, heip, misa_s&seip, misa_n&rg_ueip, rg_mtip, htie, misa_s&stie, 
                        misa_n&rg_utip, misa_s&rg_msip, hsip, misa_s&ssip, misa_n&rg_usip};
@@ -445,6 +483,30 @@ package csrfile;
         `ifndef RV64
           if (addr == `MTIMEH ) data= truncateLSB(rg_clint_mtime);
         `endif
+    `ifdef pmp
+        if (addr == `PMPCFG0) data = csr_pmpcfg0;
+        if (addr == `PMPCFG2) data = csr_pmpcfg2;
+      `ifdef RV32
+        if (addr == `PMPCFG1) data = csr_pmpcfg1;
+        if (addr == `PMPCFG3) data = csr_pmpcfg3;
+      `endif
+        if (addr ==`PMPADDR0 && `PMPSIZE >0) data = zeroExtend(v_pmp_addr[0]);
+        if (addr ==`PMPADDR1 && `PMPSIZE >1) data = zeroExtend(v_pmp_addr[1]);
+        if (addr ==`PMPADDR2 && `PMPSIZE >2) data = zeroExtend(v_pmp_addr[2]);
+        if (addr ==`PMPADDR3 && `PMPSIZE >3) data = zeroExtend(v_pmp_addr[3]);
+        if (addr ==`PMPADDR4 && `PMPSIZE >4) data = zeroExtend(v_pmp_addr[4]);
+        if (addr ==`PMPADDR5 && `PMPSIZE >5) data = zeroExtend(v_pmp_addr[5]);
+        if (addr ==`PMPADDR6 && `PMPSIZE >6) data = zeroExtend(v_pmp_addr[6]);
+        if (addr ==`PMPADDR7 && `PMPSIZE >7) data = zeroExtend(v_pmp_addr[7]);
+        if (addr ==`PMPADDR8 && `PMPSIZE >7) data = zeroExtend(v_pmp_addr[8]);
+        if (addr ==`PMPADDR9 && `PMPSIZE >8) data = zeroExtend(v_pmp_addr[9]);
+        if (addr ==`PMPADDR10 && `PMPSIZE >10) data = zeroExtend(v_pmp_addr[11]);
+        if (addr ==`PMPADDR11 && `PMPSIZE >11) data = zeroExtend(v_pmp_addr[12]);
+        if (addr ==`PMPADDR12 && `PMPSIZE >12) data = zeroExtend(v_pmp_addr[13]);
+        if (addr ==`PMPADDR13 && `PMPSIZE >13) data = zeroExtend(v_pmp_addr[14]);
+        if (addr ==`PMPADDR14 && `PMPSIZE >14) data = zeroExtend(v_pmp_addr[15]);
+        if (addr ==`PMPADDR15 && `PMPSIZE >15) data = zeroExtend(v_pmp_addr[16]);
+    `endif
         // =============== Supervisor level CSRs ==========//
         `ifdef supervisor
           if (addr == `SSTATUS )
@@ -621,6 +683,45 @@ package csrfile;
             rg_upie<= word[4];
           end
         `endif
+    `ifdef pmp
+      `ifdef RV64
+        `PMPCFG0: for(Integer i=0;i<`PMPSIZE && i<8 ; i=i+1)
+                    if(v_pmp_cfg[i][7]==0)
+                      v_pmp_cfg[i]<=word[i*8+7:i*8];
+        `PMPCFG2: for(Integer i=8;i<`PMPSIZE && i<16 ; i=i+1)
+                    if(v_pmp_cfg[i][7]==0)
+                      v_pmp_cfg[i]<=word[(i-8)*8+7:(i-8)*8];
+      `else
+        `PMPCFG0: for(Integer i=0;i<`PMPSIZE && i<4 ; i=i+1)
+                    if(v_pmp_cfg[i][7]==0)
+                      v_pmp_cfg[i]<=word[i*8+7:i*8];
+        `PMPCFG1: for(Integer i=4;i<`PMPSIZE && i<8 ; i=i+1)
+                    if(v_pmp_cfg[i][7]==0)
+                      v_pmp_cfg[i]<=word[(i-4)*8+7:(i-4)*8];
+        `PMPCFG2: for(Integer i=8;i<`PMPSIZE && i<12 ; i=i+1)
+                    if(v_pmp_cfg[i][7]==0)
+                      v_pmp_cfg[i]<=word[(i-8)*8+7:(i-8)*8];
+        `PMPCFG3: for(Integer i=12;i<`PMPSIZE && i<16 ; i=i+1)
+                    if(v_pmp_cfg[i][7]==0)
+                      v_pmp_cfg[i]<=word[(i-12)*8+7:(i-12)*8];
+      `endif
+        `PMPADDR0: if(`PMPSIZE > 0 && v_pmp_cfg[0][7]==0) v_pmp_addr[0]<=truncate(word);
+        `PMPADDR1: if(`PMPSIZE > 1 && v_pmp_cfg[1][7]==0) v_pmp_addr[1]<=truncate(word);
+        `PMPADDR2: if(`PMPSIZE > 2 && v_pmp_cfg[2][7]==0) v_pmp_addr[2]<=truncate(word);
+        `PMPADDR3: if(`PMPSIZE > 3 && v_pmp_cfg[3][7]==0) v_pmp_addr[3]<=truncate(word);
+        `PMPADDR4: if(`PMPSIZE > 4 && v_pmp_cfg[4][7]==0) v_pmp_addr[4]<=truncate(word);
+        `PMPADDR5: if(`PMPSIZE > 5 && v_pmp_cfg[5][7]==0) v_pmp_addr[5]<=truncate(word);
+        `PMPADDR6: if(`PMPSIZE > 6 && v_pmp_cfg[6][7]==0) v_pmp_addr[6]<=truncate(word);
+        `PMPADDR7: if(`PMPSIZE > 7 && v_pmp_cfg[7][7]==0) v_pmp_addr[7]<=truncate(word);
+        `PMPADDR8: if(`PMPSIZE > 8 && v_pmp_cfg[8][7]==0) v_pmp_addr[8]<=truncate(word);
+        `PMPADDR9: if(`PMPSIZE > 9 && v_pmp_cfg[9][7]==0) v_pmp_addr[9]<=truncate(word);
+        `PMPADDR10: if(`PMPSIZE > 10 && v_pmp_cfg[10][7]==0) v_pmp_addr[10]<=truncate(word);
+        `PMPADDR11: if(`PMPSIZE > 11 && v_pmp_cfg[11][7]==0) v_pmp_addr[11]<=truncate(word);
+        `PMPADDR12: if(`PMPSIZE > 12 && v_pmp_cfg[12][7]==0) v_pmp_addr[12]<=truncate(word);
+        `PMPADDR13: if(`PMPSIZE > 13 && v_pmp_cfg[13][7]==0) v_pmp_addr[13]<=truncate(word);
+        `PMPADDR14: if(`PMPSIZE > 14 && v_pmp_cfg[14][7]==0) v_pmp_addr[14]<=truncate(word);
+        `PMPADDR15: if(`PMPSIZE > 15 && v_pmp_cfg[15][7]==0) v_pmp_addr[15]<=truncate(word);
+    `endif
         `USCRATCH: rg_uscratch<= word;
         ////////////////////// Supervisor Level Registers /////////////////
         `ifdef supervisor
@@ -964,6 +1065,10 @@ package csrfile;
     endmethod
   `ifdef cache_control
     method mv_cacheenable = rg_cachecontrol;
+  `endif
+  `ifdef pmp
+    method pmp_cfg=readVReg(v_pmp_cfg);
+    method pmp_addr=readVReg(v_pmp_addr);
   `endif
   endmodule
 endpackage

@@ -37,6 +37,7 @@ package csr;
   `include "csr.defines"
   import ConcatReg::*;
   import csrfile::*;
+  import Vector::*;
 
   // package imports 
   import ConfigReg::*;
@@ -63,6 +64,10 @@ package csr;
   `endif
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
+  `ifdef pmp
+    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
+    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+  `endif
   endinterface:Ifc_csr
 
 
@@ -140,5 +145,9 @@ package csr;
   `endif
     method curr_priv = csrfile.curr_priv;
     method csr_mstatus= csrfile.csr_mstatus;
+  `ifdef pmp
+    method pmp_cfg=csrfile.pmp_cfg;
+    method pmp_addr=csrfile.pmp_addr;
+  `endif
   endmodule
 endpackage
