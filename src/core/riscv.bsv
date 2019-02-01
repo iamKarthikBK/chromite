@@ -199,7 +199,7 @@ package riscv;
     endrule
     rule connect_csrs;
       stage2.csrs(stage5.csrs_to_decode);
-      stage1.csrs(stage5.csrs_to_decode);
+      stage1.csr_misa_c(stage5.csr_misa_c);
       stage3.csr_misa_c(stage5.csr_misa_c);
     endrule
     rule clear_stall_in_decode_stage(flush_from_exe != None || flush_from_wb);
