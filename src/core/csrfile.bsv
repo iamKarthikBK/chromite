@@ -239,10 +239,11 @@ package csrfile;
    
    `ifdef non_m_traps
       Reg#(Bit#(12)) rg_mideleg <- mkReg(0);
-      Reg#(Bit#(16)) rg_medeleg <- mkReg(0);
+      Reg#(Bit#(10)) rg_medeleg_l10 <- mkReg(0); // cause 0 -19
+      Reg#(Bit#(2)) rg_medeleg_m2 <- mkReg(0);  // cause 12-13
+      Reg#(Bit#(1)) rg_medeleg_u1 <- mkReg(0);  // cause 15
     `else
       Bit#(12) rg_mideleg = 0;
-      Bit#(16) rg_medeleg = 0;
     `endif
     
 	  // mip fields
@@ -332,11 +333,12 @@ package csrfile;
 
       // SEDELEG and SIDELEG registers
       `ifdef usertraps
-        Reg#(Bit#(12)) sideleg <-mkReg(0);
-        Reg#(Bit#(11)) sedeleg <-mkReg(0);
+        Reg#(Bit#(12)) rg_sideleg <-mkReg(0);
+        Reg#(Bit#(9)) rg_sedeleg_l9 <- mkReg(0); // cause 0 -8
+        Reg#(Bit#(2)) rg_sedeleg_m2 <- mkReg(0);  // cause 12-13
+        Reg#(Bit#(1)) rg_sedeleg_u1 <- mkReg(0);  // cause 15
       `else
-        Bit#(12) sideleg =0;
-        Bit#(11) sedeleg =0;
+        Bit#(12) rg_sideleg =0;
       `endif
     `else
       Bit#(2) sxl = fromInteger(valueOf(TDiv#(XLEN, 32))); 
@@ -375,6 +377,11 @@ package csrfile;
                        misa_n&rg_utip, misa_s&rg_msip, hsip, misa_s&ssip, misa_n&rg_usip};
     Bit#(12) csr_mie= {rg_meie, heie, seie, rg_ueie, rg_mtie, htie, stie, rg_utie, rg_msie,
                           hsie, ssie, rg_usie};
+  `ifdef supervisor
+    Bit#(12) csr_sip = {'d0, misa_s&seip, misa_n&rg_ueip, 2'd0, stip&misa_s, misa_n&rg_utip, 
+                                                                2'd0, misa_s&ssip,misa_n&rg_usip};
+    Bit#(12) csr_sie = {'d0, seie, misa_n&rg_ueie, 2'd0, stie, misa_n&rg_utie, 2'd0, ssie,
+                                                                                  misa_n&rg_usie};
     rule increment_cycle_counter;
 	  	`ifdef RV64
       	mcycle<=mcycle+1;
@@ -417,7 +424,7 @@ package csrfile;
         end
 	`ifdef non_m_traps 
           if (addr == `MIDELEG ) data= {'d0, rg_mideleg};
-          if (addr == `MEDELEG ) data= {'d0, rg_medeleg};
+          if (addr == `MEDELEG ) data= {'d0, rg_medeleg_u1,1'd0,rg_medeleg_m2,2'd0,rg_medeleg_l10};
 	`endif
         if (addr == `MIE ) data= {'d0, rg_meie, heie, seie, misa_n&rg_ueie, rg_mtie, htie, stie,
                                               misa_n&rg_utie, rg_msie, hsie, ssie, misa_n&rg_usie};
@@ -458,8 +465,8 @@ package csrfile;
           if (addr == `STVAL ) data= signExtend(stval);//?
           if (addr == `SATP ) data = {satp_mode,'d0,satp_asid,satp_ppn};
         `ifdef usertraps
-          if (addr == `SIDELEG ) data= {'d0, sideleg};
-          if (addr == `SEDELEG ) data= {'d0, sedeleg};
+          if (addr == `SIDELEG ) data= {'d0, rg_sideleg};
+          if (addr == `SEDELEG ) data= {'d0, rg_sedeleg_u1,1'd0,rg_sedeleg_m2,3'd0,rg_sedeleg_l9}
         `endif
         `endif
         // =============== User level CSRs ================//
@@ -556,7 +563,9 @@ package csrfile;
             rg_mideleg<= truncate(word);
           end
           `MEDELEG: begin
-            rg_medeleg<= truncate(word);
+            rg_medeleg_u1<=word[15];
+            rg_medeleg_m2<=word[13:12];
+            rg_medeleg_l10<=word[9:0];
           end
         `endif
         `MIE: begin
@@ -644,10 +653,12 @@ package csrfile;
           `SEPC: begin word=word>>1;sepc<= truncate(word); end
           `ifdef usertraps
             `SIDELEG: begin
-                sideleg<= truncate(word);
+                rg_sideleg<= truncate(word);
               end
             `SEDELEG: begin
-                sedeleg<= truncate(word);
+              rg_sedeleg_u1<=word[15];
+              rg_sedeleg_m2<=word[13:12];
+              rg_sedeleg_l9<=word[8:0];
               end
           `endif
           `SIP: begin
@@ -733,8 +744,24 @@ package csrfile;
         default: noAction;
       endcase
     endmethod
-    method csrs_to_decode = tuple8(rg_prv, csr_mip, csr_mie, rg_mideleg, misa, rg_mcounteren,
-    rg_mie, {|fs,frm});
+    method csrs_to_decode = CSRtoDecode{
+        prv: rg_prv,
+        csr_mip: csr_mip,
+        csr_mie: csr_mie,
+        csr_mideleg: rg_mideleg,
+        csr_misa: misa,
+      `ifdef RV64
+        csr_mstatus:{sd, 27'd0, sxl, uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
+                      hpp, spp, rg_mpie, hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie},
+      `else
+        csr_mstatus: {'d0, sd, 8'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp, hpp, spp, rg_mpie,
+                    hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie},
+      `endif
+      `ifdef supervisor
+        csr_sip: csr_sip,
+        csr_sie: csr_sie,
+        csr_sideleg: rg_sideleg,
+        frm: frm};
   	method Action clint_msip(Bit#(1) intrpt);
   		rg_msip<=intrpt;
   	endmethod
@@ -793,15 +820,25 @@ package csrfile;
 
       `ifdef non_m_traps
           Privilege_mode prv=Machine;
+          Bit#(16) medeleg = {rg_medeleg_u1,1'd0,rg_medeleg_m2,2'd0,rg_medeleg_l10};
+        `ifdef supervisor
+          `ifdef usertraps
+            Bit#(16) sedeleg = {rg_sedeleg_u1,1'd0,rg_sedeleg_m2,3'd0,rg_sedeleg_l10};
+          `endif
+        `endif
           Bool delegateM=(((rg_mideleg >> cause[4:0]) & 1 & duplicate(cause[5]))==1) ||  
-                                      (((rg_medeleg >> cause[4:0]) & 1 & duplicate(~cause[5]))==1);
+                                      (((medeleg >> cause[4:0]) & 1 & duplicate(~cause[5]))==1);
           `ifdef supervisor
-            Bool delegateS=(((sideleg >> cause[4:0]) & 1 & duplicate(cause[5]))==1) ||  
+            `ifdef usertraps
+              Bool delegateS=(((rg_sideleg >> cause[4:0]) & 1 & duplicate(cause[5]))==1) `ifdef usertraps ||  
                                         (((sedeleg >> cause[4:0]) & 1 & duplicate(~cause[5]))==1);
+            `endif
             if(delegateM && (pack(rg_prv)<=pack(Supervisor)) && misa_s==1)
               prv= Supervisor;
-            else if(delegateM && delegateS && rg_prv==User && misa_n==1)
-              prv= User;
+            `ifdef usertraps
+              else if(delegateM && delegateS && rg_prv==User && misa_n==1)
+                prv= User;
+            `endif
           `elsif usertraps
             if(delegateM && rg_prv==User && misa_n==1)
               prv= User;

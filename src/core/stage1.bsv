@@ -70,7 +70,7 @@ package stage1;
 		method Action update_wEpoch;
 
     // csrs from the csrfile.
-    method Action csrs (CSRtoDecode csr);
+    method Action csr_misa_c (Bit#(1) c);
 
 	endinterface
 
@@ -80,7 +80,7 @@ package stage1;
     let verbosity = `VERBOSITY ;
     
     // this wire carries the current values of certain csrs.
-    Wire#(CSRtoDecode) wr_csr <-mkWire();
+    Wire#(Bit#(1)) wr_csr_misa_c <-mkWire();
     // This register holds the request address to be sent to the cache.
     Reg#(Bit#(`vaddr)) rg_icache_request <- mkReg(`resetpc );
     // This register holds the PC value that needs to be sent to the next stage in the pipe.
@@ -161,7 +161,6 @@ package stage1;
     // rg_instruction. rg_Action in this case will remain CheckPrev so that the upper bits of this
     // repsonse are probed in the next cycle.
     rule process_instruction;
-        let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=wr_csr;
         let {cache_response,err,cause,epoch}=ff_memory_response.first;
         Bit#(32) final_instruction=0;
         Bool compressed=False;
@@ -169,7 +168,7 @@ package stage1;
         // if epochs do not match then drop the instruction
         if(verbosity>2)
           $display($time,"\tSTAGE1: Analyzing Response: ",fshow(ff_memory_response.first), 
-          "rg_action: ",fshow(rg_action), " misa[c]:%b rg_discard:%b",misa[2],rg_discard_lower);
+          "rg_action: ",fshow(rg_action), " misa[c]:%b rg_discard:%b",wr_csr_misa_c,rg_discard_lower);
         if({rg_iEpoch,rg_eEpoch,rg_wEpoch}!=epoch)begin
           ff_memory_response.deq;
           rg_action<=None;
@@ -178,7 +177,7 @@ package stage1;
             $display($time,"\tSTAGE1: Dropping Instruction from Cache. CurrEpoch: %b RespEpoch: %b ",
               {rg_iEpoch,rg_eEpoch,rg_wEpoch},epoch, fshow(ff_memory_response.first));
         end
-        else if(rg_discard_lower && misa[2]==1)begin
+        else if(rg_discard_lower && wr_csr_misa_c==1)begin
           rg_discard_lower<=False;
           ff_memory_response.deq;
           if(cache_response[17:16]==2'b11)begin
@@ -197,7 +196,7 @@ package stage1;
           if(cache_response[1:0]=='b11)begin
             final_instruction=cache_response;
           end
-          else if(misa[2]==1) begin
+          else if(wr_csr_misa_c==1) begin
             compressed=True;
             final_instruction=zeroExtend(cache_response[15:0]);
             rg_instruction<=truncateLSB(cache_response);
@@ -227,7 +226,7 @@ package stage1;
                     `ifdef supervisor
                       ,cause:cause
                     `endif }; 
-        if(compressed  && enque_instruction && misa[2]==1)begin
+        if(compressed  && enque_instruction && wr_csr_misa_c==1)begin
           rg_pc<=rg_pc+2;
         end
         else if(enque_instruction)begin
@@ -329,8 +328,8 @@ package stage1;
     endmethod
     
     // This method captures the csrs from the csrfile
-    method Action csrs (CSRtoDecode csr);
-      wr_csr <= csr;
+    method Action csr_misa_c (Bit#(1) c);
+      wr_csr_misa_c <= c;
     endmethod
   endmodule
 endpackage

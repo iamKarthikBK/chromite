@@ -155,7 +155,6 @@ package stage2;
     Wire#(Bool) wr_flush_from_wb<- mkDWire(False);
 
     rule decode_and_fetch(!rg_stall);
-      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=wr_csrs;
 	    let pc=rxmin.u.first.program_counter;
 	    let inst=rxmin.u.first.instruction;
 	    let epochs=rxmin.u.first.epochs;
@@ -173,9 +172,9 @@ package stage2;
       let {func_cause, instrType, memaccess, imm} = meta;
       Bit#(3) funct3 = truncate(func_cause);
       Bit#(4) fn = truncateLSB(func_cause);
-      let word32 = decode_word32(inst,misa[2]);
+      let word32 = decode_word32(inst,wr_csrs.csr_misa[2]);
     `ifdef spfpu
-      let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
+      let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,wr_csrs.csr_misa[2]);
     `endif
       RFType rf1type = `ifdef spfpu rs1type==FloatingRF?FRF: `endif IRF;
       RFType rf2type = `ifdef spfpu rs2type==FloatingRF?FRF: `endif IRF;

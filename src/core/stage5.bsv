@@ -101,7 +101,7 @@ package stage5;
 
   `ifdef rtldump
     FIFO#(DumpType) dump_ff <- mkLFIFO;
-    let prv=tpl_1(csr.csrs_to_decode);
+    let prv=csr.csrs_to_decode.prv;
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
