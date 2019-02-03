@@ -180,7 +180,7 @@ package decoder;
       `ifdef usertraps  |  (u_enabled?u_interrupts:0) `endif ;
 		// format pendingInterrupt value to return
 		Bool taketrap=unpack(|pending_interrupts);
-    Bit#(6) cause=0;
+    Bit#(5) cause=0;
     if(pending_interrupts[11]==1)
       cause=`Machine_external_int;
     else if(pending_interrupts[3]==1)
@@ -205,7 +205,7 @@ package decoder;
   `endif
 
 
-		return tuple3(cause, taketrap, resume_wfi);
+		return tuple3({1'b1,cause}, taketrap, resume_wfi);
 	endfunction
   
   (*noinline*)
@@ -941,7 +941,7 @@ package decoder;
         t4=False;
       end
       else if(takeinterrupt)begin
-        func_cause={1'b1, icause};
+        func_cause={1'b0,icause};
         x_inst_type=TRAP;
       end
       else if(trap) begin
