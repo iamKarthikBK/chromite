@@ -931,10 +931,10 @@ package csrfile;
                                       (((medeleg >> cause[4:0]) & 1 & duplicate(~cause[5]))==1);
           `ifdef supervisor
             `ifdef usertraps
-              Bool delegateS=(((rg_sideleg >> cause[4:0]) & 1 & duplicate(cause[5]))==1) `ifdef usertraps ||  
+              Bool delegateS=(((rg_sideleg >> cause[4:0]) & 1 & duplicate(cause[5]))==1) ||  
                                         (((sedeleg >> cause[4:0]) & 1 & duplicate(~cause[5]))==1);
             `endif
-            if(delegateM && (pack(rg_prv)<=pack(Supervisor)) && misa_s==1)
+            if(delegateM && (pack(rg_prv)==pack(Supervisor)) && (misa_s==1))
               prv= Supervisor;
             `ifdef usertraps
               else if(delegateM && delegateS && rg_prv==User && misa_n==1)
