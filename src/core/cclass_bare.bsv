@@ -413,6 +413,7 @@ package cclass_bare;
       ptwalk.mstatus_from_csr.put(riscv.csr_mstatus);
     endrule
 
+  `ifdef pmp
     rule connect_pmp_to_imem;
       imem.pmp_cfg(riscv.pmp_cfg);
       imem.pmp_addr(riscv.pmp_addr);
@@ -422,6 +423,7 @@ package cclass_bare;
       dmem.pmp_cfg(riscv.pmp_cfg);
       dmem.pmp_addr(riscv.pmp_addr);
     endrule
+  `endif
 
     rule itlb_req_to_ptwalk(rg_ptw_state==None);
       let req<-imem.req_to_ptw.get();
