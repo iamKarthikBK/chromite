@@ -945,9 +945,11 @@ package csrfile;
               prv= User;
           `endif
           if(verbosity>1)begin
-            $display($time,"\tCSRFILE: Cause: %d, pc: %h, tval: %h", cause[4:0], pc, tval);
+            $display($time,"\tCSRFILE: PC:%h C:%d Cause:%d medeleg:%h delegateM:%b misa_s:%b", pc,c,cause,
+              medeleg,delegateM,misa_s);
             $display($time,"\tCSRFILE:rg_prv: ",fshow(rg_prv)," prv: ", fshow(prv)); 
-            $display($time,"\tCSRFILE: rg_mtvec:%h", rg_mtvec);
+            $display($time,"\tCSRFILE: rg_mtvec:%h rg_mode:%b", rg_mtvec,rg_mode);
+            $display($time,"\tCSRFILE: rg_stvec:%h rg_smode:%b", rg_stvec,rg_smode);
           end
           
         `ifdef supervisor

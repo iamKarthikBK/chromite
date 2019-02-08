@@ -2,11 +2,11 @@ ISA=RV64IMAFDC
 AXI=enable
 BPU=disable
 MUL=asic
-PERF=enable
+PERF=disable
 COREFABRIC=AXI4
 SYNTH=SIM
 VERBOSITY=0
-PREFETCH=enable
+PREFETCH=disable
 DEBUG=disable
 OPENOCD=disable
 USERTRAPS=disable
@@ -55,6 +55,6 @@ DRESET=1
 PIPE=2
 
 #PMP CONFIG
-PMP=enable
-PMPSIZE=16
+PMP=disable
+PMPSIZE=0
 ASIDWIDTH=9
