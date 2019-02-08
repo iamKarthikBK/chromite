@@ -205,7 +205,6 @@ package cclass_bare;
     let dmem <- mkdmem;
 //	  mkConnection(riscv.memory_request, dmem.core_req); //dmem integration
     rule core_req_to_dmem;
-      $display($time,"\tCORE: Core requesting to DMEM");
       let req<-riscv.memory_request.get;
       dmem.core_req.put(req);
     endrule
