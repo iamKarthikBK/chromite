@@ -79,9 +79,6 @@ package stage3;
   import GetPut::*;
   import FIFOF::*;
   import SpecialFIFOs::*;
-`ifdef dcache
-  import cache_types::*;
-`endif
 
   `define DEQRX     \
     rxmin.u.deq;    \
@@ -109,26 +106,20 @@ package stage3;
   `endif
 		interface TXe#(PIPE3) tx_out;
   `ifdef rtldump
-    interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;  
+    interface TXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) tx_inst;  
   `endif
     method Action update_wEpoch;
-    method Tuple2#(Flush_type, Bit#(VADDR)) flush_from_exe;
+    method Tuple2#(Flush_type, Bit#(`vaddr)) flush_from_exe;
   `ifdef bpu
-  	method Maybe#(Training_data#(VADDR)) training_data;
-	  method Maybe#(Bit#(VADDR)) ras_push;
-  `endif
-  `ifdef spfpu
-    method Action roundingmode(Bit#(3) rm);
-  `endif
-  `ifdef supervisor
-    method Tuple2#(Bit#(XLEN), Bit#(XLEN)) sfence_operands;
+  	method Maybe#(Training_data#(`vaddr)) training_data;
+	  method Maybe#(Bit#(`vaddr)) ras_push;
   `endif
   `ifdef dcache
-		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
+		interface Get#(Tuple2#(DMem_request#(`vaddr ,ELEN,1),Bool)) memory_request;
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
   `else 
-		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
+		interface Get#(MemoryReadReq#(`vaddr,1)) memory_read_request;
   `endif
     method Action csr_misa_c (Bit#(1) m);
     (*always_enabled*)
@@ -152,46 +143,40 @@ package stage3;
   `endif
   `ifdef spfpu
     RX#(OpFpu) rxfpu <- mkRX;
-    Wire#(Bit#(3)) wr_roundingmode <- mkWire();
   `endif
   `ifdef bpu
     RX#(Bit#(2)) rxbpu <-mkRX;
-    Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(VADDR))) check_rpc <- mkReg(tuple3(None, 0, 0));
-	  Reg#(Maybe#(Training_data#(VADDR))) wr_training_data <-mkDReg(tagged Invalid);
-	  Wire#(Maybe#(Bit#(VADDR))) wr_ras_push<-mkDWire(tagged Invalid);
+    Reg#(Tuple3#(Flush_type, Bit#(`vaddr), Bit#(`vaddr))) check_rpc <- mkReg(tuple3(None, 0, 0));
+	  Reg#(Maybe#(Training_data#(`vaddr))) wr_training_data <-mkDReg(tagged Invalid);
+	  Wire#(Maybe#(Bit#(`vaddr))) wr_ras_push<-mkDWire(tagged Invalid);
   `endif
 	TX#(PIPE3) tx <-mkTX;							// send to the memory stage;
   `ifdef rtldump
-    TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst<-mkTX;
+    TX#(Tuple2#(Bit#(`vaddr),Bit#(32))) txinst<-mkTX;
   `endif
   `ifndef bpu
-    Reg#(Tuple3#(Flush_type, Bit#(VADDR), Bit#(1))) check_rpc <- mkReg(tuple3(None, 0, 0));
+    Reg#(Tuple3#(Flush_type, Bit#(`vaddr), Bit#(1))) check_rpc <- mkReg(tuple3(None, 0, 0));
   `endif
   `ifdef multicycle
     Ifc_alu alu <- mkalu();
     Reg#(Bool) rg_stall <- mkReg(False);
-  `endif
-  `ifdef supervisor
-    Reg#(Bit#(XLEN)) sfence_rs1 <- mkReg(0);
-    Reg#(Bit#(XLEN)) sfence_rs2 <- mkReg(0);
   `endif
     Ifc_fwding fwding <- mkfwding();
 		Reg#(Bit#(1)) eEpoch <-mkReg(0);
 		Reg#(Bit#(1)) wEpoch <-mkReg(0);
     Reg#(Flush_type) wr_flush_from_exe <- mkDWire(None);
     Wire#(Bool) wr_flush_from_wb <- mkDWire(False);
-    Reg#(Bit#(VADDR)) wr_redirect_pc <- mkDWire(0);
+    Reg#(Bit#(`vaddr)) wr_redirect_pc <- mkDWire(0);
   `ifdef dcache
-//		FIFOF#(DCore_request#(VADDR,ELEN,1)) ff_memory_request <-mkBypassFIFOF;
-    Wire#(DCore_request#(VADDR, ELEN, 1)) wr_memory_request <- mkWire;
+    Wire#(Tuple2#(DMem_request#(`vaddr, ELEN, 1),Bool)) wr_memory_request <- mkWire;
     Wire#(Bool) wr_cache_avail <- mkWire;
   `else 
-		FIFOF#(MemoryReadReq#(VADDR,1)) ff_memory_read_request <-mkBypassFIFOF;
+		FIFOF#(MemoryReadReq#(`vaddr,1)) ff_memory_read_request <-mkBypassFIFOF;
   `endif
     Wire#(Bit#(1)) wr_misa_c<-mkWire();
     Wire#(Bool) wr_storebuffer_empty<-mkWire();
   `ifdef atomic
-    Reg#(Maybe#(Bit#(VADDR))) rg_loadreserved_addr <- mkReg(tagged Invalid);
+    Reg#(Maybe#(Bit#(`vaddr))) rg_loadreserved_addr <- mkReg(tagged Invalid);
   `endif
 
     rule execute_operation ( wr_cache_avail `ifdef multicycle && !rg_stall `endif );
@@ -213,7 +198,7 @@ package stage3;
       RFType rdtype = IRF;
     `endif
   
-      Bit#(VADDR) pc = op3;
+      Bit#(`vaddr) pc = op3;
       if(instrtype!=TRAP)begin
         pc=(instrtype==MEMORY || instrtype==JALR)?truncate(op1):truncate(op3);
       end
@@ -230,8 +215,9 @@ package stage3;
       let rs3_imm=op4;
     `endif
       Bool execute = True;
-      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence `ifdef atomic ||   memaccess==Atomic `endif )  
-                                                    && !wr_storebuffer_empty)
+      if(instrtype==MEMORY && (memaccess == FenceI || memaccess==Fence 
+                              `ifdef atomic ||   memaccess==Atomic `endif 
+                              `ifdef supervisor || memaccess==SFence `endif )  && !wr_storebuffer_empty)
         execute=False; // TODO instead of just store-buffer for loads will need to check if pipe is empty
 
       if(verbosity>0)begin
@@ -242,7 +228,7 @@ package stage3;
       end
       let {redirect_result, redirect_pc, rpc_epoch `ifdef bpu , npc `endif }=check_rpc;
     `ifdef bpu
-      Bit#(VADDR) nextpc=pc+ 4; // TODO this should +2 in case of compressed
+      Bit#(`vaddr) nextpc=pc+ 4; // TODO this should +2 in case of compressed
     `endif
       if(!execute_instruction)begin
         `DEQRX
@@ -283,17 +269,13 @@ package stage3;
 
         if(rs1avail && rs2avail `ifdef spfpu && rs3avail `endif )begin
           Bit#(ELEN) new_op1=rs1;
-          Bit#(VADDR) t3=op3;
+          Bit#(`vaddr) t3=op3;
           // TODO: here we need to exchange op1 (which has been fetched from the prf) and op3 in
           // case of JALR. See if this can be avoided.
           if(instrtype==JALR || instrtype==MEMORY)begin 
             new_op1=op1;
             t3=truncate(rs1);
           end
-          `ifdef supervisor
-            sfence_rs1<=rs1;
-            sfence_rs2<=rs2;
-          `endif
           `ifdef multicycle
             let {done, cmtype, out, addr, cause, redirect} <- alu.get_inputs(fn, new_op1, rs2, t3, 
                 truncate(rs3_imm), instrtype, funct3, memaccess, word32 `ifdef bpu ,pred `endif ,
@@ -366,13 +348,23 @@ package stage3;
           `endif
           `ifdef dcache
             if(cmtype==MEMORY)begin
+          `ifdef supervisor
             `ifdef atomic
-              wr_memory_request<= (tuple7(addr,memaccess==FenceI || memaccess==Fence,
-                                      epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn}));
+              wr_memory_request<=tuple2((tuple8(addr,memaccess==FenceI||memaccess==Fence,memaccess==SFence,
+                    epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn})),False);
             `else
-              wr_memory_request<= (tuple6(addr,memaccess==FenceI || memaccess==Fence,
-                                                 epochs[0],truncate(pack(memaccess)),funct3,rs2));
+              wr_memory_request<=tuple2((tuple7(addr,memaccess==FenceI||memaccess==Fence,memaccess==SFence,
+                                        epochs[0],truncate(pack(memaccess)),funct3,rs2)),False);
             `endif
+          `else
+            `ifdef atomic
+              wr_memory_request<= tuple2((tuple7(addr,memaccess==FenceI || memaccess==Fence,
+                            epochs[0],truncate(pack(memaccess)),funct3,rs2,{funct3[0],fn})),False);
+            `else
+              wr_memory_request<= tuple2((tuple6(addr,memaccess==FenceI || memaccess==Fence,
+                                       epochs[0],truncate(pack(memaccess)),funct3,rs2)),False);
+            `endif
+          `endif
             end
           `else
             if(cmtype==MEMORY && (memaccess==Load `ifdef atomic || memaccess==Atomic `endif ))begin
@@ -463,7 +455,7 @@ package stage3;
     `else
       RFType rdtype = IRF;
     `endif
-      Bit#(VADDR) pc = (instrtype==MEMORY || instrtype==JALR)?truncate(op1):truncate(op3);
+      Bit#(`vaddr) pc = (instrtype==MEMORY || instrtype==JALR)?truncate(op1):truncate(op3);
       let {cmtype, out, addr, cause, redirect} <- alu.delayed_output;
       Bit#(5) fflags=truncate(addr);
       if(verbosity>0)begin
@@ -508,30 +500,22 @@ package stage3;
   	method training_data=wr_training_data;
 	  method ras_push=wr_ras_push;
   `endif
-  `ifdef spfpu
-    method Action roundingmode(Bit#(3) rm);
-      wr_roundingmode<= rm;
-    endmethod
-  `endif
   `ifdef dcache
     method Action cache_is_available(Bool avail);
       wr_cache_avail<= avail;
     endmethod
     interface memory_request = interface Get
-      method ActionValue#(DCore_request#(VADDR,ELEN,1)) get;
+      method ActionValue#(Tuple2#(DMem_request#(`vaddr, ELEN ,1),Bool)) get;
         return wr_memory_request;
       endmethod
     endinterface;
   `else 
 		interface memory_read_request = interface Get 
-			method ActionValue#(MemoryReadReq#(VADDR,1)) get ;
+			method ActionValue#(MemoryReadReq#(`vaddr,1)) get ;
 				ff_memory_read_request.deq;
 				return ff_memory_read_request.first;
 			endmethod
 		endinterface;
-  `endif
-  `ifdef supervisor
-    method sfence_operands= tuple2(sfence_rs1,sfence_rs2);
   `endif
     method Action csr_misa_c (Bit#(1) m);
       wr_misa_c <= m;

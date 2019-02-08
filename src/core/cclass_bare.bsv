@@ -42,10 +42,17 @@ package cclass_bare;
   import common_types:: * ;
   import FIFOF::*;
 `ifdef icache
-  import l1icache::*;
+  import imem::*;
 `endif
 `ifdef dcache
-  import l1dcache::*;
+  import dmem::*;
+`endif
+`ifdef supervisor
+  `ifdef RV64
+    import ptwalk_rv64::*;
+  `else
+    import ptwalk_rv32::*;
+  `endif
 `endif
   `include "common_params.bsv"
 
@@ -57,43 +64,17 @@ package cclass_bare;
 	import Connectable 				:: *;
   import GetPut:: *;
   import BUtils::*;
- 
-  `ifdef cache_control
-    function Bool isIO(Bit#(VADDR) addr, Bool cacheable);
-	    if(!cacheable)
-	  	  return True;
-      else if(addr<'h8000000)
-        return True;
-	    else
-	  	  return False;
-    endfunction
-  `endif
 
-  `ifdef icache
-    (*synthesize*)
-    module mkicache(Ifc_l1icache#(`iwords, `iblocks, `isets, `iways, VADDR, `ifbsize, 3));
-       let ifc();
-	   mkl1icache#(isIO,"PLRU") _temp(ifc);
-	   return (ifc);
-    endmodule
+  `ifdef supervisor
+    typedef enum {None,IWalk,DWalk} PTWState deriving(Bits,Eq,FShow);
   `endif
-
-  `ifdef dcache
-    (*synthesize*)
-    module mkdcache(Ifc_l1dcache#(`dwords, `dblocks, `dsets, `dways ,VADDR, `dfbsize ,2,1));//`dwords, `dblocks, `dsets, `dways, VADDR, `dfbsize, 2, 1));
-       let ifc();
-	   mkl1dcache#(isIO,"PLRU") _temp(ifc);
-	   return (ifc);
-    endmodule
-  `endif
-
 
   typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
   interface Ifc_cclass_axi4;
-		interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_d;
-		interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_i;
+		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_d;
+		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_i;
   `ifdef cache_control
-    interface AXI4_Master_IFC#(PADDR, ELEN, USERSPACE) master_io;
+    interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_io;
   `endif
     interface Put#(Bit#(1)) sb_clint_msip;
     interface Put#(Bit#(1)) sb_clint_mtip;
@@ -107,17 +88,25 @@ package cclass_bare;
   (*synthesize*)
   `ifdef dcache
     `ifdef icache
-      (*preempts="handle_dcache_nc_request,handle_icache_nc_request"*)
+      (*preempts="handle_dmem_nc_request,handle_imem_nc_request"*)
     `endif
   `endif
+  `ifdef supervisor
+    (*preempts="dtlb_req_to_ptwalk,itlb_req_to_ptwalk"*)
+    (*preempts="ptwalk_request_to_dcache,core_req_to_dmem"*)
+  `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
-    let vaddr = valueOf(VADDR);
-    let paddr = valueOf(PADDR);
+    let vaddr = valueOf(`vaddr);
+    let paddr = valueOf(`paddr);
     Ifc_riscv riscv <- mkriscv();
-		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
-		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
+  `ifdef supervisor
+    Ifc_ptwalk_rv64#(9) ptwalk <- mkptwalk_rv64;
+    Reg#(PTWState) rg_ptw_state <- mkReg(None);
+  `endif
+		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
 `ifdef cache_control
-		AXI4_Master_Xactor_IFC #(PADDR, ELEN, USERSPACE) io_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) io_xactor <- mkAXI4_Master_Xactor;
     Wire#(AXI4_Rd_Data#(ELEN,USERSPACE)) wr_io_read_response <- mkWire();
   `ifdef dcache
     Reg#(Bit#(8)) rg_burst_count <- mkReg(0);
@@ -137,67 +126,63 @@ package cclass_bare;
     endrule
   `endif
   `ifdef icache
-	  let icache<-mkicache;
-	  mkConnection(riscv.inst_request, icache.core_req); //icache integration
-	  mkConnection(icache.core_resp, riscv.inst_response); // icache integration
-     
+	  Ifc_imem imem <- mkimem;
+	  mkConnection(riscv.inst_request, imem.core_req); //imem integration
+	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
+
+  `ifdef supervisor
+    rule tlb_csr_info;
+      imem.satp_from_csr.put(riscv.csr_satp);
+      imem.curr_priv.put(riscv.curr_priv);
+    endrule
+  `endif
     rule drive_constants;
-		  icache.cache_enable(unpack(riscv.mv_cacheenable[0]));
+		  imem.cache_enable(unpack(riscv.mv_cacheenable[0]));
     endrule
 
-	  rule handle_icache_line_request;
-	  	let {inst_addr, burst_len, burst_size} <- icache.read_mem_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          inst_addr=0;
-      end
-	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+	  rule handle_imem_line_request;
+	  	let {inst_addr, burst_len, burst_size} <- imem.read_mem_req.get;
+	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
         arlen: burst_len , arsize: 2, arburst: 'b10, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    fetch_xactor.i_rd_addr.enq(icache_request);
+	    fetch_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: ICACHE Line Requesting ", fshow(icache_request));
+	  	  $display($time, "\tCORE: IMEM Line Requesting ", fshow(imem_request));
 	  endrule
 
-	  rule handle_icache_line_resp;
+	  rule handle_imem_line_resp;
 	    let fab_resp <- pop_o (fetch_xactor.o_rd_data);
 	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
-      icache.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
+      imem.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: ICACHE Line Response ", fshow(fab_resp));
+	  	  $display($time, "\tCORE: IMEM Line Response ", fshow(fab_resp));
 	  endrule
 	  
-    rule handle_icache_nc_request;
-	  	let {inst_addr, burst_len, burst_size} <- icache.nc_read_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          inst_addr=0;
-      end
-	  	AXI4_Rd_Addr#(PADDR, 0) icache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
-        arlen: burst_len , arsize: 2, arburst: 'b10, arid:1 }; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    io_xactor.i_rd_addr.enq(icache_request);
+    rule handle_imem_nc_request;
+	  	let {inst_addr, burst_len, burst_size} <- imem.nc_read_req.get;
+	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+        arlen: 0, arsize: 2, arburst: 'b01, arid:1 }; // arburst: 00-FIXED 01-INCR 10-WRAP
+	    io_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: Icache IO Requesting ", fshow(icache_request));
+	  	  $display($time, "\tCORE: IMEM IO Requesting ", fshow(imem_request));
 	  endrule
 
-    rule handle_icache_nc_read_response(wr_io_read_response.rid==1);
+    rule handle_imem_nc_read_response(wr_io_read_response.rid==1);
 	  	Bool bus_error = !(wr_io_read_response.rresp==AXI4_OKAY);
-      icache.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
+      imem.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: ICACHE IO Response ", fshow(wr_io_read_response));
+	  	  $display($time, "\tCORE: IMEM IO Response ", fshow(wr_io_read_response));
 	  endrule
 
   `else 
   
     rule handle_fetch_request ;
-	    let {inst_addr, fence, epoch, prefetch} <- riscv.inst_request.get;
+	    let {inst_addr,epoch} <- riscv.inst_request.get;
       if(vaddr>paddr) begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
+        Bit#(TSub#(`vaddr,`paddr)) upperbits = inst_addr[vaddr-1:paddr];
        if(upperbits!=0)
           inst_addr=0;
       end
-			AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(inst_addr), aruser: ?, 
+			AXI4_Rd_Addr#(`paddr, 0) read_request = AXI4_Rd_Addr {araddr: truncate(inst_addr), aruser: ?, 
             arlen: 0, arsize: 2, arburst: 'b01, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
 			fetch_xactor.i_rd_addr.enq(read_request);	
       ff_epoch.enq(epoch);   	
@@ -208,7 +193,7 @@ package cclass_bare;
     rule handle_fetch_response;
 			let response <- pop_o (fetch_xactor.o_rd_data);	
 			Bool bus_error = !(response.rresp==AXI4_OKAY);
-      riscv.inst_response.put(tuple3(truncate(response.rdata), bus_error,ff_epoch.first));
+      riscv.inst_response.put(tuple4(truncate(response.rdata),bus_error, `Inst_access_fault, ff_epoch.first));
       ff_epoch.deq;
       fetch_state<= Request;
       if(verbosity!=0)
@@ -217,23 +202,34 @@ package cclass_bare;
   `endif
 
   `ifdef dcache
-    let dcache <- mkdcache;
-	  mkConnection(riscv.memory_request, dcache.core_req); //icache integration
-	  mkConnection(dcache.core_resp, riscv.memory_response); // icache integration
-    rule drive_dcache_enable;
-		  dcache.cache_enable(unpack(riscv.mv_cacheenable[1]));
+    let dmem <- mkdmem;
+//	  mkConnection(riscv.memory_request, dmem.core_req); //dmem integration
+    rule core_req_to_dmem;
+      let req<-riscv.memory_request.get;
+      dmem.core_req.put(req);
+    endrule
+	  mkConnection(dmem.core_resp, riscv.memory_response); // dmem integration
+  `ifdef supervisor
+    rule dtlb_csr_info;
+      dmem.satp_from_csr.put(riscv.csr_satp);
+      dmem.curr_priv.put(riscv.curr_priv);
+      dmem.mstatus_from_csr.put(riscv.csr_mstatus);
+    endrule
+  `endif
+    rule drive_dmem_enable;
+		  dmem.cache_enable(unpack(riscv.mv_cacheenable[1]));
     endrule
 	  
     rule dirve_storebuffer_empyty;
-      riscv.storebuffer_empty(dcache.storebuffer_empty);
-      riscv.cache_is_available(dcache.cache_available);
+      riscv.storebuffer_empty(dmem.storebuffer_empty);
+      riscv.cache_is_available(dmem.cache_available);
     endrule
 
     rule initiate_store(tpl_2(riscv.initiate_store));
-      dcache.perform_store(pack(tpl_1(riscv.initiate_store)));
+      dmem.perform_store(pack(tpl_1(riscv.initiate_store)));
     endrule
     rule connect_store_status;
-      riscv.store_is_cached(dcache.cacheable_store);
+      riscv.store_is_cached(dmem.cacheable_store);
     endrule
 
     // Currently it is possible that the cache can generate a write-request followed by a
@@ -242,32 +238,27 @@ package cclass_bare;
     // that if a write-request has been initiated no read-requests should be latched unless the
     // write-response has arrived.
 
-    rule handle_dcache_line_read_request;
-	  	let {addr, burst_len, burst_size} <- dcache.read_mem_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          addr=0;
-      end
-	  	AXI4_Rd_Addr#(PADDR, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
+    rule handle_dmem_line_read_request;
+	  	let {addr, burst_len, burst_size} <- dmem.read_mem_req.get;
+	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
         arlen: burst_len , arsize: burst_size, arburst: 'b10, arid:`Mem_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    memory_xactor.i_rd_addr.enq(dcache_request);
+	    memory_xactor.i_rd_addr.enq(dmem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: DCACHE Line Requesting ", fshow(dcache_request));
+	  	  $display($time, "\tCORE: DMEM Line Requesting ", fshow(dmem_request));
 	  endrule
 
-	  rule handle_dcache_line_resp;
+	  rule handle_dmem_line_resp;
 	    let fab_resp <- pop_o (memory_xactor.o_rd_data);
 	  	Bool bus_error = !(fab_resp.rresp==AXI4_OKAY);
-      dcache.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
+      dmem.read_mem_resp.put(tuple3(truncate(fab_resp.rdata), fab_resp.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: DCACHE Line Response ", fshow(fab_resp));
+	  	  $display($time, "\tCORE: DMEM Line Response ", fshow(fab_resp));
 	  endrule
 
-    rule handle_dcache_line_write_request(rg_burst_count==0);
-      let {addr, burst_len, size, data} <- dcache.write_mem_req.get;
-		  AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: burst_len, 
-          awsize: zeroExtend(size[1:0]), awburst: 'b10, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
+    rule handle_dmem_line_write_request(rg_burst_count==0);
+      let {addr, burst_len, size, data} <- dmem.write_mem_req.get;
+		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: burst_len, 
+          awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
 
   	  let w  = AXI4_Wr_Data {wdata: truncate(data), wstrb: '1, wlast:False, wid:`Mem_master_num};
       rg_burst_count<=rg_burst_count+1;
@@ -275,7 +266,7 @@ package cclass_bare;
 	    memory_xactor.i_wr_addr.enq(aw);
 		  memory_xactor.i_wr_data.enq(w);
       if(verbosity!=0)begin
-	  	  $display($time, "\tCORE: DCACHE Line Write Addr: Request ", fshow(aw));
+	  	  $display($time, "\tCORE: DMEM Line Write Addr: Request ", fshow(aw));
       end
     endrule
     rule send_burst_write_data(rg_burst_count!=0);
@@ -289,46 +280,36 @@ package cclass_bare;
         rg_burst_count<=rg_burst_count+1;
 		  memory_xactor.i_wr_data.enq(w);
       if(verbosity!=0)
-      $display($time,"\tCORE: DCACHE Write Data: %h rg_burst_count: %d last: %b", 
+      $display($time,"\tCORE: DMEM Write Data: %h rg_burst_count: %d last: %b", 
                                                       rg_write_data,rg_burst_count, last);
     endrule
 
-    rule handle_dcache_line_write_resp;
+    rule handle_dmem_line_write_resp;
       let response<-pop_o(memory_xactor.o_wr_resp);
 	  	let bus_error = !(response.bresp==AXI4_OKAY);
-	  	dcache.write_mem_resp.put(bus_error);
+	  	dmem.write_mem_resp.put(bus_error);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: DCACHE Write Line Response ", fshow(response));
+	  	  $display($time, "\tCORE: DMEM Write Line Response ", fshow(response));
     endrule
 	  
-    rule handle_dcache_nc_request;
-	  	let {inst_addr, burst_len, burst_size} <- dcache.nc_read_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = inst_addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          inst_addr=0;
-      end
-	  	AXI4_Rd_Addr#(PADDR, 0) dcache_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
-        arlen: burst_len , arsize: zeroExtend(burst_size[1:0]), arburst: 'b10, arid:2 }; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    io_xactor.i_rd_addr.enq(dcache_request);
+    rule handle_dmem_nc_request;
+	  	let {inst_addr, burst_len, burst_size} <- dmem.nc_read_req.get;
+	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
+        arlen: 0, arsize: zeroExtend(burst_size[1:0]), arburst: 'b01, arid:2 }; // arburst: 00-FIXED 01-INCR 10-WRAP
+	    io_xactor.i_rd_addr.enq(dmem_request);
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: DCACHE IO-Read Requesting ", fshow(dcache_request));
+	  	  $display($time, "\tCORE: DMEM IO-Read Requesting ", fshow(dmem_request));
 	  endrule
 
-    rule handle_dcache_nc_read_response(wr_io_read_response.rid==2);
+    rule handle_dmem_nc_read_response(wr_io_read_response.rid==2);
 	  	Bool bus_error = !(wr_io_read_response.rresp==AXI4_OKAY);
-      dcache.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
+      dmem.nc_read_resp.put(tuple3(truncate(wr_io_read_response.rdata), wr_io_read_response.rlast, bus_error));
 	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: ICACHE IO Response ", fshow(wr_io_read_response));
+	  	  $display($time, "\tCORE: DMEM IO Response ", fshow(wr_io_read_response));
 	  endrule
 
-    rule handle_dcache_nc_write_request;
-      let {addr, burst_len, size, data} <- dcache.nc_write_req.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = addr[vaddr-1:paddr];
-        if(upperbits!=0)
-          addr=0;
-      end
+    rule handle_dmem_nc_write_request;
+      let {addr, burst_len, size, data} <- dmem.nc_write_req.get;
       if(size==0)
         data=duplicate(data[7:0]);
       else if(size==1)
@@ -339,7 +320,7 @@ package cclass_bare;
       Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(addr);
   	  if(size!=3)// 8-bit write;
   	  	write_strobe=write_strobe<<byte_offset;
-		  AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: 0, 
+		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: 0, 
           awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`IO_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
 
   	  let w  = AXI4_Wr_Data {wdata: data, wstrb: write_strobe, wlast:True, wid:`Mem_master_num};
@@ -362,12 +343,12 @@ package cclass_bare;
     rule handle_memory_read_request;
       let {addr,epoch,access}<- riscv.memory_read_request.get;
       if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = addr[vaddr-1:paddr];
+        Bit#(TSub#(`vaddr,`paddr)) upperbits = addr[vaddr-1:paddr];
         if(upperbits!=0)
           addr=0;
       end
       ff_rd_epochs.enq(tuple2(access,epoch));
-      AXI4_Rd_Addr#(PADDR, 0) read_request = AXI4_Rd_Addr {araddr: truncate(addr), aruser: 0, arlen: 0, 
+      AXI4_Rd_Addr#(`paddr, 0) read_request = AXI4_Rd_Addr {araddr: truncate(addr), aruser: 0, arlen: 0, 
         arsize: zeroExtend(access[1:0]), arburst:'b01, arid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Read Request ", fshow(read_request));
@@ -390,7 +371,7 @@ package cclass_bare;
     rule handle_memory_write_request;
       let {address,data,size}<- riscv.memory_write_request.get; 
       if(vaddr>paddr)begin
-        Bit#(TSub#(VADDR,PADDR)) upperbits = address[vaddr-1:paddr];
+        Bit#(TSub#(`vaddr,`paddr)) upperbits = address[vaddr-1:paddr];
         if(upperbits!=0)
           address=0;
       end
@@ -404,7 +385,7 @@ package cclass_bare;
       Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(address);
   	  if(size!=3)// 8-bit write;
   	  	write_strobe=write_strobe<<byte_offset;
-		  AXI4_Wr_Addr#(PADDR, 0) aw = AXI4_Wr_Addr {awaddr: truncate(address), awuser:0, awlen: 0, 
+		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(address), awuser:0, awlen: 0, 
           awsize: zeroExtend(size), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
   	  let w  = AXI4_Wr_Data {wdata: data, wstrb: write_strobe, wlast:True, wid:`Mem_master_num};
       if(verbosity!=0)begin
@@ -422,6 +403,62 @@ package cclass_bare;
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Write Response ", fshow(response));
     endrule
+  `endif
+
+  `ifdef supervisor
+    rule csrs_to_ptwalk;
+      ptwalk.satp_from_csr.put(riscv.csr_satp);
+      ptwalk.curr_priv.put(riscv.curr_priv);
+      ptwalk.mstatus_from_csr.put(riscv.csr_mstatus);
+    endrule
+
+  `ifdef pmp
+    rule connect_pmp_to_imem;
+      imem.pmp_cfg(riscv.pmp_cfg);
+      imem.pmp_addr(riscv.pmp_addr);
+    endrule
+
+    rule connect_pmp_to_dmem;
+      dmem.pmp_cfg(riscv.pmp_cfg);
+      dmem.pmp_addr(riscv.pmp_addr);
+    endrule
+  `endif
+
+    rule itlb_req_to_ptwalk(rg_ptw_state==None);
+      let req<-imem.req_to_ptw.get();
+      ptwalk.from_tlb.put(req);
+      rg_ptw_state<=IWalk;
+    endrule
+    
+    rule dtlb_req_to_ptwalk(rg_ptw_state==None);
+      let req<-dmem.req_to_ptw.get();
+      ptwalk.from_tlb.put(req);
+      rg_ptw_state<=DWalk;
+    endrule
+
+    rule ptwalk_resp_to_itlb(rg_ptw_state==IWalk);
+      let resp<-ptwalk.to_tlb.get();
+      imem.resp_from_ptw.put(resp);
+      rg_ptw_state<=None;
+    endrule
+
+    rule ptwalk_resp_to_dtlb(rg_ptw_state==DWalk);
+      let resp<-ptwalk.to_tlb.get();
+      dmem.resp_from_ptw.put(resp);
+      rg_ptw_state<=None;
+    endrule
+    rule ptwalk_request_to_dcache;
+	  	let req <- ptwalk.request_to_cache.get;
+      `ifdef atomic
+        let {va, sfence, epoch, access, size, data, atomicop,core_ptw} =req;
+        dmem.core_req.put(tuple2(tuple8(va,False,sfence,epoch,access,size,data,atomicop),core_ptw));
+      `else
+        let {va, sfence, epoch, access, size, data, core_ptw} =req;
+        dmem.core_req.put(tuple2(tuple4(va,False,sfence,epoch,access,size,data),core_ptw));
+      `endif
+    endrule
+    mkConnection(dmem.ptw_resp,ptwalk.response_frm_cache);
+    
   `endif
 
     interface sb_clint_msip = interface Put

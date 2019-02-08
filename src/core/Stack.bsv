@@ -16,8 +16,8 @@ package Stack;
 	import RegFile::*;
 	`include "common_params.bsv"
 	interface Ifc_Stack;
-		method Action push(Bit#(VADDR) addr);
-		method ActionValue#(Bit#(VADDR)) top;
+		method Action push(Bit#(`vaddr) addr);
+		method ActionValue#(Bit#(`vaddr)) top;
 		method Bool empty;
 		method Action flush;
 	endinterface
@@ -25,13 +25,13 @@ package Stack;
 //	(*synthesize*)
 	module mkStack(Ifc_Stack);
 		Reg#(Bit#(TLog#(RAS_DEPTH))) top_index[2] <-mkCReg(2,0);
-		RegFile#(Bit#(TLog#(RAS_DEPTH)),Bit#(VADDR)) array_reg
+		RegFile#(Bit#(TLog#(RAS_DEPTH)),Bit#(`vaddr)) array_reg
                                               <-mkRegFileWCF(0,fromInteger(valueOf(RAS_DEPTH)-1));
-		method ActionValue#(Bit#(VADDR)) top;
+		method ActionValue#(Bit#(`vaddr)) top;
 			top_index[0]<=top_index[0]-1;
 			return array_reg.sub(top_index[0]-1);
 		endmethod
-		method Action push(Bit#(VADDR) addr);
+		method Action push(Bit#(`vaddr) addr);
 			array_reg.upd(top_index[1],addr);
 			top_index[1]<=top_index[1]+1;
 		endmethod

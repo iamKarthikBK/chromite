@@ -39,31 +39,28 @@ package riscv;
   import common_types::*;
   import CustomFIFOs::*;
   `include "common_params.bsv"
-`ifdef cache_control
-  import cache_types::*;
-`endif
   
   interface Ifc_riscv;
     
-  	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
-    interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
+  	interface Get#(ICore_request#( `vaddr, 3)) inst_request;
+    interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
   `ifdef dcache
-		interface Get#(DCore_request#(VADDR,ELEN,1)) memory_request;
+		interface Get#(Tuple2#(DMem_request#(`vaddr ,ELEN,1),Bool)) memory_request;
   `else 
-		interface Get#(MemoryReadReq#(VADDR,1)) memory_read_request;
+		interface Get#(MemoryReadReq#(`vaddr,1)) memory_read_request;
   `endif
   `ifdef dcache
-    interface Put#(DCore_response#(ELEN,1)) memory_response;
+    interface Put#(DMem_response#(ELEN,1)) memory_response;
     (*always_enabled*)
     method Action storebuffer_empty(Bool e);
     method Tuple2#(Bool,Bool) initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
     method Action store_is_cached(Bool c);
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
   `else
     interface Put#(MemoryReadResp#(1)) memory_read_response;
-		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
+		interface Get#(MemoryWriteReq#(`vaddr,1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
   `endif 
     method Action clint_msip(Bit#(1) intrpt);
@@ -75,8 +72,16 @@ package riscv;
   `endif
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
+    method Bit#(XLEN) csr_mstatus;
   `endif
-
+    method Bit#(2) curr_priv;
+	`ifdef supervisor
+		method Bit#(XLEN) csr_satp;
+	`endif
+  `ifdef pmp
+    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
+    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+  `endif
   endinterface
 
   (*synthesize*)
@@ -97,7 +102,6 @@ package riscv;
 
     FIFOF#(PIPE1_min) pipe1min <-mkSizedFIFOF(2);
     FIFOF#(PIPE1_opt1) pipe1opt1 <-mkSizedFIFOF(2);
-    FIFOF#(PIPE1_opt2) pipe1opt2 <-mkSizedFIFOF(2);
 
     FIFOF#(PIPE2_min#(ELEN,FLEN)) pipe2min <- mkLFIFOF();
   `ifdef spfpu
@@ -113,20 +117,20 @@ package riscv;
 `ifdef PIPE2
     FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
+    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
   `endif
     Ifc_PipeFIFOF#(PIPE4) pipe4 <- mkPipeFIFOF();
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
+    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
   `endif
 `else
     FIFOF#(PIPE3) pipe3 <- mkLFIFOF();
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe3inst <-mkLFIFOF();
+    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe3inst <-mkLFIFOF();
   `endif
     FIFOF#(PIPE4) pipe4 <- mkLFIFOF();
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(VADDR),Bit#(32))) pipe4inst <-mkLFIFOF();
+    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe4inst <-mkLFIFOF();
   `endif
 `endif
 
@@ -136,10 +140,6 @@ package riscv;
   `ifdef bpu
     mkConnection(stage1.tx_opt1,pipeopt1);
     mkConnection(pipeopt1,stage2.rx_opt1);
-  `endif
-  `ifdef supervisor
-    mkConnection(stage1.tx_opt2,pipeopt2);
-    mkConnection(pipeopt2,stage2.rx_opt2);
   `endif
 
     mkConnection(stage2.tx_min, pipe2min);
@@ -183,7 +183,7 @@ package riscv;
     mkConnection(pipe4inst,stage5.rx_inst);
   `endif
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
-    let {flush_from_wb, flushpc_from_wb, fenceI}=stage5.flush;
+    let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor ,sfence `endif }=stage5.flush;
 
     rule update_wEpoch(flush_from_wb);
       rg_wEpoch<=~rg_wEpoch;
@@ -197,13 +197,13 @@ package riscv;
 
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
       if(flush_from_wb)
-        stage1.flush(flushpc_from_wb, fenceI);
+        stage1.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef supervisor , sfence `endif `endif ); // TODO Sfence
       else
-        stage1.flush(flushpc_from_exe, False); // can never send a fence request.
+        stage1.flush(flushpc_from_exe `ifdef icache , False `ifdef supervisor , False `endif `endif ); // EXE can never send a fence request.
     endrule
     rule connect_csrs;
       stage2.csrs(stage5.csrs_to_decode);
-      stage1.csrs(stage5.csrs_to_decode);
+      stage1.csr_misa_c(stage5.csr_misa_c);
       stage3.csr_misa_c(stage5.csr_misa_c);
     endrule
     rule clear_stall_in_decode_stage(flush_from_exe != None || flush_from_wb);
@@ -234,11 +234,6 @@ package riscv;
 //    rule ras_push_connect;
 //      stage1.push_ras(stage3.ras_push);
 //    endrule
-    `ifdef spfpu
-      rule connect_roundingmode;
-        stage3.roundingmode(stage5.roundingmode);
-      endrule
-    `endif
 
     rule fwding_from_exe1;
       let data = pipe3.first;
@@ -385,7 +380,7 @@ package riscv;
       stage3.storebuffer_empty(e);
     endmethod
     method initiate_store =stage5.initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
       stage5.write_resp(r);
     endmethod
     method Action store_is_cached(Bool c);
@@ -402,6 +397,15 @@ package riscv;
 	  method Action set_external_interrupt(Bit#(1) ex_i)=stage5.set_external_interrupt(ex_i);
   `ifdef cache_control
     method mv_cacheenable = stage5.mv_cacheenable;
+    method csr_mstatus= stage5.csr_mstatus;
+  `endif
+    method curr_priv = stage5.curr_priv;
+		`ifdef supervisor
+			method csr_satp=stage5.csr_satp;
+		`endif
+  `ifdef pmp
+    method pmp_cfg=stage5.pmp_cfg;
+    method pmp_addr=stage5.pmp_addr;
   `endif
   endmodule
 

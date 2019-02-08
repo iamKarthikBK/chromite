@@ -42,91 +42,97 @@ package decoder;
   import common_types::*;
   import BUtils::*;
   `include "common_params.bsv"
-	  
-  (*noinline*)
-  function Bool address_valid(Bit#(12) csr_address);
-		case(csr_address[11:8])
-      `ifdef user
-        'h0: begin
-          if(csr_address[7:0]>'h00 && csr_address[7:0]<'h4)begin 
-            `ifndef spfpu 
-              return False;
-            `else
-              return True;
+
+  function Bool address_valid(Bit#(12) addr, Bit#(26) misa);
+    Bool valid=False;
+    case(addr[9:8])
+      // user level CSRS
+      'b00: case(addr[11:10]) 
+              'b00: case (addr[7:0])
+                `ifdef user
+                  // User Trap setup and user trap handling registers
+                  'h0, 'h4, 'h5, 'h40, 'h41, 'h42, 'h43, 'h44: valid=unpack(misa[13]&misa[20]);
+                `endif
+                `ifdef spfpu
+                  // user floating point csrs
+                  'h1, 'h2, 'h3: valid=True;
+                `endif
+              endcase
+              // User Counters/Timers
+            `ifdef user
+              'b11: case(addr[7:5])
+                  'b000: valid=True;
+                `ifdef RV32
+                  'b100: valid=True;
+                `endif
+              endcase
             `endif
-          end
-          else if (csr_address[7:0]=='h00 || csr_address[7:0]=='h4 || csr_address[7:0]=='h5 ||
-          (csr_address[7:0]>='h40 && csr_address[7:0]<= 'h44)) begin
-            `ifndef usertraps  
-              return False;
-            `else
-              return True;
+            `ifdef cache_control
+              'b10: valid=(addr[7:0]==0);
             `endif
-          end
-          else
-            return False;
-        end
-      `endif
-      `ifdef supervisor
-        'h1: begin
-          if((csr_address[7:0]>'h6 && csr_address[7:0]<'h40) ||
-             (csr_address[7:0]>'h44 && csr_address[7:0]<'h80) ||
-             (csr_address[7:0]>'h80))
-            return False;
-          else
-            return True;
-        end
-      `endif
-			'h3: begin // machine read-write registers
-				if((csr_address[7:0]>'h6 && csr_address[7:0]<=('h22+ `Counters)) || 
-				  (csr_address[7:0]>('h23+ `Counters) && csr_address[7:0]<'h40) ||
-				  (csr_address[7:0]>'h44 && csr_address[7:0]<='hA0) ||
-				  (csr_address[7:0]>'hA3 && csr_address[7:0]<'hB8) ||
-				  (csr_address[7:0]>'hbf))
-					return False;
-				else
-					return True;
-			end
-      `ifdef Debug
-        'h7:begin
-          if(csr_address[7:0]<'hA0 || (csr_address[7:0]>'hA3 && csr_address[7:0]<'hb0) ||
-              csr_address[7:0]>'hB2)
-            return False;
-          else
-            return True;
-        end
-      `endif
-    `ifdef cache_control
-      'h8: begin
-        if(csr_address[7:0]!=0)
-          return False;
-        else
-          return True;
-      end
+            endcase
+      // supervisor level CSRS
+    `ifdef supervisor
+      'b01: case(addr[11:10])
+              'b00: case(addr[7:4])
+                // supervisor trap setup
+                'h0:case(addr[3:0])
+                  'h0, 'h1, 'h4, 'h5, 'h6: valid=unpack(misa[18]);
+                `ifdef usertraps
+                  'h2, 'h3: valid=unpack(misa[13]&misa[20]);
+                `endif
+                endcase
+                // supervisor trap handling.
+                'h4: case(addr[3:0]) 
+                  'h0, 'h1, 'h2, 'h3, 'h4: valid=unpack(misa[18]);
+                endcase
+                // supervisor protection and translation
+                'h8: if(addr[3:0]==0) valid=unpack(misa[18]);
+              endcase
+            endcase
     `endif
-			'hB:begin
-				if( (csr_address[7:0]>('h2+ `Counters) `ifndef RV64 && csr_address[7:0]<'h80) ||
-             csr_address[7:0]>('h82+ `Counters)) `else )) `endif 
-					return False; 
-				else
-					return True;
-			end
-			'hC:begin
-				if( (csr_address[7:0]>('h2+ `Counters) `ifndef RV64 && csr_address[7:0]<'h80) ||
-             csr_address[7:0]>('h82+ `Counters)) `else )) `endif 
-					return False; 
-				else
-					return True;
-			end
-			'hF:begin // MAchine MRO registers
-				if(csr_address[7:0]<'h11 || csr_address[7:0]>'h14)
-					return False;
-				else
-					return True;
-			end
-			default:return False;
-		endcase
-	endfunction
+    // machine level CSRS
+    'b11: case(addr[11:10]) 
+            // machine info registers
+            'b11: if(addr[7:4]==1)
+                    case(addr[3:0])
+                      'h1, 'h2, 'h3, 'h4: valid=True;
+                    endcase
+            'b00: case(addr[7:4])
+                    // Machine Trap Setup
+                  'h0:case(addr[3:0]) 
+                        'h0, 'h1, 'h4, 'h5, 'h6: valid=True;
+                      `ifdef non_m_traps
+                        'h2, 'h3: if( ((misa[13]&misa[20])==1) || misa[18]==1) valid=True;
+                      `endif
+                      endcase
+                  // Machine counter Setup
+                  'h2: if(addr[3:0]>2) valid=True;
+                  'h3: valid=True;
+                    // Machine Trap Handling
+                  'h4:case(addr[3:0])
+                        'h0, 'h1, 'h2, 'h3, 'h4: valid=True;
+                      endcase
+                    // Maching Protection and Translation
+                  'hA:case(addr[3:0])
+                        'h0, 'h2 `ifdef RV32 ,'h1,'h3 `endif : valid=True;
+                      endcase
+                    // PMP ADDR registers
+                  'hB: if((`PMPSIZE!=0 ) && addr[3:0]<=fromInteger(valueOf(TSub#(`PMPSIZE,1) ))) valid=True;
+                  endcase
+              // Machine Counter/Timers
+           'b10: `ifdef RV32 if(addr[6:5]==0) `else if(addr[7:5]==0) `endif valid=True;
+              // Debug Trace
+          `ifdef debug
+            'b01: case(addr[7:4]) 
+                    'hA: if(addr[3:0]<4) valid=True;
+                    'hB: if(addr[3:0]<3) valid=True;
+                  endcase
+          `endif
+          endcase
+    endcase
+    return valid;
+  endfunction
 	
   (*noinline*)
   function Bool hasCSRPermission(Bit#(12) address, Bool write,  Privilege_mode prv);
@@ -144,20 +150,62 @@ package decoder;
 	endfunction
  
   (*noinline*)
-	function Tuple3#(Bit#(6), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(12) mip, Bit#(12) csr_mie, 
-                                                        Bit#(12) mideleg,  Bit#(1) mie);
-		Bit#(12) pending_interrupts = (truncate(mip)) & truncate(csr_mie) ;
-    Bool resume_wfi=unpack(|pending_interrupts);
-		let pending_machine_interrupts = pending_interrupts & ~truncate(mideleg);
-		let machine_interrupts_enabled = (mie == 1) || (prv != Machine);
-		pending_interrupts =	(machine_interrupts_enabled ? pending_machine_interrupts : 0);
-    
+	function Tuple3#(Bit#(6), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(XLEN) mstatus,
+        Bit#(12) mip, Bit#(12) mie `ifdef non_m_traps , Bit#(12) mideleg `endif
+      `ifdef supervisor
+        ,Bit#(12) sip, Bit#(12) sie `ifdef usertraps , Bit#(12) sideleg `endif
+      `endif
+      `ifdef usertraps
+        ,Bit#(12) uip, Bit#(12) uie
+      `endif  );
+    Bool m_enabled = (prv != Machine) || (mstatus[3]==1);
+  `ifdef supervisor
+    Bool s_enabled = (prv == User) || (mstatus[1]==1 && prv==Supervisor);
+  `endif
+  `ifdef supervisor
+    Bool u_enabled = (mstatus[0]==1 && prv==User);
+  `endif
+    Bool resume_wfi= unpack(|(mie&mip));
+    Bit#(12) m_interrupts = mie & mip & signExtend(pack(m_enabled)) 
+                                                      `ifdef non_m_traps & ~mideleg `endif ;
+    Bit#(12) s_interrupts = mie & mip & mideleg & signExtend(pack(s_enabled)) 
+                                            `ifdef usertraps & ~sideleg `endif ;
+  `ifdef usertraps
+    Bit#(12) u_interrupts = uie & uip & mideleg & signExtend(u_enabled) 
+                                            `ifdef supervisor & sideleg `endif ; 
+  `endif
+
+    Bit#(12) pending_interrupts = (m_enabled?m_interrupts:0) 
+      `ifdef supervisor |  (s_enabled?s_interrupts:0) `endif 
+      `ifdef usertraps  |  (u_enabled?u_interrupts:0) `endif ;
 		// format pendingInterrupt value to return
-		Bool taketrap=False;
-		if (pending_interrupts != 0) begin
-			taketrap=True;
-		end
-		return tuple3(unpack(zeroExtend(pack(countZerosLSB(pending_interrupts)))), taketrap, resume_wfi);
+		Bool taketrap=unpack(|pending_interrupts);
+    Bit#(5) cause=0;
+    if(pending_interrupts[11]==1)
+      cause=`Machine_external_int;
+    else if(pending_interrupts[3]==1)
+      cause=`Machine_soft_int;
+    else if(pending_interrupts[7]==1)
+      cause=`Machine_timer_int;
+  `ifdef supervisor
+    else if(pending_interrupts[9]==1)
+      cause=`Supervisor_external_int;
+    else if(pending_interrupts[1]==1)
+      cause=`Supervisor_soft_int;
+    else if(pending_interrupts[5]==1)
+      cause=`Supervisor_timer_int;
+  `endif
+  `ifdef user
+    else if(pending_interrupts[8]==1)
+      cause=`User_external_int;
+    else if(pending_interrupts[0]==1)
+      cause=`User_soft_int;
+    else if(pending_interrupts[4]==1)
+      cause=`User_timer_int;
+  `endif
+
+
+		return tuple3({1'b1,cause}, taketrap, resume_wfi);
 	endfunction
   
   (*noinline*)
@@ -224,9 +272,8 @@ package decoder;
   (*noinline*)
   function DecodeOut decoder_func_16(Bit#(16) inst, CSRtoDecode csrs);
     
-    let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=csrs;
-    Bit#(1) fs = fs_frm[3];
-    Bit#(3) frm = fs_frm[2:0];
+    Bit#(1) fs = |csrs.csr_mstatus[14:13];
+    Bit#(3) frm = csrs.frm;
     Quadrant quad =unpack(inst[1:0]);
     Bit#(3) funct3 = inst[15:13];
 
@@ -276,7 +323,7 @@ package decoder;
       rs2type=Immediate;
     `ifdef spfpu
       else if ( (quad==Q0 && funct3=='b001) 
-           || ( (quad==Q0 || quad==Q2) && funct3=='b101 && misa[3]==1) 
+           || ( (quad==Q0 || quad==Q2) && funct3=='b101 && csrs.csr_misa[3]==1) 
           `ifdef RV32  || ( (quad==Q0 || quad==Q2) && funct3=='b111) `endif 
           )
         rs2type=FloatingRF;
@@ -369,14 +416,14 @@ package decoder;
     case (quad) matches
       Q0: case(funct3)
         'b000:zeroExtend({inst[10:7],inst[12:11],inst[5],inst[6],2'b0});
-        'b001:(zeroExtend({inst[6:5],inst[12:10],3'b0}) & duplicate(misa[3]));
+        'b001:(zeroExtend({inst[6:5],inst[12:10],3'b0}) & duplicate(csrs.csr_misa[3]));
         'b010:zeroExtend({inst[5],inst[12:10],inst[6],2'b00});
         'b011:`ifdef RV32 
                 zeroExtend({inst[5],inst[12:10],inst[6],2'b00}); 
               `else 
                 zeroExtend({inst[6:5],inst[12:10],3'b0});   
               `endif
-        'b101:(zeroExtend({inst[6:5],inst[12:10],3'b0}) & duplicate(misa[3]));
+        'b101:(zeroExtend({inst[6:5],inst[12:10],3'b0}) & duplicate(csrs.csr_misa[3]));
         'b110:zeroExtend({inst[5],inst[12:10],inst[6],2'b00}); 
         'b111: `ifdef RV32
                 zeroExtend({inst[5],inst[12:10],inst[6],2'b00}); 
@@ -406,14 +453,14 @@ package decoder;
       endcase
       Q2:case(funct3)
         'b000:zeroExtend({inst[12],inst[6:2]});
-        'b001:(zeroExtend({inst[4:2],inst[12],inst[6:5],3'b0}) & duplicate(misa[3]) ); 
+        'b001:(zeroExtend({inst[4:2],inst[12],inst[6:5],3'b0}) & duplicate(csrs.csr_misa[3]) ); 
         'b010:zeroExtend({inst[3:2],inst[12],inst[6:4],2'b0});
         'b011:`ifdef RV32 
           zeroExtend({inst[3:2],inst[12],inst[6:4],2'b0});
               `else
           zeroExtend({inst[4:2],inst[12],inst[6:5],3'b0});
               `endif
-        'b101:(zeroExtend({inst[9:7],inst[12:10],3'b0}) & duplicate(misa[3])); 
+        'b101:(zeroExtend({inst[9:7],inst[12:10],3'b0}) & duplicate(csrs.csr_misa[3])); 
         'b110:zeroExtend({inst[8:7],inst[12:9],2'b0});
         'b111:`ifdef RV32
           zeroExtend({inst[8:7],inst[12:9],2'b0});
@@ -463,9 +510,8 @@ package decoder;
 
   (*noinline*)
   function DecodeOut decoder_func_32(Bit#(32) inst, CSRtoDecode csrs);
-    let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=csrs;
-    Bit#(1) fs = fs_frm[3];
-    Bit#(3) frm = fs_frm[2:0];
+    Bit#(1) fs = |csrs.csr_mstatus[14:13];
+    Bit#(3) frm = csrs.frm;
 
     // ------- Default declarations of all local variables -----------//
 
@@ -486,7 +532,7 @@ package decoder;
     //---------------- Decoding the immediate values-------------------------------------
 
     // Identify the type of intruction first
-    Bool stype= (opcode=='b01000 || (opcode=='b01001 && misa[5]==1) );
+    Bool stype= (opcode=='b01000 || (opcode=='b01001 && csrs.csr_misa[5]==1) );
     Bool btype= (opcode=='b11000);
     Bool utype= (opcode=='b01101 || opcode=='b00101);
     Bool jtype= (opcode=='b11011);
@@ -575,10 +621,14 @@ package decoder;
     if(opcode=='b01011)
       mem_access=Atomic;
   `endif
+  `ifdef supervisor
+    if(opcode=='b11100 && funct7=='b0001001 && funct3==0) // SFENCE
+      mem_access=SFence;
+  `endif
     
 
     // Following table describes what the ALU will need for some critical operations. Based on this
-    // the next set of logic is implemented. rs1+ rs2 is a XLEN bit adder. rs3+ rs4 is PADDR bit
+    // the next set of logic is implemented. rs1+ rs2 is a XLEN bit adder. rs3+ rs4 is `paddr bit
     // adder.
     // Now PC can be present either in rs1 or rs3. This has been done to reduce the mux to the ALU
     // in the next stage. There will only be a mux in the next stage to identify the PC and send it
@@ -602,14 +652,15 @@ package decoder;
 		if ( (opcode==`SYSTEM_INSTR_op `ifdef supervisor && funct3!=0 && funct7!='b0001001 `endif ) 
           || opcode[4:2]=='b000 || opcode==`LUI_op // CSR ( and not SFENCE) or (Load) or LUI 
   			  ||opcode[4:2] == 'b001 || opcode==`JAL_op || opcode==`JALR_op	|| // AUIPC or JAL or JALR
-          (opcode[4:2]=='b101 && funct7[5]==1 && (misa[3]|misa[5])==1) )
+          (opcode[4:2]=='b101 && funct7[5]==1 && (csrs.csr_misa[3]|csrs.csr_misa[5])==1) )
 			rs2=0;
 		if (opcode==`BRANCH_op || opcode[4:1]=='b0100 || (opcode=='b00011))	
 			rd=0;
 
 		if(opcode==`JAL_op || opcode==`JALR_op|| opcode==`AUIPC_op || opcode=='b01000 
         || opcode=='b00011  ||  opcode=='b000000 `ifdef atomic || opcode=='b01011 `endif 
-        `ifdef spfpu || opcode=='b01001 || opcode=='b00001 `endif )	 // Store, Load, Atomic
+        `ifdef spfpu || opcode=='b01001 || opcode=='b00001 `endif 	 // Store, Load, Atomic
+        `ifdef supervisor || (opcode=='b11100 && inst[31:25]=='b00001001) `endif )
 			rs1type=PC;
     `ifdef spfpu
 	    else if(opcode[4:2]=='b100 || (opcode[4:2]=='b101 && // (F(N)MADD or F(N)SUB)  
@@ -628,7 +679,7 @@ package decoder;
 // ------------------------------------------------------------------------------------------- //
   Bit#(6) trapcause=`Illegal_inst;
   Bool validload = `ifdef RV32 funct3!=3 && funct3!=7 `else funct3!=7 `endif ;
-  Bool validFload = fs!=0 && ((misa[5]==1 &&  funct3==2) `ifdef dpfpu || (misa[3]==1 && funct3==3) `endif ) ;
+  Bool validFload = fs!=0 && ((csrs.csr_misa[5]==1 &&  funct3==2) `ifdef dpfpu || (csrs.csr_misa[3]==1 && funct3==3) `endif ) ;
 `ifdef RV32
   Bool validImm = (funct3==1)?(funct7==0):(funct3==5)? (funct7 == 'b0000000 || funct7=='b0100000):True;
   Bool validImm32 = False;
@@ -637,17 +688,18 @@ package decoder;
   Bool validImm32 = (funct3==0)?True:(funct3==1)? (funct7==0):(funct3==5)?(funct7=='b0000000 || funct7=='b0100000):False;
 `endif
   Bool validStore = `ifdef RV32 funct3<3 `else funct3<4 `endif ;
-  Bool validFStore = (misa[5]==1 && fs!=0 && funct3==2) `ifdef dpfpu || (misa[3]==1 && fs!=0 && funct3==3) `endif ;
+  Bool validFStore = (csrs.csr_misa[5]==1 && fs!=0 && funct3==2) `ifdef dpfpu || (csrs.csr_misa[3]==1 && fs!=0 && funct3==3) `endif ;
   Bool validAtomicOp = case(inst[31:27])
-      'd0, 'd1, 'd2, 'd3, 'd4, 'd8, 'd12, 'd16, 'd20, 'd24, 'd28: True;
+      'd0, 'd1, 'd3, 'd4, 'd8, 'd12, 'd16, 'd20, 'd24, 'd28: True;
+      'd2: if (inst[24:20]==0) True; else False;
       default: False;
     endcase;
-  Bool validAtomic = (misa[0]==1 && (funct3==2 `ifdef RV64 || funct3==3 `endif ) && validAtomicOp);
-  Bool validMul = (misa[12]==1 && funct7==1)?True:False; 
+  Bool validAtomic = (csrs.csr_misa[0]==1 && (funct3==2 `ifdef RV64 || funct3==3 `endif ) && validAtomicOp);
+  Bool validMul = (csrs.csr_misa[12]==1 && funct7==1)?True:False; 
   Bool validOp = (funct3==0 || funct3==5)?(funct7 == 'b0000000 || funct7=='b0100000):(funct7==0);
-  Bool validMul32 = (misa[12]==1 && funct7==1 && (funct3==0 || funct3>3));
+  Bool validMul32 = (csrs.csr_misa[12]==1 && funct7==1 && (funct3==0 || funct3>3));
   Bool validOp32  = (funct3==1)?(funct7==0):(funct3==0 || funct3==5)?(funct7=='b0000000||funct7=='b0100000):False;
-  Bool validFloat = fs!=0 && ((funct7[0]==0 && misa[5]==1) `ifdef dpfpu || (funct7[0]==1 &&  misa[3]==1) `endif );
+  Bool validFloat = fs!=0 && ((funct7[0]==0 && csrs.csr_misa[5]==1) `ifdef dpfpu || (funct7[0]==1 &&  csrs.csr_misa[3]==1) `endif );
   Bool validFNM = inst[26]==0 && validFloat;
   Bool valid_rounding = (funct3=='b111)?(frm!='b101 && frm!='b110):(funct3!='b101 && funct3!='b110);
   //TODO: RM field check
@@ -675,8 +727,8 @@ package decoder;
 `else 
   Bool validFloatOpD=False;
 `endif
-	Bool address_is_valid=address_valid(inst[31:20]);
-	Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], prv);
+	Bool address_is_valid=address_valid(inst[31:20],csrs.csr_misa);
+	Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], csrs.prv);
   Instruction_type inst_type = TRAP;
   case (opcode[4:3])
     'b00: case(opcode[2:0])
@@ -718,17 +770,23 @@ package decoder;
       'b001: if(funct3==0) inst_type=JALR; // JALR
       'b011: inst_type=JAL; // jal
       'b100: case(funct3)
-          'b000: if(inst[31:7]==0) trapcause=(misa[20]==1 && prv==User)?`Ecall_from_user: 
-                                             (misa[18]==1 && prv==Supervisor)?`Ecall_from_supervisor: 
+          'b000: if(inst[31:7]==0) trapcause=(csrs.csr_misa[20]==1 && csrs.prv==User)?`Ecall_from_user: 
+                                             (csrs.csr_misa[18]==1 && csrs.prv==Supervisor)?`Ecall_from_supervisor: 
                                               `Ecall_from_machine;
                  else if(inst[31:7]=='h2000) trapcause=`Breakpoint ;
-                 else if(inst[31:20]=='h002 && inst[19:15]==0 && inst[11:7]==0 && misa[13]==1) inst_type=SYSTEM_INSTR;
-                 else if(inst[31:20]=='h102 && inst[19:15]==0 && inst[11:7]==0 && misa[18]==1 &&
-                        prv!=User) inst_type=SYSTEM_INSTR; // TODO check TSR==0
-                 else if(inst[31:20]=='h302 && inst[19:15]==0 && inst[11:7]==0 && prv==Machine)
+                 else if(inst[31:20]=='h002 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[13]==1) inst_type=SYSTEM_INSTR;
+              `ifdef supervisor
+                 else if(inst[31:20]=='h102 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[18]==1 &&
+                        csrs.prv!=User && (csrs.prv==Machine || (csrs.prv==Supervisor &&
+                        csrs.csr_mstatus[22]==0))) inst_type=SYSTEM_INSTR;
+              `endif
+                 else if(inst[31:20]=='h302 && inst[19:15]==0 && inst[11:7]==0 && csrs.prv==Machine)
                         inst_type=SYSTEM_INSTR;
-                 else if(inst[31:20]=='h105 && inst[19:15]==0 && inst[11:7]==0 && prv==Machine)
+                 else if(inst[31:20]=='h105 && inst[19:15]==0 && inst[11:7]==0 && csrs.prv==Machine)
                         inst_type=WFI;
+              `ifdef supervisor
+                 else if(inst[31:25]=='b0001001 && inst[11:7]==0 && csrs.csr_mstatus[20]==0) inst_type=MEMORY; // SFENCE
+              `endif
           default: if(funct3!=0 && funct3!=4 && access_is_valid && address_is_valid) 
                     inst_type=SYSTEM_INSTR;
       endcase
@@ -777,18 +835,22 @@ package decoder;
 				default:{1'b0,funct3};
 			endcase;
 		end
-    else if(opcode[4:3]=='b10 && (misa[5]|misa[3])==1) // floating point instructions
+    else if(opcode[4:3]=='b10 && (csrs.csr_misa[5]|csrs.csr_misa[3])==1) // floating point instructions
 	  		fn=opcode[3:0];
     // ---------------------------------------
 
     if(inst_type==SYSTEM_INSTR)
       immediate_value={'d0,inst[19:15],immediate_value[11:0]};// TODO fix this
-
+  `ifdef spfpu
+    if(inst_type==FLOAT && funct3=='b111)
+      funct3=frm;
+  `endif
     Bit#(7) temp1 = {fn,funct3};
     if(inst_type==TRAP)
       temp1={1'b0,trapcause};
 
-    Bool rerun = mem_access==Fence || mem_access==FenceI || inst_type==SYSTEM_INSTR;
+    Bool rerun = mem_access==Fence || mem_access==FenceI || inst_type==SYSTEM_INSTR 
+                `ifdef supervisor || mem_access==SFence `endif ;
 
 
     OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
@@ -798,7 +860,7 @@ package decoder;
   endfunction
 
   (*noinline*)
-  function OpType_fpu decode_fpu_meta(Bit#(32) inst, Bit#(1) misa_c);
+  function OpType_fpu decode_fpu_meta(Bit#(32) inst, Bit#(1) csr_misa_c);
     Bit#(5) rs3=inst[31:27];
  		RFType rs3type=FRF;
     RFType rdtype=IRF;
@@ -806,7 +868,7 @@ package decoder;
 		Bit#(5) opcode= inst[6:2];
     Bool r4type= (opcode[4:2]=='b100);
     Bit#(7) funct7 = inst[31:25]; 
-    if(misa_c==1 && inst[1:0]!='b11)begin
+    if(csr_misa_c==1 && inst[1:0]!='b11)begin
       Quadrant quad =unpack(inst[1:0]);
       Bit#(3) funct3 = inst[15:13];
       rs3=0;
@@ -850,13 +912,20 @@ package decoder;
     return word32;
   endfunction
   
-  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bit#(2) err, CSRtoDecode csrs, Bool
-    curr_rerun, Bool rerun_fencei) =  actionvalue
-      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=csrs;
+  function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bool trap, 
+                `ifdef supervisor Bit#(6) cause, `endif CSRtoDecode csrs, Bool curr_rerun, 
+                Bool rerun_fencei `ifdef supervisor ,Bool rerun_sfence `endif ) =  actionvalue
       DecodeOut result_decode = decoder_func_32(inst, csrs);
-      if(inst[1:0]!='b11 && misa[2]==1)
+      if(inst[1:0]!='b11 && csrs.csr_misa[2]==1)
         result_decode = decoder_func_16(truncate(inst),csrs);
-      let {icause, takeinterrupt, resume_wfi} = chk_interrupt(prv, mip, csr_mie, mideleg, mie);
+      let {icause, takeinterrupt, resume_wfi} = chk_interrupt( csrs.prv, csrs.csr_mstatus,
+          csrs.csr_mip, csrs.csr_mie `ifdef non_m_traps ,csrs.csr_mideleg `endif
+        `ifdef supervisor
+          ,csrs.csr_sip, csrs.csr_sie `ifdef usertraps ,csrs.csr_sideleg `endif
+        `endif
+        `ifdef usertraps
+          ,csrs.csr_uip, csrs.csr_uie
+        `endif );
       let {t1, t2, t3, t4} = result_decode;
       let {rs1addr,rs2addr,rd,rs1type,rs2type} = t1;
       let {func_cause, inst_type,  mem_access,  immediate_value}=t2;
@@ -868,27 +937,25 @@ package decoder;
 
       if(curr_rerun)begin
         x_inst_type=TRAP;
-        func_cause=rerun_fencei?`IcacheFence : `Rerun ;
+        func_cause=rerun_fencei?`IcacheFence : rerun_sfence?`SFence: `Rerun ;
         t4=False;
       end
       else if(takeinterrupt)begin
-        func_cause={1'b1, icause};
+        func_cause={1'b0,icause};
         x_inst_type=TRAP;
       end
-      else if(err[0]==1) begin
+      else if(trap) begin
         x_inst_type=TRAP;
-        func_cause = `Inst_access_fault ;
-      end
-      else if(err[1]==1 && misa[18]==1) begin
-        x_inst_type=TRAP;
-        func_cause= `Inst_pagefault;
+        func_cause = {1'b0,cause} ;
       end
 
       if(x_inst_type == TRAP)begin
         x_rs2addr=0;
         x_rs2type=IntegerRF;
         x_rs1addr=0;
-        if(func_cause == `Inst_access_fault || func_cause==`Inst_pagefault )
+        if(func_cause == `Inst_access_fault || (func_cause==`Inst_access_faultC && csrs.csr_misa[3]==1) 
+            `ifdef supervisor ||  func_cause==`Inst_pagefault || 
+                                  (func_cause==`Inst_pagefaultC && csrs.csr_misa[3]==1) `endif )
           x_rs1type=PC;
         else
           x_rs1type=IntegerRF;

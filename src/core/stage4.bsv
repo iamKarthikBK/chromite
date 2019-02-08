@@ -55,20 +55,20 @@ package stage4;
     interface RXe#(PIPE3) rx_min;
     interface TXe#(PIPE4) tx_min;
     `ifdef rtldump
-      interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
-      interface TXe#(Tuple2#(Bit#(VADDR),Bit#(32))) tx_inst;
+      interface RXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) rx_inst;
+      interface TXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) tx_inst;
     `endif
   `ifdef dcache
-    interface Put#(DCore_response#(ELEN,1)) memory_response;
+    interface Put#(DMem_response#(ELEN,1)) memory_response;
   `else
     interface Put#(MemoryReadResp#(1)) memory_read_response;
     interface Put#(MemoryWriteResp) memory_write_response;
-		interface Get#(MemoryWriteReq#(VADDR,1,ELEN)) memory_write_request;
+		interface Get#(MemoryWriteReq#(`vaddr,1,ELEN)) memory_write_request;
   `endif 
 
     method Action update_wEpoch;
   `ifndef dcache
-    method Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) store_response;
+    method Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) store_response;
     method Action start_store(Tuple2#(Bool,Bool) s);
     method Bool storebuffer_empty;
   `endif
@@ -104,18 +104,16 @@ package stage4;
     RX#(PIPE3) rxmin <- mkRX;
     TX#(PIPE4) txmin <- mkTX;
   `ifdef rtldump
-    RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
-    TX#(Tuple2#(Bit#(VADDR),Bit#(32))) txinst <-mkTX;
+    RX#(Tuple2#(Bit#(`vaddr),Bit#(32))) rxinst <-mkRX;
+    TX#(Tuple2#(Bit#(`vaddr),Bit#(32))) txinst <-mkTX;
   `endif
   `ifndef dcache
     Ifc_storebuffer storebuffer <- mkstorebuffer();
   `endif
-    // wire that captures the response coming from the external memory or cache.
-    Wire#(Maybe#(MemoryReadResp#(1))) wr_memory_response <- mkDWire(tagged Invalid);
   `ifdef dcache
-    FIFOF#(DCore_response#(ELEN,1)) ff_memory_response <- mkUGBypassFIFOF();
+    FIFOF#(DMem_response#(ELEN,1)) ff_memory_response <- mkUGBypassFIFOF();
   `else
-    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR)))) wr_store_response <-mkDWire(tagged Invalid);
+    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr)))) wr_store_response <-mkDWire(tagged Invalid);
     Wire#(Bool) wr_store_start<-mkDWire(False);
     Wire#(Bool) wr_clear_sb<-mkDWire(False);
     Wire#(Bool) wr_deq_storebuffer1<-mkDWire(False);
@@ -133,7 +131,7 @@ package stage4;
       let {simpc,inst}=rxinst.u.first;
     `endif
 
-      Bit#(VADDR) badaddr = field1;
+      Bit#(`vaddr) badaddr = field1;
       Bit#(5) fflags=truncate(field1);
       Bit#(3) func3= field1[2:0];
       Bit#(12) csraddr = field1[14:3];
@@ -143,10 +141,10 @@ package stage4;
       Bit#(ELEN) commitvalue = field2;
       Bit#(XLEN) rs1 = truncate(field2);
       
-      Bit#(VADDR) pc = field3;
+      Bit#(`vaddr) pc = field3;
       
       Bit#(1) epoch = field4[0];
-      Bit#(7) trapcause = field4[7:1];
+      Bit#(6) trapcause = field4[6:1];
       Bit#(5) rd = field4[5:1];
       RFType rdtype = unpack(field4[6]);
       Access_type memaccess = unpack(field4[9:7]);
@@ -179,6 +177,14 @@ package stage4;
                                           rdtype:rdtype,
                                           rd:rd};
       end
+    `ifdef supervisor 
+      else if(committype==MEMORY && memaccess==SFence)begin
+        temp1=tagged REG CommitRegular{commitvalue:0,
+                                          fflags:0,
+                                          rdtype:IRF,
+                                          rd:0};
+      end
+    `endif
       else if(committype==MEMORY) begin
       `ifndef dcache
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
@@ -186,7 +192,7 @@ package stage4;
           if(verbosity>0)
             $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
           if(ff_memory_response.notEmpty)begin
-            let {data, err_fault, epochs}=ff_memory_response.first;
+            let {data, trap, cause, epochs}=ff_memory_response.first;
             ff_memory_response.deq;
             if(epochs==rg_epoch)begin
             `ifndef dcache
@@ -199,13 +205,14 @@ package stage4;
                 update_data=sign==0?signExtend(update_data[15:0]):zeroExtend(update_data[15:0]);
               else if(size==2)
                   update_data=sign==0?signExtend(update_data[31:0]):zeroExtend(update_data[31:0]);
-            `endif
+            `else
               Bit#(ELEN) update_data=data;
+            `endif
             `ifdef dpfpu
               if(nanboxing==1)
                   update_data[63:32]='1;
             `endif
-              if(err_fault==0 )begin // no bus error
+              if(!trap)begin // no bus error
               `ifdef atomic
                 if(memaccess==Atomic)begin
                   temp1=tagged STORE CommitStore{pc:pc,
@@ -231,29 +238,16 @@ package stage4;
                                                    rd:rd};
               end
               else begin
-                if(err_fault[0]==1)begin
-                `ifdef atomic 
-                  if(memaccess!=Load)
-                    temp1=tagged TRAP CommitTrap{cause:`Store_access_fault, badaddr:badaddr, pc:pc};
-                  else
-                `endif
-                    temp1=tagged TRAP CommitTrap{cause:`Load_access_fault, badaddr:badaddr, pc:pc};
-                end
-                else begin
-                `ifdef atomic 
-                  if(memaccess!=Load)
-                    temp1=tagged TRAP CommitTrap{cause:`Store_pagefault, badaddr:badaddr, pc:pc};
-                  else
-                `endif
-                  temp1=tagged TRAP CommitTrap{cause:`Load_pagefault, badaddr:badaddr, pc:pc};
-                end
+                temp1=tagged TRAP CommitTrap{cause:cause, badaddr:badaddr, pc:pc};
               end
             end
             else begin
               if(rg_epoch==epoch)
                 complete=False;
             `ifdef dcache
-              if(memaccess==Store `ifdef atomic || memaccess==Atomic `endif )
+              if(trap)
+                temp1=tagged TRAP CommitTrap{cause:cause, badaddr:badaddr, pc:pc};
+              else if(memaccess==Store `ifdef atomic || memaccess==Atomic `endif )
                 temp1=tagged STORE CommitStore{pc:pc
                                               `ifdef atomic 
                                                 , rd:0,  
@@ -322,7 +316,7 @@ package stage4;
   `endif
   `ifdef dcache
     interface  memory_response= interface Put
-      method Action put (DCore_response#(ELEN,1) response)if(ff_memory_response.notFull);
+      method Action put (DMem_response#(ELEN,1) response)if(ff_memory_response.notFull);
         if(verbosity>1)
           $display($time, "\tSTAGE4: Read Response: ", fshow(response));
         ff_memory_response.enq(response);
@@ -346,7 +340,7 @@ package stage4;
       wr_clear_sb<=tpl_2(s);
     endmethod
 		interface memory_write_request = interface Get
-      method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) get if(wr_store_start);
+      method ActionValue#(MemoryWriteReq#(`vaddr,1,ELEN)) get if(wr_store_start);
         let x <- storebuffer.perform_store;
         return x;
       endmethod

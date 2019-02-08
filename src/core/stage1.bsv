@@ -51,29 +51,26 @@ package stage1;
 
 	interface Ifc_stage1;
     //instruction request to the memory subsytem or the memory bus.
-    //                         addr, fence, epoch, prefetch 
-  	interface Get#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) inst_request;
+ 	  interface Get#(ICore_request#( `vaddr, 3)) inst_request;
 
     // instruction response from the memory subsytem or the memory bus
-    //                     inst , error , epoch 
-    interface Put#(Tuple3#(Bit#(32),Bool,Bit#(3))) inst_response;
+    //                     inst , trap, cause, epoch 
+    interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
 
     // instruction along with other results to be sent to the next stage
     interface TXe#(PIPE1_min) tx_min;
   `ifdef bpu
     interface TXe#(PIPE1_opt1) tx_opt1;
   `endif
-  `ifdef supervisor
-    interface TXe#(PIPE1_opt2) tx_opt2;
-  `endif
 
     // flush from the write-back or exe stage.
-    method Action flush(Bit#(VADDR) newpc, Bool fence); //fence integration
+    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef supervisor ,Bool sfence `endif
+                                                                        `endif ); //fence integration
 		method Action update_eEpoch;
 		method Action update_wEpoch;
 
     // csrs from the csrfile.
-    method Action csrs (CSRtoDecode csr);
+    method Action csr_misa_c (Bit#(1) c);
 
 	endinterface
 
@@ -83,14 +80,19 @@ package stage1;
     let verbosity = `VERBOSITY ;
     
     // this wire carries the current values of certain csrs.
-    Wire#(CSRtoDecode) wr_csr <-mkWire();
+    Wire#(Bit#(1)) wr_csr_misa_c <-mkWire();
     // This register holds the request address to be sent to the cache.
-    Reg#(Bit#(VADDR)) rg_icache_request <- mkReg('h1000);
+    Reg#(Bit#(`vaddr)) rg_icache_request <- mkReg(`resetpc );
     // This register holds the PC value that needs to be sent to the next stage in the pipe.
-    Reg#(Bit#(VADDR)) rg_pc <- mkReg('h1000);
+    Reg#(Bit#(`vaddr)) rg_pc <- mkReg(`resetpc );
+  `ifdef icache
     // This register indicates if a fence of the i-cache was requested and is set during a flush
     // from the write back stage. Once the fence request is sent this is register is de-asserted.
     Reg#(Bool) rg_fence <-mkReg(False);
+    `ifdef supervisor
+      Reg#(Bool) rg_sfence <-mkReg(False);
+    `endif
+  `endif
 
     // The following registers are use to the maintain epochs from various pipeline stages:
     // writeback, execute stage and fetch stage.
@@ -106,22 +108,20 @@ package stage1;
     // ignored. This happens because, when there is jump to non-4-byte aligned address the cache
     // still receives a previous 4-byte-ailgned address from the fetch stage.
     Reg#(Bool) rg_discard_lower <- mkReg(False);
+    Reg#(Bool) rg_receiving_upper <- mkReg(False);
 
     // This register holds the 16-bits of instruction from the previous cache response if required.
     Reg#(Bit#(16)) rg_instruction <- mkReg(0);
 
     // This FIFO receives the response from the memory subsytem (a.k.a cache)
-    FIFOF#(Tuple3#(Bit#(32),Bool,Bit#(3))) ff_memory_response<-mkSizedFIFOF(2);
+    FIFOF#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) ff_memory_response<-mkSizedFIFOF(2);
 
     // FIFO to interface with the next pipeline stage
 		TX#(PIPE1_min) txmin<-mkTX;
     `ifdef bpu
   		TX#(PIPE1_opt1) txopt1<-mkTX;
     `endif
-    `ifdef supervisor
-  		TX#(PIPE1_opt2) txopt2<-mkTX;
-    `endif
-    
+
     // RuleName: process_instruction
     // Explicit Conditions: None
     // Implicit Conditions: 
@@ -161,26 +161,30 @@ package stage1;
     // rg_instruction. rg_Action in this case will remain CheckPrev so that the upper bits of this
     // repsonse are probed in the next cycle.
     rule process_instruction;
-        let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=wr_csr;
-        let {cache_response,err,epoch}=ff_memory_response.first;
+        let {cache_response,err,cause,epoch}=ff_memory_response.first;
         Bit#(32) final_instruction=0;
         Bool compressed=False;
         Bool enque_instruction=True;
         // if epochs do not match then drop the instruction
+        if(verbosity>2)
+          $display($time,"\tSTAGE1: Analyzing Response: ",fshow(ff_memory_response.first), 
+          "rg_action: ",fshow(rg_action), " misa[c]:%b rg_discard:%b",wr_csr_misa_c,rg_discard_lower);
         if({rg_iEpoch,rg_eEpoch,rg_wEpoch}!=epoch)begin
           ff_memory_response.deq;
           rg_action<=None;
           enque_instruction=False;
           if(verbosity>0)
-            $display($time,"\tSTAGE1: Dropping Instruction from Cache");
+            $display($time,"\tSTAGE1: Dropping Instruction from Cache. CurrEpoch: %b RespEpoch: %b ",
+              {rg_iEpoch,rg_eEpoch,rg_wEpoch},epoch, fshow(ff_memory_response.first));
         end
-        else if(rg_discard_lower && misa[2]==1)begin
+        else if(rg_discard_lower && wr_csr_misa_c==1)begin
           rg_discard_lower<=False;
           ff_memory_response.deq;
           if(cache_response[17:16]==2'b11)begin
             rg_instruction<=cache_response[31:16];
             rg_action<=CheckPrev;
             enque_instruction=False;
+            rg_receiving_upper<=True;
           end
           else begin
             compressed=True;
@@ -192,7 +196,7 @@ package stage1;
           if(cache_response[1:0]=='b11)begin
             final_instruction=cache_response;
           end
-          else if(misa[2]==1) begin
+          else if(wr_csr_misa_c==1) begin
             compressed=True;
             final_instruction=zeroExtend(cache_response[15:0]);
             rg_instruction<=truncateLSB(cache_response);
@@ -204,6 +208,8 @@ package stage1;
             final_instruction={cache_response[15:0],rg_instruction};
             rg_instruction<=truncateLSB(cache_response);
             ff_memory_response.deq;
+            if(rg_receiving_upper)
+              rg_receiving_upper<=False;
           end
           else begin
             compressed=True;
@@ -211,11 +217,16 @@ package stage1;
             rg_action<=None;
           end
         end
+        if(rg_receiving_upper && err)
+          cause[5]=1;
 				let pipedata=PIPE1_min{program_counter:rg_pc,
                       instruction:final_instruction,
                       epochs:{rg_eEpoch,rg_wEpoch},
-                      accesserr:pack(err)}; 
-        if(compressed  && enque_instruction && misa[2]==1)begin
+                      trap: err
+                    `ifdef supervisor
+                      ,cause:cause
+                    `endif }; 
+        if(compressed  && enque_instruction && wr_csr_misa_c==1)begin
           rg_pc<=rg_pc+2;
         end
         else if(enque_instruction)begin
@@ -226,12 +237,9 @@ package stage1;
         `ifdef bpu
           tx_opt1.u.enq(PIPE1_opt1{prediction:0}); // TODO fix when supporting bpu
         `endif
-        `ifdef supervisor
-          tx_opt2.u.enq(PIPE1_opt2{pagefault:0}); // TODO fix when TLB is integrated
-        `endif
           if(verbosity!=0) begin
-            $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Epoch: %b", rg_pc, final_instruction,
-                                                                                        err, epoch);
+            $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Cause:%d Epoch: %b", rg_pc, final_instruction,
+                                                                          err, cause, epoch);
             $display($time,"\tSTAGE1: rg_action: ",fshow(rg_action)," compressed: %b final_inst:\
   %h rg_instruction: %h enque_instruction: %b curr_epoch: %b", compressed, final_instruction, 
               rg_instruction, enque_instruction,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
@@ -247,14 +255,29 @@ package stage1;
     // both of which are being updated in this method as well. This conflict is acceptable since we
     // do not wish to populate the cache with an unwanted request and initiate a new request asap.
     interface inst_request=interface Get
-      method ActionValue#(Tuple4#(Bit#(VADDR),Bool,Bit#(3),Bool)) get;
+      method ActionValue#(ICore_request#( `vaddr, 3)) get;
+      `ifdef icache
 		    if(rg_fence==True)
 			    rg_fence<=False; // reset fence once the command is sent
+        `ifdef supervisor
+          else if(rg_sfence==True)
+            rg_sfence<=False;
+        `endif
         else
+      `endif
           rg_icache_request<=rg_icache_request+4;
         if(verbosity>1)
-          $display($time,"\tSTAGE1: Sending Request for Addr: %h to Memory",rg_icache_request);
-        return tuple4(rg_icache_request,rg_fence,{rg_iEpoch,rg_eEpoch,rg_wEpoch},False);
+          $display($time,"\tSTAGE1: Sending Request for Addr: %h to Memory Epoch:%b",
+              rg_icache_request, {rg_iEpoch,rg_eEpoch,rg_wEpoch});
+      `ifdef icache
+        `ifdef supervisor
+          return tuple4(rg_icache_request,rg_fence, rg_sfence, {rg_iEpoch,rg_eEpoch,rg_wEpoch});
+        `else
+          return tuple3(rg_icache_request,rg_fence,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
+        `endif
+      `else
+        return tuple2(rg_icache_request,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
+      `endif
       endmethod
     endinterface;
 
@@ -262,7 +285,7 @@ package stage1;
     // Explicit Conditions: None
     // Implicit Conditions: ff_memory_response.notFull
 		interface inst_response= interface Put
-			method Action put (Tuple3#(Bit#(32),Bool,Bit#(3)) resp);
+			method Action put (Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3)) resp);
         if(verbosity>1)
           $display($time,"\tSTAGE1: Recevied response from the Memory: ",fshow(resp));
         ff_memory_response.enq(resp);
@@ -273,21 +296,28 @@ package stage1;
   `ifdef bpu
 		interface tx_opt1 = txopt1.e;
   `endif
-  `ifdef supervisor
-		interface tx_opt2 = txopt2.e;
-  `endif
     // This method will fire when a flush from the write back stage or execute stage is initiated.
     // Explicit Conditions: None
     // Implicit Conditions: None
-    method Action flush(Bit#(VADDR) newpc, Bool fence); //fence integration
+    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef supervisor ,Bool sfence `endif
+                                                                  `endif ); //fence integration
+  `ifdef icache
 		  if(fence)
 		  	rg_fence<=True;
+    `ifdef supervisor
+      if(sfence)
+        rg_sfence<=True;
+    `endif
+  `endif
       rg_pc<=newpc;
       rg_icache_request<={truncateLSB(newpc),2'b0};
       if(newpc[1:0]!=0)
         rg_discard_lower<=True;
+      else
+        rg_discard_lower<=False;
       if(verbosity>1)
-        $display($time, "\tSTAGE1: Received Flush. PC: %h Fence: %b ",newpc,fence); 
+        $display($time, "\tSTAGE1: Received Flush. PC: %h",newpc `ifdef icache ," Fence: %b",fence 
+        `ifdef supervisor ," Sfence: ",sfence `endif `endif ); 
       ff_memory_response.clear();
     endmethod
     method Action update_eEpoch;
@@ -298,8 +328,8 @@ package stage1;
     endmethod
     
     // This method captures the csrs from the csrfile
-    method Action csrs (CSRtoDecode csr);
-      wr_csr <= csr;
+    method Action csr_misa_c (Bit#(1) c);
+      wr_csr_misa_c <= c;
     endmethod
   endmodule
 endpackage

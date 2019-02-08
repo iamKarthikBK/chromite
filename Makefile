@@ -11,7 +11,8 @@ include soc_config.inc
 ifeq (, $(wildcard ${TOOLS_DIR}/shakti-tools/insert_license.sh))
   VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout
 else
-  VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout -verilog-filter ${TOOLS_DIR}/shakti-tools/insert_license.sh
+  VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout -verilog-filter ${TOOLS_DIR}/shakti-tools/insert_license.sh \
+									 -verilog-filter ${TOOLS_DIR}/shakti-tools/rename_translate.sh
   VERILOGLICENSE:= cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt ./verilog
 endif
 SHAKTI_HOME=$(PWD)
@@ -59,9 +60,6 @@ endif
 ifeq ($(BPU),enable)
   define_macros += -D bpu=True
 endif
-ifeq ($(MMU),enable)
-  define_macros += -D MMU=True
-endif
 ifeq ($(PERF),enable)
   define_macros	+= -D perf=True
 endif
@@ -83,13 +81,13 @@ endif
 ifeq ($(COREFABRIC), AXI4Lite)
   define_macros += -D CORE_AXI4Lite=True
 endif
-ifeq ($(USERTRAPS), True)
+ifeq ($(USERTRAPS), enable)
   define_macros += -D usertraps=True
 endif
-ifeq ($(USER), True)
+ifeq ($(USER), enable)
   define_macros += -D user=True
 endif
-ifeq ($(RTLDUMP), True)
+ifeq ($(RTLDUMP), enable)
   define_macros += -D rtldump=True
 endif
 ifeq ($(SUPERVISOR),  enable)
@@ -103,6 +101,9 @@ ifeq ($(ICACHE), enable)
 endif
 ifeq ($(DCACHE), enable)
   define_macros += -D dcache=True
+endif
+ifeq ($(PMP), enable)
+	define_macros += -D pmp=True
 endif
 
 
@@ -120,10 +121,12 @@ endif
 define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
 								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True \
 								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
-								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL) -D icachereset=$(IRESET) \
+								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL) -D icachereset=$(IRESET) -D iesize=$(IESIZE) \
 								 -D dwords=$(DWORDS) -D dblocks=$(DBLOCKS) -D dways=$(DWAYS) -D dsets=$(DSETS) \
-								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) \
-								 -D PIPE$(PIPE)=True \
+								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) -D desize=$(DESIZE) \
+								 -D dsbsize=$(DSBSIZE) \
+								 -D PIPE$(PIPE)=True -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
+								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH)
 
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/
 M_EXT:=./src/core/m_ext/
@@ -136,7 +139,7 @@ LIB:=./src/common_bsv
 VERILATOR_FLAGS = --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
 --noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
 -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS) \
--DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY
+-DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY -DVERBOSE
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(LIB):$(FABRIC):$(UNCORE):$(TESTBENCH):$(PERIPHERALS):$(WRAPPERS):$(M_EXT)
 default: generate_verilog link_verilator generate_boot_files
 

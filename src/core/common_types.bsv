@@ -33,31 +33,70 @@ package common_types;
 
   `ifdef RV64
   	typedef 64 XLEN;
-    typedef 64 VADDR ;
   `else
     typedef 32 XLEN;
-    typedef 32 VADDR ;
   `endif
   `ifdef dpfpu
     typedef 64 FLEN;
   `elsif spfpu
     typedef 32 FLEN;
   `else
-    typedef VADDR FLEN;
+    typedef `vaddr FLEN;
   `endif
-	typedef 32 PADDR ;
 	typedef Bit #(3)  Funct3;
   typedef 7 PRFDEPTH;
   typedef 8 RAS_DEPTH;
   typedef 0 USERSPACE ;
   typedef TMax#(XLEN, FLEN) ELEN;
 
+  // ---------------- following types are used to define the memory interfaces from the core ---//
+`ifdef icache
+  `ifdef supervisor
+    typedef Tuple4#(Bit#(addr), Bool, Bool, Bit#(esize)) ICore_request#(numeric type addr, 
+                                                                            numeric type esize);
+  `else                                                                          
+                    // addr, Fence, epoch
+    typedef Tuple3#(Bit#(addr), Bool, Bit#(esize)) ICore_request#(numeric type addr, 
+                                                                            numeric type esize);
+  `endif
+`else
+                    // addr,epoch
+    typedef Tuple2#(Bit#(addr), Bit#(esize)) ICore_request#(numeric type addr, numeric type esize);
+`endif
+`ifdef dcache
+  `ifdef supervisor
+    `ifdef atomic
+                    // addr, Fence, sFence, epoch, access_type, access_size data,  atomic_op
+      typedef Tuple8#(Bit#(addr), Bool, Bool, Bit#(esize), Bit#(2), Bit#(3), Bit#(data),  Bit#(5)) 
+                      DMem_request#(numeric type addr, numeric type data, numeric type esize);
+    `else
+                    // addr, Fence, sFence epoch, access_type, access_size data,  atomic_op
+      typedef Tuple7#(Bit#(addr), Bool, Bool, Bit#(esize), Bit#(1), Bit#(3), Bit#(data)) 
+                      DMem_request#(numeric type addr, numeric type data, numeric type esize);
+    `endif
+  `else                                                                          
+    `ifdef atomic
+                      // addr, Fence, epoch, access_type, access_size data,  atomic_op
+      typedef Tuple7#(Bit#(addr), Bool, Bit#(esize), Bit#(2), Bit#(3), Bit#(data),  Bit#(5)) 
+                        DMem_request#(numeric type addr, numeric type data, numeric type esize);
+    `else
+                      // addr, Fence, epoch, access_type, access_size data,  atomic_op
+      typedef Tuple6#(Bit#(addr), Bool, Bit#(esize), Bit#(1), Bit#(3), Bit#(data)) 
+                        DMem_request#(numeric type addr, numeric type data, numeric type esize);
+    `endif
+  `endif
+  typedef Tuple4#(Bit#(data), Bool, Bit#(6), Bit#(esize)) DMem_response#(numeric type data, 
+                                                                          numeric type esize);
+`endif
+  // ------------------------------------------------------------------------------------- //
 
   //------ The follwing contain common tuples across the stages ------------- 
 	typedef enum {ALU, MEMORY, BRANCH, JAL, JALR, SYSTEM_INSTR, TRAP, WFI
       `ifdef spfpu ,FLOAT `endif `ifdef muldiv ,MULDIV `endif } Instruction_type 
       deriving(Bits, Eq, FShow); // the type of the decoded instruction.
-	typedef enum {Load=0, Store=1,  Fence=3 , FenceI=4 `ifdef atomic ,Atomic=2 `endif } Access_type 
+	typedef enum {Load=0, Store=1, Fence=3 , FenceI=4 
+                `ifdef atomic ,Atomic=2 `endif 
+                `ifdef supervisor ,SFence=5 `endif } Access_type 
                                                                         deriving (Bits, Eq, FShow);
   `ifdef bpu                                                                     
   	typedef enum {CheckNPC, CheckRPC, None} Flush_type deriving (Bits, Eq, FShow);
@@ -105,15 +144,34 @@ package common_types;
   `endif
 
   // define all tuples here
-  typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(VADDR), Bit#(6), Flush_type) ALU_OUT;
+  typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(`vaddr), Bit#(6), Flush_type) ALU_OUT;
   
-  typedef Tuple5#(Bit#(PADDR), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
-  typedef Tuple4#(Bit#(PADDR), Access_type, Bit#(2), Bit#(1)) CoreRequest;
+  typedef Tuple5#(Bit#(`paddr), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
+  typedef Tuple4#(Bit#(`paddr), Access_type, Bit#(2), Bit#(1)) CoreRequest;
 
   typedef Tuple3#(Bit#(5), Bool, Bit#(XLEN)) OpFwding;
   // rg_prv,  csr_mip, csr_mie, csr_mideleg, csr_misa, csr_counteren, rg_mie, {fs,frm}
-  typedef Tuple8#(Privilege_mode, Bit#(12), Bit#(12), Bit#(12), Bit#(26), Bit#(3), 
-                   Bit#(1), Bit#(4)) CSRtoDecode;
+//  typedef Tuple8#(Privilege_mode, Bit#(12), Bit#(12), Bit#(12), Bit#(26), Bit#(3), 
+//                   Bit#(1), Bit#(4)) CSRtoDecode;
+  typedef struct{
+    Privilege_mode prv;
+    Bit#(12) csr_mip;
+    Bit#(12) csr_mie;
+  `ifdef non_m_traps
+    Bit#(12) csr_mideleg;
+  `endif
+  `ifdef supervisor
+    Bit#(12) csr_sip;
+    Bit#(12) csr_sie;
+    Bit#(12) csr_sideleg;
+  `endif
+  `ifdef usertraps
+    Bit#(12) csr_uip;
+    Bit#(12) csr_uie;
+  `endif
+    Bit#(26) csr_misa;
+    Bit#(XLEN) csr_mstatus;
+    Bit#(3) frm;} CSRtoDecode deriving(Bits,Eq,FShow);
 
   typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), RFType) DumpType;
   
@@ -128,8 +186,8 @@ package common_types;
     Bit#(esize),// epoch
     Bit#(3))    // access_size
     MemoryReadReq#(numeric type addr, numeric type esize);
-                    // data , err    , eopch size
-  typedef Tuple3#(Bit#(ELEN), Bit#(2), Bit#(esize)) MemoryReadResp#(numeric type esize);
+                    // data , trap, cause, eopch size
+  typedef Tuple4#(Bit#(ELEN), Bool, Bit#(6), Bit#(esize)) MemoryReadResp#(numeric type esize);
   
   typedef Tuple3#(
     Bit#(addr), // ADDR
@@ -141,10 +199,13 @@ package common_types;
 
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
-  	Bit#(VADDR) program_counter;
+  	Bit#(`vaddr) program_counter;
   	Bit#(32) instruction;
   	Bit#(2) epochs;
-    Bit#(1) accesserr;
+    Bool trap ;
+  `ifdef supervisor
+    Bit#(6) cause;
+  `endif
   }PIPE1_min deriving (Bits,Eq);
 
   typedef struct{Bit#(2) prediction;} PIPE1_opt1 deriving(Bits,Eq,FShow);
@@ -155,12 +216,12 @@ package common_types;
 
   typedef Tuple4#(Bit#(5), // rs1addr
                  Bit#(5), // rs2addr
-                 Bit#(VADDR), // pc_rs1,
+                 Bit#(`vaddr), // pc_rs1,
                  Instruction_type)  OpMeta;
   typedef Tuple3#(
                  Bit#(msize), // rs1_pc
                  Bit#(msize), // rs2_instruction(for badaddr)
-                 Bit#(t))     // rs3_imm. Incase fpu is on then t = FLEN else VADDR
+                 Bit#(t))     // rs3_imm. Incase fpu is on then t = FLEN else `vaddr
                  OpData#(numeric type msize, numeric type t);
   typedef Tuple5#(Bit#(5), // rd
                  Bit#(7), // {fn,f3} or cause
@@ -181,13 +242,13 @@ package common_types;
 
   //for TRAP type commit: total : 85
   // cause                7 bits            
-  // badaddr              VADDR             -done
-  // pc                   VADDR             -done
+  // badaddr              `vaddr             -done
+  // pc                   `vaddr             -done
 
   // for MEMORY type      total: 156
-  // address              VADDR             -done
+  // address              `vaddr             -done
   // data                 ELEN              -done
-  // pc                   VADDR             -done required to generate TRAP
+  // pc                   `vaddr             -done required to generate TRAP
   // atomic op            4-bits      
   // accesstype           3-bits            
   // access_size          3-bits
@@ -215,9 +276,9 @@ package common_types;
 
   // Common: epoch 1-bit
 
-  typedef Bit#(VADDR)     Tbad_Maddr_Rmeta2_Smeta2;
+  typedef Bit#(`vaddr)     Tbad_Maddr_Rmeta2_Smeta2;
   typedef Bit#(ELEN)      Mdata_Rrdvalue_Srs1;
-  typedef Bit#(VADDR)     Tpc_Mpc;
+  typedef Bit#(`vaddr)     Tpc_Mpc;
   typedef Bit#(18)        Tcause_Mmeta_Rmeta1_Smeta1_epoch;
 
   typedef Tuple5#(PreCommit_type, Tbad_Maddr_Rmeta2_Smeta2, Mdata_Rrdvalue_Srs1,
@@ -228,11 +289,11 @@ package common_types;
 
   //for TRAP type commit: total : 85
   // cause                7 bits            
-  // badaddr              VADDR             -done
-  // pc                   VADDR             -done
+  // badaddr              `vaddr             -done
+  // pc                   `vaddr             -done
 
   // for STORE type      total: 42
-  // pc                   VADDR           
+  // pc                   `vaddr           
   // rdindex              3-bits
 
   // for REGULAR          total: 78
@@ -257,12 +318,12 @@ package common_types;
 
   // Common: epoch 1-bit
   typedef struct{
-    Bit#(7) cause;
-    Bit#(VADDR) badaddr;
-    Bit#(VADDR) pc;}CommitTrap deriving(Bits,Eq,FShow);
+    Bit#(6) cause;
+    Bit#(`vaddr) badaddr;
+    Bit#(`vaddr) pc;}CommitTrap deriving(Bits,Eq,FShow);
 
   typedef struct{
-    Bit#(VADDR) pc;
+    Bit#(`vaddr) pc;
   `ifdef atomic
     Bit#(ELEN) commitvalue;
     Bit#(5) rd;

@@ -39,8 +39,8 @@ package cclass;
 	endinterface
 
 	interface Ifc_cclass_axi4;
-		interface AXI4_Master_IFC#(PADDR, XLEN, 0) master_d;
-		interface AXI4_Master_IFC#(PADDR, XLEN, 0) master_i;
+		interface AXI4_Master_IFC#(`paddr, XLEN, 0) master_d;
+		interface AXI4_Master_IFC#(`paddr, XLEN, 0) master_i;
 		method Action set_external_interrupt(Tuple2#(Bool,Bool) i);
 		/* =========================== Debug Interface ===================== */
 		`ifdef Debug
@@ -75,11 +75,11 @@ package cclass;
 	module mkcclass_axi4(Ifc_cclass_axi4);
     let verbosity=`VERBOSITY ;
 	  Ifc_riscv riscv <-mkriscv(); // TODO reset vector
-		AXI4_Master_Xactor_IFC #(PADDR,XLEN,0) imem_xactor <- mkAXI4_Master_Xactor;
-		AXI4_Master_Xactor_IFC #(PADDR,XLEN,0) dmem_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(`paddr,XLEN,0) imem_xactor <- mkAXI4_Master_Xactor;
+		AXI4_Master_Xactor_IFC #(`paddr,XLEN,0) dmem_xactor <- mkAXI4_Master_Xactor;
 		Ifc_imem imem <-mkimem();
 		Ifc_dmem dmem <- mkdmem;
-		Ifc_PTWalk#(64, VADDR, 56, PADDR, ASID, OFFSET) ptw <- mkPTWalk;
+		Ifc_PTWalk#(64, `vaddr, 56, `paddr, ASID, OFFSET) ptw <- mkPTWalk;
 		Wire#(Bit#(XLEN)) wr_pte <- mkWire();
 		Reg#(Bool) rg_serve_dTLB <- mkReg(False);
 

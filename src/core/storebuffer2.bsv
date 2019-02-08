@@ -44,10 +44,10 @@ package storebuffer2;
   import common_types::*;
 
   interface Ifc_storebuffer;
-    method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(VADDR) addr);
-    method Action allocate(Bit#(VADDR) addr, Bit#(ELEN) data, Bit#(2) size);
-    method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) perform_store;
-    method Bit#(VADDR) write_address;
+    method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(`vaddr) addr);
+    method Action allocate(Bit#(`vaddr) addr, Bit#(ELEN) data, Bit#(2) size);
+    method ActionValue#(MemoryWriteReq#(`vaddr,1,ELEN)) perform_store;
+    method Bit#(`vaddr) write_address;
     method Action deque;
     method Bool storebuffer_empty;
   endinterface
@@ -59,15 +59,15 @@ package storebuffer2;
   module mkstorebuffer(Ifc_storebuffer);
     let verbosity = `VERBOSITY ;
     let offset = valueOf(XLEN)==64?2:1;
-    Ifc_PipeFIFOF#(Tuple3#(Bit#(VADDR),Bit#(ELEN),Bit#(2))) storequeue <- mkPipeFIFOF();
+    Ifc_PipeFIFOF#(Tuple3#(Bit#(`vaddr),Bit#(ELEN),Bit#(2))) storequeue <- mkPipeFIFOF();
 
-    method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(VADDR) addr);
+    method ActionValue#(Tuple2#(Bit#(ELEN), Bit#(ELEN))) check_address (Bit#(`vaddr) addr);
       Bit#(ELEN) storemask1 = 0;
       Bit#(ELEN) storemask2 = 0;
       `ifdef RV64
-        Bit#(TSub#(VADDR,3)) wordaddr = truncateLSB(addr);
+        Bit#(TSub#(`vaddr,3)) wordaddr = truncateLSB(addr);
       `else
-        Bit#(TSub#(VADDR,2)) wordaddr = truncateLSB(addr);
+        Bit#(TSub#(`vaddr,2)) wordaddr = truncateLSB(addr);
       `endif
       let {valid1, element1} = storequeue.first_data;
       let {valid2, element2} = storequeue.second_data;
@@ -101,7 +101,7 @@ package storebuffer2;
       let data2 = storemask2& store_data2;
       return tuple2(storemask1|storemask2,data1|data2);
     endmethod
-    method Action allocate(Bit#(VADDR) addr, Bit#(ELEN) data, Bit#(2) size);
+    method Action allocate(Bit#(`vaddr) addr, Bit#(ELEN) data, Bit#(2) size);
       if(size==0)
         data=duplicate(data[7:0]);
       else if(size==1)
@@ -112,12 +112,12 @@ package storebuffer2;
         $display($time,"\tSTOREBUFFER: Enquing Store Addr: %h Data: %h size: %b", addr, data, size);
       storequeue.fifo.enq(tuple3(addr,data,size));
     endmethod
-    method ActionValue#(MemoryWriteReq#(VADDR,1,ELEN)) perform_store ;
+    method ActionValue#(MemoryWriteReq#(`vaddr,1,ELEN)) perform_store ;
       if(verbosity>0)
         $display($time,"\tSTAGE4: Sending Store request: ",fshow(storequeue.fifo.first));
       return storequeue.fifo.first;
     endmethod
-    method Bit#(VADDR) write_address;
+    method Bit#(`vaddr) write_address;
 //      let {valid, data} = storequeue.first_data;
       return tpl_1(storequeue.fifo.first);
     endmethod

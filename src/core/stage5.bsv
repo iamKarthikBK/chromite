@@ -39,40 +39,44 @@ package stage5;
   import csr::*;
   import csrfile::*;
   import DReg::*;
+  import Vector::*;
   interface Ifc_stage5;
     interface RXe#(PIPE4) rx_in;
     `ifdef rtldump
-      interface RXe#(Tuple2#(Bit#(VADDR),Bit#(32))) rx_inst;
+      interface RXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) rx_inst;
     `endif
     method Maybe#(CommitData) commit_rd;
-    method Tuple3#(Bool, Bit#(VADDR), Bool) flush;
+  `ifdef supervisor
+    method Tuple4#(Bool, Bit#(`vaddr), Bool, Bool) flush;
+  `else
+    method Tuple3#(Bool, Bit#(`vaddr), Bool) flush;
+  `endif  
     method CSRtoDecode csrs_to_decode;
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(64) c_mtime);
-    method Bool interrupt;
     `ifdef rtldump
       interface Get#(DumpType) dump;
     `endif
-    `ifdef RV64 method Bool inferred_xlen; `endif // False-32bit,  True-64bit 
 		`ifdef supervisor
-			method Bit#(XLEN) send_satp;
-			method Chmod perm_to_TLB;
-      method Bool send_sfence;
+			method Bit#(XLEN) csr_satp;
 		`endif
-    `ifdef spfpu
-  		method Bit#(3) roundingmode;
-    `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
     method Tuple2#(Bool,Bool) initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
   `ifdef dcache
     (*always_enabled*)
     method Action store_is_cached(Bool c);
   `endif
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
+  `endif
+    method Bit#(2) curr_priv;
+    method Bit#(XLEN) csr_mstatus;
+  `ifdef pmp
+    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
+    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
   `endif
   endinterface
 
@@ -83,7 +87,7 @@ package stage5;
 
     RX#(PIPE4) rx<-mkRX;
   `ifdef rtldump
-    RX#(Tuple2#(Bit#(VADDR),Bit#(32))) rxinst <-mkRX;
+    RX#(Tuple2#(Bit#(`vaddr),Bit#(32))) rxinst <-mkRX;
   `endif
     Ifc_csr csr <- mkcsr();
 
@@ -91,18 +95,22 @@ package stage5;
     Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
 
     // wire which signals the entire pipe to be flushed.
-    Wire#(Tuple3#(Bool, Bit#(VADDR), Bool)) wr_flush <- mkDWire(tuple3(False, ?, False));
+  `ifdef supervisor
+    Wire#(Tuple4#(Bool, Bit#(`vaddr), Bool, Bool)) wr_flush <- mkDWire(tuple4(False, ?, False, False));
+  `else
+    Wire#(Tuple3#(Bool, Bit#(`vaddr), Bool)) wr_flush <- mkDWire(tuple3(False, ?, False));
+  `endif
 
     // the local epoch register
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
 
   `ifdef rtldump
     FIFO#(DumpType) dump_ff <- mkLFIFO;
-    let prv=tpl_1(csr.csrs_to_decode);
+    let prv=csr.csrs_to_decode.prv;
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
-    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR)))) wr_store_response <- mkDWire(tagged Invalid);
+    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr)))) wr_store_response <- mkDWire(tagged Invalid);
   `ifdef dcache
     Wire#(Bool) wr_store_is_cached <- mkDWire(False);
   `endif
@@ -113,7 +121,10 @@ package stage5;
       let {simpc,inst}=rxinst.u.first;
     `endif
       Bool fenceI=False;
-      Bit#(VADDR) jump_address=?;
+    `ifdef supervisor
+      Bool sFence=False;
+    `endif
+      Bit#(`vaddr) jump_address=?;
       Bool fl = False;
       `ifdef rtldump
         if(verbosity>0)
@@ -121,10 +132,13 @@ package stage5;
       `endif
       if(rg_epoch==epoch)begin
         if(commit matches tagged TRAP .t)begin
-          if(t.cause==`Rerun || t.cause==`IcacheFence )begin
+          if(t.cause==`Rerun || t.cause==`IcacheFence `ifdef supervisor || t.cause==`SFence `endif )begin
             fl=True;
             jump_address=t.pc;
             fenceI=(t.cause==`IcacheFence );
+            `ifdef supervisor
+              sFence = (t.cause==`SFence);
+            `endif
           end
           else begin
             let newpc <- csr.take_trap(t.cause, t.pc, t.badaddr);
@@ -199,9 +213,7 @@ package stage5;
               rx.u.deq;
             end
             else begin
-              Bit#(7) trapcause='1;
-              trapcause=`Store_access_fault;
-              let newpc <- csr.take_trap(trapcause, s.pc, badaddr);
+              let newpc <- csr.take_trap(`Store_access_fault, s.pc, badaddr);
               fl=True;
               jump_address=newpc;
               rx.u.deq;
@@ -310,7 +322,11 @@ package stage5;
         end
         
         // if it is a branch/JAL_R instruction generate a flush signal to the pipe. 
+      `ifdef supervisor
+        wr_flush<=tuple4(fl, jump_address, fenceI, sFence);
+      `else
         wr_flush<=tuple3(fl, jump_address, fenceI);
+      `endif
         if(fl)begin
           rg_epoch <= ~rg_epoch;
         end
@@ -362,20 +378,13 @@ package stage5;
         endmethod
       endinterface;
     `endif
-    `ifdef RV64 method Bool inferred_xlen = csr.inferred_xlen; `endif // False-32bit,  True-64bit 
-    method  interrupt=csr.interrupt;
 		`ifdef supervisor
-			method send_satp=csr.send_satp;
-			method perm_to_TLB=csr.perm_to_TLB;
-      method send_sfence=csr.send_sfence;
+			method csr_satp=csr.csr_satp;
 		`endif
-    `ifdef spfpu
-  		method roundingmode=csr.roundingmode;
-    `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=csr.set_external_interrupt(ex_i);
     method csr_misa_c=csr.csr_misa_c;
     method initiate_store=wr_initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(VADDR))) r);
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
       wr_store_response<=r;
     endmethod
   `ifdef dcache
@@ -385,6 +394,12 @@ package stage5;
   `endif
   `ifdef cache_control
     method mv_cacheenable = csr.mv_cacheenable;
+  `endif
+    method curr_priv = csr.curr_priv;
+    method csr_mstatus= csr.csr_mstatus;
+  `ifdef pmp
+    method pmp_cfg=csr.pmp_cfg;
+    method pmp_addr=csr.pmp_addr;
   `endif
   endmodule
 endpackage

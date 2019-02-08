@@ -97,9 +97,6 @@ package stage2;
     `ifdef bpu
   		interface RXe#(PIPE1_opt1) rx_opt1;
     `endif
-    `ifdef supervisor
-  		interface RXe#(PIPE1_opt2) rx_opt2;
-    `endif
 		interface TXe#(PIPE2_min#(ELEN,FLEN)) tx_min;
   `ifdef spfpu
     interface TXe#(OpFpu) tx_fpu;
@@ -131,9 +128,6 @@ package stage2;
   `ifdef bpu
     RX#(PIPE1_opt1) rxopt1 <-mkRX;
   `endif
-  `ifdef supervisor
-  	RX#(PIPE1_opt2) rxopt2 <-mkRX;
-  `endif
 		TX#(PIPE2_min#(ELEN,FLEN)) txmin <-mkTX;
   `ifdef spfpu
     TX#(OpFpu) txfpu <- mkTX;
@@ -153,32 +147,34 @@ package stage2;
     Reg#(Bool) rg_wfi <- mkReg(False);
     Reg#(Bool) rg_rerun <- mkReg(False);
     Reg#(Bool) rg_fencei_rerun <- mkReg(False);
+  `ifdef supervisor
+    Reg#(Bool) rg_sfence_rerun <- mkReg(False);
+  `endif
     Wire#(Bool) wr_op_complete <-mkDWire(False);
     Wire#(Bool) wr_flush_from_exe<- mkDWire(False);
     Wire#(Bool) wr_flush_from_wb<- mkDWire(False);
 
     rule decode_and_fetch(!rg_stall);
-      let {prv, mip, csr_mie, mideleg, misa, counteren, mie, fs_frm}=wr_csrs;
 	    let pc=rxmin.u.first.program_counter;
 	    let inst=rxmin.u.first.instruction;
 	    let epochs=rxmin.u.first.epochs;
-      let accesserr=rxmin.u.first.accesserr;
-      Bit#(2) err={1'b0,accesserr};
+      let trap=rxmin.u.first.trap;
+    `ifdef supervisor
+      let trapcause = rxmin.u.first.cause;
+    `endif
     `ifdef bpu
   	  let pred=rxopt1.u.first.prediction;
     `endif
-    `ifdef supervisor
-      err[1]=rxopt2.u.first.pagefault;
-    `endif
-      let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,err,wr_csrs, rg_rerun,
-                                                                                  rg_fencei_rerun);
+      let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,trap, 
+              `ifdef supervisor trapcause, `endif wr_csrs, rg_rerun, rg_fencei_rerun 
+              `ifdef supervisor ,rg_sfence_rerun `endif );
       let {rs1addr,rs2addr,rd,rs1type,rs2type} = optype;
       let {func_cause, instrType, memaccess, imm} = meta;
       Bit#(3) funct3 = truncate(func_cause);
       Bit#(4) fn = truncateLSB(func_cause);
-      let word32 = decode_word32(inst,misa[2]);
+      let word32 = decode_word32(inst,wr_csrs.csr_misa[2]);
     `ifdef spfpu
-      let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,misa[2]);
+      let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,wr_csrs.csr_misa[2]);
     `endif
       RFType rf1type = `ifdef spfpu rs1type==FloatingRF?FRF: `endif IRF;
       RFType rf2type = `ifdef spfpu rs2type==FloatingRF?FRF: `endif IRF;
@@ -197,7 +193,7 @@ package stage2;
         Bit#(ELEN) op2=(rs2type==Constant2)?'d2: // constant2 only is C enabled.
                         (rs2type==Constant4)?'d4:
                         (rs2type==Immediate)?signExtend(imm):rs2;
-        Bit#(VADDR) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
+        Bit#(`vaddr) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
         if(instrType==TRAP && func_cause == `Illegal_inst )
             op1=zeroExtend(inst); // for badaddr
       `ifdef spfpu
@@ -210,6 +206,13 @@ package stage2;
           rg_fencei_rerun<=True;
         else 
           rg_fencei_rerun<=False;
+      `ifdef supervisor
+        if(instrType==MEMORY && memaccess==SFence)
+          rg_sfence_rerun<=True;
+        else 
+          rg_sfence_rerun<=False;
+      `endif
+
         OpMeta t1 = tuple4(rs1addr, rs2addr, op3, instrType);
         OpData#(ELEN,FLEN) t2 = tuple3(op1, op2, op4);
         MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);
@@ -233,7 +236,7 @@ package stage2;
 
         if(verbosity>0)begin
           $display($time, "\tDECODE: PC: %h Inst: %h Epoch: %b CurrEpochs: %b WFI: %b ERR: %b", pc, inst, 
-              epochs, {eEpoch, wEpoch}, instrType==WFI, err);
+              epochs, {eEpoch, wEpoch}, instrType==WFI, trap);
           $display($time, "\tDECODE: rs1addr: %d rs2addr: %d", rs1addr, rs2addr 
               `ifdef spfpu ," rs3addr: %d",rs3addr `endif );
           $display($time, "\tDECODE: rs1type: ", fshow(rs1type), " rs2type ", fshow(rs2type)
@@ -254,9 +257,6 @@ package stage2;
     `ifdef bpu
       rxopt1.u.deq;
     `endif
-    `ifdef supervisor
-      rxopt2.u.deq;
-    `endif
     endrule
 
 		method tx_min=txmin.e;
@@ -272,9 +272,6 @@ package stage2;
 		method rx_min=rxmin.e;
   `ifdef bpu
 		method rx_opt1=rxopt1.e;
-  `endif
-  `ifdef supervisor
-		method rx_opt2=rxopt2.e;
   `endif
     method Action csrs (CSRtoDecode csr);
       wr_csrs<= csr;

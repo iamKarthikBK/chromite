@@ -274,11 +274,11 @@ endmodule
 interface Ifc_iTLB;
 	method Action get_vaddr(Bit#(ADDR) addr);
 	method ActionValue#(From_TLB#(ADDR)) send_ppn;
-	//method Bit#(VADDR) send_vaddress_for_cache_index;
+	//method Bit#(`vaddr) send_vaddress_for_cache_index;
 	method Action translation_protection_frm_csr(bit tlb_disable, Chmod per_bits, Bit#(TAdd#(4,ASID)) asid);
-	interface Get#(Request_PPN_PTW#(VADDR,OFFSET)) to_PTW; 
-	interface Put#(Tuple2#(Bool,To_TLB#(PADDR,OFFSET,ASID))) refill_TLB;
-	method Action fence_TLB(Fence_VMA_type#(VADDR) rsdata);
+	interface Get#(Request_PPN_PTW#(`vaddr,OFFSET)) to_PTW; 
+	interface Put#(Tuple2#(Bool,To_TLB#(`paddr,OFFSET,ASID))) refill_TLB;
+	method Action fence_TLB(Fence_VMA_type#(`vaddr) rsdata);
 	//method ActionValue#(Bool) page_fault;
 	//method Action page_fault_frm_PTW;
 endinterface
@@ -286,18 +286,18 @@ endinterface
 (*synthesize*)
 module mkiTLB(Ifc_iTLB);
 
-Ifc_TLB#(ADDR,VADDR,PADDR,OFFSET,ASID) itlb <- mkTLB();
+Ifc_TLB#(ADDR,`vaddr,`paddr,OFFSET,ASID) itlb <- mkTLB();
 	method Action get_vaddr(Bit#(ADDR) addr);
 		itlb.get_vaddr(addr);
 	endmethod
 	method ActionValue#(From_TLB#(ADDR)) send_ppn = itlb.send_ppn;
-	//method Bit#(VADDR) send_vaddress_for_cache_index = itlb.send_vaddress_for_cache_index;
+	//method Bit#(`vaddr) send_vaddress_for_cache_index = itlb.send_vaddress_for_cache_index;
 	method Action translation_protection_frm_csr(bit tlb_disable, Chmod per_bits, Bit#(TAdd#(4,ASID)) asid);
 		itlb.translation_protection_frm_csr(tlb_disable,per_bits,asid);
 	endmethod
 	interface  to_PTW = itlb.to_PTW; 
 	interface  refill_TLB = itlb.refill_TLB;
-	method Action fence_TLB(Fence_VMA_type#(VADDR) rsdata);
+	method Action fence_TLB(Fence_VMA_type#(`vaddr) rsdata);
 		itlb.fence_TLB(rsdata);
 	endmethod
 	//method ActionValue#(Bool) page_fault = itlb.page_fault;

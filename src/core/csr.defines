@@ -55,6 +55,28 @@
 `define SIP       'h144 // Supervisor interrupt pending
 `define SATP      'h180 // Supervisor address translation and protection
 ////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////// Physical Memory Protection ///////////////////////////
+`define PMPCFG0     'h3A0
+`define PMPCFG1     'h3A1
+`define PMPCFG2     'h3A2
+`define PMPCFG3     'h3A3
+`define PMPADDR0    'h3B0
+`define PMPADDR1    'h3B1
+`define PMPADDR2    'h3B2
+`define PMPADDR3    'h3B3
+`define PMPADDR4    'h3B4
+`define PMPADDR5    'h3B5
+`define PMPADDR6    'h3B6
+`define PMPADDR7    'h3B7
+`define PMPADDR8    'h3B8
+`define PMPADDR9    'h3B9
+`define PMPADDR10    'h3BA
+`define PMPADDR11    'h3BB
+`define PMPADDR12    'h3BC
+`define PMPADDR13   'h3BD
+`define PMPADDR14    'h3BE
+`define PMPADDR15    'h3BF
+////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Non-Standard User RW CSRS ///////////////////////////////
 `define CACHECNTRL 'h800 // cache control register
 

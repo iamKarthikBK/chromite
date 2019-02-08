@@ -39,7 +39,7 @@ interface Ifc_fpu;							//interface to module mk_fpu
 	method Action _start(Bit#(ELEN) operand1, Bit#(ELEN) operand2, 
                        Bit#(ELEN) operand3, Bit#(4) opcode, 
                        Bit#(7) funct7,      Bit#(3) funct3, 
-                       Bit#(2) imm,         Bit#(3) fsr, Bool issp
+                       Bit#(2) imm, Bool issp
                       ); 
 	method ActionValue#(Floating_output#(ELEN)) get_result;
 	method Action flush;
@@ -53,7 +53,6 @@ typedef struct{
         Bit#(7) funct7;
         Bit#(3) funct3;
         Bit#(2) imm;
-        Bit#(3) fsr;
         Bool    issp;
     }Input_Packet deriving (Bits,Eq);
 
@@ -219,10 +218,8 @@ module mkfpu(Ifc_fpu);
         Bit#(7) funct7       = input_packet.funct7;
         Bit#(3) funct3       = input_packet.funct3;
         Bit#(2) imm          = input_packet.imm;
-        Bit#(3) fsr          = input_packet.fsr;
         Bool    issp         = input_packet.issp;
         ff_input.deq;
-		funct3 = (funct3 == 'b111) ? fsr : funct3;
 		if(((funct7[6:2]==`FCMP_f5) || funct7[6:2] == `FMMAX_f5) && opcode == `FP_OPCODE)begin // compare min max 
 			if(issp) begin
             let {op1,op2,op3} <- setCanonicalNaN.func(operand1,operand2,'1);
@@ -601,7 +598,7 @@ module mkfpu(Ifc_fpu);
 
 	// input method to start the floating point operation
 
-	method Action _start(Bit#(ELEN) operand1, Bit#(ELEN) operand2, Bit#(ELEN) operand3, Bit#(4) opcode, Bit#(7) funct7, Bit#(3) funct3, Bit#(2) imm,  Bit#(3) fsr, Bool issp) if(!rg_multicycle_op); 
+	method Action _start(Bit#(ELEN) operand1, Bit#(ELEN) operand2, Bit#(ELEN) operand3, Bit#(4) opcode, Bit#(7) funct7, Bit#(3) funct3, Bit#(2) imm, Bool issp) if(!rg_multicycle_op); 
 	    ff_input.enq ( Input_Packet {
                                         operand1 : operand1,
                                         operand2 : operand2,
@@ -610,13 +607,12 @@ module mkfpu(Ifc_fpu);
                                         funct7   : funct7,
                                         funct3   : funct3,
                                         imm      : imm,
-                                        fsr      : fsr,
                                         issp     : issp
                                     });
       if(verbosity>0)begin
         $display($time,"\tFPU: op1:%h, op2:%h, op3:%h",operand1,operand2,operand3);
-        $display($time,"\tFPU: opcode:%h, funct7:%h, funct3:%h, imm:%b fsr:%b,issp:%b",opcode, funct7,
-            funct3, imm, fsr, issp);
+        $display($time,"\tFPU: opcode:%h, funct7:%h, funct3:%h, imm:%b issp:%b",opcode, funct7,
+            funct3, imm, issp);
       end
     endmethod
  
