@@ -118,6 +118,7 @@ package cclass_bare;
 
     FIFOF#(Bit#(3))  ff_epoch <-mkSizedFIFOF(4);
     Integer verbosity = `VERBOSITY ;
+    let curr_priv = riscv.curr_priv;
 
   `ifdef cache_control
 	  rule handle_nc_resp;
@@ -133,7 +134,7 @@ package cclass_bare;
   `ifdef supervisor
     rule tlb_csr_info;
       imem.satp_from_csr.put(riscv.csr_satp);
-      imem.curr_priv.put(riscv.curr_priv);
+      imem.curr_priv.put(curr_priv);
     endrule
   `endif
     rule drive_constants;
@@ -143,7 +144,8 @@ package cclass_bare;
 	  rule handle_imem_line_request;
 	  	let {inst_addr, burst_len, burst_size} <- imem.read_mem_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
-        arlen: burst_len , arsize: 2, arburst: 'b10, arid:`Fetch_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
+        arlen: burst_len , arsize: 2, arburst: 'b10, arid:`Fetch_master_num
+        ,arprot:{1'b1,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    fetch_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
 	  	  $display($time, "\tCORE: IMEM Line Requesting ", fshow(imem_request));
@@ -160,7 +162,8 @@ package cclass_bare;
     rule handle_imem_nc_request;
 	  	let {inst_addr, burst_len, burst_size} <- imem.nc_read_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
-        arlen: 0, arsize: 2, arburst: 'b01, arid:1 }; // arburst: 00-FIXED 01-INCR 10-WRAP
+        arlen: 0, arsize: 2, arburst: 'b01, arid:1
+      ,arprot:{1'b1,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    io_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
 	  	  $display($time, "\tCORE: IMEM IO Requesting ", fshow(imem_request));
@@ -212,7 +215,7 @@ package cclass_bare;
   `ifdef supervisor
     rule dtlb_csr_info;
       dmem.satp_from_csr.put(riscv.csr_satp);
-      dmem.curr_priv.put(riscv.curr_priv);
+      dmem.curr_priv.put(curr_priv);
       dmem.mstatus_from_csr.put(riscv.csr_mstatus);
     endrule
   `endif
@@ -241,7 +244,8 @@ package cclass_bare;
     rule handle_dmem_line_read_request;
 	  	let {addr, burst_len, burst_size} <- dmem.read_mem_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
-        arlen: burst_len , arsize: burst_size, arburst: 'b10, arid:`Mem_master_num}; // arburst: 00-FIXED 01-INCR 10-WRAP
+        arlen: burst_len , arsize: burst_size, arburst: 'b10, arid:`Mem_master_num 
+        ,arprot:{1'b0,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    memory_xactor.i_rd_addr.enq(dmem_request);
 	  	if(verbosity!=0)
 	  	  $display($time, "\tCORE: DMEM Line Requesting ", fshow(dmem_request));
@@ -258,7 +262,8 @@ package cclass_bare;
     rule handle_dmem_line_write_request(rg_burst_count==0);
       let {addr, burst_len, size, data} <- dmem.write_mem_req.get;
 		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: burst_len, 
-          awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
+          awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`Mem_master_num
+          ,awprot:{1'b0,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
 
   	  let w  = AXI4_Wr_Data {wdata: truncate(data), wstrb: '1, wlast:False, wid:`Mem_master_num};
       rg_burst_count<=rg_burst_count+1;
@@ -295,7 +300,8 @@ package cclass_bare;
     rule handle_dmem_nc_request;
 	  	let {inst_addr, burst_len, burst_size} <- dmem.nc_read_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
-        arlen: 0, arsize: zeroExtend(burst_size[1:0]), arburst: 'b01, arid:2 }; // arburst: 00-FIXED 01-INCR 10-WRAP
+        arlen: 0, arsize: zeroExtend(burst_size[1:0]), arburst: 'b01, arid:2
+        ,arprot:{1'b0,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    io_xactor.i_rd_addr.enq(dmem_request);
 	  	if(verbosity!=0)
 	  	  $display($time, "\tCORE: DMEM IO-Read Requesting ", fshow(dmem_request));
@@ -321,7 +327,8 @@ package cclass_bare;
   	  if(size!=3)// 8-bit write;
   	  	write_strobe=write_strobe<<byte_offset;
 		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: 0, 
-          awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`IO_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
+          awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`IO_master_num
+          ,awprot:{1'b0,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
 
   	  let w  = AXI4_Wr_Data {wdata: data, wstrb: write_strobe, wlast:True, wid:`Mem_master_num};
       if(verbosity!=0)begin
@@ -349,7 +356,8 @@ package cclass_bare;
       end
       ff_rd_epochs.enq(tuple2(access,epoch));
       AXI4_Rd_Addr#(`paddr, 0) read_request = AXI4_Rd_Addr {araddr: truncate(addr), aruser: 0, arlen: 0, 
-        arsize: zeroExtend(access[1:0]), arburst:'b01, arid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
+        arsize: zeroExtend(access[1:0]), arburst:'b01, arid:`Mem_master_num 
+        ,arprot:{1'b0,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Read Request ", fshow(read_request));
    	  memory_xactor.i_rd_addr.enq(read_request);	
@@ -386,7 +394,8 @@ package cclass_bare;
   	  if(size!=3)// 8-bit write;
   	  	write_strobe=write_strobe<<byte_offset;
 		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(address), awuser:0, awlen: 0, 
-          awsize: zeroExtend(size), awburst: 'b01, awid:`Mem_master_num}; //arburst: 00-FIXED 01-INCR 10-WRAP
+          awsize: zeroExtend(size), awburst: 'b01, awid:`Mem_master_num
+          ,awprot:{1'b1,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
   	  let w  = AXI4_Wr_Data {wdata: data, wstrb: write_strobe, wlast:True, wid:`Mem_master_num};
       if(verbosity!=0)begin
         $display($time, "\tCORE: Memory write Request ", fshow(aw));
@@ -408,7 +417,7 @@ package cclass_bare;
   `ifdef supervisor
     rule csrs_to_ptwalk;
       ptwalk.satp_from_csr.put(riscv.csr_satp);
-      ptwalk.curr_priv.put(riscv.curr_priv);
+      ptwalk.curr_priv.put(curr_priv);
       ptwalk.mstatus_from_csr.put(riscv.csr_mstatus);
     endrule
 
