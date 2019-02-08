@@ -945,11 +945,15 @@ package csrfile;
               prv= User;
           `endif
           if(verbosity>1)begin
-            $display($time,"\tCSRFILE: PC:%h C:%d Cause:%d medeleg:%h delegateM:%b misa_s:%b", pc,c,cause,
-              medeleg,delegateM,misa_s);
+            $display($time,"\tCSRFILE: PC:%h C:%d Cause:%d misa_s:%b", pc,c,cause,misa_s);
+          `ifdef non_m_traps
+            $display($time,"\tCSRFILE: medeleg:%b delegateM:%b",medeleg,delegateM);
+          `endif
             $display($time,"\tCSRFILE:rg_prv: ",fshow(rg_prv)," prv: ", fshow(prv)); 
             $display($time,"\tCSRFILE: rg_mtvec:%h rg_mode:%b", rg_mtvec,rg_mode);
+          `ifdef supervisor
             $display($time,"\tCSRFILE: rg_stvec:%h rg_smode:%b", rg_stvec,rg_smode);
+          `endif
           end
           
         `ifdef supervisor
