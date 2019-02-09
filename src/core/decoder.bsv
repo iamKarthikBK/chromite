@@ -162,7 +162,7 @@ package decoder;
   `ifdef supervisor
     Bool s_enabled = (prv == User) || (mstatus[1]==1 && prv==Supervisor);
   `endif
-  `ifdef supervisor
+  `ifdef usertraps
     Bool u_enabled = (mstatus[0]==1 && prv==User);
   `endif
     Bool resume_wfi= unpack(|(mie&mip));
@@ -171,7 +171,7 @@ package decoder;
     Bit#(12) s_interrupts = mie & mip & mideleg & signExtend(pack(s_enabled)) 
                                             `ifdef usertraps & ~sideleg `endif ;
   `ifdef usertraps
-    Bit#(12) u_interrupts = uie & uip & mideleg & signExtend(u_enabled) 
+    Bit#(12) u_interrupts = uie & uip & mideleg & signExtend(pack(u_enabled)) 
                                             `ifdef supervisor & sideleg `endif ; 
   `endif
 

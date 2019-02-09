@@ -420,6 +420,11 @@ package csrfile;
                                                                 2'd0, misa_s&ssip,misa_n&rg_usip};
     Bit#(12) csr_sie = {'d0, seie, misa_n&rg_ueie, 2'd0, stie, misa_n&rg_utie, 2'd0, ssie,
                                                                                   misa_n&rg_usie};
+  `endif
+  `ifdef usertraps
+    Bit#(12) csr_uip = {'d0, misa_n&rg_ueip, 3'd0, misa_n&rg_utip, 3'd0, misa_n&rg_usip};
+    Bit#(12) csr_uie = {'d0, misa_n&rg_ueie, 3'd0, misa_n&rg_utie, 3'd0, misa_n&rg_usie};
+  `endif
     rule increment_cycle_counter;
 	  	`ifdef RV64
       	mcycle<=mcycle+1;
@@ -510,12 +515,13 @@ package csrfile;
         // =============== Supervisor level CSRs ==========//
         `ifdef supervisor
           if (addr == `SSTATUS )
-            if(sxl==2)// 64 bit 
+          `ifdef RV64
               data= {sd, 29'd0, uxl, 12'd0, mxr, sum, 1'd0, xs, fs, 2'd0,
-                      hpp, spp, 1'd0, hpie, spie, rg_upie, 1'd0, hie, sie, rg_uie};
-            else if(sxl==1)
-              data= {'d0, sd, 11'd0, mxr, sum, 1'd0, xs, fs, 2'd0, hpp, spp, rg_mpie,
-                      hpie, spie, rg_upie, 1'd0, hie, sie, rg_uie};
+                      2'd0, spp, 1'd0, 1'd0, spie, rg_upie, 1'd0, 1'd0, sie, rg_uie};
+          `else
+              data= {'d0, sd, 11'd0, mxr, sum, 1'd0, xs, fs, 2'd0, 2'd0, spp, rg_mpie,
+                      1'd0, spie, rg_upie, 1'd0, 1'd0, sie, rg_uie};
+          `endif
           if (addr == `STVEC ) begin data = signExtend({rg_stvec, rg_smode}); end
           if (addr == `SIP ) data = {'d0, misa_s&seip, misa_n&rg_ueip, 2'd0, stip&misa_s,
                                       misa_n&rg_utip, 2'd0, misa_s&ssip,misa_n&rg_usip};
@@ -528,18 +534,18 @@ package csrfile;
           if (addr == `SATP ) data = {satp_mode,'d0,satp_asid,satp_ppn};
         `ifdef usertraps
           if (addr == `SIDELEG ) data= {'d0, rg_sideleg};
-          if (addr == `SEDELEG ) data= {'d0, rg_sedeleg_u1,1'd0,rg_sedeleg_m2,3'd0,rg_sedeleg_l9}
+          if (addr == `SEDELEG ) data= {'d0, rg_sedeleg_u1,1'd0,rg_sedeleg_m2,3'd0,rg_sedeleg_l9};
         `endif
         `endif
         // =============== User level CSRs ================//
         `ifdef usertraps
           if (addr == `USTATUS )
           `ifdef RV64
-            data= {sd, 27'd0, 2'd0, uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
-                    hpp, spp, rg_mpie, hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
+              data= {sd, 29'd0, uxl, 12'd0, 2'd0, 1'd0, xs, fs, 2'd0,
+                      2'd0, spp, 1'd0, 1'd0, 1'd0, rg_upie, 1'd0, 1'd0, 1'd0, rg_uie};
           `else
-            data= {'d0, sd, 8'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp, hpp, spp, rg_mpie,
-                    hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
+              data= {'d0, sd, 11'd0, 2'd0, 1'd0, xs, fs, 2'd0, 2'd0, 1'd0, rg_mpie,
+                      1'd0, 1'd0, rg_upie, 1'd0, 1'd0, 1'd0, rg_uie};
           `endif
           if (addr == `UIE) data= {'d0, rg_meie, heie, seie, rg_mideleg[8]&rg_ueie, rg_mtie, htie, 
                          stie, rg_mideleg[4]&rg_utie, rg_msie, hsie, ssie, rg_mideleg[0]&rg_usie}; 
@@ -820,7 +826,7 @@ package csrfile;
             rg_ueie<= word[8];
           end
           `UIP: begin
-            if(misa_n)begin
+            if(misa_n==1)begin
               rg_usip<= word[0];
               soft_ueip<= word[8];
             end
@@ -862,6 +868,11 @@ package csrfile;
         csr_sip: csr_sip,
         csr_sie: csr_sie,
         csr_sideleg: rg_sideleg,
+      `endif
+      `ifdef usertraps
+        csr_uie: csr_uie,
+        csr_uip: csr_uip,
+      `endif
         frm: frm};
   	method Action clint_msip(Bit#(1) intrpt);
   		rg_msip<=intrpt;
@@ -924,7 +935,7 @@ package csrfile;
           Bit#(16) medeleg = {rg_medeleg_u1,1'd0,rg_medeleg_m2,2'd0,rg_medeleg_l10};
         `ifdef supervisor
           `ifdef usertraps
-            Bit#(16) sedeleg = {rg_sedeleg_u1,1'd0,rg_sedeleg_m2,3'd0,rg_sedeleg_l10};
+            Bit#(16) sedeleg = {rg_sedeleg_u1,1'd0,rg_sedeleg_m2,3'd0,rg_sedeleg_l9};
           `endif
         `endif
           Bool delegateM=(((rg_mideleg >> cause[4:0]) & 1 & duplicate(cause[5]))==1) ||  
