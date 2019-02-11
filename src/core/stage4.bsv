@@ -189,8 +189,10 @@ package stage4;
       `ifndef dcache
         if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
       `endif
+        `ifdef rtldump
           if(verbosity>0)
             $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
+        `endif
           if(ff_memory_response.notEmpty)begin
             let {data, trap, cause, epochs}=ff_memory_response.first;
             ff_memory_response.deq;
