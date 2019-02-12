@@ -228,7 +228,6 @@ generate_verilog: check-restore check-env
 	@cp ${BLUESPECDIR}/Verilog/ResetEither.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/SyncHandshake.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/SyncFIFO1.v ${VERILOGDIR}
-	@cp src/devices/sdram/32-bit/controller/*.v ${VERILOGDIR}
 	@$(VERILOGLICENSE)
 #ifeq ($(SYNTH), SIM)
 #  ifeq ($(MUL), fpga)
