@@ -11,7 +11,7 @@ c-class-rv64-smoke:
       - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub'
       - make regress opts='--filter=rv64 --final'
       - make torture opts="--config=all"
-      - make regress opts="--list=riscv-torture.list --test_opts='--timeout=5m' --sub"
+      - make regress opts="--list=riscv-torture.list --test_opts='--timeout=5m' --parallel=10 --sub"
       - make regress opts="--list=riscv-torture.list --final"
       - make aapg opts='--config=rv64imafdc* --test_count=3'
       - make regress opts='--list=aapg.list --sub --test_opts='--timeout=3m' --parallel=100' CONFIG_ISA=RV64IMAFDC
