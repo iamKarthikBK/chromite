@@ -411,7 +411,7 @@ package csrfile;
   `endif
 	  //////////////////////////////////////////////////////////////////////////////////////////
     
-    Bit#(12) csr_mip= {rg_meip, heip, misa_s&seip, misa_n&rg_ueip, rg_mtip, htie, misa_s&stie, 
+    Bit#(12) csr_mip= {rg_meip, heip, misa_s&seip, misa_n&rg_ueip, rg_mtip, htip, misa_s&stip, 
                        misa_n&rg_utip, misa_s&rg_msip, hsip, misa_s&ssip, misa_n&rg_usip};
     Bit#(12) csr_mie= {rg_meie, heie, seie, rg_ueie, rg_mtie, htie, stie, rg_utie, rg_msie,
                           hsie, ssie, rg_usie};
@@ -471,8 +471,8 @@ package csrfile;
 	`endif
         if (addr == `MIE ) data= {'d0, rg_meie, heie, seie, misa_n&rg_ueie, rg_mtie, htie, stie,
                                               misa_n&rg_utie, rg_msie, hsie, ssie, misa_n&rg_usie};
-        if (addr == `MIP ) data= {'d0, rg_meip, heip, misa_s&seip, misa_n&rg_ueip, rg_mtip, htie, stie,
-                          misa_n&rg_utip, rg_msip, hsip, misa_s&ssip, misa_n&rg_usip};
+        if (addr == `MIP ) data= {'d0, rg_meip, heip, misa_s&seip, misa_n&rg_ueip, rg_mtip, htie,
+          misa_s&stip, misa_n&rg_utip, rg_msip, hsip, misa_s&ssip, misa_n&rg_usip};
         if (addr == `MCYCLE ) data= mcycle;
         if (addr == `MINSTRET ) data= minstret;
         `ifndef RV64
