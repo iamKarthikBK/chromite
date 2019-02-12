@@ -202,23 +202,33 @@ generate_verilog: check-restore check-env
 	bsc -u -verilog +RTS -K40000M -RTS -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
   $(define_macros) -D verilog=True $(BSVCOMPILEOPTS) $(VERILOG_FILTER) \
   -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1) 
-	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ./verilog/  
-	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BE.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ./verilog/
-	@cp src/common_verilog/bram_1r1w.v ./verilog/
-	@cp src/common_verilog/bram_1rw.v ./verilog/
-	@cp src/common_verilog/BRAM1Load.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/FIFO2.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/FIFO1.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/FIFO10.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/RevertReg.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/FIFO20.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/FIFOL1.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/SyncFIFO.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/Counter.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/SizedFIFO.v ./verilog/
-	@cp ${BLUESPECDIR}/Verilog/RegFileLoad.v ./verilog/
+	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ${VERILOGDIR}  
+	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BE.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ${VERILOGDIR}
+	@cp src/common_verilog/bram_1r1w.v ${VERILOGDIR}
+	@cp src/common_verilog/bram_1rw.v ${VERILOGDIR}
+	@cp src/common_verilog/BRAM1Load.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/FIFO2.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/FIFO1.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/FIFO10.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/RevertReg.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/FIFO20.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/FIFOL1.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/SyncFIFO.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/Counter.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/SizedFIFO.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/RegFileLoad.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/SyncReset0.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/SyncRegister.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/MakeClock.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/UngatedClockMux.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/MakeResetA.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/SyncResetA.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/ResetEither.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/SyncHandshake.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/SyncFIFO1.v ${VERILOGDIR}
+	@cp src/devices/sdram/32-bit/controller/*.v ${VERILOGDIR}
 	@$(VERILOGLICENSE)
 #ifeq ($(SYNTH), SIM)
 #  ifeq ($(MUL), fpga)
