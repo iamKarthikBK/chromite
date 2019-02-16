@@ -93,7 +93,7 @@ package cclass_bare;
   `endif
   `ifdef supervisor
     (*preempts="dtlb_req_to_ptwalk,itlb_req_to_ptwalk"*)
-    (*preempts="ptwalk_request_to_dcache,core_req_to_dmem"*)
+    (*preempts="core_req_to_dmem,ptwalk_request_to_dcache"*)
   `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
     let vaddr = valueOf(`vaddr);
@@ -117,8 +117,8 @@ package cclass_bare;
     FIFOF#(Tuple2#(Bit#(3),Bit#(1))) ff_rd_epochs <- mkSizedFIFOF(6);
 
     FIFOF#(Bit#(3))  ff_epoch <-mkSizedFIFOF(4);
-    Integer verbosity = `VERBOSITY ;
     let curr_priv = riscv.curr_priv;
+    Integer verbosity = `VERBOSITY ;
 
   `ifdef cache_control
 	  rule handle_nc_resp;
@@ -235,21 +235,39 @@ package cclass_bare;
       riscv.store_is_cached(dmem.cacheable_store);
     endrule
 
+    Reg#(Maybe#(AXI4_Rd_Addr#(`paddr, 0))) rg_read_line_req <- mkReg(tagged Invalid);
+    Reg#(Maybe#(AXI4_Wr_Addr#(`paddr, 0))) rg_write_req <- mkReg(tagged Invalid);
+
     // Currently it is possible that the cache can generate a write-request followed by a
     // read-request, but the fabric (due to contention) latches the read first to the slave followed
     // by the write-req. This could lead to wrong behavior. To avoid this it is necessary to ensure
     // that if a write-request has been initiated no read-requests should be latched unless the
     // write-response has arrived.
-
-    rule handle_dmem_line_read_request;
+    rule handle_dmem_line_read_request(rg_read_line_req matches tagged Invalid);
+      Bool perform_req=True;
 	  	let {addr, burst_len, burst_size} <- dmem.read_mem_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
         arlen: burst_len , arsize: burst_size, arburst: 'b10, arid:`Mem_master_num 
         ,arprot:{1'b0,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
-	    memory_xactor.i_rd_addr.enq(dmem_request);
-	  	if(verbosity!=0)
-	  	  $display($time, "\tCORE: DMEM Line Requesting ", fshow(dmem_request));
+      if(rg_write_req matches tagged Valid .w)
+        if((w.awaddr>>6) == (addr>>6))begin
+          perform_req=False;
+          rg_read_line_req<=tagged Valid dmem_request;
+        end
+      if(perform_req)  begin
+   	    memory_xactor.i_rd_addr.enq(dmem_request);
+	    	if(verbosity!=0)
+	    	  $display($time, "\tCORE: DMEM Line Requesting ", fshow(dmem_request));
+      end
 	  endrule
+
+    rule handle_delayed_read(rg_read_line_req matches tagged Valid .r &&& rg_write_req matches tagged
+                                                                              Invalid);
+  	    memory_xactor.i_rd_addr.enq(r);
+	  	if(verbosity!=0)
+	  	  $display($time, "\tCORE: DMEM Delayed Line Requesting ", fshow(r));
+      rg_read_line_req<=tagged Invalid;
+    endrule
 
 	  rule handle_dmem_line_resp;
 	    let fab_resp <- pop_o (memory_xactor.o_rd_data);
@@ -273,14 +291,17 @@ package cclass_bare;
       if(verbosity!=0)begin
 	  	  $display($time, "\tCORE: DMEM Line Write Addr: Request ", fshow(aw));
       end
+      rg_write_req<=tagged Valid aw;
     endrule
     rule send_burst_write_data(rg_burst_count!=0);
       Bool last = rg_burst_count==fromInteger(`dblocks -1 );
   	  let w  = AXI4_Wr_Data {wdata: truncate(rg_write_data), wstrb: '1, wlast:last, wid:`Mem_master_num};
       Bit#(TAdd#(TAdd#(TLog#(`dwords),1), 3)) shift = {`dwords ,3'b0};
       rg_write_data<=rg_write_data>>shift;
-      if(last)
+      if(last) begin
         rg_burst_count<=0;
+        rg_write_req<=tagged Invalid;
+      end
       else
         rg_burst_count<=rg_burst_count+1;
 		  memory_xactor.i_wr_data.enq(w);
