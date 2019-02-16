@@ -42,7 +42,7 @@ package decoder;
   import common_types::*;
   import BUtils::*;
   `include "common_params.bsv"
-
+  (*noinline*)
   function Bool address_valid(Bit#(12) addr, Bit#(26) misa);
     Bool valid=False;
     case(addr[9:8])
