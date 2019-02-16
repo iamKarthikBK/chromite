@@ -333,10 +333,9 @@ package stage3;
                 rg_loadreserved_addr<= tagged Valid addr;
                 memaccess=Load;
               end
-              else
-                rg_loadreserved_addr<= tagged Invalid;
             end
             if(cmtype==MEMORY && memaccess== Atomic && fn=='b0111) begin // SC
+                rg_loadreserved_addr<= tagged Invalid;
               if(rg_loadreserved_addr matches tagged Valid .scaddr &&& scaddr == addr)begin
                 memaccess=Store;
               end
