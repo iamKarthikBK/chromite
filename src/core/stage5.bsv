@@ -81,6 +81,7 @@ package stage5;
   endinterface
 
   (*synthesize*)
+  (*conflict_free="instruction_commit,increment_instruction_counter"*)
   module mkstage5(Ifc_stage5);
 
     let verbosity = `VERBOSITY ;
@@ -93,6 +94,7 @@ package stage5;
 
     // wire that carries the commit data that needs to be written to the integer register file.
     Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
+    Wire#(Bool) wr_increment_minstret <- mkDWire(False);
 
     // wire which signals the entire pipe to be flushed.
   `ifdef supervisor
@@ -156,6 +158,7 @@ package stage5;
         `ifdef dcache
           if (!rg_store_initiated && wr_store_is_cached)begin
             wr_initiate_store <= tuple2(unpack(rg_epoch),True);
+            wr_increment_minstret<=True;
             `ifdef spfpu
               wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
             `else
@@ -190,6 +193,7 @@ package stage5;
               $display($time,"\tSTAGE5: Store response Received: ",fshow(resp));
             let {err, badaddr} = resp;
             if(err==0)begin
+              wr_increment_minstret<=True;
             `ifdef spfpu
               wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
             `else
@@ -239,6 +243,7 @@ package stage5;
               $display($time,"\tSTAGE5: Store response Received: ",fshow(resp));
             let {err, badaddr} = resp;
             if(err==0)begin
+              wr_increment_minstret<=True;
             `ifdef spfpu
               wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
             `else
@@ -303,6 +308,7 @@ package stage5;
           // in case of regular instruction simply update RF and forward the data.
           if(verbosity>0)
             $display($time,"\tWBMEM: Regular commit");
+          wr_increment_minstret<=True;
         `ifdef spfpu
           wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdtype));
           csr.update_fflags(r.fflags); 
@@ -348,7 +354,7 @@ package stage5;
       end
     endrule
 
-    rule increment_instruction_counter(wr_commit matches tagged Valid .x);
+    rule increment_instruction_counter(wr_increment_minstret);
       csr.incr_minstret;
     endrule
     interface rx_in=rx.e;
