@@ -75,8 +75,7 @@ package SoC;
       return tuple2(slave_exist, slave_num);
     endfunction:fn_slave_map
  `else
-    function Tuple2 #(Bool, Bit#(TLog#(`Num_Slaves))) fn_slave_map (Bit#(`paddr) addr);
-      Bool slave_exist = True;
+    function Bit#(TLog#(`Num_Slaves)) fn_slave_map (Bit#(`paddr) addr);
       Bit#(TLog#(`Num_Slaves)) slave_num = 0;
       if(addr >= `MemoryBase && addr<= `MemoryEnd)
         slave_num = `Memory_slave_num;
@@ -91,7 +90,7 @@ package SoC;
       else
         slave_num = `Err_slave_num;
         
-      return tuple2(slave_exist, slave_num);
+      return slave_num;
     endfunction:fn_slave_map
   `endif
 
