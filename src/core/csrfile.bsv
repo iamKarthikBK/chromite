@@ -592,9 +592,7 @@ package csrfile;
             rg_upie<= word[4];
           rg_mie<= word[3];
           rg_mpie<= word[7];
-          `ifndef supervisor
-            if(^word[12:11]==0)
-          `endif
+          if( word[12:11]==3 || (misa_s==1 && word[12:11]==1) || (misa_u==1 && word[12:11]==0))
             rg_mpp<= word[12:11];
           rg_mprv<= word[17];
           fs<=word[14:13];
@@ -783,7 +781,8 @@ package csrfile;
           fs<=word[14:13];
           sie<=word[1];
           spie<= word[5];
-          spp<= word[8];
+          if(((word[8]&misa_s)==1) || ((word[8]&misa_u)==1))
+            spp<= word[8];
           sum<= word[18];
           mxr<= word[19];
           tvm<= word[20];
