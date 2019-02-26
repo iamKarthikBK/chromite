@@ -217,22 +217,20 @@ package stage1;
             rg_action<=None;
           end
         end
-        if(rg_receiving_upper && err)
-          cause[5]=1;
+        Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c==1)?2:4;
+        let next_pc = rg_pc+incr_value;
 				let pipedata=PIPE1_min{program_counter:rg_pc,
                       instruction:final_instruction,
                       epochs:{rg_eEpoch,rg_wEpoch},
                       trap: err
+                    `ifdef compressed
+                      ,upper_err:rg_receiving_upper&&err
+                    `endif
                     `ifdef supervisor
                       ,cause:cause
                     `endif }; 
-        if(compressed  && enque_instruction && wr_csr_misa_c==1)begin
-          rg_pc<=rg_pc+2;
-        end
-        else if(enque_instruction)begin
-          rg_pc<=rg_pc+4;
-        end
-        if(enque_instruction)begin
+        if(enque_instruction) begin
+          rg_pc<=next_pc;
           txmin.u.enq(pipedata);
         `ifdef bpu
           tx_opt1.u.enq(PIPE1_opt1{prediction:0}); // TODO fix when supporting bpu
