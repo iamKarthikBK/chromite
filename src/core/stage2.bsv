@@ -165,6 +165,9 @@ package stage2;
     `ifdef bpu
   	  let pred=rxopt1.u.first.prediction;
     `endif
+    `ifdef compressed
+      let upper_err = rxmin.u.first.upper_err;
+    `endif
       let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,trap, 
               `ifdef supervisor trapcause, `endif wr_csrs, rg_rerun, rg_fencei_rerun 
               `ifdef supervisor ,rg_sfence_rerun `endif );
@@ -196,6 +199,10 @@ package stage2;
         Bit#(`vaddr) op3=(instrType==MEMORY || instrType==JALR)?truncate(rs1):zeroExtend(pc); 
         if(instrType==TRAP && func_cause == `Illegal_inst )
             op1=zeroExtend(inst); // for badaddr
+      `ifdef compressed
+        if(instrType==TRAP && func_cause == `Inst_pagefault && upper_err)
+            op1=op1+2;
+      `endif
       `ifdef spfpu
         Bit#(FLEN) op4=(rs3type==FRF)?rs3:signExtend(imm);
       `else
