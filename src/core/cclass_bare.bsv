@@ -110,7 +110,7 @@ package cclass_bare;
     Wire#(AXI4_Rd_Data#(ELEN,USERSPACE)) wr_io_read_response <- mkWire();
   `ifdef dcache
     Reg#(Bit#(8)) rg_burst_count <- mkReg(0);
-    Reg#(Bit#(TMul#(TSub#(`dblocks ,1) , TMul#(`dwords ,8)))) rg_write_data <- mkReg(0);
+    Reg#(Bit#(TLog#(TMul#(TMul#(`dwords, 8),`dblocks)))) rg_shift_amount <- mkReg(`dwords*8 );
   `endif
 `endif
     Reg#(TxnState) fetch_state<- mkReg(Request);
@@ -206,7 +206,6 @@ package cclass_bare;
 
   `ifdef dcache
     let dmem <- mkdmem;
-//	  mkConnection(riscv.memory_request, dmem.core_req); //dmem integration
     rule core_req_to_dmem;
       let req<-riscv.memory_request.get;
       dmem.core_req.put(req);
@@ -236,21 +235,23 @@ package cclass_bare;
     endrule
 
     Reg#(Maybe#(AXI4_Rd_Addr#(`paddr, 0))) rg_read_line_req <- mkReg(tagged Invalid);
-    Reg#(Maybe#(AXI4_Wr_Addr#(`paddr, 0))) rg_write_req <- mkReg(tagged Invalid);
+    Wire#(Maybe#(Bit#(`paddr))) wr_write_req <- mkDWire(tagged Invalid);
 
     // Currently it is possible that the cache can generate a write-request followed by a
     // read-request, but the fabric (due to contention) latches the read first to the slave followed
     // by the write-req. This could lead to wrong behavior. To avoid this it is necessary to ensure
     // that if a write-request has been initiated no read-requests should be latched unless the
     // write-response has arrived.
+    // The contraint is fullilled using the register wr_write_req which holds the current address of
+    // the line being written to the fabric on a eviction
     rule handle_dmem_line_read_request(rg_read_line_req matches tagged Invalid);
       Bool perform_req=True;
 	  	let {addr, burst_len, burst_size} <- dmem.read_mem_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr: truncate(addr) , aruser: ?, 
         arlen: burst_len , arsize: burst_size, arburst: 'b10, arid:`Mem_master_num 
         ,arprot:{1'b0,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
-      if(rg_write_req matches tagged Valid .w)
-        if((w.awaddr>>6) == (addr>>6))begin
+      if(wr_write_req matches tagged Valid .waddr)
+        if((waddr>>(`dwords+`dblocks )) == (addr>>(`dwords+`dblocks ) ))begin
           perform_req=False;
           rg_read_line_req<=tagged Valid dmem_request;
         end
@@ -261,7 +262,7 @@ package cclass_bare;
       end
 	  endrule
 
-    rule handle_delayed_read(rg_read_line_req matches tagged Valid .r &&& rg_write_req matches tagged
+    rule handle_delayed_read(rg_read_line_req matches tagged Valid .r &&& wr_write_req matches tagged
                                                                               Invalid);
   	    memory_xactor.i_rd_addr.enq(r);
 	  	if(verbosity!=0)
@@ -278,36 +279,41 @@ package cclass_bare;
 	  endrule
 
     rule handle_dmem_line_write_request(rg_burst_count==0);
-      let {addr, burst_len, size, data} <- dmem.write_mem_req.get;
+      let {addr, burst_len, size, data} = dmem.write_mem_req_rd;
 		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr: truncate(addr), awuser:0, awlen: burst_len, 
           awsize: zeroExtend(size[1:0]), awburst: 'b01, awid:`Mem_master_num
           ,awprot:{1'b0,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
 
   	  let w  = AXI4_Wr_Data {wdata: truncate(data), wstrb: '1, wlast:False, wid:`Mem_master_num};
       rg_burst_count<=rg_burst_count+1;
-      rg_write_data<=truncateLSB(data);
 	    memory_xactor.i_wr_addr.enq(aw);
 		  memory_xactor.i_wr_data.enq(w);
       if(verbosity!=0)begin
 	  	  $display($time, "\tCORE: DMEM Line Write Addr: Request ", fshow(aw));
       end
-      rg_write_req<=tagged Valid aw;
+      wr_write_req<=tagged Valid addr;
     endrule
     rule send_burst_write_data(rg_burst_count!=0);
       Bool last = rg_burst_count==fromInteger(`dblocks -1 );
-  	  let w  = AXI4_Wr_Data {wdata: truncate(rg_write_data), wstrb: '1, wlast:last, wid:`Mem_master_num};
+      let {addr, burst_len, size, data} = dmem.write_mem_req_rd;
+      data = data>>rg_shift_amount;
+  	  let w  = AXI4_Wr_Data {wdata: truncate(data), wstrb: '1, wlast:last, wid:`Mem_master_num};
       Bit#(TAdd#(TAdd#(TLog#(`dwords),1), 3)) shift = {`dwords ,3'b0};
-      rg_write_data<=rg_write_data>>shift;
       if(last) begin
         rg_burst_count<=0;
-        rg_write_req<=tagged Invalid;
+        rg_shift_amount<=(`dwords*8);
+        wr_write_req<=tagged Invalid;
+        dmem.write_mem_req_deq;
       end
-      else
+      else begin
+        rg_shift_amount<=rg_shift_amount+(`dwords*8);
         rg_burst_count<=rg_burst_count+1;
+        wr_write_req<=tagged Valid addr;
+      end
 		  memory_xactor.i_wr_data.enq(w);
       if(verbosity!=0)
-      $display($time,"\tCORE: DMEM Write Data: %h rg_burst_count: %d last: %b", 
-                                                      rg_write_data,rg_burst_count, last);
+      $display($time,"\tCORE: DMEM Write Data: %h rg_burst_count: %d last: %b rg_shift_amount:%d", 
+                                                      data,rg_burst_count, last, rg_shift_amount);
     endrule
 
     rule handle_dmem_line_write_resp;
@@ -392,7 +398,7 @@ package cclass_bare;
       Bit#(1) sign=truncateLSB(access);
 			let bus_error = !(response.rresp==AXI4_OKAY);
       let rdata=response.rdata;
-  		riscv.memory_read_response.put(tuple3(rdata, {0,pack(bus_error)}, epoch));
+  		riscv.memory_read_response.put(tuple4(rdata, bus_error, `Load_access_fault, epoch));
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Read Response ", fshow(response));
     endrule
@@ -428,7 +434,7 @@ package cclass_bare;
 
     rule handle_memory_write_response;
       let response<-pop_o(memory_xactor.o_wr_resp);
-	  	let bus_error = !(response.bresp==AXI4_OKAY);
+	  	let bus_error = pack(!(response.bresp==AXI4_OKAY));
 	  	riscv.memory_write_response.put(bus_error);
       if(verbosity!=0)
         $display($time, "\tCORE: Memory Write Response ", fshow(response));
