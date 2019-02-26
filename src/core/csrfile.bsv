@@ -834,7 +834,7 @@ package csrfile;
         prv: rg_prv,
         csr_mip: csr_mip,
         csr_mie: csr_mie,
-        csr_mideleg: rg_mideleg,
+      `ifdef non_m_traps csr_mideleg: rg_mideleg, `endif
         csr_misa: misa,
       `ifdef RV64
         csr_mstatus:{sd, 27'd0, sxl, uxl, 9'd0, tsr, tw, tvm, mxr, sum, rg_mprv, xs, fs, rg_mpp,
@@ -904,10 +904,6 @@ package csrfile;
     endmethod
     method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(6) c, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
       Bit#(6) cause = c;
-      if(c==`Inst_access_faultC || c==`Inst_pagefaultC )begin
-        cause[5]=0;
-        tval=tval+2;
-      end
 
       `ifdef non_m_traps
           Privilege_mode prv=Machine;
