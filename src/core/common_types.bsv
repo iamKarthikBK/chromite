@@ -195,7 +195,7 @@ package common_types;
     Bit#(2))    // access_size
     MemoryWriteReq#(numeric type addr, numeric type esize, numeric type data);
                     // err , eopch size
-  typedef Bit#(2) MemoryWriteResp;
+  typedef Bit#(1) MemoryWriteResp;
 
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
@@ -205,6 +205,9 @@ package common_types;
     Bool trap ;
   `ifdef supervisor
     Bit#(6) cause;
+  `endif
+  `ifdef compressed
+    Bool upper_err;
   `endif
   }PIPE1_min deriving (Bits,Eq);
 
