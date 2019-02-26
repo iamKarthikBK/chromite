@@ -70,9 +70,9 @@ package riscv;
   `ifdef rtldump
     interface Get#(DumpType) dump;
   `endif
+    method Bit#(XLEN) csr_mstatus;
   `ifdef cache_control
     method Bit#(2) mv_cacheenable;
-    method Bit#(XLEN) csr_mstatus;
   `endif
     method Bit#(2) curr_priv;
 	`ifdef supervisor
@@ -395,9 +395,9 @@ package riscv;
     interface memory_write_response=stage4.memory_write_response;
   `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i)=stage5.set_external_interrupt(ex_i);
+    method csr_mstatus= stage5.csr_mstatus;
   `ifdef cache_control
     method mv_cacheenable = stage5.mv_cacheenable;
-    method csr_mstatus= stage5.csr_mstatus;
   `endif
     method curr_priv = stage5.curr_priv;
 		`ifdef supervisor
