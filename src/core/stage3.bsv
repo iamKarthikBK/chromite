@@ -179,7 +179,9 @@ package stage3;
     Reg#(Maybe#(Bit#(`vaddr))) rg_loadreserved_addr <- mkReg(tagged Invalid);
   `endif
 
-    rule execute_operation ( wr_cache_avail `ifdef multicycle && !rg_stall `endif );
+    Bool rule_condition = True `ifdef dcache && wr_cache_avail `endif `ifdef multicycle && !rg_stall  `endif ;
+
+    rule execute_operation ( rule_condition );
       let {opmeta, opdata, metadata} = rxmin.u.first;
       let {rs1addr, rs2addr, op3, instrtype} = opmeta;
       let {op1, op2, op4}=opdata;
