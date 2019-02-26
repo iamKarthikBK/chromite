@@ -168,8 +168,10 @@ package decoder;
     Bool resume_wfi= unpack(|(mie&mip));
     Bit#(12) m_interrupts = mie & mip & signExtend(pack(m_enabled)) 
                                                       `ifdef non_m_traps & ~mideleg `endif ;
+  `ifdef supervisor
     Bit#(12) s_interrupts = mie & mip & mideleg & signExtend(pack(s_enabled)) 
                                             `ifdef usertraps & ~sideleg `endif ;
+  `endif
   `ifdef usertraps
     Bit#(12) u_interrupts = uie & uip & mideleg & signExtend(pack(u_enabled)) 
                                             `ifdef supervisor & sideleg `endif ; 
@@ -937,17 +939,19 @@ package decoder;
 
       if(curr_rerun)begin
         x_inst_type=TRAP;
-        func_cause=rerun_fencei?`IcacheFence : rerun_sfence?`SFence: `Rerun ;
+        func_cause=rerun_fencei?`IcacheFence : `ifdef supervisor rerun_sfence?`SFence: `endif `Rerun ;
         t4=False;
       end
       else if(takeinterrupt)begin
         func_cause={1'b0,icause};
         x_inst_type=TRAP;
       end
+    `ifdef supervisor
       else if(trap) begin
         x_inst_type=TRAP;
         func_cause = {1'b0,cause} ;
       end
+    `endif
 
       if(x_inst_type == TRAP)begin
         x_rs2addr=0;
