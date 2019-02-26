@@ -953,9 +953,8 @@ package decoder;
         x_rs2addr=0;
         x_rs2type=IntegerRF;
         x_rs1addr=0;
-        if(func_cause == `Inst_access_fault || (func_cause==`Inst_access_faultC && csrs.csr_misa[3]==1) 
-            `ifdef supervisor ||  func_cause==`Inst_pagefault || 
-                                  (func_cause==`Inst_pagefaultC && csrs.csr_misa[3]==1) `endif )
+        if(func_cause == `Inst_access_fault 
+            `ifdef supervisor ||  func_cause==`Inst_pagefault `endif )
           x_rs1type=PC;
         else
           x_rs1type=IntegerRF;
