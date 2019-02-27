@@ -235,7 +235,7 @@ package cclass_bare;
     endrule
 
     Reg#(Maybe#(AXI4_Rd_Addr#(`paddr, 0))) rg_read_line_req <- mkReg(tagged Invalid);
-    Wire#(Maybe#(Bit#(`paddr))) wr_write_req <- mkDWire(tagged Invalid);
+    Reg#(Maybe#(Bit#(`paddr))) wr_write_req <- mkReg(tagged Invalid);
 
     // Currently it is possible that the cache can generate a write-request followed by a
     // read-request, but the fabric (due to contention) latches the read first to the slave followed
@@ -308,7 +308,6 @@ package cclass_bare;
       else begin
         rg_shift_amount<=rg_shift_amount+(`dwords*8);
         rg_burst_count<=rg_burst_count+1;
-        wr_write_req<=tagged Valid addr;
       end
 		  memory_xactor.i_wr_data.enq(w);
       if(verbosity!=0)

@@ -781,8 +781,7 @@ package csrfile;
           fs<=word[14:13];
           sie<=word[1];
           spie<= word[5];
-          if(((word[8]&misa_s)==1) || ((word[8]&misa_u)==1))
-            spp<= word[8];
+          spp<= word[8];
           sum<= word[18];
           mxr<= word[19];
           tvm<= word[20];

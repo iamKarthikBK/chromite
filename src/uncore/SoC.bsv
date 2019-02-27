@@ -117,7 +117,7 @@ package SoC;
                                                 "code.mem.MSB", "code.mem.LSB", "MainMEM");
 		Ifc_bootrom_axi4#(`paddr, ELEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
 	  Ifc_uart_axi4#(`paddr,ELEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);
-    Ifc_clint_axi4#(`paddr,ELEN,0,1) clint <- mkclint_axi4();
+    Ifc_clint_axi4#(`paddr, ELEN, 0, 1, 16) clint <- mkclint_axi4();
     Ifc_err_slave#(`paddr,ELEN,0) err_slave <- mkerr_slave;
 
    	mkConnection(cclass.master_d,	fabric.v_from_masters[`Mem_master_num]);
