@@ -8,6 +8,15 @@ else
 endif
 include soc_config.inc
 
+ifeq ($(define_macros),)
+	define_macros+= -D Addr_space=21
+else
+ifneq (,$(findstring Addr_space,$(define_macros)))
+else
+	override define_macros+= -D Addr_space=21
+endif
+endif
+
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
@@ -22,81 +31,81 @@ TOP_DIR:=./src/testbench/
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))
-  define_macros += -D RV64=True
+  override define_macros += -D RV64=True
   XLEN=64
 endif
 ifneq (,$(findstring RV32,$(ISA)))
-  define_macros += -D RV32=True
+  override define_macros += -D RV32=True
   XLEN=32
 endif
 ifneq (,$(findstring M,$(ISA)))
   ifeq ($(MUL), fpga)
-    define_macros += -D muldiv_fpga=True -D muldiv=True
+    override define_macros += -D muldiv_fpga=True -D muldiv=True
   else
-    define_macros += -D $(MUL)=True -D muldiv=True
+    override define_macros += -D $(MUL)=True -D muldiv=True
   endif
 endif
 ifneq (,$(findstring A,$(ISA)))
-  define_macros += -D atomic=True
+  override define_macros += -D atomic=True
 endif
 ifneq (,$(findstring F,$(ISA)))
-  define_macros += -D spfpu=True
+  override define_macros += -D spfpu=True
   FLOAT=--float
 endif
 ifneq (,$(findstring D,$(ISA)))
-  define_macros += -D dpfpu=True
+  override define_macros += -D dpfpu=True
   FLOAT=--float
 endif
 ifneq (,$(findstring C,$(ISA)))
-  define_macros += -D compressed=True
+  override define_macros += -D compressed=True
 endif
 ifeq ($(BPU),enable)
-  define_macros += -D bpu=True
+  override define_macros += -D bpu=True
 endif
 ifeq ($(PERF),enable)
-  define_macros	+= -D perf=True
+  override define_macros	+= -D perf=True
 endif
 ifeq ($(PREFETCH),enable)
-  define_macros	+= -D prefetch=True
+  override define_macros	+= -D prefetch=True
 endif
 ifeq ($(JTAG),enable)
-  define_macros	+= -D JTAG=True
+  override define_macros	+= -D JTAG=True
 endif
 ifeq ($(DEBUG),enable)
-  define_macros += -D Debug=True
+  override define_macros += -D Debug=True
 endif
 ifeq ($(SYNTH),SIM)
-  define_macros += -D simulate=True
+  override define_macros += -D simulate=True
 endif
 ifeq ($(BOOTROM), enable)
-  define_macros += -D BOOTROM=True
+  override define_macros += -D BOOTROM=True
 endif
 ifeq ($(COREFABRIC), AXI4Lite)
-  define_macros += -D CORE_AXI4Lite=True
+  override define_macros += -D CORE_AXI4Lite=True
 endif
 ifeq ($(USERTRAPS), enable)
-  define_macros += -D usertraps=True
+  override define_macros += -D usertraps=True
 endif
 ifeq ($(USER), enable)
-  define_macros += -D user=True
+  override define_macros += -D user=True
 endif
 ifeq ($(RTLDUMP), enable)
-  define_macros += -D rtldump=True
+  override define_macros += -D rtldump=True
 endif
 ifeq ($(SUPERVISOR),  enable)
-  define_macros += -D supervisor=True
+  override define_macros += -D supervisor=True
 endif
 ifeq ($(ASSERTIONS), enable)
-  define_macros += -D ASSERT=True
+  override define_macros += -D ASSERT=True
 endif
 ifeq ($(ICACHE), enable)
-  define_macros += -D icache=True
+  override define_macros += -D icache=True
 endif
 ifeq ($(DCACHE), enable)
-  define_macros += -D dcache=True
+  override define_macros += -D dcache=True
 endif
 ifeq ($(PMP), enable)
-	define_macros += -D pmp=True
+	override define_macros += -D pmp=True
 endif
 
 
@@ -111,7 +120,7 @@ ifeq ($(TRACE), enable)
   trace := --trace
 endif
 
-define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
+override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
 								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True \
 								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
 								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL) -D icachereset=$(IRESET) -D iesize=$(IESIZE) \
@@ -120,7 +129,8 @@ define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAG
 								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) -D desize=$(DESIZE) \
 								 -D dsbsize=$(DSBSIZE) \
 								 -D PIPE$(PIPE)=True -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
-								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH)
+								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) 
+		
 
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/
 M_EXT:=./src/core/m_ext/
