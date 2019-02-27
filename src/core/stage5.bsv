@@ -111,10 +111,12 @@ package stage5;
     let prv=csr.csrs_to_decode.prv;
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
-    Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
     Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr)))) wr_store_response <- mkDWire(tagged Invalid);
   `ifdef dcache
     Wire#(Bool) wr_store_is_cached <- mkDWire(False);
+    Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
+  `else
+    Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDReg(tuple2(False,False));
   `endif
 
     rule instruction_commit;
