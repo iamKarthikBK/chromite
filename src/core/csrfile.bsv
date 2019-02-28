@@ -333,7 +333,7 @@ package csrfile;
       Reg#(Bit#(44)) satp_ppn <- mkReg(0);
       Reg#(Bit#(4)) satp_mode <- mkReg(0);
     `else
-      Reg#(Bit#(22)) satp_ppm <- mkReg(0);
+      Reg#(Bit#(22)) satp_ppn <- mkReg(0);
       Reg#(Bit#(1)) satp_mode<- mkReg(0);
     `endif
 
