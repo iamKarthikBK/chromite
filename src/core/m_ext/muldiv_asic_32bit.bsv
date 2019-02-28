@@ -236,7 +236,8 @@ package muldiv_asic_32bit;
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 			ff_muldiv_result.deq;
       let default_out=ff_muldiv_result.first();
-      return tuple5(REGULAR, default_out, 0, 0, None);
+      // zero extend is required when XLEN<ELEN
+      return tuple5(REGULAR, zeroExtend(default_out), 0, 0, None); 
 		endmethod
 		method Action flush;
 			rg_count[0]<=4;

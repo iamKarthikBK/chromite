@@ -110,7 +110,7 @@ package registerfile;
         return floating_rf.sub(addr);
     `endif
       else
-        return integer_rf.sub(addr);
+        return zeroExtend(integer_rf.sub(addr)); // zero extend is required when XLEN<ELEN
     endmethod
     // This method will read operand2 using rs2addr from the decode stage. If there a commit in the
     // same cycle to rs2addr, then that value if bypassed else the value is read from the
@@ -130,7 +130,7 @@ package registerfile;
         return floating_rf.sub(addr);
     `endif
       else
-        return integer_rf.sub(addr);
+        return zeroExtend(integer_rf.sub(addr));// zero extend is required when XLEN<ELEN
     endmethod
   `ifdef spfpu
     // This method will read operand3 using rs3addr from the decode stage. If there a commit in the
@@ -178,7 +178,7 @@ package registerfile;
         end else
       `endif
 			  if(r!=0)begin
-			  	integer_rf.upd(r,truncate(d));
+			  	integer_rf.upd(r,truncate(d)); // truncate is required when XLEN<ELEN
 			  end
       end
 		endmethod
