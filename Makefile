@@ -372,6 +372,9 @@ torture:
 aapg:  
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeAapg.pl $(opts)
 
+.PHONY: csmith
+csmith:  
+	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeCSmith.pl $(opts)
 
 .PHONY: generate_boot_files
 generate_boot_files:
