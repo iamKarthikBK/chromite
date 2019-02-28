@@ -8,13 +8,13 @@ c-class-rv64-smoke:
       - make restore
       - make patch
       - make generate_verilog link_verilator generate_boot_files SYNTH=SIM MUL=fpga ISA=RV64IMAFDC MULSTAGES=8 DIVSTAGES=64 VERBOSITY=0
-      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub'
+      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--filter=rv64 --final'
-      - make torture opts="--config=all"
-      - make regress opts="--list=riscv-torture.list --test_opts='--timeout=5m' --parallel=10 --sub"
-      - make regress opts="--list=riscv-torture.list --final"
-      - make aapg opts='--config=rv64imafdc* --test_count=3'
-      - make regress opts='--list=aapg.list --sub --test_opts='--timeout=3m' --parallel=100' CONFIG_ISA=RV64IMAFDC
+      - make torture opts='--config=all --test_count=5 --parallel=10'
+      - make regress opts='--list=riscv-torture.list --test_opts='--timeout=15m' --parallel=20 --sub' CONFIG_ISA=RV64IMAFDC
+      - make regress opts='--list=riscv-torture.list --final'
+      - make aapg opts='--config=rv64imafdc* --test_count=10 --parallel=30'
+      - make regress opts='--list=aapg.list --sub --test_opts='--timeout=15m' --parallel=100' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
     only:
         - master 

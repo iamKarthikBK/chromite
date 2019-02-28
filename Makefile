@@ -409,5 +409,6 @@ clean_verilog: clean
 
 clean_verif:
 	rm -rf verification/workdir/*
+	rm -rf verification/riscv-torture/output/riscv-torture
 
 restore: clean_verilog
