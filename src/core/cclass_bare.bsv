@@ -100,7 +100,11 @@ package cclass_bare;
     let paddr = valueOf(`paddr);
     Ifc_riscv riscv <- mkriscv();
   `ifdef supervisor
-    Ifc_ptwalk_rv64#(9) ptwalk <- mkptwalk_rv64;
+  `ifdef RV64
+    Ifc_ptwalk_rv64#(`asidwidth) ptwalk <- mkptwalk_rv64;
+  `else
+    Ifc_ptwalk_rv32#(`asidwidth) ptwalk <- mkptwalk_rv32;
+  `endif
     Reg#(PTWState) rg_ptw_state <- mkReg(None);
   `endif
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
