@@ -120,6 +120,10 @@ ifeq ($(TRACE), enable)
   trace := --trace
 endif
 
+ifneq (0,$(VERBOSITY))
+	VERILATOR_FLAGS += -DVERBOSE
+endif
+
 override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
 								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True \
 								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
@@ -140,10 +144,10 @@ TESTBENCH:=./src/testbench/
 PERIPHERALS:=./src/devices/bootrom:./src/devices/pwm:./src/devices/uart:./src/devices/clint:./src/devices/bram
 WRAPPERS:=./src/wrappers/
 LIB:=./src/common_bsv
-VERILATOR_FLAGS = --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
+VERILATOR_FLAGS += --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
 --noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
 -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS) \
--DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY -DVERBOSE
+-DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(LIB):$(FABRIC):$(UNCORE):$(TESTBENCH):$(PERIPHERALS):$(WRAPPERS):$(M_EXT)
 default: generate_verilog link_verilator generate_boot_files
 
@@ -321,7 +325,7 @@ link_verilator:
 	@mkdir -p bin obj_dir
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > src/testbench/sim_main.h
 	@echo '#include "V$(TOP_MODULE).h"' >> src/testbench/sim_main.h
-	@verilator $(VERILATOR_FLAGS) -y $(VERILOGDIR) --exe
+	verilator $(VERILATOR_FLAGS) -y $(VERILOGDIR) --exe
 	@ln -f -s ../src/testbench/sim_main.cpp obj_dir/sim_main.cpp
 	@ln -f -s ../src/testbench/sim_main.h obj_dir/sim_main.h
 	@make -j8 -C obj_dir -f V$(TOP_MODULE).mk
