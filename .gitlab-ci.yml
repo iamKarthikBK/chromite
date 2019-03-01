@@ -16,6 +16,10 @@ c-class-rv64-smoke:
       - make aapg opts='--config=rv64imafdc* --test_count=10 --parallel=30'
       - make regress opts='--list=aapg.list --sub --test_opts='--timeout=15m' --parallel=100' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
+      - make csmith opts='--test_count=30 --parallel=100'
+      - make regress opts='--list=csmith.list --parallel=100 --sub'  CONFIG_ISA=RV64IMAFDC
+      - make regress opts='--list=csmith.list --final'
+      - make regress opts='--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=20s'' CONFIG_ISA=RV64IMAFDC
     only:
         - master 
     tags:
