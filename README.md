@@ -30,7 +30,7 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
       - [To simulate on C-class](#to-simulate-on-c-class-1)
   * [CI/CD](#ci-cd)
   * [Contributing to the Project](#contributing-to-the-project)
-  * [Verification](./verification/README.md)
+  * [Verification](https://gitlab.com/shaktiproject/verification_environment/verification/blob/master/README.md)
 
 ## Quick Start
 
