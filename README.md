@@ -65,7 +65,7 @@ sudo make install NO_PYTHON=1 PREFIX=/usr/
     │   ├── common_verilog      # dir: common verilog libraries
     │   ├── core                # dir: c-class core
     │   │   ├── fpu             # dir: fpu unit
-    │   │   ├── fpu             # m_ext: modules for M extension support
+    │   │   ├── m_ext           # dir: modules for M extension support
     │   ├── devices             # submodule: devices like uart, dma, qspi, etc
     │   ├── fabrics             # submodule: axi4, axi4lite, bridges, etc.
     │   ├── tcl                 # dir: tcl scripts to for FPGA runs
@@ -182,8 +182,7 @@ The `soc_config.inc` in the root directory is used to configure the core. Follow
 #### Current ILLEGAL Configs
 Following are the list of configs which are illegal and could either not generate RTL or fail verification tests completely.
 
-1. ISA: RV32*FD* - currently only RV32IMAFC is the superset which can be supported in rv32. The `D` support in rv32 mode is on the list of critical tasks and will be resolved soon.
-2. Caches cannot be disabled with supervisor on. We fill it just doesn't make sense to support supervisor mode without caches and thus will never be supported.
+1. Caches cannot be disabled with supervisor on. We feel it just doesn't make sense to support supervisor mode without caches and thus will never be supported for this core.
 
 
 ## Compiling the Core/SoC
