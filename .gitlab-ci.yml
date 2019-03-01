@@ -19,7 +19,7 @@ c-class-rv64-smoke:
       - make csmith opts='--test_count=30 --parallel=100'
       - make regress opts='--list=csmith.list --parallel=100 --sub'  CONFIG_ISA=RV64IMAFDC
       - make regress opts='--list=csmith.list --final'
-      - make regress opts='--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=20s'' CONFIG_ISA=RV64IMAFDC
+      - make regress opts="--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=20s'" CONFIG_ISA=RV64IMAFDC
     only:
         - master 
     tags:
