@@ -59,21 +59,6 @@ endif
 ifneq (,$(findstring C,$(ISA)))
   override define_macros += -D compressed=True
 endif
-ifeq ($(BPU),enable)
-  override define_macros += -D bpu=True
-endif
-ifeq ($(PERF),enable)
-  override define_macros	+= -D perf=True
-endif
-ifeq ($(PREFETCH),enable)
-  override define_macros	+= -D prefetch=True
-endif
-ifeq ($(JTAG),enable)
-  override define_macros	+= -D JTAG=True
-endif
-ifeq ($(DEBUG),enable)
-  override define_macros += -D Debug=True
-endif
 ifeq ($(SYNTH),SIM)
   override define_macros += -D simulate=True
 endif
@@ -120,8 +105,11 @@ ifeq ($(TRACE), enable)
   trace := --trace
 endif
 
+VCS_MACROS =  +define+BSV_RESET_FIFO_HEAD=True +define+BSV_RESET_FIFO_ARRAY=True
+
 ifneq (0,$(VERBOSITY))
 	VERILATOR_FLAGS += -DVERBOSE
+	VCS_MACROS += +define+VERBOSE=True
 endif
 
 override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
@@ -258,27 +246,27 @@ generate_verilog: check-restore check-env
 
 .PHONY: link_vcs
 link_vcs: 
-	@mkdir -p bin
-	@rm -rf bin/*
-	@vcs -full64 -l vcs_compile.log -sverilog +vpi +v2k -lca +define+TOP=$(TOP_MODULE) \
+	@rm -rf $(BSVOUTDIR)
+	@mkdir -p $(BSVOUTDIR)
+	vcs -full64 -l vcs_compile.log -sverilog +vpi +v2k -lca +define+TOP=$(TOP_MODULE) $(VCS_MACROS)\
 	+define+BSV_TIMESCALE=1ns/1ps +cli+4 +libext+.v +notimingcheck\
   ${XILINX_VIVADO}/data/verilog/src/glbl.v \
-	-y $(VERILOGDIR)/ -y ${BLUESPECDIR}/Verilog/ \
+	-y $(VERILOGDIR)/  \
 	-y ${XILINX_VIVADO}/data/verilog/src/unisims +libext+.v \
 	-y ${XILINX_VIVADO}/data/verilog/src/unimacro +libext+.v \
 	-y ${XILINX_VIVADO}/data/verilog/src/retarget +libext+.v \
 	${BLUESPECDIR}/Verilog/main.v -o out
-	@mv csrc out* bin
+	@mv csrc out* $(BSVOUTDIR)
 
 .PHONY: link_ncverilog
 link_ncverilog: 
 	@echo "Linking $(TOP_MODULE) using ncverilog..."
-	@rm -rf work include bin/work
-	@mkdir -p bin 
+	@rm -rf work include $(BSVOUTDIR)/work
+	@mkdir -p $(BSVOUTDIR)
 	@mkdir work
 	@echo "define work ./work" > cds.lib
 	@echo "define WORK work" > hdl.var
-	@ncvlog -64BIT -sv -cdslib ./cds.lib -hdlvar ./hdl.var +define+TOP=$(TOP_MODULE) \
+	@ncvlog -64BIT -sv -cdslib ./cds.lib -hdlvar ./hdl.var +define+TOP=$(TOP_MODULE) $(VCS_MACROS)\
 	${BLUESPECDIR}/Verilog/main.v ${XILINX_VIVADO}/data/verilog/src/glbl.v \
 	-y $(VERILOGDIR)/ \
 	-y ${BLUESPECDIR}/Verilog/ \
@@ -308,10 +296,12 @@ link_irun:
 .PHONY: link_msim
 link_msim: 
 	@echo "Linking $(TOP_MODULE) using modelsim..."
-	@rm -rf work* bin/*
-	@mkdir -p bin 
+	@rm -rf work* $(BSVOUTDIR)/*
+	@mkdir -p $(BSVOUTDIR)
 	vlib work
-	vlog -work work +libext+.v+.vqm -y ./src/bfm -y $(VERILOGDIR) -y ${BLUESPECDIR}/Verilog +define+TOP=$(TOP_MODULE) ${BLUESPECDIR}/Verilog/main.v ./$(VERILOGDIR)/$(TOP_MODULE).v  > compile_log
+	vlog -work work +libext+.v+.vqm -y ./src/bfm -y $(VERILOGDIR) -y ${BLUESPECDIR}/Verilog \
+		+define+TOP=$(TOP_MODULE) $(VCS_MACROS) ${BLUESPECDIR}/Verilog/main.v \
+		./$(VERILOGDIR)/$(TOP_MODULE).v  > compile_log
 	mv compile_log ./$(BSVOUTDIR)
 	mv work ./$(BSVOUTDIR)
 	echo 'vsim -quiet -novopt -lib work -do "run -all; quit" -c main' > $(BSVOUTDIR)/out
@@ -322,21 +312,14 @@ link_msim:
 .PHONY: link_verilator
 link_verilator: 
 	@echo "Linking $(TOP_MODULE) using verilator"
-	@mkdir -p bin obj_dir
+	@mkdir -p $(BSVOUTDIR) obj_dir
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > src/testbench/sim_main.h
 	@echo '#include "V$(TOP_MODULE).h"' >> src/testbench/sim_main.h
 	verilator $(VERILATOR_FLAGS) -y $(VERILOGDIR) --exe
 	@ln -f -s ../src/testbench/sim_main.cpp obj_dir/sim_main.cpp
 	@ln -f -s ../src/testbench/sim_main.h obj_dir/sim_main.h
 	@make -j8 -C obj_dir -f V$(TOP_MODULE).mk
-	@cp obj_dir/V$(TOP_MODULE) bin/out
-
-.PHONY: link_iverilog
-link_iverilog: 
-	@echo "Linking $(TOP_MODULE) using iverilog..."
-	@mkdir -p bin 
-	@iverilog -v -o bin/out -Wall -y ./src/bfm -y $(VERILOGDIR) -y ${BLUESPECDIR}/Verilog/ -DTOP=$(TOP_MODULE) ${BLUESPECDIR}/Verilog/main.v .$(VERILOGDIR)/$(TOP_MODULE).v
-	@echo Linking finished
+	@cp obj_dir/V$(TOP_MODULE) $(BSVOUTDIR)/out
 
 .PHONY: ip_build
 ip_build: 
