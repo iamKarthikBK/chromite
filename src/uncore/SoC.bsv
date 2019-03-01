@@ -37,7 +37,7 @@ package SoC;
 	import AXI4_Lite_Fabric:: *;
   import Tilelink_lite_Types::*;
   import Tilelink_lite::*;
-  import cclass_bare:: * ;
+  import cclass:: * ;
   import common_types:: * ;
   `include "common_params.bsv"
   `include "SoC.defines"
