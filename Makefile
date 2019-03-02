@@ -119,7 +119,7 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
 								 -D idbanks=$(IDBANKS) -D itbanks=$(ITBANKS) -D ddbanks=$(DDBANKS) -D dtbanks=$(DTBANKS) \
 								 -D dwords=$(DWORDS) -D dblocks=$(DBLOCKS) -D dways=$(DWAYS) -D dsets=$(DSETS) \
 								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) -D desize=$(DESIZE) \
-								 -D dsbsize=$(DSBSIZE) \
+								 -D dsbsize=$(DSBSIZE) -D ibuswidth=$(IBUSWIDTH) \
 								 -D PIPE$(PIPE)=True -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
 								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) 
 		
