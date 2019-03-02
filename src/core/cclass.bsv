@@ -148,7 +148,7 @@ package cclass;
 	  rule handle_imem_line_request;
 	  	let {inst_addr, burst_len, burst_size} <- imem.read_mem_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr: truncate(inst_addr) , aruser: ?, 
-        arlen: burst_len , arsize: 2, arburst: 'b10, arid:`Fetch_master_num
+        arlen: burst_len , arsize: burst_size, arburst: 'b10, arid:`Fetch_master_num
         ,arprot:{1'b1,1'b0,curr_priv[1]} }; // arburst: 00-FIXED 01-INCR 10-WRAP
 	    fetch_xactor.i_rd_addr.enq(imem_request);
 	  	if(verbosity!=0)
