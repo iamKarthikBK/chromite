@@ -179,6 +179,9 @@ package common_types;
   	Bit#(addr_width) pc;
   	Bit#(addr_width) branch_address;
   	Bit#(2) state;
+  `ifdef bpu_ras
+    Bool ras;
+  `endif
     } Training_data#(numeric type addr_width) deriving (Bits, Eq,FShow);
   
   typedef Tuple3#(
