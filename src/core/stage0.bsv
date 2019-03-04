@@ -35,6 +35,7 @@ package stage0;
   import FIFO::*;
   import GetPut::*;
   import Connectable::*;
+  import Assert::*;
 
   // Project imports
   import mem_config::*; // for bram 1rw instances.
@@ -109,7 +110,7 @@ package stage0;
     Ifc_mem_config1r1w#(`rassets, TSub#(TSub#(`vaddr, TLog#(`rassets )), 2),1) mem_ras_tag
                                                               <- mkmem_config1r1w(False,"double");
     // ram to hold the state of the ras entries.
-    Ifc_mem_config1r1w#(`rassets, 2, 1) mem_ras_state <- mkmem_config1r1w(False,"double");
+    Ifc_mem_config1r1w#(`rassets, 1, 1) mem_ras_state <- mkmem_config1r1w(False,"double");
 
     // stack structure to hold the return addresses
     Ifc_stack#(`vaddr, `rassize) ras_stack <- mkstack;
@@ -117,7 +118,7 @@ package stage0;
 
     // boolean register and counter used to initialize the ram structure on reset.
     Reg#(Bool) rg_init <- mkReg(True);
-    Reg#(Bit#(TAdd#(1,TLog#(`btbsize)))) rg_init_count <- mkReg(0);
+    Reg#(Bit#(TAdd#(1,TLog#(TMax#(`btbsize,`rassets))))) rg_init_count <- mkReg(0);
 		
     // internal fifo to store the address for which prediction was requested in the ram structure in
     // the previous cycle.
@@ -137,9 +138,11 @@ package stage0;
     // case of bimodal). 
     // Simultaneously, initiate a prediction request for Reset_pc+4 and switch-off init mode.
     rule initialize(rg_init);
+      // reset the states for BTB and RAS
       mem_bht_state.write(1, truncate(rg_init_count),0);
+      mem_ras_state.write(1, truncate(rg_init_count),0);
 
-      if(rg_init_count==fromInteger(`btbsize)) begin
+      if(rg_init_count==fromInteger(max(`btbsize, `rassets))) begin
 
         Bit#(TLog#(`btbsize )) index = truncate(pc4>>2);
         rg_init<=False;
@@ -147,7 +150,9 @@ package stage0;
         mem_btb_tag.read(index);
         mem_bht_state.read(index);
         rg_pc<=pc4;
-        tx_stage1.u.enq(PIPE0{pc:rg_pc, prediction:0, epoch:{rg_iEpoch,rg_eEpoch, rg_wEpoch}});
+        tx_stage1.u.enq(PIPE0{pc:rg_pc, 
+                              prediction:0, 
+                              epoch:{rg_iEpoch,rg_eEpoch, rg_wEpoch}});
         ff_prediction_request.enq(tuple2({rg_iEpoch,rg_eEpoch,rg_wEpoch},pc4));
       `ifdef icache
         `ifdef supervisor
@@ -158,10 +163,10 @@ package stage0;
       `else
         ff_imem_req.enq(tuple2(rg_pc,{rg_iEpoch,rg_eEpoch,rg_wEpoch}));
       `endif
-      `logLevel( 1, $format("STAGE0: Init stage. Reset PC:%h NPC:%h", rg_pc,pc4))
+      `logLevel( 1,$format("STAGE0: Init stage. Reset PC:%h NPC:%h", rg_pc,pc4))
       end
       else
-      `logLevel( 1, $format("STAGE0: Initializing Index: %d.", rg_init_count))
+      `logLevel( 1,$format("STAGE0: Initializing Index: %d.", rg_init_count))
       rg_init_count<=rg_init_count+1;
     endrule
 
@@ -170,12 +175,17 @@ package stage0;
     // Implicit Conditions: ff_prediction_request.notFull
     // Description: This rule will latch the index of the PC to be predicted.
     rule prediction_request(!rg_init);
-      Bit#(TLog#(`btbsize)) index = truncate(rg_pc>>2);
-      mem_btb.read(index);
-      mem_btb_tag.read(index);
-      mem_bht_state.read(index);
+      Bit#(TLog#(`btbsize)) btb_index = truncate(rg_pc>>2);
+      mem_btb.read(btb_index);
+      mem_btb_tag.read(btb_index);
+      mem_bht_state.read(btb_index);
       ff_prediction_request.enq(tuple2({rg_iEpoch,rg_eEpoch,rg_wEpoch},rg_pc));
-      `logLevel( 1, $format("STAGE0: Sending Prediction Req for PC:%h index:%d", rg_pc, index))
+      `logLevel( 1, $format("STAGE0: Sending Prediction Req for PC:%h index:%d", rg_pc, btb_index))
+    `ifdef bpu_ras
+      Bit#(TLog#(`rassets)) ras_index = truncate(rg_pc>>2);
+      mem_ras_tag.read(ras_index);
+      mem_ras_state.read(ras_index);
+    `endif
     endrule
 
     // RuleName: prediction_response
@@ -190,18 +200,37 @@ package stage0;
       let bht_tag = mem_btb_tag.read_response;
       let state = mem_bht_state.read_response;
       let {epoch, va} = ff_prediction_request.first();
-      Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag = truncateLSB(va);
+      Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag1 = truncateLSB(va);
+      Bit#(TSub#(TSub#(`vaddr , TLog#(`rassets)),2)) tag2 = truncateLSB(va);
       ff_prediction_request.deq();
       Bit#(`vaddr) next_pc;
       Bit#(2) prediction;
+      Bool btb_hit=False;
+      Bool ras_hit=False;
+    `ifdef bpu_ras
+      let ras_tag = mem_ras_tag.read_response;
+      let ras_state = mem_ras_state.read_response;
+    `endif
       // tags match and btb entry is valid
-      if (tag == bht_tag && state[2]==1) begin
+      if (tag1 == bht_tag && state[2]==1) begin
+        btb_hit=True;
         prediction=state[1:0];
         if(state[1:0]>1)
           next_pc=target_addr;
         else
           next_pc=pc4;
+        `logLevel( 1, $format("STAGE0: BTB Hit bhttag:%h tag:%h state:%b target:%h",bht_tag, tag1, state, target_addr))
       end
+    `ifdef bpu_ras
+      // Is this PC a return instruction. If so then pop from the Stack
+      else if(tag2 == ras_tag && ras_state==1 && !ras_stack.empty) begin 
+        ras_hit=True;
+        let ras_head <- ras_stack.top;
+        next_pc=ras_head;
+        `logLevel( 1, $format("STAGE0: RAS Hit: rastag:%h tag:%h rashead:%h", ras_tag, tag2, ras_head))
+        prediction=3;
+      end
+    `endif
       else begin
         next_pc=pc4;
         prediction=0;
@@ -216,9 +245,14 @@ package stage0;
     `else
       ff_imem_req.enq(tuple2(va,epoch));
     `endif
-      tx_stage1.u.enq(PIPE0{pc:va, prediction:prediction, epoch:epoch});
-      `logLevel( 1, $format("STAGE0: Prediction bhttag:%h tag:%h state:%b",bht_tag, tag, state))
+      tx_stage1.u.enq(PIPE0{pc:va, 
+                            prediction:prediction, 
+                            epoch:epoch});
       `logLevel( 1, $format("STAGE0: Prediction for PC:%h State:%b NPC:%h", va,prediction,next_pc))
+      
+      `ifdef ASSERT
+        dynamicAssert(!(btb_hit&&ras_hit), "Hit in BTB and RAS should not have happened");
+      `endif
     endrule
 
     // MethodName: update_iEpoch
@@ -260,15 +294,16 @@ package stage0;
         mem_btb.write(1, index,td.branch_address);
         mem_btb_tag.write(1, index, tag);
         mem_bht_state.write(1, index, {1'b1,td.state});
-        `logLevel( 1, $format("STAGE0: Training: index:%d tag:%h state:%b", index,tag,td.state))
+        `logLevel( 1, $format("STAGE0: Training BTB: index:%d tag:%h state:%b", index,tag,td.state))
     `ifdef bpu_ras
       end
       else begin // update the RAS table
         Bit#(TLog#(`rassets )) index = truncate(td.pc>>2);
         Bit#(TSub#(TSub#(`vaddr , TLog#(`rassets)),2)) tag = truncateLSB(td.pc);
         mem_ras_tag.write(1,index,tag);
-        mem_ras_state.write(1,index,2'b11);
+        mem_ras_state.write(1,index,1'b1);
         ras_stack.push(td.branch_address);
+        `logLevel( 1, $format("STAGE0: Training Ras: index:%d tag:%h", index,tag))
       end
     `endif
     endmethod
@@ -297,16 +332,23 @@ package stage0;
       `logLevel( 0,$format("TB: Stage1 Input: ",fshow(x)))
     endrule
     rule end_sim;
-      if(rg_counter==270)
+      if(rg_counter==300)
         $finish(0);
       else
         rg_counter<=rg_counter+1;
     endrule
 
     rule train(rg_counter==257);
-      let training=Training_data{pc:64'h1010,branch_address:64'h2000,state:3,ras:False};
+      let training=Training_data{pc:64'h1010,branch_address:64'h2000,state:3,ras:True};
       stage0.training(training);
       `logLevel( 0,$format("TB: Training: ",fshow(training)))
+    endrule
+    rule train2(rg_counter==258);
+      let training=Training_data{pc:64'h2010,branch_address:64'h1000,state:2,ras:False};
+      stage0.training(training);
+      `logLevel( 0,$format("TB: Training: ",fshow(training)))
+    endrule
+    rule flush_btb;
     endrule
   endmodule
 endpackage
