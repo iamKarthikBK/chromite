@@ -40,11 +40,13 @@ package stage0;
   import mem_config::*; // for bram 1rw instances.
   import TxRx::*; // for interstage pipeline FIFOs.
   import common_types::*;
+  import stack ::*; // for maintaining the RAS stack
   `include "common_params.bsv"
   `include "Logger.bsv"
 
 
   `define btbsets 256
+  `define rassets 256
 
   typedef struct{
     Bit#(`vaddr ) pc;
@@ -98,13 +100,24 @@ package stage0;
 
     // ram to hold the target address. // TODO need to store only offset?
     Ifc_mem_config1r1w#(`btbsets , `vaddr, 1) mem_btb <- mkmem_config1r1w(False,"double");
+
     // ram to hold the tag of the address being predicted. The 2 bits are deducted since we are
     // supporting only non-compressed ISA. When compressed is supported, 1 will be dedudcted.
-    Ifc_mem_config1r1w#(`btbsets , TSub#(TSub#(`vaddr, TLog#(`btbsets)),2), 1) mem_tag 
+    Ifc_mem_config1r1w#(`btbsets , TSub#(TSub#(`vaddr, TLog#(`btbsets)),2), 1) mem_btb_tag 
                                                               <- mkmem_config1r1w(False,"double");
 
     // ram to hold the state of the history table.
-    Ifc_mem_config1r1w#(`btbsets, 3, 1) mem_state <- mkmem_config1r1w(False,"double");
+    Ifc_mem_config1r1w#(`btbsets, 3, 1) mem_bht_state <- mkmem_config1r1w(False,"double");
+  `ifdef bpu_ras
+    // ram to hold the tag bits for return instructions
+    Ifc_mem_config1r1w#(`rassets, TSub#(TSub#(`vaddr, TLog#(`rassets )), 2),1) mem_ras_tag
+                                                              <- mkmem_config1r1w(False,"double");
+    // ram to hold the state of the ras entries.
+    Ifc_mem_config1r1w#(`btbsets, 2, 1) mem_ras_state <- mkmem_config1r1w(False,"double");
+
+    // stack structure to hold the return addresses
+    Ifc_stack#(`vaddr, `rassets) ras_stack <- mkstack;
+  `endif
 
     // boolean register and counter used to initialize the ram structure on reset.
     Reg#(Bool) rg_init <- mkReg(True);
@@ -128,15 +141,15 @@ package stage0;
     // case of bimodal). 
     // Simultaneously, initiate a prediction request for Reset_pc+4 and switch-off init mode.
     rule initialize(rg_init);
-      mem_state.write(1, truncate(rg_init_count),0);
+      mem_bht_state.write(1, truncate(rg_init_count),0);
 
       if(rg_init_count==fromInteger(`btbsets)) begin
 
         Bit#(TLog#(`btbsets )) index = truncate(pc4>>2);
         rg_init<=False;
         mem_btb.read(index);
-        mem_tag.read(index);
-        mem_state.read(index);
+        mem_btb_tag.read(index);
+        mem_bht_state.read(index);
         rg_pc<=pc4;
         tx_stage1.u.enq(PIPE0{pc:rg_pc, prediction:0, epoch:{rg_iEpoch,rg_eEpoch, rg_wEpoch}});
         ff_prediction_request.enq(tuple2({rg_iEpoch,rg_eEpoch,rg_wEpoch},pc4));
@@ -163,8 +176,8 @@ package stage0;
     rule prediction_request(!rg_init);
       Bit#(TLog#(`btbsets)) index = truncate(rg_pc>>2);
       mem_btb.read(index);
-      mem_tag.read(index);
-      mem_state.read(index);
+      mem_btb_tag.read(index);
+      mem_bht_state.read(index);
       ff_prediction_request.enq(tuple2({rg_iEpoch,rg_eEpoch,rg_wEpoch},rg_pc));
       `logLevel( 1, $format("STAGE0: Sending Prediction Req for PC:%h index:%d", rg_pc, index))
     endrule
@@ -178,8 +191,8 @@ package stage0;
     // mem_btb
     rule prediction_response(!rg_init);
       let target_addr = mem_btb.read_response;
-      let bht_tag = mem_tag.read_response;
-      let state = mem_state.read_response;
+      let bht_tag = mem_btb_tag.read_response;
+      let state = mem_bht_state.read_response;
       let {epoch, va} = ff_prediction_request.first();
       Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsets)),2)) tag = truncateLSB(va);
       ff_prediction_request.deq();
@@ -212,34 +225,61 @@ package stage0;
       `logLevel( 1, $format("STAGE0: Prediction for PC:%h State:%b NPC:%h", va,prediction,next_pc))
     endrule
 
-    // method to receive flush from stage1
+    // MethodName: update_iEpoch
+    // Explicit Conditions: None
+    // Implicit Conditions: None 
     method Action update_iEpoch;
       rg_iEpoch<=~rg_iEpoch;
     endmethod
 
-    // method to receive flush form stage3
+    // MethodName: update_eEpoch
+    // Explicit Conditions: None
+    // Implicit Conditions: None 
     method Action udpate_eEpoch;
       rg_eEpoch<=~rg_eEpoch;
     endmethod
 
-    // method to receive flush form stage5
+    // MethodName: update_wEpoch
+    // Explicit Conditions: None
+    // Implicit Conditions: None 
     method Action udpate_wEpoch;
       rg_wEpoch<=~rg_wEpoch;
     endmethod
 
-    // interface to next stage holding pc and prediction info.
+    // InterfaceName: tx_to_stage1
+    // Explicit Conditions: None
+    // Implicit Conditions: tx_stage1.notEmpty 
     interface tx_to_stage1 = tx_stage1.e;
     
-      // method to update training bits of the predictor
+    // MethodName: training
+    // Explicit Conditions: rg_init==False
+    // Implicit Conditions: None 
+    // Description: 
 		method Action training (Training_data#(`vaddr) td)if(!rg_init);
-      Bit#(TLog#(`btbsets )) index = truncate(td.pc>>2);
-      Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsets)),2)) tag = truncateLSB(td.pc);
-      mem_btb.write(1, index,td.branch_address);
-      mem_tag.write(1, index, tag);
-      mem_state.write(1, index, {1'b1,td.state});
-      `logLevel( 1, $format("STAGE0: Training: index:%d tag:%h state:%b", index,tag,td.state))
+    `ifdef bpu_ras
+      if(!td.ras)begin // update the BHT 
+    `endif
+        Bit#(TLog#(`btbsets )) index = truncate(td.pc>>2);
+        Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsets)),2)) tag = truncateLSB(td.pc);
+        mem_btb.write(1, index,td.branch_address);
+        mem_btb_tag.write(1, index, tag);
+        mem_bht_state.write(1, index, {1'b1,td.state});
+        `logLevel( 1, $format("STAGE0: Training: index:%d tag:%h state:%b", index,tag,td.state))
+    `ifdef bpu_ras
+      end
+      else begin // update the RAS table
+        Bit#(TLog#(`rassets )) index = truncate(td.pc>>2);
+        Bit#(TSub#(TSub#(`vaddr , TLog#(`rassets)),2)) tag = truncateLSB(td.pc);
+        mem_ras_tag.write(1,index,tag);
+        mem_ras_state.write(1,index,2'b11);
+        ras_stack.push(td.branch_address);
+      end
+    `endif
     endmethod
-    // interface to send pc to i-cache
+    
+    // InterfaceName: request_to_imem
+    // Explicit Conditions: None
+    // Implicit Conditions: ff_imem_req.notEmpty
     interface request_to_imem=toGet(ff_imem_req);
   endmodule
 
@@ -268,7 +308,7 @@ package stage0;
     endrule
 
     rule train(rg_counter==257);
-      let training=Training_data{pc:64'h1010,branch_address:64'h2000,state:3};
+      let training=Training_data{pc:64'h1010,branch_address:64'h2000,state:3,ras:False};
       stage0.training(training);
       `logLevel( 0,$format("TB: Training: ",fshow(training)))
     endrule
