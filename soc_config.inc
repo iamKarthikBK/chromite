@@ -13,7 +13,10 @@ SYNTHTOP=mkriscv
 RESETPC=4096
 PADDR=32
 BPU=enable
+BTBSIZE=256
 RAS=enable
+RASSETS=64
+RASSIZE=8
 
 # Verilator options
 COVERAGE=none

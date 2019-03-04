@@ -44,10 +44,6 @@ package stage0;
   `include "common_params.bsv"
   `include "Logger.bsv"
 
-
-  `define btbsets 256
-  `define rassets 256
-
   typedef struct{
     Bit#(`vaddr ) pc;
     Bit#(2) prediction;
@@ -99,29 +95,29 @@ package stage0;
 		TX#(PIPE0) tx_stage1<-mkTX;
 
     // ram to hold the target address. // TODO need to store only offset?
-    Ifc_mem_config1r1w#(`btbsets , `vaddr, 1) mem_btb <- mkmem_config1r1w(False,"double");
+    Ifc_mem_config1r1w#(`btbsize , `vaddr, 1) mem_btb <- mkmem_config1r1w(False,"double");
 
     // ram to hold the tag of the address being predicted. The 2 bits are deducted since we are
     // supporting only non-compressed ISA. When compressed is supported, 1 will be dedudcted.
-    Ifc_mem_config1r1w#(`btbsets , TSub#(TSub#(`vaddr, TLog#(`btbsets)),2), 1) mem_btb_tag 
+    Ifc_mem_config1r1w#(`btbsize , TSub#(TSub#(`vaddr, TLog#(`btbsize)),2), 1) mem_btb_tag 
                                                               <- mkmem_config1r1w(False,"double");
 
     // ram to hold the state of the history table.
-    Ifc_mem_config1r1w#(`btbsets, 3, 1) mem_bht_state <- mkmem_config1r1w(False,"double");
+    Ifc_mem_config1r1w#(`btbsize, 3, 1) mem_bht_state <- mkmem_config1r1w(False,"double");
   `ifdef bpu_ras
     // ram to hold the tag bits for return instructions
     Ifc_mem_config1r1w#(`rassets, TSub#(TSub#(`vaddr, TLog#(`rassets )), 2),1) mem_ras_tag
                                                               <- mkmem_config1r1w(False,"double");
     // ram to hold the state of the ras entries.
-    Ifc_mem_config1r1w#(`btbsets, 2, 1) mem_ras_state <- mkmem_config1r1w(False,"double");
+    Ifc_mem_config1r1w#(`rassets, 2, 1) mem_ras_state <- mkmem_config1r1w(False,"double");
 
     // stack structure to hold the return addresses
-    Ifc_stack#(`vaddr, `rassets) ras_stack <- mkstack;
+    Ifc_stack#(`vaddr, `rassize) ras_stack <- mkstack;
   `endif
 
     // boolean register and counter used to initialize the ram structure on reset.
     Reg#(Bool) rg_init <- mkReg(True);
-    Reg#(Bit#(TAdd#(1,TLog#(`btbsets)))) rg_init_count <- mkReg(0);
+    Reg#(Bit#(TAdd#(1,TLog#(`btbsize)))) rg_init_count <- mkReg(0);
 		
     // internal fifo to store the address for which prediction was requested in the ram structure in
     // the previous cycle.
@@ -143,9 +139,9 @@ package stage0;
     rule initialize(rg_init);
       mem_bht_state.write(1, truncate(rg_init_count),0);
 
-      if(rg_init_count==fromInteger(`btbsets)) begin
+      if(rg_init_count==fromInteger(`btbsize)) begin
 
-        Bit#(TLog#(`btbsets )) index = truncate(pc4>>2);
+        Bit#(TLog#(`btbsize )) index = truncate(pc4>>2);
         rg_init<=False;
         mem_btb.read(index);
         mem_btb_tag.read(index);
@@ -174,7 +170,7 @@ package stage0;
     // Implicit Conditions: ff_prediction_request.notFull
     // Description: This rule will latch the index of the PC to be predicted.
     rule prediction_request(!rg_init);
-      Bit#(TLog#(`btbsets)) index = truncate(rg_pc>>2);
+      Bit#(TLog#(`btbsize)) index = truncate(rg_pc>>2);
       mem_btb.read(index);
       mem_btb_tag.read(index);
       mem_bht_state.read(index);
@@ -194,7 +190,7 @@ package stage0;
       let bht_tag = mem_btb_tag.read_response;
       let state = mem_bht_state.read_response;
       let {epoch, va} = ff_prediction_request.first();
-      Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsets)),2)) tag = truncateLSB(va);
+      Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag = truncateLSB(va);
       ff_prediction_request.deq();
       Bit#(`vaddr) next_pc;
       Bit#(2) prediction;
@@ -259,8 +255,8 @@ package stage0;
     `ifdef bpu_ras
       if(!td.ras)begin // update the BHT 
     `endif
-        Bit#(TLog#(`btbsets )) index = truncate(td.pc>>2);
-        Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsets)),2)) tag = truncateLSB(td.pc);
+        Bit#(TLog#(`btbsize )) index = truncate(td.pc>>2);
+        Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag = truncateLSB(td.pc);
         mem_btb.write(1, index,td.branch_address);
         mem_btb_tag.write(1, index, tag);
         mem_bht_state.write(1, index, {1'b1,td.state});

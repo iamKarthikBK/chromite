@@ -130,6 +130,15 @@ The `soc_config.inc` in the root directory is used to configure the core. Follow
 * __SYNTHTOP__: top module for FPGA synthesis
 * __RESETPC__: Values in integer format indicating the reset program counter value.
 * __PADDR__: Bit-wdith of the phyiscal address.
+* __BPU__: Valid options:
+    * `enable`: will enable a 2-state branch predictor. This will enable the pc-gen stage0 module. This is where the pc is generated and manipulated. The BTB is trained only for conditional branches and direct jumps (which are not returns).
+    * `disable`: will disable the pc-gen stage and stage0 will no longer exist. PC generation happens in stage1 module.
+* __BTBSIZE__: Integer number defining the number of entries in the BTB
+* __RAS__: Valid options:
+    * `enable`: Only valid if BPU is enabled. Will enable Return-Address-Stack structure in stage0. Currently this cannot exist independently of the BTB.
+    * `disable`: This will not instantiate any return-address stack.
+* __RASSIZE__: Integer number defining the entries in the Return-Address-Stack.
+* __RASSETS__: Integer number defining the number of sets in the ras_tag data structure. 
 * __COVERAGE__: This is used by verilator to generate specific coverage metrics during simulation. Valid otions:
     * `none`: disable all coverage
     * `all`: enable all coverage metrics supported in verilator

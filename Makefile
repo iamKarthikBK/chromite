@@ -25,9 +25,9 @@ define presim_config
 #	@ln -fs src/caches/*.mem .
 endef
 
-TOP_MODULE:=mkTbSoC
-TOP_FILE:=TbSoC.bsv
-TOP_DIR:=./src/testbench/
+TOP_MODULE:=mkTb
+TOP_FILE:=stage0.bsv
+TOP_DIR:=./src/core/
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))
@@ -127,7 +127,8 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
 								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) -D desize=$(DESIZE) \
 								 -D dsbsize=$(DSBSIZE) -D ibuswidth=$(IBUSWIDTH) \
 								 -D PIPE$(PIPE)=True -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
-								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) 
+								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) \
+								 -D btbsize=$(BTBSIZE) -D rassets=$(RASSETS) -D rassize=$(RASSIZE)
 		
 
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/
