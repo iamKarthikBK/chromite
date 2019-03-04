@@ -12,6 +12,8 @@ FPGA=xc7a100tcsg324-1
 SYNTHTOP=mkriscv
 RESETPC=4096
 PADDR=32
+BPU=enable
+RAS=enable
 
 # Verilator options
 COVERAGE=none
