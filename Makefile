@@ -25,9 +25,9 @@ define presim_config
 #	@ln -fs src/caches/*.mem .
 endef
 
-TOP_MODULE:=mkTb
-TOP_FILE:=stage0.bsv
-TOP_DIR:=./src/core/
+TOP_MODULE:=mkTbSoC
+TOP_FILE:=TbSoC.bsv
+TOP_DIR:=./src/testbench
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))

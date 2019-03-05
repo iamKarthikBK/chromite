@@ -82,6 +82,7 @@ package stage5;
 
   (*synthesize*)
   (*conflict_free="instruction_commit,increment_instruction_counter"*)
+  (*conflict_free="set_external_interrupt,instruction_commit"*)
   module mkstage5(Ifc_stage5);
 
     let verbosity = `VERBOSITY ;

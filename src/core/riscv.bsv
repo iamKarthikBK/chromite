@@ -30,7 +30,8 @@ package riscv;
   import Connectable::*;
   import GetPut::*;
   /*========================= */
-  
+ 
+  import stage0::*;
   import stage1::*;
   import stage2::*;
   import stage3::*;
@@ -42,8 +43,8 @@ package riscv;
   
   interface Ifc_riscv;
     
-  	interface Get#(ICore_request#( `vaddr, 3)) inst_request;
-    interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
+  	interface Get#(ICore_request#( `vaddr, `iesize)) inst_request;
+    interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) inst_response;
   `ifdef dcache
 		interface Get#(Tuple2#(DMem_request#(`vaddr ,ELEN,1),Bool)) memory_request;
   `else 
@@ -92,6 +93,7 @@ package riscv;
   module mkriscv(Ifc_riscv);
     let verbosity = `VERBOSITY ;
 
+    Ifc_stage0 stage0 <- mkstage0();
     Ifc_stage1 stage1 <- mkstage1();
     Ifc_stage2 stage2 <- mkstage2();
     Ifc_stage3 stage3 <- mkstage3();
@@ -99,9 +101,9 @@ package riscv;
     Ifc_stage5 stage5 <- mkstage5();
 
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
+    FIFOF#(PIPE0) pipe0 <- mkSizedFIFOF(2);
 
-    FIFOF#(PIPE1_min) pipe1min <-mkSizedFIFOF(2);
-    FIFOF#(PIPE1_opt1) pipe1opt1 <-mkSizedFIFOF(2);
+    FIFOF#(PIPE1) pipe1<-mkSizedFIFOF(2);
 
     FIFOF#(PIPE2_min#(ELEN,FLEN)) pipe2min <- mkLFIFOF();
   `ifdef spfpu
@@ -134,8 +136,11 @@ package riscv;
   `endif
 `endif
 
-    mkConnection(stage1.tx_min, pipe1min);
-    mkConnection(pipe1min, stage2.rx_min);
+    mkConnection(stage0.tx_to_stage1,pipe0);
+    mkConnection(stage1.rx_from_stage0,pipe0);
+
+    mkConnection(stage1.tx_min, pipe1);
+    mkConnection(pipe1, stage2.rx_min);
 
   `ifdef bpu
     mkConnection(stage1.tx_opt1,pipeopt1);
@@ -196,10 +201,14 @@ package riscv;
     endrule
 
     rule flush_stage1(flush_from_exe!=None||flush_from_wb);
-      if(flush_from_wb)
-        stage1.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef supervisor , sfence `endif `endif ); // TODO Sfence
-      else
-        stage1.flush(flushpc_from_exe `ifdef icache , False `ifdef supervisor , False `endif `endif ); // EXE can never send a fence request.
+      if(flush_from_wb)begin
+        stage1.flush(flushpc_from_wb ); // TODO Sfence
+        stage0.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef supervisor , sfence `endif `endif ); // TODO Sfence
+      end
+      else begin
+        stage1.flush(flushpc_from_exe ); // EXE can never send a fence request.
+        stage0.flush(flushpc_from_exe `ifdef icache , False `ifdef supervisor , False `endif `endif ); // EXE can never send a fence request.
+      end
     endrule
     rule connect_csrs;
       stage2.csrs(stage5.csrs_to_decode);
@@ -212,8 +221,10 @@ package riscv;
     rule upd_stage2eEpoch(flush_from_exe!=None);
       stage2.update_eEpoch();
       stage1.update_eEpoch();
+      stage0.update_eEpoch();
     endrule
     rule upd_stage2wEpoch(flush_from_wb);
+      stage0.update_wEpoch();
       stage1.update_wEpoch();
       stage2.update_wEpoch();
       stage3.update_wEpoch();
@@ -361,7 +372,7 @@ package riscv;
   `endif
     ///////////////////////////////////////////
 
-    interface inst_request=stage1.inst_request;
+    interface inst_request=stage0.inst_request;
     interface inst_response=stage1.inst_response;
   `ifdef dcache
     interface memory_request=stage3.memory_request;

@@ -93,19 +93,13 @@ package stage2;
 	interface Ifc_stage2;
 		method Action commit_rd (Maybe#(CommitData) commit);
 		/* ===== pipe connections ========= */
-		interface RXe#(PIPE1_min) rx_min;
-    `ifdef bpu
-  		interface RXe#(PIPE1_opt1) rx_opt1;
-    `endif
+		interface RXe#(PIPE1) rx_min;
 		interface TXe#(PIPE2_min#(ELEN,FLEN)) tx_min;
   `ifdef spfpu
     interface TXe#(OpFpu) tx_fpu;
   `endif
   `ifdef rtldump
     interface TXe#(Bit#(32)) tx_inst;
-  `endif
-  `ifdef bpu
-    interface TXe#(Bit#(2)) tx_bpu;
   `endif
 		/*================================= */
 		`ifdef Debug
@@ -124,19 +118,13 @@ package stage2;
   module mkstage2(Ifc_stage2);
 
     Ifc_registerfile registerfile <-mkregisterfile();
-		RX#(PIPE1_min) rxmin <-mkRX;
-  `ifdef bpu
-    RX#(PIPE1_opt1) rxopt1 <-mkRX;
-  `endif
+		RX#(PIPE1) rxmin <-mkRX;
 		TX#(PIPE2_min#(ELEN,FLEN)) txmin <-mkTX;
   `ifdef spfpu
     TX#(OpFpu) txfpu <- mkTX;
   `endif
   `ifdef rtldump
     TX#(Bit#(32)) txinst <- mkTX;
-  `endif
-  `ifdef bpu
-    TX#(Bit#(2)) txbpu <- mkTX;
   `endif
       
     let verbosity = `VERBOSITY ;
@@ -161,9 +149,6 @@ package stage2;
       let trap=rxmin.u.first.trap;
     `ifdef supervisor
       let trapcause = rxmin.u.first.cause;
-    `endif
-    `ifdef bpu
-  	  let pred=rxopt1.u.first.prediction;
     `endif
     `ifdef compressed
       let upper_err = rxmin.u.first.upper_err;
@@ -232,9 +217,6 @@ package stage2;
       `ifdef rtldump
         txinst.u.enq(inst);
       `endif
-      `ifdef bpu
-        txbpu.u.enq(pred);
-      `endif
       `ifdef spfpu
         txfpu.u.enq(t5);
       `endif
@@ -261,25 +243,16 @@ package stage2;
           $display($time,"\tDECODE: dropping instructions due to epoch mis-match");
       end
       rxmin.u.deq; 
-    `ifdef bpu
-      rxopt1.u.deq;
-    `endif
     endrule
 
 		method tx_min=txmin.e;
   `ifdef rtldump
     method tx_inst=txinst.e;
   `endif
-  `ifdef bpu
-    method tx_bpu=txbpu.e;
-  `endif
   `ifdef spfpu
     method tx_fpu=txfpu.e;
   `endif
 		method rx_min=rxmin.e;
-  `ifdef bpu
-		method rx_opt1=rxopt1.e;
-  `endif
     method Action csrs (CSRtoDecode csr);
       wr_csrs<= csr;
     endmethod

@@ -50,17 +50,11 @@ package stage0;
   `include "common_params.bsv"
   `include "Logger.bsv"
 
-  typedef struct{
-    Bit#(`vaddr ) pc;
-    Bit#(2) prediction;
-    Bit#(2) epoch;
-  } PIPE0 deriving(Bits,Eq,FShow);
-
   // interface definition of the stage
   interface Ifc_stage0;
 
     // interface to send request to the i-cache or fabric
- 	  interface Get#(ICore_request#( `vaddr, `iesize)) request_to_imem;
+ 	  interface Get#(ICore_request#( `vaddr, `iesize)) inst_request;
 
     // interface to next stage holding pc and prediction info.
     interface TXe#(PIPE0) tx_to_stage1;
@@ -72,7 +66,8 @@ package stage0;
     method Action update_wEpoch;
 
     // method to receive new pc value on any flush
-    method Action flush(Bit#(`vaddr) newpc, Bool fence 
+    method Action flush(Bit#(`vaddr) newpc
+              `ifdef icache , Bool fence `endif
               `ifdef supervisor , Bool sfence `endif );
 
     // method to update training bits of the predictor
@@ -85,6 +80,7 @@ package stage0;
   (*preempts="flush,prediction_response"*)
   (*preempts="flush,prediction_request"*)
   module mkstage0(Ifc_stage0);
+    String stage0="";
     // register to maintaing the request pc to the imem/fabric
     Reg#(Bit#(`vaddr )) rg_pc[2] <- mkCReg(2, `resetpc );
     
@@ -137,7 +133,9 @@ package stage0;
       rg_init<=False;
       rg_pc[0]<=pc4;
       tx_stage1.u.enq(PIPE0{pc:rg_pc[0], 
+                          `ifdef branch_speculation
                             prediction:0, 
+                          `endif
                             epoch:{rg_eEpoch, rg_wEpoch}});
       ff_prediction_request.enq(tuple2({rg_eEpoch,rg_wEpoch},pc4));
       `ifdef icache
@@ -163,7 +161,7 @@ package stage0;
       ras.prediction_req(rg_pc[1]);
     `endif
       ff_prediction_request.enq(tuple2({rg_eEpoch,rg_wEpoch},rg_pc[1]));
-      `logLevel( 1, $format("STAGE0: Sending Request for PC:%h", rg_pc[1]))
+      `logLevel( stage0, $format("STAGE0: Sending Request for PC:%h epoch:%b", rg_pc[1],{rg_eEpoch,rg_wEpoch}))
     endrule
 
     // RuleName: prediction_response
@@ -213,12 +211,14 @@ package stage0;
         ff_imem_req.enq(tuple2(va,epoch));
       `endif
         tx_stage1.u.enq(PIPE0{pc:va, 
+                          `ifdef branch_speculation
                             prediction:prediction, 
+                          `endif
                             epoch:epoch});
-        `logLevel( 1, $format("STAGE0: Prediction Received for PC:%h State:%b NPC:%h", va,prediction,next_pc))
+        `logLevel( stage0, $format("STAGE0: Prediction Received for PC:%h State:%b NPC:%h", va,prediction,next_pc))
       end
       else
-        `logLevel( 1, $format("STAGE0: Dropping Request since Epochs do not match. VA:%h", va))
+        `logLevel( stage0, $format("STAGE0: Dropping Request since Epochs do not match. VA:%h", va))
     endrule
 
     // MethodName: update_eEpoch
@@ -262,12 +262,13 @@ package stage0;
     // InterfaceName: request_to_imem
     // Explicit Conditions: None
     // Implicit Conditions: ff_imem_req.notEmpty
-    interface request_to_imem=toGet(ff_imem_req);
+    interface inst_request=toGet(ff_imem_req);
 
-      method Action flush(Bit#(`vaddr) newpc, Bool fence 
+    method Action flush(Bit#(`vaddr) newpc
+              `ifdef icache , Bool fence `endif
               `ifdef supervisor , Bool sfence `endif )if(!rg_init);
 
-      `logLevel( 1, $format("STAGE0: Received Flush. NewPC:%h",newpc))
+      `logLevel( stage0, $format("STAGE0: Received Flush. NewPC:%h",newpc))
       rg_pc[1]<=newpc;
       `ifdef icache
         if (fence `ifdef supervisor || sfence `endif )
@@ -278,54 +279,6 @@ package stage0;
         `endif
       `endif
     endmethod
-  endmodule
-
-  (*synthesize*)
-  module mkTb(Empty);
-    Ifc_stage0 stage0 <- mkstage0;
-    Reg#(Bit#(32)) rg_counter <- mkReg(0);
-    FIFOF#(PIPE0) ff <- mkSizedFIFOF(2);
-    RX#(PIPE0) rx <-mkRX;
-    mkConnection(ff,stage0.tx_to_stage1);
-    mkConnection(ff,rx.e);
-    rule newline;
-      $display("");
-    endrule
-    rule dummy_imem;
-      let x<- stage0.request_to_imem.get;
-      `logLevel( 0,$format("TB: Imem request: ",fshow(x)))
-    endrule
-    rule dummy_stage1;
-      let x=rx.u.first;
-      rx.u.deq;
-      `logLevel( 0,$format("TB: Stage1 Input: ",fshow(x)))
-    endrule
-    rule train(rg_counter==258);
-      let training=Training_data{pc:64'h1010,branch_address:64'h2000,state:3 
-          `ifdef ras ,ras:False `endif } ;
-      stage0.training(training);
-      `logLevel( 0,$format("TB: Training: ",fshow(training)))
-    endrule
-    rule train2(rg_counter==259);
-      let training=Training_data{pc:64'h2010,branch_address:64'h1000,state:2
-        `ifdef ras ,ras:True `endif };
-      stage0.training(training);
-      `logLevel( 0,$format("TB: Training: ",fshow(training)))
-    endrule
-    rule flush_btb(rg_counter==278);
-      stage0.flush('hff0, False, True);
-    endrule
-
-    rule update_epoch(rg_counter==278);
-      stage0.update_eEpoch();
-    endrule
-    rule end_sim;
-      if(rg_counter==300)
-        $finish(0);
-      else
-        rg_counter<=rg_counter+1;
-    endrule
-
   endmodule
 endpackage
 

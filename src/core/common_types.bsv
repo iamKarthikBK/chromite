@@ -200,11 +200,19 @@ package common_types;
                     // err , eopch size
   typedef Bit#(1) MemoryWriteResp;
 
+  typedef struct{
+    Bit#(`vaddr ) pc;
+  `ifdef branch_speculation
+    Bit#(2) prediction;
+  `endif
+    Bit#(2) epoch;
+  } PIPE0 deriving(Bits,Eq,FShow);
+
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
   	Bit#(`vaddr) program_counter;
   	Bit#(32) instruction;
-  	Bit#(2) epochs;
+  	Bit#(`iesize) epochs;
     Bool trap ;
   `ifdef supervisor
     Bit#(6) cause;
@@ -212,11 +220,10 @@ package common_types;
   `ifdef compressed
     Bool upper_err;
   `endif
-  }PIPE1_min deriving (Bits,Eq);
-
-  typedef struct{Bit#(2) prediction;} PIPE1_opt1 deriving(Bits,Eq,FShow);
-  typedef struct{Bit#(1) pagefault;} PIPE1_opt2 deriving(Bits,Eq,FShow);
-
+  `ifdef branch_speculation
+    Bit#(2) prediction;
+  `endif
+  }PIPE1 deriving (Bits,Eq);
   
   // ---------- Tuples for the second Pipeline Stage -----------//
 
