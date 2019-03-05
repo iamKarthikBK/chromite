@@ -1,0 +1,140 @@
+/* 
+Copyright (c) 2018, IIT Madras All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted
+provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this list of conditions
+  and the following disclaimer.  
+* Redistributions in binary form must reproduce the above copyright notice, this list of 
+  conditions and the following disclaimer in the documentation and/or other materials provided 
+ with the distribution.  
+* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
+  promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
+OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+--------------------------------------------------------------------------------------------------
+
+Author: Neel Gala
+Email id: neelgala@gmail.com
+Details:
+
+--------------------------------------------------------------------------------------------------
+*/
+package bimodal;
+	/*===== Pacakge imports ===== */
+	import FIFO::*;
+	import FIFOF::*;
+	import SpecialFIFOs::*;
+	import ConfigReg::*;
+	import Connectable::*;
+	import GetPut::*;
+  
+  /*==== Project imports ======= */
+  import mem_config::*; // for bram 1rw instances.
+  `include "Logger.bsv"
+  import common_types::*;
+
+
+	interface Ifc_bimodal;
+    // method to receive the new pc for which prediction is to be looked up.
+		method Action prediction_req(Bit#(`vaddr) pc);
+
+    // method to respond to stage0 with prediction state and new target address on hit
+		method ActionValue#(Tuple2#(Bit#(2), Bit#(`vaddr ))) prediction_resp;
+
+    // method to training the BTB and BHT tables
+		method Action training (Training_data#(`vaddr) td);
+	endinterface
+
+	(*synthesize*)
+	module mkbimodal(Ifc_bimodal);
+    String bimodal="";
+    // ram to hold the target address. // TODO need to store only offset?
+    Ifc_mem_config1r1w#(`btbsize , `vaddr, 1) mem_btb <- mkmem_config1r1w(False,"double");
+
+    // ram to hold the tag of the address being predicted. The 2 bits are deducted since we are
+    // supporting only non-compressed ISA. When compressed is supported, 1 will be dedudcted.
+    Ifc_mem_config1r1w#(`btbsize , TSub#(TSub#(`vaddr, TLog#(`btbsize)),2), 1) mem_btb_tag 
+                                                              <- mkmem_config1r1w(False,"double");
+
+    // ram to hold the state of the history table.
+    Ifc_mem_config1r1w#(`btbsize, 3, 1) mem_bht_state <- mkmem_config1r1w(False,"double");
+    
+    // boolean register and counter used to initialize the ram structure on reset.
+    Reg#(Bool) rg_init <- mkReg(True);
+    Reg#(Bit#(TAdd#(1,TLog#(`btbsize)))) rg_init_count <- mkReg(0);
+
+    Reg#(Bit#(`vaddr)) rg_req_packet <- mkConfigReg(0);
+    
+    // RuleName: initialize
+    // Explicit Conditions: rg_init==True
+    // Implicit Conditions: None
+    // on system reset first initialize the ram structure with valid=0.
+    rule initialize(rg_init);
+      mem_bht_state.write(1, truncate(rg_init_count),0);
+      if(rg_init_count==fromInteger(`btbsize)) begin
+				rg_init<=False;
+			end
+      `logLevel( bimodal,$format("Bimodal: Init stage. Count:%d",rg_init_count))
+      rg_init_count<=rg_init_count+1;
+		endrule
+
+    // MethodName: prediction_req
+    // Explicit Conditions: rg_init==False
+    // Implicit Conditions: None
+    // Description: This rule will latch the index of the PC to be predicted.
+		method Action prediction_req(Bit#(`vaddr) pc)if(!rg_init);
+      Bit#(TLog#(`btbsize )) index = truncate(pc>>2);
+      `logLevel( bimodal,$format("Bimodal: Prediction request for PC:%h",pc))
+      mem_btb.read(index);
+      mem_btb_tag.read(index);
+      mem_bht_state.read(index);
+      rg_req_packet<=pc;
+		endmethod
+
+    // MethodName: prediction_resp
+    // Explicit Conditions: rg_init==False
+    // Implicit Conditions: None
+    // Description: This rule read the response from the rams, check if the next PC is either PC+4
+    // or redirected to a new target address. The redirect address is directly taken from the ram.
+    // If there is not hit in the BTB the prediction value of 0 is sent indicating that the next PC
+    // is PC+4 which needs to happen outside this module
+		method ActionValue#(Tuple2#(Bit#(2), Bit#(`vaddr ))) prediction_resp if(!rg_init);
+      let target_addr = mem_btb.read_response;
+      let bht_tag = mem_btb_tag.read_response;
+      let state = mem_bht_state.read_response;
+      let va =rg_req_packet;
+      Bit#(`vaddr) next_pc=target_addr;
+      Bit#(2) prediction=0;
+      Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag1 = truncateLSB(va);
+      if (tag1 == bht_tag && state[2]==1) begin
+        prediction=state[1:0];
+      end
+      `logLevel( bimodal, $format("Bimodal: Response bhttag:%h tag:%h state:%b target:%h",bht_tag, tag1, state, target_addr))
+      return (tuple2(prediction,next_pc));
+		endmethod
+
+    // MethodName: training
+    // Explicit Conditions: rg_init==False
+    // Implicit Conditions: None 
+    // Description: This method will update the BTB and BHT with the new training packet from the
+    // execute stage
+		method Action training (Training_data#(`vaddr) td)if(!rg_init);
+        Bit#(TLog#(`btbsize )) index = truncate(td.pc>>2);
+        Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag = truncateLSB(td.pc);
+        mem_btb.write(1, index,td.branch_address);
+        mem_btb_tag.write(1, index, tag);
+        mem_bht_state.write(1, index, {1'b1,td.state});
+        `logLevel( bimodal, $format("Bimodal: Training BTB for ",fshow(td)))
+        `logLevel( bimodal, $format("Bimodal: Training BTB: index:%d tag:%h state:%b", index,tag,td.state))
+		endmethod
+	endmodule
+endpackage

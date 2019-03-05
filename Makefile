@@ -94,9 +94,9 @@ ifeq ($(PMP), enable)
 endif
 ifeq ($(BPU), enable)
 	override define_macros += -D bpu=True
-	ifeq ($(RAS), enable)
-		override define_macros += -D bpu_ras=True
-	endif
+endif
+ifeq ($(RAS), enable)
+	override define_macros += -D ras=True
 endif
 
 
