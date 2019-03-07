@@ -29,7 +29,7 @@ Details:
 --------------------------------------------------------------------------------------------------
 */
 package stage0;
-  // BSV library imports
+  // -- package imports --//
   import FIFOF::*;
   import SpecialFIFOs::*;
   import FIFO::*;
@@ -37,7 +37,7 @@ package stage0;
   import Connectable::*;
   import Assert::*;
 
-  // Project imports
+  // -- local imports --//
   import mem_config::*; // for bram 1rw instances.
   import TxRx::*; // for interstage pipeline FIFOs.
   import common_types::*;
@@ -56,8 +56,10 @@ package stage0;
     // interface to send request to the i-cache or fabric
  	  interface Get#(ICore_request#( `vaddr, `iesize)) inst_request;
 
+  `ifdef branch_speculation
     // interface to next stage holding pc and prediction info.
     interface TXe#(PIPE0) tx_to_stage1;
+  `endif
 
     // method to receive flush form stage3
     method Action update_eEpoch;
@@ -69,20 +71,19 @@ package stage0;
     method Action flush(Bit#(`vaddr) newpc
               `ifdef icache , Bool fence `endif
               `ifdef supervisor , Bool sfence `endif );
-
+  `ifdef branch_speculation
     // method to update training bits of the predictor
 		method Action training (Training_data#(`vaddr) td);
+  `endif
 
      
   endinterface
 
   (*synthesize*)
-  (*preempts="flush,prediction_response"*)
-  (*preempts="flush,prediction_request"*)
   module mkstage0(Ifc_stage0);
     String stage0="";
     // register to maintaing the request pc to the imem/fabric
-    Reg#(Bit#(`vaddr )) rg_pc[2] <- mkCReg(2, `resetpc );
+    Reg#(Bit#(`vaddr )) rg_pc <- mkReg(`resetpc );
     
     // register to maintain stage3 epoch
     Reg#(Bit#(1)) rg_eEpoch <- mkReg(0);
@@ -90,8 +91,13 @@ package stage0;
     // register to maintain stage5 epoch
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
 
+    Reg#(Bool) rg_sfence <- mkReg(False);
+    Reg#(Bool) rg_fence <- mkReg(False);
+
+  `ifdef branch_speculation
     // FIFO to interface with the next stage
 		TX#(PIPE0) tx_stage1<-mkTX;
+  `endif
 
   `ifdef bpu
     // instantiate the bimodal branch predictor
@@ -101,87 +107,35 @@ package stage0;
   `ifdef ras
     Ifc_ras ras <- mkras();
   `endif
-
-    // boolean register and counter used to initialize the ram structure on reset.
-    Reg#(Bool) rg_init <- mkReg(True);
 		
     // internal fifo to store the address for which prediction was requested in the ram structure in
     // the previous cycle.
     FIFOF#(Tuple2#(Bit#(2),Bit#(`vaddr))) ff_prediction_request <-mkLFIFOF();
 
-    // fifo to hold the request to the imem/ external fabric.
-    FIFOF#(ICore_request#(`vaddr , `iesize)) ff_imem_req <- mkSizedFIFOF(2);
-
     // local variable to hold the next+4 pc value. Ensure only a single adder is used.
-    let pc4 = rg_pc[0]+4;
-
-    // RuleName: initialize
-    // Explicit Conditions: rg_init==True
-    // Implicit Conditions: ff_prediction_request.notFull, ff_imem_req.notFull, tx_stage1.notFull
-    // on system reset first initialize the ram structure with valid=0.
-    // Then simply send the reset pc value to the next stage predicted as not-taken (value of 0 in
-    // case of bimodal). 
-    // Simultaneously, initiate a prediction request for Reset_pc+4 and switch-off init mode.
-    rule initialize(rg_init);
-      // reset the states for BTB and RAS
-    `ifdef bpu
-      bpu.prediction_req(pc4);
-    `endif
-    `ifdef ras
-      ras.prediction_req(pc4);
-    `endif
-      rg_init<=False;
-      rg_pc[0]<=pc4;
-      tx_stage1.u.enq(PIPE0{pc:rg_pc[0], 
-                          `ifdef branch_speculation
-                            prediction:0, 
-                          `endif
-                            epoch:{rg_eEpoch, rg_wEpoch}});
-      ff_prediction_request.enq(tuple2({rg_eEpoch,rg_wEpoch},pc4));
-      `ifdef icache
-        `ifdef supervisor
-          ff_imem_req.enq(tuple4(rg_pc[0],False, False, {rg_eEpoch,rg_wEpoch}));
-        `else
-          ff_imem_req.enq(tuple3(rg_pc[0], False,{rg_eEpoch,rg_wEpoch}));
-        `endif
-      `else
-        ff_imem_req.enq(tuple2(rg_pc[0],{rg_eEpoch,rg_wEpoch}));
-      `endif
-    endrule
-
-    // RuleName: prediction_request
-    // Explicit Conditions: rg_init==False
-    // Implicit Conditions: ff_prediction_request.notFull
-    // Description: This rule will latch the index of the PC to be predicted.
-    rule prediction_request(!rg_init);
-    `ifdef bpu
-      bpu.prediction_req(rg_pc[1]);
-    `endif
-    `ifdef ras
-      ras.prediction_req(rg_pc[1]);
-    `endif
-      ff_prediction_request.enq(tuple2({rg_eEpoch,rg_wEpoch},rg_pc[1]));
-      `logLevel( stage0, $format("STAGE0: Sending Request for PC:%h epoch:%b", rg_pc[1],{rg_eEpoch,rg_wEpoch}))
-    endrule
+    let pc4 = rg_pc+4;
+    let curr_epoch = {rg_eEpoch, rg_wEpoch};
 
     // RuleName: prediction_response
-    // Explicit Conditions: rg_init==False
+    // Explicit Conditions: None
     // Implicit Conditions: ff_prediction_request.notEmpty, ff_imem_req.notFull, tx_stage1.notFull
     // Description: This rule read the response from the rams, check if the next PC is either PC+4
     // or redirected to a new target address. The redirect address is directly taken from the ram.
-    rule prediction_response(!rg_init);
+  `ifdef branch_speculation
+    rule generate_next_pc;
 
-      let {epoch, va} = ff_prediction_request.first();
+      Bit#(`vaddr) next_pc;
+      Bool drop = epoch!=curr_epoch;
+      Bit#(2) prediction=0;
+
     `ifdef bpu
       let {btb_state,btb_target} <- bpu.prediction_resp;
     `endif
-      ff_prediction_request.deq();
-      Bit#(`vaddr) next_pc;
-      Bool drop = epoch!={rg_eEpoch,rg_wEpoch};
-      Bit#(2) prediction=0;
+
     `ifdef ras
       let {ras_state,ras_target} <- ras.prediction_resp;
     `endif
+
       // Hit in BTB
     `ifdef bpu
       if(btb_state>1)begin
@@ -198,28 +152,11 @@ package stage0;
       end
       else 
     `endif
-        next_pc=pc4;
-      if(!drop)begin
-        rg_pc[0]<=next_pc;
-      `ifdef icache
-        `ifdef supervisor
-          ff_imem_req.enq(tuple4(va,False, False, epoch));
-        `else
-          ff_imem_req.enq(tuple3(va, False,epoch));
-        `endif
-      `else
-        ff_imem_req.enq(tuple2(va,epoch));
-      `endif
-        tx_stage1.u.enq(PIPE0{pc:va, 
-                          `ifdef branch_speculation
-                            prediction:prediction, 
-                          `endif
-                            epoch:epoch});
-        `logLevel( stage0, $format("STAGE0: Prediction Received for PC:%h State:%b NPC:%h", va,prediction,next_pc))
-      end
-      else
-        `logLevel( stage0, $format("STAGE0: Dropping Request since Epochs do not match. VA:%h", va))
+      next_pc=pc4;
+
+      rg_pc<=next_pc;
     endrule
+  `endif
 
     // MethodName: update_eEpoch
     // Explicit Conditions: None
@@ -238,13 +175,16 @@ package stage0;
     // InterfaceName: tx_to_stage1
     // Explicit Conditions: None
     // Implicit Conditions: tx_stage1.notEmpty 
+  `ifdef branch_speculation
     interface tx_to_stage1 = tx_stage1.e;
+  `endif
     
     // MethodName: training
-    // Explicit Conditions: rg_init==False
+    // Explicit Conditions: None
     // Implicit Conditions: None 
     // Description: 
-		method Action training (Training_data#(`vaddr) td)if(!rg_init);
+  `ifdef branch_speculation
+		method Action training (Training_data#(`vaddr) td);
     `ifdef ras
       if(!td.ras)begin // update the BHT 
     `endif
@@ -258,26 +198,45 @@ package stage0;
       end
     `endif
     endmethod
+  `endif
     
     // InterfaceName: request_to_imem
     // Explicit Conditions: None
     // Implicit Conditions: ff_imem_req.notEmpty
-    interface inst_request=toGet(ff_imem_req);
+    interface inst_request=interface Get
+      method ActionValue#(ICore_request#(`vaddr, `iesize)) get;
+      if(!rg_fence && !rg_sfence) begin
+          rg_pc<=pc4;
+      end
+      else begin
+        rg_fence<=False;
+        rg_sfence<=False;
+      end
+      `logLevel( stage0,0,$format("STAGE0: Sending PC:%h",rg_pc))
+      `ifdef icache
+        `ifdef supervisor
+          return (tuple4(rg_pc, rg_fence, rg_sfence, curr_epoch));
+        `else
+          return (tuple3(rg_pc, rg_fence, curr_epoch));
+        `endif
+      `else
+        return (tuple2(rg_pc, curr_epoch));
+      `endif
+      endmethod
+    endinterface;
 
     method Action flush(Bit#(`vaddr) newpc
               `ifdef icache , Bool fence `endif
-              `ifdef supervisor , Bool sfence `endif )if(!rg_init);
+              `ifdef supervisor , Bool sfence `endif );
 
-      `logLevel( stage0, $format("STAGE0: Received Flush. NewPC:%h",newpc))
-      rg_pc[1]<=newpc;
-      `ifdef icache
-        if (fence `ifdef supervisor || sfence `endif )
-        `ifdef supervisor
-          ff_imem_req.enq(tuple4(?, fence, sfence, ?));
-        `else
-          ff_imem_req.enq(tuple3(?, fence, ?));
-        `endif
-      `endif
+      `logLevel( stage0,0, $format("STAGE0: Received Flush. NewPC:%h",newpc))
+      rg_pc<={truncateLSB(newpc),2'b0};
+    `ifdef icache
+      rg_fence<=fence;
+    `endif
+    `ifdef supervisor
+      rg_sfence<=sfence;
+    `endif
     endmethod
   endmodule
 endpackage
