@@ -493,7 +493,7 @@ package cclass;
         dmem.core_req.put(tuple2(tuple8(va,False,sfence,epoch,access,size,zeroExtend(data),atomicop),core_ptw));
       `else
         let {va, sfence, epoch, access, size, data, core_ptw} =req;
-        dmem.core_req.put(tuple2(tuple4(va,False,sfence,epoch,access,size,zeroExtend(data)),core_ptw));
+        dmem.core_req.put(tuple2(tuple7(va,False,sfence,epoch,access,size,zeroExtend(data)),core_ptw));
       `endif
     endrule
     mkConnection(dmem.ptw_resp,ptwalk.response_frm_cache);
