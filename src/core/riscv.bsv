@@ -136,10 +136,12 @@ package riscv;
   `endif
 `endif
 
+  `ifdef branch_speculation
     mkConnection(stage0.tx_to_stage1,pipe0);
     mkConnection(stage1.rx_from_stage0,pipe0);
+  `endif
 
-    mkConnection(stage1.tx_min, pipe1);
+    mkConnection(stage1.tx_next_stage, pipe1);
     mkConnection(pipe1, stage2.rx_min);
 
   `ifdef bpu

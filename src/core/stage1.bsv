@@ -45,6 +45,7 @@ package stage1;
 	import TxRx	::*;
   import common_types::*;
   `include "common_params.bsv"
+  `include "Logger.bsv"
   
   // Enum to define the action to be taken when an instruction arrives.
   typedef enum {CheckPrev, None} ActionType deriving(Bits,Eq,FShow);
@@ -56,13 +57,15 @@ package stage1;
     interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) inst_response;
 
     // instruction along with other results to be sent to the next stage
-    interface TXe#(PIPE1) tx_min;
-
-    interface RXe#(PIPE0) rx_from_stage0;
+    interface TXe#(PIPE1) tx_next_stage;
 
     // flush from the write-back or exe stage.
     method Action flush(Bit#(`vaddr) newpc );
+
+    // method to update epochs on redirection from execute stage
 		method Action update_eEpoch;
+    
+      // method to update epochs on redirection from writeback stage
 		method Action update_wEpoch;
 
     // csrs from the csrfile.
@@ -72,7 +75,7 @@ package stage1;
 
   (*synthesize*)
   module mkstage1(Ifc_stage1);
-
+    String stage1="";
     let verbosity = `VERBOSITY ;
     
     // this wire carries the current values of certain csrs.
@@ -99,12 +102,13 @@ package stage1;
     Reg#(Bit#(16)) rg_instruction <- mkReg(0);
 
     // This FIFO receives the response from the memory subsytem (a.k.a cache)
-    FIFOF#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) ff_memory_response<-mkSizedFIFOF(2);
+    FIFOF#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) ff_memory_response<-mkBypassFIFOF();
 
     // FIFO to interface with the next pipeline stage
-		TX#(PIPE1) txmin<-mkTX;
-
+		TX#(PIPE1) tx<-mkTX;
+  `ifdef branch_speculation
     RX#(PIPE0) rx_stage0 <- mkRX;
+  `endif
 
     // RuleName: process_instruction
     // Explicit Conditions: None
@@ -145,23 +149,23 @@ package stage1;
     // rg_instruction. rg_Action in this case will remain CheckPrev so that the upper bits of this
     // repsonse are probed in the next cycle.
     rule process_instruction;
+
+      `ifdef branch_speculation
         let prev_stage = rx_stage0.u.first;
         rx_stage0.u.deq;
+      `endif
         let {cache_response,err,cause,epoch}=ff_memory_response.first;
         Bit#(32) final_instruction=0;
         Bool compressed=False;
         Bool enque_instruction=True;
         // if epochs do not match then drop the instruction
-        if(verbosity>2)
-          $display($time,"\tSTAGE1: Analyzing Response: ",fshow(ff_memory_response.first), 
-          "rg_action: ",fshow(rg_action), " misa[c]:%b rg_discard:%b",wr_csr_misa_c,rg_discard_lower);
+        `logLevel( stage1,0,$format("STAGE1: Analysing: ",fshow(ff_memory_response.first)))
+        `logLevel( stage1,1,$format("STAGE1: rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c,rg_discard_lower))
         if({rg_eEpoch,rg_wEpoch}!=epoch)begin
           ff_memory_response.deq;
           rg_action<=None;
           enque_instruction=False;
-          if(verbosity>0)
-            $display($time,"\tSTAGE1: Dropping Instruction from Cache. CurrEpoch: %b RespEpoch: %b ",
-              {rg_eEpoch,rg_wEpoch},epoch, fshow(ff_memory_response.first));
+          `logLevel( stage1,1,$format("STAGE1: Dropping Instruction"))
         end
         else if(rg_discard_lower && wr_csr_misa_c==1)begin
           rg_discard_lower<=False;
@@ -220,30 +224,32 @@ package stage1;
                     `endif }; 
         if(enque_instruction) begin
           rg_pc<=next_pc;
-          txmin.u.enq(pipedata);
-          if(verbosity!=0) begin
-            $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Cause:%d Epoch: %b", rg_pc, final_instruction,
-                                                                      err, cause, epoch);
-            $display($time,"\tSTAGE1: rg_action: ",fshow(rg_action)," compressed: %b final_inst:\
-  %h rg_instruction: %h enque_instruction: %b curr_epoch: %b", compressed, final_instruction, 
-            rg_instruction, enque_instruction,{rg_eEpoch,rg_wEpoch});
-          end
+          tx.u.enq(pipedata);
+          `logLevel( stage1,0,$format("STAGE1: Enquing to Next Stage: ",fshow(pipedata)))
         end
     endrule
 
     // This method will capture the response from the memory subsytem and enque it in a FIFO.
     // Explicit Conditions: None
     // Implicit Conditions: ff_memory_response.notFull
+    // Description: One could of think of performing all the function in the process_instruction
+    // rule in this method itself. This would only work if you are not supporting compressed
+    // instructions. When you support compressed, the cache can send a single response which
+    // contains 2 16-bit instruction. In such a case the process_instruction rule will fire twice
+    // and deque the fifo only on the second run. Thus we need to have a fifo which will store the
+    // response from the cache for an extra cycle. 
+    // The former approach could work with compressed as well if : we process both the instructions
+    // and enqueue them simultaneously into the next stage. Not sure what other dependencies would
+    // be there?
 		interface inst_response= interface Put
 			method Action put (Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize)) resp);
-        if(verbosity>1)
-          $display($time,"\tSTAGE1: Recevied response from the Memory: ",fshow(resp));
+        `logLevel( stage1,1,$format("STAGE1: Recevied from IMEM: ",fshow(resp)))
         ff_memory_response.enq(resp);
 			endmethod
     endinterface;
     
-		interface tx_min = txmin.e;
-    interface rx_from_stage0 = rx_stage0.e;
+		interface tx_next_stage = tx.e;
+
     // This method will fire when a flush from the write back stage or execute stage is initiated.
     // Explicit Conditions: None
     // Implicit Conditions: None
@@ -253,18 +259,24 @@ package stage1;
         rg_discard_lower<=True;
       else
         rg_discard_lower<=False;
-      if(verbosity>1)
-        $display($time, "\tSTAGE1: Received Flush. PC: %h",newpc); 
-      ff_memory_response.clear();
+      `logLevel( stage1,0,$format("STAGE1: Recevied Flush. New PC: %h",newpc))
     endmethod
+
+    // MethodName: update_eEpoch
+    // Explicit Conditions: None
+    // Implicit Conditions: None 
     method Action update_eEpoch;
       rg_eEpoch<=~rg_eEpoch;
     endmethod
+
+    // MethodName: update_wEpoch
+    // Explicit Conditions: None
+    // Implicit Conditions: None 
     method Action update_wEpoch;
       rg_wEpoch<=~rg_wEpoch;
     endmethod
     
-    // This method captures the csrs from the csrfile
+    // This method captures the "c" of misa csr
     method Action csr_misa_c (Bit#(1) c);
       wr_csr_misa_c <= c;
     endmethod
