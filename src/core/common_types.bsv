@@ -223,7 +223,7 @@ package common_types;
   `ifdef branch_speculation
     Bit#(2) prediction;
   `endif
-  }PIPE1 deriving (Bits,Eq);
+  }PIPE1 deriving (Bits,Eq,FShow);
   
   // ---------- Tuples for the second Pipeline Stage -----------//
 
