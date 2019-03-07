@@ -81,6 +81,7 @@ package stage5;
   endinterface
 
   (*synthesize*)
+  (*conflict_free="instruction_commit,set_external_interrupt")
   (*conflict_free="instruction_commit,increment_instruction_counter"*)
   module mkstage5(Ifc_stage5);
 
