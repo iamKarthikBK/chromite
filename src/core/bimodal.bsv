@@ -113,6 +113,11 @@ package bimodal;
       rg_init_count<=rg_init_count+1;
 		endrule
 
+    // RuleName: perform_prediction
+    // Explicit Conditions: None
+    // Implicit Conditions: None
+    // Description: This rule will the prediction response from the BTB and RAS and send the result
+    // to stage1. A hit can occur either in the BTB or the RAS and never both
     rule perform_prediction(!rg_init);
       let va = ff_pred_request.first();
       ff_pred_request.deq();
@@ -195,10 +200,18 @@ package bimodal;
         `logLevel( bimodal, 0, $format("Bimodal: Training BTB for ",fshow(td)))
         `logLevel( bimodal, 0, $format("Bimodal: Training BTB: index:%d tag:%h state:%b", index,tag,state))
 		endmethod
+
+    // MethodName: prediction_pc
+    // Explicit Conditions: None
+    // Implicit Conditions: None 
+    // Description: This method sends the latest prediction to stage0 for generating next pc
     method prediction_pc=rg_prediction_pc[1];
 
-
   `ifdef ras
+    // MethodName: train_ras
+    // Explicit Conditions: rg_init==False
+    // Implicit Conditions: None 
+    // Description: This method will update the RAS tag and state entries to indicate a pop
     method Action train_ras(Bit#(`vaddr) pc)if(!rg_init);
       Bit#(TLog#(`rassets )) index = truncate(pc>>2);
       Bit#(TSub#(TSub#(`vaddr , TLog#(`rassets)),2)) tag = truncateLSB(pc);
@@ -206,6 +219,11 @@ package bimodal;
       mem_ras_tag.write(1,index, tag);
       `logLevel( bimodal, 0, $format("Bimodal: Training RAS for ",fshow(pc)))
     endmethod
+
+    // MethodName: ras_push
+    // Explicit Conditions: None
+    // Implicit Conditions: None 
+    // Description: This method will push a return address on the RAS stack
     method Action ras_push(Bit#(`vaddr) pc);
       `logLevel( bimodal, 0, $format("Bimodal: Pushing to RAS:%h ",pc))
       ras_stack.push(pc);
