@@ -129,16 +129,23 @@ package alu;
   		if(word32)
 	  		 final_output=signExtend(final_output[31:0]);
     `endif
-
-  `ifdef branch_speculation
-    if(inst_type==BRANCH && final_output[0]==0)
-      imm_value=4;
-  `endif
-
-		Bit#(`vaddr) effective_address=op3+ truncate(imm_value);
-
+		
+    Bit#(`vaddr) effective_address=op3+ truncate(imm_value);
     if(inst_type==JALR)
       effective_address[0]=0;
+
+  `ifdef branch_speculation
+    Bit#(`vaddr) incr_value =4;
+    Bit#(`vaddr) compare_nextpc=effective_address;
+    if(inst_type==BRANCH && final_output[0]==0)begin
+      `ifdef compressed
+        if(memaccess==Store)
+          incr_value=2;
+      `endif
+      compare_nextpc=op3+incr_value;
+    end
+  `endif
+
 
     Bit#(6) cause=0;
     Bool exception=False;
@@ -159,9 +166,12 @@ package alu;
     if((inst_type==BRANCH && final_output[0]==1) || inst_type==JALR || inst_type==JAL )
 	  	flush=True;
   `else
-    if((inst_type==BRANCH  || inst_type==JALR || inst_type==JAL) && nextpc!=effective_address)
+    if((inst_type==BRANCH  || inst_type==JALR || inst_type==JAL) && nextpc!=compare_nextpc)begin
 	    flush=True;
+    end
   `endif
+    if(inst_type==BRANCH)
+      final_output=compare_nextpc;
     PreCommit_type committype = REGULAR;
     if(exception)
       committype=TRAP;
