@@ -161,6 +161,8 @@ package stage2;
     `endif
     `ifdef branch_speculation
       let prediction = rxmin.u.first.prediction;
+    `else
+      Bit#(2) prediction=0;
     `endif
       let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,trap, 
               `ifdef supervisor trapcause, `endif wr_csrs, rg_rerun, rg_fencei_rerun 

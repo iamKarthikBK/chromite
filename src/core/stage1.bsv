@@ -58,7 +58,7 @@ package stage1;
     interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) inst_response;
 
   `ifdef branch_speculation
-    interface Put#(Tuple3#(Bit#(2), Bit#(`vaddr), Bit#(`vaddr))) prediction_response;
+    interface Put#(PredictionResponse) prediction_response;
   `endif
 
     // instruction along with other results to be sent to the next stage
@@ -108,7 +108,7 @@ package stage1;
     FIFOF#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) ff_memory_response<-mkBypassFIFOF();
 
   `ifdef branch_speculation
-    FIFOF#(Tuple3#(Bit#(2),Bit#(`vaddr), Bit#(`vaddr))) ff_prediction_resp <- mkBypassFIFOF();
+    FIFOF#(PredictionResponse) ff_prediction_resp <- mkBypassFIFOF();
   `endif
 
     // FIFO to interface with the next pipeline stage
@@ -154,7 +154,7 @@ package stage1;
     // repsonse are probed in the next cycle.
     rule process_instruction;
       `ifdef branch_speculation
-        let {prediction,target,va} = ff_prediction_resp.first();
+        let {prediction,va} = ff_prediction_resp.first();
         `logLevel( stage1,1,$format("STAGE1: Prediction: ",fshow(ff_prediction_resp.first)))
       `endif
         let {cache_response,err,cause,epoch}=ff_memory_response.first;
@@ -263,7 +263,7 @@ package stage1;
   
   `ifdef branch_speculation
     interface prediction_response = interface Put
-      method Action put(Tuple3#(Bit#(2), Bit#(`vaddr), Bit#(`vaddr)) p);
+      method Action put(PredictionResponse p);
         `logLevel( stage1,1,$format("STAGE1: Recevied Prediction: ",fshow(p)))
         ff_prediction_resp.enq(p);
       endmethod

@@ -45,7 +45,7 @@ package riscv;
     
   	interface Get#(ICore_request#( `vaddr, `iesize)) inst_request;
   `ifdef branch_speculation
-    interface Put#(Tuple3#(Bit#(2), Bit#(`vaddr), Bit#(`vaddr))) prediction_response;
+    interface Put#(PredictionResponse) prediction_response;
     method Action prediction_pc(Tuple2#(Bit#(2), Bit#(`vaddr)) pred);
     method Training_data train_bpu;
     `ifdef ras

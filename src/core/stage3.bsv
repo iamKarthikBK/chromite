@@ -123,7 +123,9 @@ package stage3;
     method Action next_pc (Bit#(`vaddr) npc);
   `ifdef branch_speculation
     method Training_data train_bpu;
-    method Bit#(`vaddr) ras_push;
+    `ifdef ras
+      method Bit#(`vaddr) ras_push;
+    `endif
   `endif
   endinterface
 
@@ -479,7 +481,9 @@ package stage3;
     endmethod
   `ifdef branch_speculation
     method train_bpu = wr_training_data;
-    method ras_push = wr_push_ras;
+    `ifdef ras
+      method ras_push = wr_push_ras;
+    `endif
   `endif
   endmodule
 endpackage

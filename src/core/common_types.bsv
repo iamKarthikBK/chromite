@@ -176,6 +176,7 @@ package common_types;
   typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), RFType) DumpType;
  
   typedef Tuple3#(Bit#(`vaddr), Bit#(`vaddr), Bit#(2)) Training_data;
+  typedef Tuple2#(Bit#(2), Bit#(`vaddr )) PredictionResponse;
 
   typedef Tuple3#(
     Bit#(addr), // ADDR
