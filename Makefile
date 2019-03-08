@@ -98,6 +98,10 @@ endif
 ifeq ($(RAS), enable)
 	override define_macros += -D ras=True
 endif
+ifeq ($(BPU), enable)
+	override define_macros += -D branch_speculation=True
+endif
+
 
 
 ifeq ($(COVERAGE), none)
