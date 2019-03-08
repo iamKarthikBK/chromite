@@ -41,17 +41,27 @@ package bimodal;
   import mem_config::*; // for bram 1rw instances.
   `include "Logger.bsv"
   import common_types::*;
+`ifdef ras
+  import stack::*;
+`endif
 
+  typedef Tuple3#(Bit#(`vaddr), Bit#(`vaddr), Bit#(2)) Training_data;
 
 	interface Ifc_bimodal;
     // method to receive the new pc for which prediction is to be looked up.
 		method Action prediction_req(Bit#(`vaddr) pc);
 
     // method to respond to stage0 with prediction state and new target address on hit
-		method ActionValue#(Tuple2#(Bit#(2), Bit#(`vaddr ))) prediction_resp;
+		interface Get#(Tuple3#(Bit#(2), Bit#(`vaddr ), Bit#(`vaddr))) prediction_response; // TODO: send only prediction bits
 
     // method to training the BTB and BHT tables
-		method Action training (Training_data#(`vaddr) td);
+		method Action train_bpu (Training_data td);
+
+    method Tuple2#(Bit#(2), Bit#(`vaddr)) prediction_pc;
+  `ifdef ras
+    method Action train_ras(Bit#(`vaddr) pc);
+    method Action ras_push(Bit#(`vaddr) pc);
+  `endif
 	endinterface
 
 	(*synthesize*)
@@ -67,25 +77,76 @@ package bimodal;
 
     // ram to hold the state of the history table.
     Ifc_mem_config1r1w#(`btbsize, 3, 1) mem_bht_state <- mkmem_config1r1w(False,"double");
-    
+  `ifdef ras 
+    // ram to hold the tag bits for return instructions
+    Ifc_mem_config1r1w#(`rassets, TSub#(TSub#(`vaddr, TLog#(`rassets )), 2),1) mem_ras_tag
+                                                              <- mkmem_config1r1w(False,"double");
+    // ram to hold the state of the ras entries.
+    Ifc_mem_config1r1w#(`rassets, 1, 1) mem_ras_state <- mkmem_config1r1w(False,"double");
+
+    // stack structure to hold the return addresses
+    Ifc_stack#(`vaddr, `rassize) ras_stack <- mkstack;
+  `endif
+
     // boolean register and counter used to initialize the ram structure on reset.
     Reg#(Bool) rg_init <- mkReg(True);
-    Reg#(Bit#(TAdd#(1,TLog#(`btbsize)))) rg_init_count <- mkReg(0);
+    Reg#(Bit#(TAdd#(1,TLog#(TMax#(`btbsize, `rassets))))) rg_init_count <- mkReg(0);
 
-    Reg#(Bit#(`vaddr)) rg_req_packet <- mkConfigReg(0);
+    FIFOF#(Bit#(`vaddr)) ff_pred_request <- mkSizedFIFOF(2);
+    FIFOF#(Tuple3#(Bit#(2),Bit#(`vaddr),Bit#(`vaddr))) ff_prediction_resp <- mkBypassFIFOF();
+
+    Reg#(Tuple2#(Bit#(2), Bit#(`vaddr))) rg_prediction_pc[2] <-mkCReg(2,tuple2(0,?));
     
     // RuleName: initialize
     // Explicit Conditions: rg_init==True
     // Implicit Conditions: None
     // on system reset first initialize the ram structure with valid=0.
     rule initialize(rg_init);
-      mem_bht_state.write(1, truncate(rg_init_count),0);
-      if(rg_init_count==fromInteger(`btbsize)) begin
+      mem_bht_state.write(1, truncate(rg_init_count),3'b001);
+    `ifdef ras
+      mem_ras_state.write(1 , truncate(rg_init_count),0);
+    `endif
+      if(rg_init_count==fromInteger(max(`btbsize,`rassets))) begin
 				rg_init<=False;
 			end
-      `logLevel( bimodal,$format("Bimodal: Init stage. Count:%d",rg_init_count))
+      `logLevel( bimodal, 0, $format("Bimodal: Init stage. Count:%d",rg_init_count))
       rg_init_count<=rg_init_count+1;
 		endrule
+
+    rule perform_prediction(!rg_init);
+      let va = ff_pred_request.first();
+      ff_pred_request.deq();
+      Bit#(2) prediction=0;
+
+      Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag1 = truncateLSB(va);
+      let bimodal_target_addr = mem_btb.read_response;
+      let bht_tag = mem_btb_tag.read_response;
+      let state = mem_bht_state.read_response;
+    `ifdef ras
+      Bit#(TSub#(TSub#(`vaddr , TLog#(`rassets)),2)) tag2 = truncateLSB(va);
+      let ras_tag = mem_ras_tag.read_response;
+      let ras_valid = mem_ras_state.read_response;
+      let ras_target_address = ras_stack.top;
+    `endif
+
+      Bit#(`vaddr) target_address=bimodal_target_addr;
+      if (tag1 == bht_tag && state[2]==1) begin
+        prediction=state[1:0];
+        `logLevel( bimodal, 1, $format("Bimodal: BTB hit"))
+      end
+    `ifdef ras
+      if( tag2 == ras_tag && ras_valid==1 && !ras_stack.empty)begin
+        prediction=3;
+        target_address=ras_target_address;
+        ras_stack.pop;
+        `logLevel( bimodal, 1, $format("Bimodal: RAS hit"))
+      end
+    `endif
+      Tuple3#(Bit#(2), Bit#(`vaddr), Bit#(`vaddr)) resp = tuple3(prediction,target_address,va);
+      `logLevel( bimodal, 0, $format("Bimodal: enquing Response:",fshow(resp)))
+      rg_prediction_pc[0]<=tuple2(prediction,target_address);
+      ff_prediction_resp.enq(resp);
+    endrule
 
     // MethodName: prediction_req
     // Explicit Conditions: rg_init==False
@@ -93,11 +154,16 @@ package bimodal;
     // Description: This rule will latch the index of the PC to be predicted.
 		method Action prediction_req(Bit#(`vaddr) pc)if(!rg_init);
       Bit#(TLog#(`btbsize )) index = truncate(pc>>2);
-      `logLevel( bimodal,$format("Bimodal: Prediction request for PC:%h",pc))
+      `logLevel( bimodal, 0, $format("Bimodal: Prediction request for PC:%h",pc))
       mem_btb.read(index);
       mem_btb_tag.read(index);
       mem_bht_state.read(index);
-      rg_req_packet<=pc;
+    `ifdef ras
+      Bit#(TLog#(`rassets)) index1 = truncate(pc>>2);
+      mem_ras_state.read(index1);
+      mem_ras_tag.read(index1);
+    `endif
+      ff_pred_request.enq(pc);
 		endmethod
 
     // MethodName: prediction_resp
@@ -107,34 +173,43 @@ package bimodal;
     // or redirected to a new target address. The redirect address is directly taken from the ram.
     // If there is not hit in the BTB the prediction value of 0 is sent indicating that the next PC
     // is PC+4 which needs to happen outside this module
-		method ActionValue#(Tuple2#(Bit#(2), Bit#(`vaddr ))) prediction_resp if(!rg_init);
-      let target_addr = mem_btb.read_response;
-      let bht_tag = mem_btb_tag.read_response;
-      let state = mem_bht_state.read_response;
-      let va =rg_req_packet;
-      Bit#(`vaddr) next_pc=target_addr;
-      Bit#(2) prediction=0;
-      Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag1 = truncateLSB(va);
-      if (tag1 == bht_tag && state[2]==1) begin
-        prediction=state[1:0];
-      end
-      `logLevel( bimodal, $format("Bimodal: Response bhttag:%h tag:%h state:%b target:%h",bht_tag, tag1, state, target_addr))
-      return (tuple2(prediction,next_pc));
-		endmethod
+		interface prediction_response = interface Get
+      method ActionValue#(Tuple3#(Bit#(2), Bit#(`vaddr), Bit#(`vaddr))) get()if(!rg_init);
+        ff_prediction_resp.deq;
+        return ff_prediction_resp.first();
+      endmethod
+    endinterface;
 
     // MethodName: training
     // Explicit Conditions: rg_init==False
     // Implicit Conditions: None 
     // Description: This method will update the BTB and BHT with the new training packet from the
     // execute stage
-		method Action training (Training_data#(`vaddr) td)if(!rg_init);
-        Bit#(TLog#(`btbsize )) index = truncate(td.pc>>2);
-        Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag = truncateLSB(td.pc);
-        mem_btb.write(1, index,td.branch_address);
+		method Action train_bpu (Training_data td)if(!rg_init);
+      let {pc, branch_address, state} = td;
+        Bit#(TLog#(`btbsize )) index = truncate(pc>>2);
+        Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),2)) tag = truncateLSB(pc);
+        mem_btb.write(1, index,branch_address);
         mem_btb_tag.write(1, index, tag);
-        mem_bht_state.write(1, index, {1'b1,td.state});
-        `logLevel( bimodal, $format("Bimodal: Training BTB for ",fshow(td)))
-        `logLevel( bimodal, $format("Bimodal: Training BTB: index:%d tag:%h state:%b", index,tag,td.state))
+        mem_bht_state.write(1, index, {1'b1,state});
+        `logLevel( bimodal, 0, $format("Bimodal: Training BTB for ",fshow(td)))
+        `logLevel( bimodal, 0, $format("Bimodal: Training BTB: index:%d tag:%h state:%b", index,tag,state))
 		endmethod
+    method prediction_pc=rg_prediction_pc[1];
+
+
+  `ifdef ras
+    method Action train_ras(Bit#(`vaddr) pc)if(!rg_init);
+      Bit#(TLog#(`rassets )) index = truncate(pc>>2);
+      Bit#(TSub#(TSub#(`vaddr , TLog#(`rassets)),2)) tag = truncateLSB(pc);
+      mem_ras_state.write(1, index, 1);
+      mem_ras_tag.write(1,index, tag);
+      `logLevel( bimodal, 0, $format("Bimodal: Training RAS for ",fshow(pc)))
+    endmethod
+    method Action ras_push(Bit#(`vaddr) pc);
+      `logLevel( bimodal, 0, $format("Bimodal: Pushing to RAS:%h ",pc))
+      ras_stack.push(pc);
+    endmethod
+  `endif
 	endmodule
 endpackage
