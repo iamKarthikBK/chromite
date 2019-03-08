@@ -71,7 +71,7 @@ package common_types;
                       DMem_request#(numeric type addr, numeric type data, numeric type esize);
     `else
                     // addr, Fence, sFence epoch, access_type, access_size data,  atomic_op
-      typedef Tuple7#(Bit#(addr), Bool, Bool, Bit#(esize), Bit#(1), Bit#(3), Bit#(data)) 
+      typedef Tuple7#(Bit#(addr), Bool, Bool, Bit#(esize), Bit#(2), Bit#(3), Bit#(data)) 
                       DMem_request#(numeric type addr, numeric type data, numeric type esize);
     `endif
   `else                                                                          
@@ -81,7 +81,7 @@ package common_types;
                         DMem_request#(numeric type addr, numeric type data, numeric type esize);
     `else
                       // addr, Fence, epoch, access_type, access_size data,  atomic_op
-      typedef Tuple6#(Bit#(addr), Bool, Bit#(esize), Bit#(1), Bit#(3), Bit#(data)) 
+      typedef Tuple6#(Bit#(addr), Bool, Bit#(esize), Bit#(2), Bit#(3), Bit#(data)) 
                         DMem_request#(numeric type addr, numeric type data, numeric type esize);
     `endif
   `endif
