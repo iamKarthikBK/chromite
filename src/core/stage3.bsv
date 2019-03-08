@@ -271,7 +271,7 @@ package stage3;
                   if(prediction>0)
                     prediction=prediction-1;
                 end
-                wr_training_data<=tuple3(pc, addr, prediction);
+                wr_training_data<=tuple3(pc, out, prediction);
               end
               `ifdef ras
                 if((instrtype==JALR || instrtype==JAL) && (rd=='b00001 || rd=='b00101) && cmtype!=TRAP)
