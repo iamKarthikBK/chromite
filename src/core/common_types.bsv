@@ -144,7 +144,7 @@ package common_types;
   `endif
 
   // define all tuples here
-  typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(`vaddr), Bit#(6), Flush_type) ALU_OUT;
+  typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(`vaddr), Bit#(6), Bool) ALU_OUT;
   
   typedef Tuple5#(Bit#(`paddr), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
   typedef Tuple4#(Bit#(`paddr), Access_type, Bit#(2), Bit#(1)) CoreRequest;
@@ -174,16 +174,9 @@ package common_types;
     Bit#(3) frm;} CSRtoDecode deriving(Bits,Eq,FShow);
 
   typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), RFType) DumpType;
-  
-  typedef struct {
-  	Bit#(addr_width) pc;
-  	Bit#(addr_width) branch_address;
-  	Bit#(2) state;
-  `ifdef ras
-    Bool ras;
-  `endif
-    } Training_data#(numeric type addr_width) deriving (Bits, Eq,FShow);
-  
+ 
+  typedef Tuple3#(Bit#(`vaddr), Bit#(`vaddr), Bit#(2)) Training_data;
+
   typedef Tuple3#(
     Bit#(addr), // ADDR
     Bit#(esize),// epoch
@@ -242,7 +235,7 @@ package common_types;
                  Bool, //Word32
                  Bit#(2) // epochs
                 ) MetaData;
-  typedef Tuple3#(OpMeta, OpData#(msize,t), MetaData) PIPE2_min#(numeric type msize, numeric type t);
+  typedef Tuple4#(OpMeta, OpData#(msize,t), MetaData, Bit#(2)) PIPE2_min#(numeric type msize, numeric type t);
   typedef Tuple5#(Bit#(5), // rs3addr
                  RFType, // rs1type
                  RFType, // rs2type
