@@ -111,6 +111,9 @@ package stage2;
 		method Action update_eEpoch;
 		method Action update_wEpoch;
     method Action fwd_from_wb(CommitData commit);
+  `ifdef ras
+    method Bit#(`vaddr) train_ras;
+  `endif
 	endinterface:Ifc_stage2
 
   (*synthesize*)
@@ -125,6 +128,9 @@ package stage2;
   `endif
   `ifdef rtldump
     TX#(Bit#(32)) txinst <- mkTX;
+  `endif
+  `ifdef ras
+    Wire#(Bit#(`vaddr)) wr_train_ras <- mkWire();
   `endif
       
     let verbosity = `VERBOSITY ;
@@ -153,6 +159,9 @@ package stage2;
     `ifdef compressed
       let upper_err = rxmin.u.first.upper_err;
     `endif
+    `ifdef branch_speculation
+      let prediction = rxmin.u.first.prediction;
+    `endif
       let {optype, meta, resume_wfi, rerun} <- decoder_func(inst,trap, 
               `ifdef supervisor trapcause, `endif wr_csrs, rg_rerun, rg_fencei_rerun 
               `ifdef supervisor ,rg_sfence_rerun `endif );
@@ -161,6 +170,10 @@ package stage2;
       Bit#(3) funct3 = truncate(func_cause);
       Bit#(4) fn = truncateLSB(func_cause);
       let word32 = decode_word32(inst,wr_csrs.csr_misa[2]);
+    `ifdef ras
+      if(instrType==JALR && (rs1addr=='b00001 || rs1addr=='b00101))
+        wr_train_ras<=pc;
+    `endif
     `ifdef spfpu
       let {rs3addr,rs3type,rdtype} = decode_fpu_meta(inst,wr_csrs.csr_misa[2]);
     `endif
@@ -208,7 +221,7 @@ package stage2;
         OpMeta t1 = tuple4(rs1addr, rs2addr, op3, instrType);
         OpData#(ELEN,FLEN) t2 = tuple3(op1, op2, op4);
         MetaData t3 = tuple5(rd, func_cause, memaccess, word32, epochs);
-        PIPE2_min#(ELEN,FLEN) t4 = tuple3(t1, t2, t3);
+        PIPE2_min#(ELEN,FLEN) t4 = tuple4(t1, t2, t3, prediction);
       `ifdef spfpu
         OpFpu t5 = tuple5(rs3addr, rf1type, rf2type, rs3type, rdtype);
       `endif
@@ -283,5 +296,8 @@ package stage2;
     method Action fwd_from_wb(CommitData commit);
       registerfile.fwd_from_wb(commit);
     endmethod
+  `ifdef ras
+    method train_ras=wr_train_ras;
+  `endif
   endmodule
 endpackage
