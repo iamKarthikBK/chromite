@@ -134,6 +134,23 @@ package cclass;
 	  Ifc_imem imem <- mkimem;
 	  mkConnection(riscv.inst_request, imem.core_req); //imem integration
 	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
+  `ifdef branch_speculation
+    mkConnection(riscv.prediction_response, imem.prediction_response);
+    rule connect_prediction;
+      riscv.prediction_pc(imem.prediction_pc);
+    endrule
+    rule connect_bpu_training;
+      imem.train_bpu(riscv.train_bpu);
+    endrule
+    `ifdef ras
+      rule connect_ras_training;
+        imem.train_ras(riscv.train_ras);
+      endrule
+      rule connect_ras_push;
+        imem.ras_push(riscv.ras_push);
+      endrule
+    `endif
+  `endif
 
   `ifdef supervisor
     rule tlb_csr_info;

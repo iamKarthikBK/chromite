@@ -44,6 +44,15 @@ package riscv;
   interface Ifc_riscv;
     
   	interface Get#(ICore_request#( `vaddr, `iesize)) inst_request;
+  `ifdef branch_speculation
+    interface Put#(Tuple3#(Bit#(2), Bit#(`vaddr), Bit#(`vaddr))) prediction_response;
+    method Action prediction_pc(Tuple2#(Bit#(2), Bit#(`vaddr)) pred);
+    method Training_data train_bpu;
+    `ifdef ras
+      method Bit#(`vaddr) train_ras;
+      method Bit#(`vaddr) ras_push;
+    `endif
+  `endif
     interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) inst_response;
   `ifdef dcache
 		interface Get#(Tuple2#(DMem_request#(`vaddr ,ELEN,1),Bool)) memory_request;
@@ -101,16 +110,12 @@ package riscv;
     Ifc_stage5 stage5 <- mkstage5();
 
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
-    FIFOF#(PIPE0) pipe0 <- mkSizedFIFOF(2);
 
     FIFOF#(PIPE1) pipe1<-mkSizedFIFOF(2);
 
     FIFOF#(PIPE2_min#(ELEN,FLEN)) pipe2min <- mkLFIFOF();
   `ifdef spfpu
     FIFOF#(OpFpu) pipe2fpu <- mkLFIFOF();
-  `endif
-  `ifdef bpu
-    FIFOF#(Bit#(2)) pipe2bpu <- mkLFIFOF();
   `endif
   `ifdef rtldump
     FIFOF#(Bit#(32)) pipe2inst <- mkLFIFOF();
@@ -136,28 +141,14 @@ package riscv;
   `endif
 `endif
 
-  `ifdef branch_speculation
-    mkConnection(stage0.tx_to_stage1,pipe0);
-    mkConnection(stage1.rx_from_stage0,pipe0);
-  `endif
-
     mkConnection(stage1.tx_next_stage, pipe1);
     mkConnection(pipe1, stage2.rx_min);
-
-  `ifdef bpu
-    mkConnection(stage1.tx_opt1,pipeopt1);
-    mkConnection(pipeopt1,stage2.rx_opt1);
-  `endif
 
     mkConnection(stage2.tx_min, pipe2min);
     mkConnection(pipe2min, stage3.rx_min);
   `ifdef rtldump
     mkConnection(stage2.tx_inst, pipe2inst);
     mkConnection(pipe2inst, stage3.rx_inst);
-  `endif
-  `ifdef bpu
-    mkConnection(stage2.tx_bpu, pipe2bpu);
-    mkConnection(pipe2bpu, stage3.rx_bpu);
   `endif
   `ifdef spfpu
     mkConnection(stage2.tx_fpu, pipe2fpu);
@@ -192,6 +183,12 @@ package riscv;
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
     let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor ,sfence `endif }=stage5.flush;
 
+  `ifdef branch_speculation
+    rule send_next_pc;
+      stage3.next_pc(pipe1.first.program_counter);
+    endrule
+  `endif
+
     rule update_wEpoch(flush_from_wb);
       rg_wEpoch<=~rg_wEpoch;
     endrule
@@ -202,7 +199,7 @@ package riscv;
         stage3.latest_commit(c);
     endrule
 
-    rule flush_stage1(flush_from_exe!=None||flush_from_wb);
+    rule flush_stage1(flush_from_exe||flush_from_wb);
       if(flush_from_wb)begin
         stage1.flush(flushpc_from_wb ); // TODO Sfence
         stage0.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef supervisor , sfence `endif `endif ); // TODO Sfence
@@ -217,10 +214,10 @@ package riscv;
       stage1.csr_misa_c(stage5.csr_misa_c);
       stage3.csr_misa_c(stage5.csr_misa_c);
     endrule
-    rule clear_stall_in_decode_stage(flush_from_exe != None || flush_from_wb);
+    rule clear_stall_in_decode_stage(flush_from_exe || flush_from_wb);
       stage2.clear_stall(True);
     endrule
-    rule upd_stage2eEpoch(flush_from_exe!=None);
+    rule upd_stage2eEpoch(flush_from_exe);
       stage2.update_eEpoch();
       stage1.update_eEpoch();
       stage0.update_eEpoch();
@@ -375,6 +372,15 @@ package riscv;
     ///////////////////////////////////////////
 
     interface inst_request=stage0.inst_request;
+  `ifdef branch_speculation
+    interface prediction_response=stage1.prediction_response;
+    method prediction_pc = stage0.prediction_pc;
+    method train_bpu = stage3.train_bpu;
+    `ifdef ras
+      method train_ras=stage2.train_ras;
+      method ras_push = stage3.ras_push;
+    `endif
+  `endif
     interface inst_response=stage1.inst_response;
   `ifdef dcache
     interface memory_request=stage3.memory_request;
