@@ -82,6 +82,8 @@ package stage0;
     Reg#(Bool) rg_fence <- mkReg(False);
     Reg#(Bool) rg_flush <- mkReg(False);
 
+    Reg#(Bool) rg_discard_lower<- mkReg(False);
+
   `ifdef branch_speculation
     Wire#(Tuple2#(Bit#(2), Bit#(`vaddr))) wr_prediction <- mkDWire(tuple2(0,?));
   `endif
@@ -115,7 +117,6 @@ package stage0;
           if (pred>1 && !rg_flush)
             fetch_pc=target;
         `endif
-          rg_pc<=fetch_pc+4;
           `logLevel( stage0, 1, $format("STAGE0: Prediction: ",fshow(wr_prediction), " Flush:%b",rg_flush))
         end
         else begin
@@ -123,15 +124,20 @@ package stage0;
           rg_sfence<=False;
         end
         rg_flush<=False;
-        `logLevel( stage0,0,$format("STAGE0: Sending PC:%h",fetch_pc))
+        Bool discard = (fetch_pc[1]==1);
+        if(!rg_fence && !rg_sfence)begin
+          fetch_pc[1]=0;
+          rg_pc<=fetch_pc+4;
+        end
+        `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b",fetch_pc, discard))
         `ifdef icache
           `ifdef supervisor
-            return (tuple4(fetch_pc, rg_fence, rg_sfence, curr_epoch));
+            return (tuple5(fetch_pc, rg_fence, rg_sfence, curr_epoch, discard));
           `else
-            return (tuple3(fetch_pc, rg_fence, curr_epoch));
+            return (tuple4(fetch_pc, rg_fence, curr_epoch, discard));
           `endif
         `else
-          return (tuple2(fetch_pc, curr_epoch));
+          return (tuple3(fetch_pc, curr_epoch,  discard));
         `endif
       endmethod
     endinterface;
@@ -141,7 +147,7 @@ package stage0;
               `ifdef supervisor , Bool sfence `endif );
 
       `logLevel( stage0,0, $format("STAGE0: Received Flush. NewPC:%h",newpc))
-      rg_pc<={truncateLSB(newpc),2'b0};
+      rg_pc<=newpc;
     `ifdef icache
       rg_fence<=fence;
     `endif

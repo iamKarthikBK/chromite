@@ -52,16 +52,16 @@ package common_types;
   // ---------------- following types are used to define the memory interfaces from the core ---//
 `ifdef icache
   `ifdef supervisor
-    typedef Tuple4#(Bit#(addr), Bool, Bool, Bit#(esize)) ICore_request#(numeric type addr, 
+    typedef Tuple5#(Bit#(addr), Bool, Bool, Bit#(esize), Bool) ICore_request#(numeric type addr, 
                                                                             numeric type esize);
   `else                                                                          
                     // addr, Fence, epoch
-    typedef Tuple3#(Bit#(addr), Bool, Bit#(esize)) ICore_request#(numeric type addr, 
+    typedef Tuple4#(Bit#(addr), Bool, Bit#(esize), Bool) ICore_request#(numeric type addr, 
                                                                             numeric type esize);
   `endif
 `else
                     // addr,epoch
-    typedef Tuple2#(Bit#(addr), Bit#(esize)) ICore_request#(numeric type addr, numeric type esize);
+    typedef Tuple3#(Bit#(addr), Bit#(esize), Bool) ICore_request#(numeric type addr, numeric type esize);
 `endif
 `ifdef dcache
   `ifdef supervisor
@@ -176,7 +176,11 @@ package common_types;
   typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), RFType) DumpType;
  
   typedef Tuple3#(Bit#(`vaddr), Bit#(`vaddr), Bit#(2)) Training_data;
+`ifdef compressed
+  typedef Tuple4#(Bit#(2), Bit#(2), Bit#( `vaddr ), Bool) PredictionResponse;
+`else
   typedef Tuple2#(Bit#(2), Bit#(`vaddr )) PredictionResponse;
+`endif
 
   typedef Tuple3#(
     Bit#(addr), // ADDR

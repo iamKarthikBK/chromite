@@ -201,11 +201,9 @@ package riscv;
 
     rule flush_stage1(flush_from_exe||flush_from_wb);
       if(flush_from_wb)begin
-        stage1.flush(flushpc_from_wb ); // TODO Sfence
         stage0.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef supervisor , sfence `endif `endif ); // TODO Sfence
       end
       else begin
-        stage1.flush(flushpc_from_exe ); // EXE can never send a fence request.
         stage0.flush(flushpc_from_exe `ifdef icache , False `ifdef supervisor , False `endif `endif ); // EXE can never send a fence request.
       end
     endrule
