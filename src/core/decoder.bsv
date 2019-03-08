@@ -344,6 +344,11 @@ package decoder;
       'b1:rs2=inst[6:2];
       endcase
     end
+    
+    // --- capturing memory access type.Only valid are Load/Store
+    Access_type mem_access=Load;
+		if( ((quad==Q0 || quad==Q2) && (funct3=='b110 || funct3=='b101 || funct3=='b111)) )
+			mem_access=Store;
 
     //----------------------------------- inferring rd
     Bit#(5) rd=inst[11:7];
@@ -358,7 +363,7 @@ package decoder;
       case(funct3)
         `ifdef RV32 'b001: rd=1; `endif //C.JAL
         'b100: rd[4:3]=2'b01; //C.SRLI,SRAI,ANDI,SUB,XOR,OR,AND,SUBW,ADDW
-        'b101,'b110,'b111: rd=0; //C.J,C.BEQZ,C.BNEZ
+        'b101,'b110,'b111: begin rd=0; mem_access=Store; end //C.J,C.BEQZ,C.BNEZ
       endcase
     end
     if(quad==Q2)begin
@@ -374,10 +379,6 @@ package decoder;
       endcase
     end
 	
-    // --- capturing memory access type.Only valid are Load/Store
-    Access_type mem_access=Load;
-		if( ((quad==Q0 || quad==Q2) && (funct3=='b110 || funct3=='b101 || funct3=='b111)) )
-			mem_access=Store;
 
     // --- deriving fn bits
     Bit#(4) fn=0;
