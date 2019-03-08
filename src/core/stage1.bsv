@@ -40,6 +40,7 @@ package stage1;
   import SpecialFIFOs::*;
   import FIFO::*;
   import GetPut::*;
+  import Assert::*;
 
   // -- local imports --//
 	import TxRx	::*;
@@ -55,6 +56,10 @@ package stage1;
     // instruction response from the memory subsytem or the memory bus
     //                     inst , trap, cause, epoch 
     interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) inst_response;
+
+  `ifdef branch_speculation
+    interface Put#(Tuple3#(Bit#(2), Bit#(`vaddr), Bit#(`vaddr))) prediction_response;
+  `endif
 
     // instruction along with other results to be sent to the next stage
     interface TXe#(PIPE1) tx_next_stage;
@@ -80,8 +85,6 @@ package stage1;
     
     // this wire carries the current values of certain csrs.
     Wire#(Bit#(1)) wr_csr_misa_c <-mkWire();
-    // This register holds the PC value that needs to be sent to the next stage in the pipe.
-    Reg#(Bit#(`vaddr)) rg_pc <- mkReg(`resetpc );
 
     // The following registers are use to the maintain epochs from various pipeline stages:
     // writeback, execute stage and fetch stage.
@@ -104,11 +107,12 @@ package stage1;
     // This FIFO receives the response from the memory subsytem (a.k.a cache)
     FIFOF#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) ff_memory_response<-mkBypassFIFOF();
 
+  `ifdef branch_speculation
+    FIFOF#(Tuple3#(Bit#(2),Bit#(`vaddr), Bit#(`vaddr))) ff_prediction_resp <- mkBypassFIFOF();
+  `endif
+
     // FIFO to interface with the next pipeline stage
 		TX#(PIPE1) tx<-mkTX;
-  `ifdef branch_speculation
-    RX#(PIPE0) rx_stage0 <- mkRX;
-  `endif
 
     // RuleName: process_instruction
     // Explicit Conditions: None
@@ -149,20 +153,22 @@ package stage1;
     // rg_instruction. rg_Action in this case will remain CheckPrev so that the upper bits of this
     // repsonse are probed in the next cycle.
     rule process_instruction;
-
       `ifdef branch_speculation
-        let prev_stage = rx_stage0.u.first;
-        rx_stage0.u.deq;
+        let {prediction,target,va} = ff_prediction_resp.first();
+        `logLevel( stage1,1,$format("STAGE1: Prediction: ",fshow(ff_prediction_resp.first)))
       `endif
         let {cache_response,err,cause,epoch}=ff_memory_response.first;
         Bit#(32) final_instruction=0;
         Bool compressed=False;
         Bool enque_instruction=True;
         // if epochs do not match then drop the instruction
-        `logLevel( stage1,0,$format("STAGE1: Analysing: ",fshow(ff_memory_response.first)))
+        `logLevel( stage1,0,$format("STAGE1: Analysing PC:%h : ",va,fshow(ff_memory_response.first)))
         `logLevel( stage1,1,$format("STAGE1: rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c,rg_discard_lower))
         if({rg_eEpoch,rg_wEpoch}!=epoch)begin
           ff_memory_response.deq;
+        `ifdef branch_speculation
+          ff_prediction_resp.deq;
+        `endif
           rg_action<=None;
           enque_instruction=False;
           `logLevel( stage1,1,$format("STAGE1: Dropping Instruction"))
@@ -170,6 +176,9 @@ package stage1;
         else if(rg_discard_lower && wr_csr_misa_c==1)begin
           rg_discard_lower<=False;
           ff_memory_response.deq;
+        `ifdef branch_speculation
+          ff_prediction_resp.deq;
+        `endif
           if(cache_response[17:16]==2'b11)begin
             rg_instruction<=cache_response[31:16];
             rg_action<=CheckPrev;
@@ -183,6 +192,9 @@ package stage1;
         end
         else if(rg_action == None)begin
           ff_memory_response.deq;
+        `ifdef branch_speculation
+          ff_prediction_resp.deq;
+        `endif
           if(cache_response[1:0]=='b11)begin
             final_instruction=cache_response;
           end
@@ -198,6 +210,9 @@ package stage1;
             final_instruction={cache_response[15:0],rg_instruction};
             rg_instruction<=truncateLSB(cache_response);
             ff_memory_response.deq;
+          `ifdef branch_speculation
+            ff_prediction_resp.deq;
+          `endif
             if(rg_receiving_upper)
               rg_receiving_upper<=False;
           end
@@ -208,13 +223,12 @@ package stage1;
           end
         end
         Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c==1)?2:4;
-        let next_pc = rg_pc+incr_value;
-				let pipedata=PIPE1{program_counter:rg_pc,
+				let pipedata=PIPE1{program_counter:va,
                       instruction:final_instruction,
                       epochs:{rg_eEpoch,rg_wEpoch},
                       trap: err
                     `ifdef branch_speculation
-                      prediction:0,
+                      ,prediction:prediction
                     `endif
                     `ifdef compressed
                       ,upper_err:rg_receiving_upper&&err
@@ -223,7 +237,6 @@ package stage1;
                       ,cause:cause
                     `endif }; 
         if(enque_instruction) begin
-          rg_pc<=next_pc;
           tx.u.enq(pipedata);
           `logLevel( stage1,0,$format("STAGE1: Enquing to Next Stage: ",fshow(pipedata)))
         end
@@ -247,6 +260,15 @@ package stage1;
         ff_memory_response.enq(resp);
 			endmethod
     endinterface;
+  
+  `ifdef branch_speculation
+    interface prediction_response = interface Put
+      method Action put(Tuple3#(Bit#(2), Bit#(`vaddr), Bit#(`vaddr)) p);
+        `logLevel( stage1,1,$format("STAGE1: Recevied Prediction: ",fshow(p)))
+        ff_prediction_resp.enq(p);
+      endmethod
+    endinterface;
+  `endif
     
 		interface tx_next_stage = tx.e;
 
@@ -254,7 +276,6 @@ package stage1;
     // Explicit Conditions: None
     // Implicit Conditions: None
     method Action flush(Bit#(`vaddr) newpc);
-      rg_pc<=newpc;
       if(newpc[1:0]!=0)
         rg_discard_lower<=True;
       else
