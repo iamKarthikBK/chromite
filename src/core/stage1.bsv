@@ -220,11 +220,13 @@ package stage1;
             compressed=True;
             final_instruction=zeroExtend(cache_response[15:0]);
             rg_instruction<=truncateLSB(cache_response);
-            rg_action<=CheckPrev;
           `ifdef compressed
+            rg_action<=prediction0==0?CheckPrev:None;
             prediction=prediction0;
             rg_prediction<= prediction1;
             rg_pc<= va;
+          `else
+            rg_action<=CheckPrev;
           `endif
           end
         end
