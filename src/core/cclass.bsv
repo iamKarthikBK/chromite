@@ -41,6 +41,7 @@ package cclass;
   import riscv:: * ;
   import common_types:: * ;
   import FIFOF::*;
+  import globals::*;
 `ifdef icache
   import imem::*;
 `endif
@@ -69,7 +70,7 @@ package cclass;
     typedef enum {None,IWalk,DWalk} PTWState deriving(Bits,Eq,FShow);
   `endif
 
-  typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
+    typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
   interface Ifc_cclass_axi4;
 		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_d;
 		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_i;
@@ -132,12 +133,17 @@ package cclass;
   `endif
   `ifdef icache
 	  Ifc_imem imem <- mkimem;
-	  mkConnection(riscv.inst_request, imem.core_req); //imem integration
 	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
+
+    rule connect_instruction_req;
+      let req <- riscv.inst_request;
+      imem.core_req.put(req);
+    endrule
+
   `ifdef branch_speculation
     mkConnection(riscv.prediction_response, imem.prediction_response);
     rule connect_prediction;
-      riscv.prediction_pc(imem.prediction_pc);
+      riscv.predicted_pc(imem.predicted_pc);
     endrule
     rule connect_bpu_training;
       imem.train_bpu(riscv.train_bpu);
@@ -200,7 +206,7 @@ package cclass;
   `else 
   
     rule handle_fetch_request ;
-	    let {inst_addr,epoch} <- riscv.inst_request.get;
+	    let {inst_addr,epoch} <- riscv.inst_request;
       if(vaddr>paddr) begin
         Bit#(TSub#(`vaddr,`paddr)) upperbits = inst_addr[vaddr-1:paddr];
        if(upperbits!=0)
