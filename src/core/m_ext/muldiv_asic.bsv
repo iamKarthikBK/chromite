@@ -287,12 +287,20 @@ package muldiv_asic;
 		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
     funct3 `ifdef RV64 , Bool word_flag `endif );
 			ff_input.enq(tuple5(in1,in2,funct3[1:0], `ifdef RV64 pack(word_flag), `endif ~funct3[2]));
+    `ifdef branch_speculation
+      return tuple2(False, tuple6(REGULAR, '1, 0, 0, False, False));
+    `else
       return tuple2(False, tuple5(REGULAR, '1, 0, 0, False));
+    `endif
 		endmethod
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 			ff_muldiv_result.deq;
       let default_out=ff_muldiv_result.first();
+    `ifdef branch_speculation
+      return tuple6(REGULAR, default_out, 0, 0, False, False);
+    `else
       return tuple5(REGULAR, default_out, 0, 0, False);
+    `endif
 		endmethod
 		method Action flush;
 			rg_count[0]<=8;

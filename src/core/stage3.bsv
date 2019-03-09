@@ -239,11 +239,11 @@ package stage3;
             t3=truncate(rs1);
           end
           `ifdef multicycle
-            let {done, cmtype, out, addr, cause, redirect} <- alu.get_inputs(fn, new_op1, rs2, t3, 
+            let {done, cmtype, out, addr, cause, redirect, taken} <- alu.get_inputs(fn, new_op1, rs2, t3, 
                 truncate(rs3_imm), instrtype, funct3, memaccess, word32, wr_misa_c, truncate(pc)
                 `ifdef branch_speculation , wr_next_pc `endif );                 
           `else
-            let {cmtype, out, addr, cause, redirect} = fn_alu(fn, new_op1, rs2, t3,
+            let {cmtype, out, addr, cause, redirect, taken} = fn_alu(fn, new_op1, rs2, t3,
                 truncate(rs3_imm), instrtype, funct3, memaccess, word32, wr_misa_c, truncate(pc)
                 `ifdef branch_speculation , wr_next_pc `endif ); 
             Bool done=True;
@@ -263,7 +263,7 @@ package stage3;
             // sending training updates to preduictors
             `ifdef branch_speculation
               if(instrtype==BRANCH && cmtype!=TRAP)begin
-                if(out[0]==1)begin
+                if(taken)begin
                   if(prediction<3)
                     prediction=prediction+1;
                 end
@@ -271,7 +271,7 @@ package stage3;
                   if(prediction>0)
                     prediction=prediction-1;
                 end
-                wr_training_data<=tuple3(pc, out, prediction);
+                wr_training_data<=tuple3(pc, addr, prediction);
               end
               `ifdef ras
                 if((instrtype==JALR || instrtype==JAL) && (rd=='b00001 || rd=='b00101) && cmtype!=TRAP)
@@ -280,9 +280,9 @@ package stage3;
             `endif
 
             if(redirect && cmtype!=TRAP)begin
-              $display($time,"\tEXECUTE: Misprediction");
+              $display($time,"\tEXECUTE: Misprediction for PC:%h Target:%h",pc,instrtype==BRANCH?out:addr);
               eEpoch<= ~eEpoch;
-              wr_redirect_pc<=addr;
+              wr_redirect_pc<=instrtype==BRANCH?out:addr;
               wr_flush_from_exe<=True;
             end
 
