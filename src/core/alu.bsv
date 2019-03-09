@@ -129,23 +129,10 @@ package alu;
   		if(word32)
 	  		 final_output=signExtend(final_output[31:0]);
     `endif
-		
+		Bool taken=(final_output[0]==1);
     Bit#(`vaddr) effective_address=op3+ truncate(imm_value);
     if(inst_type==JALR)
       effective_address[0]=0;
-
-  `ifdef branch_speculation
-    Bit#(`vaddr) incr_value =4;
-    Bit#(`vaddr) compare_nextpc=effective_address;
-    if(inst_type==BRANCH && final_output[0]==0)begin
-      `ifdef compressed
-        if(memaccess==Store)
-          incr_value=2;
-      `endif
-      compare_nextpc=op3+incr_value;
-    end
-  `endif
-
 
     Bit#(6) cause=0;
     Bool exception=False;
@@ -160,12 +147,17 @@ package alu;
       cause = memaccess==Load? `Load_addr_misaligned: `Store_addr_misaligned;
       exception=True;
     end
-
+  
     Bool flush=False;
   `ifndef branch_speculation
     if((inst_type==BRANCH && final_output[0]==1) || inst_type==JALR || inst_type==JAL )
 	  	flush=True;
   `else
+  Bit#(`vaddr) incr_value =`ifdef compressed memaccess==Store?2: `endif 4;
+    Bit#(`vaddr) compare_nextpc=effective_address;
+    if(inst_type==BRANCH && final_output[0]==0)begin
+      compare_nextpc=op3+incr_value;
+    end
     if((inst_type==BRANCH  || inst_type==JALR || inst_type==JAL) && nextpc!=compare_nextpc)begin
 	    flush=True;
     end
@@ -184,7 +176,11 @@ package alu;
                                                           zeroExtend({lpc,imm_value[11:0],funct3}): 
                                                           effective_address;
 
+  `ifdef branch_speculation
+	  return tuple6(committype, zeroExtend(final_output), effaddr_csrdata, cause, flush, taken);
+  `else
 	  return tuple5(committype, zeroExtend(final_output), effaddr_csrdata, cause, flush);
+  `endif  
 	endfunction
 
 
@@ -220,8 +216,13 @@ package alu;
           if(verbosity>1)
             $display($time,"\tALU: Sending delayed output from FPU");
           let fpu_result<-fpu.get_result;
+        `ifdef branch_speculation
+          wr_delayed_output<= tuple6(REGULAR, fpu_result.final_result, zeroExtend(fpu_result.fflags), 
+              0, False, False);
+        `else
           wr_delayed_output<= tuple5(REGULAR, fpu_result.final_result, zeroExtend(fpu_result.fflags), 
               0, False);
+        `endif
           rg_wait<=None;
         endrule
         rule capture_delayed_muldivputput(rg_wait==WaitMulDiv);
@@ -262,7 +263,11 @@ package alu;
                 rg_wait<=WaitFPU;
             `endif
           `endif
+        `ifdef branch_speculation
+          return tuple2(False, tuple6(REGULAR, '1, 0, 0, False, False));
+        `else
           return tuple2(False, tuple5(REGULAR, '1, 0, 0, False));
+        `endif
         end
         else
       `endif
