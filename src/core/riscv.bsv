@@ -39,14 +39,15 @@ package riscv;
   import stage5::*;
   import common_types::*;
   import CustomFIFOs::*;
+  import globals::*;
   `include "common_params.bsv"
   
   interface Ifc_riscv;
     
-  	interface Get#(ICore_request#( `vaddr, `iesize)) inst_request;
+ 	  method ActionValue#(FetchRequest#(`vaddr, `iesize)) inst_request;
   `ifdef branch_speculation
     interface Put#(PredictionResponse) prediction_response;
-    method Action prediction_pc(Tuple2#(Bit#(2), Bit#(`vaddr)) pred);
+    method Action predicted_pc(PredictionToStage0 pred);
     method Training_data train_bpu;
     `ifdef ras
       method Bit#(`vaddr) train_ras;
@@ -199,13 +200,14 @@ package riscv;
         stage3.latest_commit(c);
     endrule
 
-    rule flush_stage1(flush_from_exe||flush_from_wb);
-      if(flush_from_wb)begin
-        stage0.flush(flushpc_from_wb `ifdef icache , fenceI `ifdef supervisor , sfence `endif `endif ); // TODO Sfence
-      end
-      else begin
-        stage0.flush(flushpc_from_exe `ifdef icache , False `ifdef supervisor , False `endif `endif ); // EXE can never send a fence request.
-      end
+    rule flush_stage0(flush_from_exe||flush_from_wb);
+        stage0.flush(Stage0Flush{ pc:flush_from_wb?flushpc_from_wb:flushpc_from_exe
+                                `ifdef icache 
+                                  ,fence:flush_from_wb?fenceI:False
+                                `endif
+                                `ifdef supervisor 
+                                  , sfence:flush_from_wb?sfence:False
+                                `endif });
     endrule
     rule connect_csrs;
       stage2.csrs(stage5.csrs_to_decode);
@@ -372,7 +374,7 @@ package riscv;
     interface inst_request=stage0.inst_request;
   `ifdef branch_speculation
     interface prediction_response=stage1.prediction_response;
-    method prediction_pc = stage0.prediction_pc;
+    method predicted_pc = stage0.predicted_pc;
     method train_bpu = stage3.train_bpu;
     `ifdef ras
       method train_ras=stage2.train_ras;

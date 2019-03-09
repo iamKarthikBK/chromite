@@ -41,15 +41,17 @@ package stage0;
   // -- local imports --//
   `include "common_params.bsv"
   `include "Logger.bsv"
-
+  import globals::*; // for external interface
   import mem_config::*; // for bram 1rw instances.
   import TxRx::*; // for interstage pipeline FIFOs.
   import common_types::*;
+
+
   // interface definition of the stage
   interface Ifc_stage0;
 
     // interface to send request to the i-cache or fabric
- 	  interface Get#(ICore_request#( `vaddr, `iesize)) inst_request;
+ 	  method ActionValue#(FetchRequest#(`vaddr, `iesize)) inst_request;
 
     // method to receive flush form stage3
     method Action update_eEpoch;
@@ -58,17 +60,18 @@ package stage0;
     method Action update_wEpoch;
 
     // method to receive new pc value on any flush
-    method Action flush(Bit#(`vaddr) newpc
-              `ifdef icache , Bool fence `endif
-              `ifdef supervisor , Bool sfence `endif );
+    method Action flush( Stage0Flush f);
+
   `ifdef branch_speculation
-    method Action prediction_pc(Tuple2#(Bit#(2), Bit#(`vaddr)) pred);
+    // method to receive the latest prediction done by BPU
+    method Action predicted_pc(PredictionToStage0 pred);
   `endif
   endinterface
 
   (*synthesize*)
   module mkstage0(Ifc_stage0);
-    String stage0="";
+    String stage0="";     // for Logger only
+
     // register to maintaing the request pc to the imem/fabric
     Reg#(Bit#(`vaddr )) rg_pc <- mkReg(`resetpc );
     
@@ -79,13 +82,11 @@ package stage0;
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
 
     Reg#(Bool) rg_sfence <- mkReg(False);
-    Reg#(Bool) rg_fence <- mkReg(False);
-    Reg#(Bool) rg_flush <- mkReg(False);
-
-    Reg#(Bool) rg_discard_lower<- mkReg(False);
+    Reg#(Bool) rg_fence  <- mkReg(False);
+    Reg#(Bool) rg_flush  <- mkReg(False);
 
   `ifdef branch_speculation
-    Wire#(Tuple2#(Bit#(2), Bit#(`vaddr))) wr_prediction <- mkDWire(tuple2(0,?));
+    Wire#(PredictionToStage0) wr_prediction <- mkWire();
   `endif
 
     // local variable to hold the next+4 pc value. Ensure only a single adder is used.
@@ -95,69 +96,84 @@ package stage0;
     // Explicit Conditions: None
     // Implicit Conditions: None 
     method Action update_eEpoch;
-      rg_eEpoch<=~rg_eEpoch;
+      rg_eEpoch <= ~rg_eEpoch;
     endmethod
 
     // MethodName: update_wEpoch
     // Explicit Conditions: None
     // Implicit Conditions: None 
     method Action update_wEpoch;
-      rg_wEpoch<=~rg_wEpoch;
+      rg_wEpoch <= ~rg_wEpoch;
     endmethod
     
     // InterfaceName: request_to_imem
     // Explicit Conditions: None
-    // Implicit Conditions: ff_imem_req.notEmpty
-    interface inst_request=interface Get
-      method ActionValue#(ICore_request#(`vaddr, `iesize)) get;
-        Bit#(`vaddr) fetch_pc = rg_pc;
-        if(!rg_fence && !rg_sfence) begin
-        `ifdef branch_speculation
-          let {pred, target} = wr_prediction;
-          if (pred>1 && !rg_flush)
-            fetch_pc=target;
-        `endif
-          `logLevel( stage0, 1, $format("STAGE0: Prediction: ",fshow(wr_prediction), " Flush:%b",rg_flush))
-        end
-        else begin
-          rg_fence<=False;
-          rg_sfence<=False;
-        end
-        rg_flush<=False;
-        Bool discard = (fetch_pc[1]==1);
-        if(!rg_fence && !rg_sfence)begin
-          fetch_pc[1]=0;
-          rg_pc<=fetch_pc+4;
-        end
-        `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b",fetch_pc, discard))
-        `ifdef icache
-          `ifdef supervisor
-            return (tuple5(fetch_pc, rg_fence, rg_sfence, curr_epoch, discard));
-          `else
-            return (tuple4(fetch_pc, rg_fence, curr_epoch, discard));
-          `endif
-        `else
-          return (tuple3(fetch_pc, curr_epoch,  discard));
-        `endif
-      endmethod
-    endinterface;
+    // Implicit Conditions: Can fire only when wire wr_prediction is written
+    // Conflicts: This method will not fire when method flush is fired.
+ 	  method ActionValue#(FetchRequest#(`vaddr, `iesize)) inst_request;
 
-    method Action flush(Bit#(`vaddr) newpc
-              `ifdef icache , Bool fence `endif
-              `ifdef supervisor , Bool sfence `endif );
+      Bit#(`vaddr) fetch_pc = rg_pc;
+      Bool discard=False;
 
-      `logLevel( stage0,0, $format("STAGE0: Received Flush. NewPC:%h",newpc))
-      rg_pc<=newpc;
+      if(!rg_fence && !rg_sfence) begin
+
+      `ifdef branch_speculation
+        let pred = wr_prediction;
+        if ( pred.prediction > 1 && !rg_flush )
+          fetch_pc=pred.target_pc;
+
+        discard = (fetch_pc[1] == 1);
+      `endif
+        fetch_pc[1] = 0;
+
+        rg_pc<=fetch_pc+4;
+      end
+      else begin
+        rg_fence <= False;
+        rg_sfence <= False;
+      end
+
+      rg_flush <= False;
+
+      `logLevel( stage0, 1, $format("STAGE0: Prediction from BPU: ",fshow(wr_prediction), " Flush:%b",rg_flush))
+      `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b rg_pc",fetch_pc, discard, rg_pc))
+
+      return FetchRequest{ icache_req: ICache_request{ address : fetch_pc,
+                                                       epochs  : curr_epoch
+                                                      `ifdef icache
+                                                       ,fence  :   rg_fence
+                                                      `endif }
+                          `ifdef supervisor
+                            ,sfence :  rg_sfence
+                          `endif
+                          `ifdef branch_speculation
+                            ,discard : discard
+                          `endif
+                          };
+    endmethod
+
+    // MethodName: flush
+    // Implicit Conditions: None
+    // Explicit Conditions: None
+    // Description: This method receives the flush for redirection of PC from EXE or WB stage.
+    method Action flush( Stage0Flush f);
+      rg_pc<=f.pc;
     `ifdef icache
-      rg_fence<=fence;
+      rg_fence<=f.fence;
     `endif
     `ifdef supervisor
-      rg_sfence<=sfence;
+      rg_sfence<=f.sfence;
     `endif
       rg_flush<=True;
+      `logLevel( stage0,0, $format("STAGE0: Received Flush: ",fshow(f)))
     endmethod
+
   `ifdef branch_speculation
-    method Action prediction_pc(Tuple2#(Bit#(2), Bit#(`vaddr)) pred);
+    // MethodName: predicted_pc
+    // Implicit Conditions: None
+    // Explicit Conditions: None
+    // Description: Collect the prediction from the BPU
+    method Action predicted_pc(PredictionToStage0 pred);
       wr_prediction<=pred;
     endmethod
   `endif

@@ -49,20 +49,17 @@ package common_types;
   typedef 0 USERSPACE ;
   typedef TMax#(XLEN, FLEN) ELEN;
 
-  // ---------------- following types are used to define the memory interfaces from the core ---//
-`ifdef icache
-  `ifdef supervisor
-    typedef Tuple5#(Bit#(addr), Bool, Bool, Bit#(esize), Bool) ICore_request#(numeric type addr, 
-                                                                            numeric type esize);
-  `else                                                                          
-                    // addr, Fence, epoch
-    typedef Tuple4#(Bit#(addr), Bool, Bit#(esize), Bool) ICore_request#(numeric type addr, 
-                                                                            numeric type esize);
+  typedef struct{
+    Bit#(`vaddr) pc;
+  `ifdef icache
+    Bool  fence;
   `endif
-`else
-                    // addr,epoch
-    typedef Tuple3#(Bit#(addr), Bit#(esize), Bool) ICore_request#(numeric type addr, numeric type esize);
-`endif
+  `ifdef supervisor
+    Bool  sfence;
+  `endif
+  } Stage0Flush deriving(Bits, Eq, FShow);
+
+  // ---------------- following types are used to define the memory interfaces from the core ---//
 `ifdef dcache
   `ifdef supervisor
     `ifdef atomic
@@ -144,7 +141,11 @@ package common_types;
   `endif
 
   // define all tuples here
+`ifdef branch_speculation
+  typedef Tuple6#(PreCommit_type, Bit#(ELEN), Bit#(`vaddr), Bit#(6), Bool, Bool) ALU_OUT;
+`else
   typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(`vaddr), Bit#(6), Bool) ALU_OUT;
+`endif
   
   typedef Tuple5#(Bit#(`paddr), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
   typedef Tuple4#(Bit#(`paddr), Access_type, Bit#(2), Bit#(1)) CoreRequest;
