@@ -48,8 +48,15 @@ package globals;
   `ifdef branch_speculation
     Bool discard;
   `endif
-  } FetchRequest#(numeric type addr, numeric type esize) deriving(Bits,Eq,FShow);
+  } FetchRequest#(numeric type addr, numeric type esize) deriving (Bits,Eq,FShow);
 
+ // response packet from the Instruction cache
+  typedef struct{
+    Bit#(iwidth) instr;
+    Bool  trap;
+    Bit#(`causesize) cause;
+    Bit#(esize) epochs;
+  } FetchResponse#(numeric type iwidth, numeric type esize) deriving (Bits, Eq, FShow); 
 
   typedef enum {Hit, Miss, None} RespState deriving(Eq,Bits,FShow);
   // ---------------------- Instruction Cache types ---------------------------------------------//

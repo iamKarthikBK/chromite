@@ -142,7 +142,7 @@ package riscv;
   `endif
 `endif
 
-    mkConnection(stage1.tx_next_stage, pipe1);
+    mkConnection(stage1.tx_to_stage2, pipe1);
     mkConnection(pipe1, stage2.rx_min);
 
     mkConnection(stage2.tx_min, pipe2min);
