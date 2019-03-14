@@ -17,6 +17,7 @@ BTBSIZE=256
 RAS=disable
 RASSETS=64
 RASSIZE=8
+CAUSESIZE=6
 
 # Verilator options
 COVERAGE=none
