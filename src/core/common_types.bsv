@@ -180,11 +180,18 @@ package common_types;
   `endif
 
   // define all tuples here
-`ifdef branch_speculation
-  typedef Tuple6#(PreCommit_type, Bit#(ELEN), Bit#(`vaddr), Bit#(6), Bool, Bool) ALU_OUT;
-`else
-  typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(`vaddr), Bit#(6), Bool) ALU_OUT;
-`endif
+  typedef struct{
+    Bool done; 
+    PreCommit_type cmtype;
+    Bit#(ELEN) aluresult ;
+    Bit#(`vaddr) effective_addr;
+    Bit#(`causesize) cause;
+    Bool redirect;
+  `ifdef branch_speculation
+    Bool branch_taken;
+    Bit#(`vaddr) redirect_pc;
+  `endif
+  } ALU_OUT deriving (Bits,  Eq,  FShow);
   
   typedef Tuple5#(Bit#(`paddr), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
   typedef Tuple4#(Bit#(`paddr), Access_type, Bit#(2), Bit#(1)) CoreRequest;
