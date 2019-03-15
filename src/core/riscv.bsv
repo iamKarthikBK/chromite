@@ -56,7 +56,7 @@ package riscv;
   `endif
     interface Put#(FetchResponse#(32, `iesize)) inst_response;
   `ifdef dcache
-		interface Get#(Tuple2#(DMem_request#(`vaddr ,ELEN,1),Bool)) memory_request;
+		interface Get#(Tuple2#(DMem_request#(`vaddr , `vaddr, 1),Bool)) memory_request;
   `else 
 		interface Get#(MemoryReadReq#(`vaddr,1)) memory_read_request;
   `endif
@@ -114,10 +114,10 @@ package riscv;
 
     FIFOF#(PIPE1) pipe1<-mkSizedFIFOF(2);
 
-    FIFOF#(PIPE2_min#(ELEN,FLEN)) pipe2min <- mkLFIFOF();
-  `ifdef spfpu
-    FIFOF#(OpFpu) pipe2fpu <- mkLFIFOF();
-  `endif
+    FIFOF#(Stage3Meta) pipe2_meta <- mkLFIFOF();
+    FIFOF#(Stage3OpMeta) pipe2_opmeta <- mkLFIFOF();
+    FIFOF#(RFOperands) pipe2_op <- mkLFIFOF();
+
   `ifdef rtldump
     FIFOF#(Bit#(32)) pipe2inst <- mkLFIFOF();
   `endif
@@ -143,17 +143,19 @@ package riscv;
 `endif
 
     mkConnection(stage1.tx_to_stage2, pipe1);
-    mkConnection(pipe1, stage2.rx_min);
+    mkConnection(pipe1, stage2.rx_from_stage1);
 
-    mkConnection(stage2.tx_min, pipe2min);
-    mkConnection(pipe2min, stage3.rx_min);
+    mkConnection(stage2.tx_meta_to_stage3, pipe2_meta);
+    mkConnection(pipe2_meta, stage3.rx_meta_from_stage2);
+    
+    mkConnection(stage2.tx_op_to_stage3, pipe2_op);
+    mkConnection(pipe2_op, stage3.rx_op_from_stage2);
+    
+    mkConnection(stage2.tx_opmeta_to_stage3, pipe2_opmeta);
+    mkConnection(pipe2_opmeta, stage3.rx_opmeta_from_stage2);
   `ifdef rtldump
     mkConnection(stage2.tx_inst, pipe2inst);
     mkConnection(pipe2inst, stage3.rx_inst);
-  `endif
-  `ifdef spfpu
-    mkConnection(stage2.tx_fpu, pipe2fpu);
-    mkConnection(pipe2fpu, stage3.rx_fpu);
   `endif
 
   `ifdef PIPE2

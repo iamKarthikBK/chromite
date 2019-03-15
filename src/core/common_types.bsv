@@ -113,16 +113,54 @@ package common_types;
 
   // ------- The following typdefs are used to define the output from the decode stage -----
   // data structure of the fwding data structure
-//  typedef union tagged{
-//    Bit#(width) Present;
-//  	void Absent;
-//  } FwdType#(numeric type width) deriving(Bits,Eq,FShow);
   `ifdef spfpu
     typedef Tuple5#(Bool, Bool, Bit#(5), Bit#(ELEN), RFType) FwdType;
   `else
     typedef Tuple4#(Bool, Bool, Bit#(5), Bit#(ELEN)) FwdType;
   `endif
   
+  // This struct captures the decoded addresses of the operands and destination registers.
+  // Max width : 20 bits
+  typedef struct{
+    Bit#(5) rs1addr;
+    Bit#(5) rs2addr;
+    Bit#(5) rd;
+  `ifdef spfpu
+    Bit#(5) rs3addr;
+  `endif
+  } OpAddr deriving(Bits, Eq, FShow);
+
+  // this struct captures the type of the operands based on the instruction being decoded.
+  // Max width: 2+3+1+1= 7 bits
+  typedef struct{
+    Op1type rs1type;
+    Op2type rs2type;
+  `ifdef spfpu
+    RFType  rs3type;
+    RFType  rdtype;
+  `endif
+  } OpType deriving(Bits, Eq, FShow);
+
+  // this struct holds the meta decoded information of an instruction
+  typedef struct{
+    Instruction_type inst_type; // instruction type
+    Access_type memaccess;      // memory access type
+    Bit#(32) immediate;         // immediate fields
+    Bit#(7) funct;              // concatenation of f3 and fn fields
+    Bool    resume_wfi;         // indicates if core should resume from wfi
+    Bool    rerun;              // indicates if the current instruction needs to be rerun
+  } InstrMeta deriving(Bits, Eq, FShow); 
+
+  // the final structure of the response from the decoder
+  typedef struct{
+    OpAddr    op_addr;
+    OpType    op_type;
+    InstrMeta meta;
+  `ifdef compressed
+    Bool compressed;
+  `endif
+  } DecodeOut deriving(Bits, Eq, FShow);
+  /*
   //                  rs1,   rs2,      rd      op1 type , op2 type
     typedef Tuple5#(Bit#(5), Bit#(5), Bit#(5), Op1type, Op2type) OpType_min;
   //                {fn,f3}   instr-Type       mem-type     Imm
@@ -131,6 +169,7 @@ package common_types;
     typedef Tuple4#(OpType_min,DecodeMeta, Bool, Bool) DecodeOut;
     
     typedef Tuple3#(Bit#(5), RFType, RFType) OpType_fpu;
+  */
   // ------------------------------------------------------------------------------------------
 
   `ifdef spfpu
@@ -225,30 +264,39 @@ package common_types;
   }PIPE1 deriving (Bits,Eq,FShow);
   
   // ---------- Tuples for the second Pipeline Stage -----------//
+  // type holding the meta information for stage3.
+  // Max Width: 7+3+4+64+1+2 = 81 bits
+  typedef struct{
+    Bit#(7) funct;
+    Access_type memaccess;
+    Instruction_type inst_type;
+    Bit#(`vaddr) pc;
+  `ifdef RV64
+    Bool  word32;
+  `endif
+    Bit#(2) epochs;
+  `ifdef compressed
+    Bool compressed;
+  `endif
+  `ifdef branch_speculation
+    Bit#(2) prediction;
+  `endif
+  } Stage3Meta deriving(Bits, Eq, FShow);
 
-  typedef Tuple4#(Bit#(5), // rs1addr
-                 Bit#(5), // rs2addr
-                 Bit#(`vaddr), // pc_rs1,
-                 Instruction_type)  OpMeta;
-  typedef Tuple3#(
-                 Bit#(msize), // rs1_pc
-                 Bit#(msize), // rs2_instruction(for badaddr)
-                 Bit#(t))     // rs3_imm. Incase fpu is on then t = FLEN else `vaddr
-                 OpData#(numeric type msize, numeric type t);
-  typedef Tuple5#(Bit#(5), // rd
-                 Bit#(7), // {fn,f3} or cause
-                 Access_type, // memory access type
-                 Bool, //Word32
-                 Bit#(2) // epochs
-                ) MetaData;
-  typedef Tuple4#(OpMeta, OpData#(msize,t), MetaData, Bit#(2)) PIPE2_min#(numeric type msize, numeric type t);
-  typedef Tuple5#(Bit#(5), // rs3addr
-                 RFType, // rs1type
-                 RFType, // rs2type
-                 RFType, // rs3type
-                 RFType // rdtype
-                ) OpFpu;
+  // struct holding the operands read from the RF in decode stage.
+  // Max width = 64*3 = 192 bits
+  typedef struct{
+    Bit#(ELEN) op1;
+    Bit#(ELEN) op2;
+    Bit#(FLEN) op3;
+  } RFOperands deriving(Bits, Eq, FShow);
 
+  typedef struct{
+    OpAddr op_addr;
+    OpType op_type;
+  } Stage3OpMeta deriving(Bits, Eq, FShow);
+
+  
   // -------------------------------------------------------------
   // ---------- Tuples for the third Pipeline Stage -----------//
 
