@@ -45,15 +45,9 @@ package stage1;
   `include "Logger.bsv"       // for logging display statements.
   import globals::*;          // for global interface definitions
 
-  // -- local defines -- //
-  `define deq_response  \
-      ff_memory_response.deq; \
-    `ifdef branch_speculation \
-      ff_prediction_resp.deq; \
-    `endif
   
   // Enum to define the action to be taken when an instruction arrives.
-  typedef enum {CheckPrev, None} ActionType deriving(Bits,Eq,FShow);
+  typedef enum {CheckPrev, None} ActionType deriving(Bits, Eq, FShow);
 
 	interface Ifc_stage1;
 
@@ -84,6 +78,8 @@ package stage1;
 
     String stage1=""; // defined for logger
 
+    // --------------------- Start instantiations ------------------------//
+
     // this wire carries the current values of certain csrs.
     Wire#(Bit#(1)) wr_csr_misa_c <- mkWire();
 
@@ -92,7 +88,6 @@ package stage1;
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
     Reg#(Bit#(1)) rg_eEpoch <- mkReg(0);
 
-    let curr_epoch = {rg_eEpoch, rg_wEpoch};
     // This register implements a simple state-machine which indicates how the instruction should be
     // extracted from the cache response.
     Reg#(ActionType) rg_action <- mkReg(None);
@@ -121,7 +116,24 @@ package stage1;
   `endif
 
     // FIFO to interface with the next pipeline stage
-		TX#(PIPE1) tx<-mkTX;
+		TX#(PIPE1) tx <- mkTX;
+
+    // This variable holds the current epoch values of the pipe
+    let curr_epoch = {rg_eEpoch, rg_wEpoch};
+
+    // ---------------------- End Instatiations --------------------------//
+
+
+    // ---------------------- Start local function definitions ----------------//
+
+    // this function will deque the response from i-mem fifo and the branch prediction fifo
+    function Action deq_response = action
+      ff_memory_response.deq; 
+    `ifdef branch_speculation 
+      ff_prediction_resp.deq; 
+    `endif
+    endaction;
+    // ---------------------- End local function definitions ------------------//
 
     // RuleName: process_instruction
     // Explicit Conditions: None
@@ -172,13 +184,23 @@ package stage1;
         `endif
         `logLevel( stage1,1,$format("STAGE1: Prediction: ",fshow(ff_prediction_resp.first)))
       `endif
+
+        // capture the response from the cache
         let imem_resp=ff_memory_response.first;
+
+        // local variable to hold the instruction to be enqueued
         Bit#(32) final_instruction=?;
+
+        // local variable to indicate if the instruction being analysed is compressed or not
         Bool compressed=False;
+
+        // local variable indicating if the current instruction under analysis should be enqueued to
+        // the next stage or dropped.
         Bool enque_instruction=True;
+
         // if epochs do not match then drop the instruction
         if(curr_epoch != imem_resp.epochs)begin
-          `deq_response
+          deq_response;
           rg_action<=None;
           enque_instruction=False;
           `logLevel( stage1,1,$format("STAGE1: Dropping Instruction"))
@@ -186,7 +208,7 @@ package stage1;
       `ifdef compressed
         // discard the lower-16bits of the imem-response.
         else if(discard_lower && wr_csr_misa_c==1)begin
-          `deq_response
+          deq_response;
           if(imem_resp.instr[17:16]==2'b11)begin
             rg_instruction<=imem_resp.instr[31:16];
             rg_action<=CheckPrev;
@@ -211,7 +233,7 @@ package stage1;
       `endif
         else if(rg_action == None)begin
           // No updates to va required
-          `deq_response
+          deq_response;
           if(imem_resp.instr[1:0]=='b11)begin
             final_instruction=imem_resp.instr;
           `ifdef compressed
@@ -241,7 +263,7 @@ package stage1;
           if(rg_instruction[1:0]==2'b11)begin
             final_instruction={imem_resp.instr[15:0],rg_instruction};
             rg_instruction<=truncateLSB(imem_resp.instr);
-            `deq_response
+            deq_response;
             if(rg_receiving_upper)
               rg_receiving_upper<=False;
             `ifdef compressed
@@ -290,10 +312,11 @@ package stage1;
         end
     endrule
 
-    // This method will capture the response from the memory subsytem and enque it in a FIFO.
+    // MethodName: inst_response_put
     // Explicit Conditions: None
     // Implicit Conditions: ff_memory_response.notFull
-    // Description: One could of think of performing all the function in the process_instruction
+    // Description: This method will capture the response from the memory subsytem and enque it in 
+    // a FIFO. One could of think of performing all the function in the process_instruction
     // rule in this method itself. This would only work if you are not supporting compressed
     // instructions. When you support compressed, the cache can send a single response which
     // contains 2 16-bit instruction. In such a case the process_instruction rule will fire twice
@@ -310,6 +333,14 @@ package stage1;
     endinterface;
   
   `ifdef branch_speculation
+    // MethodName: prediction_response_put
+    // Explicit Conditions: None
+    // Implicit Conditions: ff_prediction_resp.notFull
+    // Description: This interface will capture the prediction response from the BTB module. If
+    // compressed is supported the, BTB will provide 2 predictions for each of the 2byte addresses
+    // that have been fetched from the I-mem. If compressed is not supported then a single
+    // prediction is only provided for the entire 32-bit instruction has been received from the
+    // I-cache.
     interface prediction_response = interface Put
       method Action put(PredictionResponse p);
         `logLevel( stage1, 1, $format("STAGE1: Recevied Prediction: ",fshow(p)))
@@ -317,7 +348,11 @@ package stage1;
       endmethod
     endinterface;
   `endif
-    
+   
+    // MethodName: tx_to_stage2
+    // Explicit Conditions: None
+    // Implicit Conditions: tx is not empty.
+    // Description: This method will transmit the instruction to the next stage.
 		interface tx_to_stage2= tx.e;
 
     // MethodName: update_eEpoch

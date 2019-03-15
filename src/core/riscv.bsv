@@ -54,7 +54,7 @@ package riscv;
       method Bit#(`vaddr) ras_push;
     `endif
   `endif
-    interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(`iesize))) inst_response;
+    interface Put#(FetchResponse#(32, `iesize)) inst_response;
   `ifdef dcache
 		interface Get#(Tuple2#(DMem_request#(`vaddr ,ELEN,1),Bool)) memory_request;
   `else 
