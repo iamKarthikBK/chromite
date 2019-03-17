@@ -7,7 +7,7 @@ provided that the following conditions are met:
 * Redistributions of source code must retain the above copyright notice, this list of conditions
   and the following disclaimer.  
 * Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and/or other materials provided 
+  conditions and the following disclaimer in the documentation and / or other materials provided 
  with the distribution.  
 * Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
   promote products derived from this software without specific prior written permission.
@@ -22,8 +22,8 @@ IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISI
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
-Author: Neel Gala
-Email id: neelgala@gmail.com
+Author : Neel Gala
+Email id : neelgala@gmail.com
 Details:
 
 --------------------------------------------------------------------------------------------------
@@ -49,7 +49,7 @@ package bimodal;
   `ifdef compressed
     `define ignore 2
   `else
-    `define ignore 3
+    `define ignore 2
   `endif
 
   typedef Tuple3#(Bit#(`vaddr), Bit#(`vaddr), Bit#(2)) Training_data;
@@ -78,21 +78,21 @@ package bimodal;
     Ifc_mem_config1r1w#(TDiv#(`btbsize, 2) , `vaddr, 1) mem_btb1 <- mkmem_config1r1w(False,"double");
 
     // ram to hold the tag of the address being predicted. The 2 bits are deducted since we are
-    // supporting only non-compressed ISA. When compressed is supported, 1 will be dedudcted.
+    // supporting only non - compressed ISA. When compressed is supported, 1 will be dedudcted.
     Ifc_mem_config1r1w#(TDiv#(`btbsize,  2) , 
-        TAdd#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),TSub#(`ignore,1)),3),1) mem_btb_tag0 
+        TAdd#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore), 3), 1) mem_btb_tag0 
         <- mkmem_config1r1w(False,"double");
     Ifc_mem_config1r1w#(TDiv#(`btbsize,  2) , 
-        TAdd#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),TSub#(`ignore,1)),3),1) mem_btb_tag1 
+        TAdd#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore), 3), 1) mem_btb_tag1 
         <- mkmem_config1r1w(False,"double");
 
   `ifdef ras 
     // ram to hold the tag bits for return instructions
-    Ifc_mem_config1r1w#(TDiv#(`rassets ,2), 
-        TAdd#(TSub#(TSub#(`vaddr, TLog#(`rassets )), TSub#(`ignore,1)),1),1) mem_ras_tag0
+    Ifc_mem_config1r1w#(TDiv#(`rassets, 2), 
+        TAdd#(TSub#(TSub#(`vaddr, TLog#(`rassets )), `ignore), 1), 1) mem_ras_tag0
         <- mkmem_config1r1w(False,"double");
     Ifc_mem_config1r1w#(TDiv#(`rassets, 2), 
-        TAdd#(TSub#(TSub#(`vaddr, TLog#(`rassets )), TSub#(`ignore,1)),1),1) mem_ras_tag1
+        TAdd#(TSub#(TSub#(`vaddr, TLog#(`rassets )), `ignore), 1), 1) mem_ras_tag1
         <- mkmem_config1r1w(False,"double");
 
     // stack structure to hold the return addresses
@@ -101,242 +101,272 @@ package bimodal;
 
     // boolean register and counter used to initialize the ram structure on reset.
     Reg#(Bool) rg_init <- mkReg(True);
-    Reg#(Bit#(TAdd#(1,TLog#(TMax#(TDiv#(`btbsize, 2), TDiv#(`rassets,2)))))) rg_init_count <- mkReg(0);
+    Reg#(Bit#(TAdd#(1, TLog#(TMax#(TDiv#(`btbsize, 2), TDiv#(`rassets, 2)))))) rg_init_count <- mkReg(0);
 
     FIFOF#(PredictionRequest) ff_pred_request <- mkSizedFIFOF(2);
     FIFOF#(PredictionResponse) ff_prediction_resp <- mkBypassFIFOF();
 
-    Reg#(PredictionToStage0) rg_prediction_pc[2] <-mkCReg(2,PredictionToStage0{prediction:0});
+    Reg#(PredictionToStage0) rg_prediction_pc[2] <- mkCReg(2, PredictionToStage0{prediction : 0,
+                                                                               target_pc  : ?});
     
-    // RuleName: initialize
-    // Explicit Conditions: rg_init==True
-    // Implicit Conditions: None
-    // on system reset first initialize the ram structure with valid=0.
+    // RuleName : initialize
+    // Explicit Conditions : rg_init == True
+    // Implicit Conditions : None
+    // on system reset first initialize the ram structure with valid = 0.
     rule initialize(rg_init);
-      mem_btb_tag0.write(1, truncate(rg_init_count),0);
-      mem_btb_tag1.write(1, truncate(rg_init_count),0);
+      mem_btb_tag0.write(1, truncate(rg_init_count), 0);
+      mem_btb_tag1.write(1, truncate(rg_init_count), 0);
     `ifdef ras
-      mem_ras_tag0.write(1 , truncate(rg_init_count),0);
-      mem_ras_tag1.write(1 , truncate(rg_init_count),0);
+      mem_ras_tag0.write(1, truncate(rg_init_count), 0);
+      mem_ras_tag1.write(1, truncate(rg_init_count), 0);
     `endif
-      if(rg_init_count==fromInteger(max((`btbsize/2),(`rassets/2)))) begin
-				rg_init<=False;
+      if(rg_init_count == fromInteger(max((`btbsize / 2),(`rassets / 2)))) begin
+				rg_init <= False;
 			end
-      `logLevel( bimodal, 0, $format("Bimodal: Init stage. Count:%d",rg_init_count))
-      rg_init_count<=rg_init_count+1;
+      `logLevel( bimodal, 0, $format("Bimodal : Init stage. Count:%d",rg_init_count))
+      rg_init_count <= rg_init_count + 1;
 		endrule
 
-    // RuleName: perform_prediction
-    // Explicit Conditions: None
-    // Implicit Conditions: None
-    // Description: This rule will the prediction response from the BTB and RAS and send the result
+    // RuleName : perform_prediction
+    // Explicit Conditions : None
+    // Implicit Conditions : None
+    // Description : This rule will the prediction response from the BTB and RAS and send the result
     // to stage1. A hit can occur either in the BTB or the RAS and never both
-    rule perform_prediction(!rg_init);
-      Bit#(4) hit=0;
-    `ifdef compressed
-      let {va, discard} = ff_pred_request.first();
-    `else
-      let va = ff_pred_request.first();
-    `endif
+    rule perform_prediction;
+      Bit#(4) hit = 0;
+      let request = ff_pred_request.first();
       ff_pred_request.deq();
     `ifdef compressed
-      Bit#(2) prediction0=0;
-      Bit#(2) prediction1=0;
-      Bit#(2) prediction=0;
+      Bit#(2) prediction0 = 0;
+      Bit#(2) prediction1 = 0;
+      Bit#(2) prediction = 0;
     `else
-      Bit#(2) prediction=0;
+      Bit#(2) prediction = 0;
     `endif
+  
+      // extract tag from the request PC for comparison
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore)) tag_compare = truncateLSB(request.pc);
 
-      Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),TSub#(`ignore,1))) tag_compare = truncateLSB(va);
+      // extract the target - address, tags, counter - value and prediction state from bank0
       let bimodal_target_addr0 = mem_btb0.read_response;
       let bht_tag_state0 = mem_btb_tag0.read_response;
-      Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),TSub#(`ignore,1))) bht_tag0 = truncate(bht_tag_state0);
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore)) bht_tag0 = truncate(bht_tag_state0);
       Bit#(3) state0 = truncateLSB(bht_tag_state0);
 
+      // extract the target - address, tags, counter - value and prediction state from bank1
       let bimodal_target_addr1 = mem_btb1.read_response;
       let bht_tag_state1 = mem_btb_tag1.read_response;
-      Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),TSub#(`ignore,1))) bht_tag1 = truncate(bht_tag_state1);
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore)) bht_tag1 = truncate(bht_tag_state1);
       Bit#(3) state1 = truncateLSB(bht_tag_state1);
-      `logLevel( bimodal, 1, $format("Bimodal: va:%h bht0:%h state0:%b bht1:%h state1:%b",va,bht_tag0,state0,bht_tag1,state1))
+      `logLevel( bimodal, 1, $format("Bimodal : va:%h bht0:%h state0:%b bht1:%h state1:%b",
+                                      request.pc, bht_tag0, state0, bht_tag1, state1))
 
     `ifdef ras
-      Bit#(TSub#(TSub#(`vaddr , TLog#(`rassets)),TSub#(1,`ignore))) tag2_compare = truncateLSB(va);
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)),`ignore)) tag2_compare = truncateLSB(request.pc);
       let ras_tag_valid0 = mem_ras_tag0.read_response;
-      Bit#(TSub#(TSub#(`vaddr,TLog#(`rassets)),TSub#(`ignore,1))) ras_tag0 = truncate(ras_tag_valid0);
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)),`ignore)) ras_tag0 = truncate(ras_tag_valid0);
       Bit#(1) ras_valid0 = truncateLSB(ras_tag_valid);
       let ras_tag_valid1 = mem_ras_tag1.read_response;
-      Bit#(TSub#(TSub#(`vaddr,TLog#(`rassets)),TSub#(`ignore,1))) ras_tag1 = truncate(ras_tag_valid1);
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)),`ignore)) ras_tag1 = truncate(ras_tag_valid1);
       Bit#(1) ras_valid1 = truncateLSB(ras_tag_valid1);
       let ras_target_address = ras_stack.top;
     `endif
 
-      Bit#(`vaddr) target_address=bimodal_target_addr0;
-      if (tag_compare == bht_tag0 && state0[2]==1 `ifdef compressed && !discard `endif ) begin
+      Bit#(`vaddr) target_address = bimodal_target_addr0;
+      // When compressed is disabled we need to check which bank should the prediction be taken
+      // from. This is done by checking the LSB bit of the full - index (a.k.a the va[ignore]). This
+      // is required because 2 PCs which have the same bank_index (but point to different banks) 
+      // and have the same tags as well (i.e. they vary only in the ignore bit of the va. Eg 0x0 and
+      // 0x4) can both be valid entries in the respective banks. This will lead to bank1 overwriting
+      // the prediction output of bank0 which is wrong.
+      if (tag_compare == bht_tag0 && state0[2] == 1 &&
+               `ifdef  compressed !request.discard `else request.pc[`ignore] == 0 `endif ) begin
+
       `ifdef compressed
-        prediction0=state0[1:0];
-        prediction=state0[1:0];
+        prediction0 = state0[1 : 0];
+        prediction = state0[1 : 0];
       `else
-        prediction=state0[1:0];
+        prediction = state0[1 : 0];
       `endif
-        `logLevel( bimodal, 1, $format("Bimodal: tag_compare:%h,tag0:%h,",tag_compare,bht_tag0))
-        `logLevel( bimodal, 1, $format("Bimodal: BTB0 hit"))
-        hit[0]=1;
+        `logLevel( bimodal, 1, $format("Bimodal : tag_compare:%h, tag0:%h,",tag_compare, bht_tag0))
+        `logLevel( bimodal, 1, $format("Bimodal : BTB0 hit"))
+        hit[0] = 1;
       end
-      if (tag_compare == bht_tag1 && state1[2]==1) begin
+      if (tag_compare == bht_tag1 && state1[2] == 1
+               `ifndef compressed && request.pc[`ignore] == 1 `endif ) begin
       `ifdef compressed
-        prediction1=state1[1:0];
-        if(hit[0]==0)begin
-          target_address=bimodal_target_addr1;
-          prediction=state1[1:0];
+        prediction1 = state1[1 : 0];
+        if(hit[0] == 0)begin
+          target_address = bimodal_target_addr1;
+          prediction = state1[1 : 0];
         end
-        hit[0]=1;
+        hit[0] = 1;
       `else
-        prediction=state1[1:0];
-        target_address=bimodal_target_addr1;
-        hit[1]=1;
+        prediction = state1[1 : 0];
+        target_address = bimodal_target_addr1;
+        hit[1] = 1;
       `endif
-        `logLevel( bimodal, 1, $format("Bimodal: BTB0 hit"))
+        `logLevel( bimodal, 1, $format("Bimodal : BTB0 hit"))
       end
     `ifdef ras
-      if( tag2_compare == ras_tag0 && ras_valid0==1 && !ras_stack.empty && !discard)begin
+      if( tag2_compare == ras_tag0 && ras_valid0 == 1 && !ras_stack.empty && !request.discard)begin
       `ifdef compressed
-        prediction0=3;
-        prediction=3;
+        prediction0 = 3;
+        prediction = 3;
       `else
-        prediction=3;
+        prediction = 3;
       `endif
-        target_address=ras_target_address0;
+        target_address = ras_target_address0;
         ras_stack.pop;
-        `logLevel( bimodal, 1, $format("Bimodal: RAS0 hit"))
-        hit[2]=1;
+        `logLevel( bimodal, 1, $format("Bimodal : RAS0 hit"))
+        hit[2] = 1;
       end
-      else if( tag2_compare == ras_tag1 && ras_valid1==1 && !ras_stack.empty)begin
+      else if( tag2_compare == ras_tag1 && ras_valid1 == 1 && !ras_stack.empty)begin
       `ifdef compressed
-        prediction1=3;
-        if(hit2[2]==0) begin
-          prediction=3;
-          target_address=ras_target_address1;
+        prediction1 = 3;
+        if(hit2[2] == 0) begin
+          prediction = 3;
+          target_address = ras_target_address1;
         end
-        hit[2]=1;
+        hit[2] = 1;
       `else
-        prediction=3;
-        target_address=ras_target_address0;
-        hit[2]=1;
+        prediction = 3;
+        target_address = ras_target_address0;
+        hit[2] = 1;
       `endif
-        `logLevel( bimodal, 1, $format("Bimodal: RAS1 hit"))
+        `logLevel( bimodal, 1, $format("Bimodal : RAS1 hit"))
         ras_stack.pop;
       end
     `endif
   `ifndef compressed
     `ifdef ASSERT
-      dynamicAssert(countOnes(hit)<=1, "Multiple hits in BPU");
+      dynamicAssert(countOnes(hit) <= 1, "Multiple hits in BPU");
     `endif
   `endif
-    `ifdef compressed
-      PredictionResponse resp = tuple4(prediction0,prediction1,va, discard);
-    `else
-      PredictionResponse resp = tuple2(prediction,va);
-    `endif
-      `logLevel( bimodal, 0, $format("Bimodal: enquing Response:",fshow(resp)))
-      rg_prediction_pc[0]<=PredictionToStage0{prediction:prediction,
-                                              target_pc :target_address};
+      let resp = PredictionResponse{ va       : request.pc
+                                  `ifdef compressed
+                                     ,discard     : request.discard
+                                     ,prediction0 : prediction0
+                                     ,prediction1 : prediction1
+                                  `else
+                                     ,prediction : prediction
+                                  `endif } ;
+      `logLevel( bimodal, 0, $format("Bimodal : enquing Response:",fshow(resp)))
+      rg_prediction_pc[0] <= PredictionToStage0{prediction : prediction,
+                                              target_pc : target_address};
       ff_prediction_resp.enq(resp);
     endrule
 
-    // MethodName: prediction_req
-    // Explicit Conditions: rg_init==False
-    // Implicit Conditions: None
-    // Description: This rule will latch the index of the PC to be predicted.
-		method Action prediction_req(Bit#(`vaddr) pc `ifdef compressed , Bool discard `endif )if(!rg_init);
-      Bit#(TLog#(TDiv#(`btbsize, 2))) index = truncate(pc>>`ignore);
-      mem_btb0.read(index);
-      mem_btb1.read(index);
-      mem_btb_tag0.read(index);
-      mem_btb_tag1.read(index);
+    // MethodName : prediction_req
+    // Explicit Conditions : rg_init == False
+    // Implicit Conditions : None
+    // Description : This rule will latch the index of the PC to be predicted.
+    // We first derive the full_index : the index assuming a non - banked array of `btbsize.
+    // from the full index we then derive the index for each bank (bank_index) by ignoring the 
+    // LSB of the full_index. 
+		method Action prediction_req(PredictionRequest req)if(!rg_init);
+      // first find the full index.
+      Bit#(TLog#(`btbsize)) full_index = truncate(req.pc>>`ignore);
+
+      // find the bank_index.
+      Bit#(TLog#(TDiv#(`btbsize, 2))) bank_index = truncateLSB(full_index); 
+
+      mem_btb0.read(bank_index);
+      mem_btb1.read(bank_index);
+      mem_btb_tag0.read(bank_index);
+      mem_btb_tag1.read(bank_index);
     `ifdef ras
-      Bit#(TLog#(TDiv#(`rassets,2))) index1 = truncate(pc>>`ignore);
+      Bit#(TLog#(TDiv#(`rassets, 2))) index1 = truncate(pc>>`ignore);
       mem_ras_tag0.read(index1);
       mem_ras_tag1.read(index1);
     `endif
-    `ifdef compressed
-      ff_pred_request.enq(tuple2(pc, discard));
-    `else
-      ff_pred_request.enq(pc);
-    `endif
-      `logLevel( bimodal, 0, $format("Bimodal: Prediction request for PC:%h index:%d",pc,index))
+      if(req.fence) begin
+        rg_init <= True;
+        `logLevel( bimodal, 0, $format("Bimodal : Fence Recieved"))
+      end
+      else begin
+        ff_pred_request.enq(req);
+        `logLevel( bimodal, 0, $format("Bimodal : Prediction request for PC:%h bank_index:%d",
+                                        req.pc, bank_index))
+      end
 		endmethod
 
-    // MethodName: prediction_resp
-    // Explicit Conditions: rg_init==False
-    // Implicit Conditions: None
-    // Description: This rule read the response from the rams, check if the next PC is either PC+4
+    // MethodName : prediction_resp
+    // Explicit Conditions : None
+    // Implicit Conditions : None
+    // Description : This rule read the response from the rams, check if the next PC is either PC + 4
     // or redirected to a new target address. The redirect address is directly taken from the ram.
     // If there is not hit in the BTB the prediction value of 0 is sent indicating that the next PC
-    // is PC+4 which needs to happen outside this module
-		interface prediction_response = interface Get
-      method ActionValue#(PredictionResponse) get()if(!rg_init);
-        ff_prediction_resp.deq;
-        return ff_prediction_resp.first();
-      endmethod
-    endinterface;
+    // is PC + 4 which needs to happen outside this module
+		interface prediction_response = toGet(ff_prediction_resp);
 
-    // MethodName: training
-    // Explicit Conditions: rg_init==False
-    // Implicit Conditions: None 
-    // Description: This method will update the BTB and BHT with the new training packet from the
-    // execute stage
+    // MethodName : training
+    // Explicit Conditions : rg_init == False
+    // Implicit Conditions : None 
+    // Description : This method will update the BTB and BHT with the new training packet from the
+    // execute stage. 
+    // We first derive the full_index : the index assuming a non - banked array of `btbsize.
+    // from the full index we then derive the index for each bank (bank_index) by ignoring the 
+    // LSB of the full_index. The LSB bit is used to identify which bank will be used for training.
 		method Action train_bpu (Training_data td)if(!rg_init);
       let {pc, branch_address, state} = td;
-        Bit#(TLog#(TDiv#(`btbsize , 2))) index = truncate(pc>>`ignore);
-        Bit#(TSub#(TSub#(`vaddr , TLog#(`btbsize)),TSub#(`ignore,1))) tag = truncateLSB(pc);
-        if (pc[`ignore - 1]==0)begin
-          mem_btb0.write(1, index,branch_address);
-          mem_btb_tag0.write(1, index, {1'b1,state,tag});
-          `logLevel( bimodal, 0, $format("Bimodal: Training BTB0: ",fshow(td)))
-          `logLevel( bimodal, 0, $format("Bimodal: Training BTB0: index:%d tag:%h state:%b", index,tag,state))
-        end
-      `ifndef branch_speculation
-        else begin
-          mem_btb1.write(1, index,branch_address);
-          mem_btb_tag1.write(1, index, {1'b1,state,tag});
-          `logLevel( bimodal, 0, $format("Bimodal: Training BTB1: ",fshow(td)))
-          `logLevel( bimodal, 0, $format("Bimodal: Training BTB1: index:%d tag:%h state:%b", index,tag,state))
-        end
-      `endif
+
+      // first find the full index.
+      Bit#(TLog#(`btbsize)) full_index = truncate(pc>>`ignore);
+
+      // find the bank_index.
+      Bit#(TLog#(TDiv#(`btbsize, 2))) bank_index = truncateLSB(full_index); 
+      
+      // find the tag to be stored.=vaddr - Log(btbsize) - ignorebits
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore)) tag = truncateLSB(pc);
+      if (truncate(full_index) == 1'b0)begin
+        mem_btb0.write    (1, bank_index, branch_address);
+        mem_btb_tag0.write(1, bank_index, {1'b1, state, tag});
+        `logLevel( bimodal, 0, $format("Bimodal : Training BTB0: ",fshow(td)))
+        `logLevel( bimodal, 0, $format("Bimodal : Training BTB0 : bank_index:%d tag:%h state:%b",
+                                        bank_index, tag, state))
+      end
+      else begin
+        mem_btb1.write    (1, bank_index, branch_address);
+        mem_btb_tag1.write(1, bank_index, {1'b1, state, tag});
+        `logLevel( bimodal, 0, $format("Bimodal : Training BTB1: ",fshow(td)))
+        `logLevel( bimodal, 0, $format("Bimodal : Training BTB1 : bank_index:%d tag:%h state:%b", 
+                                       bank_index, tag, state))
+      end
 		endmethod
 
-    // MethodName: prediction_pc
-    // Explicit Conditions: None
-    // Implicit Conditions: None 
-    // Description: This method sends the latest prediction to stage0 for generating next pc
-    method predicted_pc=rg_prediction_pc[1];
+    // MethodName : prediction_pc
+    // Explicit Conditions : None
+    // Implicit Conditions : None 
+    // Description : This method sends the latest prediction to stage0 for generating next pc
+    method predicted_pc = rg_prediction_pc[1];
 
   `ifdef ras
-    // MethodName: train_ras
-    // Explicit Conditions: rg_init==False
-    // Implicit Conditions: None 
-    // Description: This method will update the RAS tag and state entries to indicate a pop
+    // MethodName : train_ras
+    // Explicit Conditions : rg_init == False
+    // Implicit Conditions : None 
+    // Description : This method will update the RAS tag and state entries to indicate a pop
     method Action train_ras(Bit#(`vaddr) pc)if(!rg_init);
       Bit#(TLog#(TDiv#(`rassets, 2))) index = truncate(pc>>2);
-      Bit#(TSub#(TSub#(`vaddr , TLog#(`rassets)),TSub#(`ignore,1))) tag = truncateLSB(pc);
-      if(pc[`ignore -1]==0)begin
-        mem_ras_tag0.write(1,index, {1'b1,tag});
-        `logLevel( bimodal, 0, $format("Bimodal: Training RAS0 for ",fshow(pc)))
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)), TSub#(`ignore, 1))) tag = truncateLSB(pc);
+      if(pc[`ignore - 1] == 0)begin
+        mem_ras_tag0.write(1, index, {1'b1, tag});
+        `logLevel( bimodal, 0, $format("Bimodal : Training RAS0 for ",fshow(pc)))
       end
     `ifndef branch_speculation
       else begin
-        mem_ras_tag1.write(1,index, {1'b1,tag});
-        `logLevel( bimodal, 0, $format("Bimodal: Training RAS0 for ",fshow(pc)))
+        mem_ras_tag1.write(1, index, {1'b1, tag});
+        `logLevel( bimodal, 0, $format("Bimodal : Training RAS0 for ",fshow(pc)))
       end
     `endif
     endmethod
 
-    // MethodName: ras_push
-    // Explicit Conditions: None
-    // Implicit Conditions: None 
-    // Description: This method will push a return address on the RAS stack
+    // MethodName : ras_push
+    // Explicit Conditions : None
+    // Implicit Conditions : None 
+    // Description : This method will push a return address on the RAS stack
     method Action ras_push(Bit#(`vaddr) pc);
-      `logLevel( bimodal, 0, $format("Bimodal: Pushing to RAS:%h ",pc))
+      `logLevel( bimodal, 0, $format("Bimodal : Pushing to RAS:%h ",pc))
       ras_stack.push(pc);
     endmethod
   `endif
