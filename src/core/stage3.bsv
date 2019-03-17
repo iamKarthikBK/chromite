@@ -389,7 +389,8 @@ package stage3;
               end
               `ifdef ras
                 if( (meta.inst_type == JALR || meta.inst_type == JAL) && 
-                    (rd == 'b00001 || rd == 'b00101) && cmtype != TRAP)
+                    (opmeta.op_addr.rd == 'b00001 || opmeta.op_addr.rd == 'b00101) &&
+                    aluout.cmtype != TRAP)
                   wr_push_ras <= aluout.effective_addr;
               `endif
             `endif

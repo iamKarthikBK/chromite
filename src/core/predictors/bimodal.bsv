@@ -103,11 +103,10 @@ package bimodal;
     Reg#(Bool) rg_init <- mkReg(True);
     Reg#(Bit#(TAdd#(1, TLog#(TMax#(TDiv#(`btbsize, 2), TDiv#(`rassets, 2)))))) rg_init_count <- mkReg(0);
 
-    FIFOF#(PredictionRequest) ff_pred_request <- mkSizedFIFOF(2);
-    FIFOF#(PredictionResponse) ff_prediction_resp <- mkBypassFIFOF();
-
-    Reg#(PredictionToStage0) rg_prediction_pc[2] <- mkCReg(2, PredictionToStage0{prediction : 0,
-                                                                               target_pc  : ?});
+    FIFOF#(PredictionRequest)  ff_pred_request      <- mkSizedFIFOF(2);
+    FIFOF#(PredictionResponse) ff_prediction_resp   <- mkBypassFIFOF();
+    Reg#(PredictionToStage0)   rg_prediction_pc[2]  <- mkCReg(2, PredictionToStage0{prediction : 0,
+                                                                                    target_pc : ?});
     
     // RuleName : initialize
     // Explicit Conditions : rg_init == True
@@ -145,7 +144,7 @@ package bimodal;
     `endif
   
       // extract tag from the request PC for comparison
-      Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore)) tag_compare = truncateLSB(request.pc);
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore)) btb_tag_cmp = truncateLSB(request.pc);
 
       // extract the target - address, tags, counter - value and prediction state from bank0
       let bimodal_target_addr0 = mem_btb0.read_response;
@@ -162,10 +161,15 @@ package bimodal;
                                       request.pc, bht_tag0, state0, bht_tag1, state1))
 
     `ifdef ras
-      Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)),`ignore)) tag2_compare = truncateLSB(request.pc);
+      // extract tag from the request PC for comparison
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)),`ignore)) ras_tag_cmp = truncateLSB(request.pc);
+
+      // extract the target - address, tags, counter - value and prediction state from bank0
       let ras_tag_valid0 = mem_ras_tag0.read_response;
       Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)),`ignore)) ras_tag0 = truncate(ras_tag_valid0);
-      Bit#(1) ras_valid0 = truncateLSB(ras_tag_valid);
+      Bit#(1) ras_valid0 = truncateLSB(ras_tag_valid0);
+
+      // extract the target - address, tags, counter - value and prediction state from bank1
       let ras_tag_valid1 = mem_ras_tag1.read_response;
       Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)),`ignore)) ras_tag1 = truncate(ras_tag_valid1);
       Bit#(1) ras_valid1 = truncateLSB(ras_tag_valid1);
@@ -173,13 +177,15 @@ package bimodal;
     `endif
 
       Bit#(`vaddr) target_address = bimodal_target_addr0;
+
+      // ------------------------------ bimodal look-up start ----------------------------------- //
       // When compressed is disabled we need to check which bank should the prediction be taken
       // from. This is done by checking the LSB bit of the full - index (a.k.a the va[ignore]). This
       // is required because 2 PCs which have the same bank_index (but point to different banks) 
       // and have the same tags as well (i.e. they vary only in the ignore bit of the va. Eg 0x0 and
       // 0x4) can both be valid entries in the respective banks. This will lead to bank1 overwriting
       // the prediction output of bank0 which is wrong.
-      if (tag_compare == bht_tag0 && state0[2] == 1 &&
+      if (btb_tag_cmp == bht_tag0 && state0[2] == 1 &&
                `ifdef  compressed !request.discard `else request.pc[`ignore] == 0 `endif ) begin
 
       `ifdef compressed
@@ -188,11 +194,11 @@ package bimodal;
       `else
         prediction = state0[1 : 0];
       `endif
-        `logLevel( bimodal, 1, $format("Bimodal : tag_compare:%h, tag0:%h,",tag_compare, bht_tag0))
+        `logLevel( bimodal, 1, $format("Bimodal : btb_tag_cmp:%h, tag0:%h,",btb_tag_cmp, bht_tag0))
         `logLevel( bimodal, 1, $format("Bimodal : BTB0 hit"))
         hit[0] = 1;
       end
-      if (tag_compare == bht_tag1 && state1[2] == 1
+      if (btb_tag_cmp == bht_tag1 && state1[2] == 1
                `ifndef compressed && request.pc[`ignore] == 1 `endif ) begin
       `ifdef compressed
         prediction1 = state1[1 : 0];
@@ -208,20 +214,25 @@ package bimodal;
       `endif
         `logLevel( bimodal, 1, $format("Bimodal : BTB0 hit"))
       end
+      // ----------------------------------- bimod look up end --------------------------------- //
+
+      // ------------------------------------ RAS look-up start -------------------------------- //
     `ifdef ras
-      if( tag2_compare == ras_tag0 && ras_valid0 == 1 && !ras_stack.empty && !request.discard)begin
+      if( ras_tag_cmp == ras_tag0 && ras_valid0 == 1 && !ras_stack.empty && 
+                    `ifdef compressed !request.discard `else request.pc[`ignore] == 0 `endif )begin
       `ifdef compressed
         prediction0 = 3;
         prediction = 3;
       `else
         prediction = 3;
       `endif
-        target_address = ras_target_address0;
+        target_address = ras_stack.top;
         ras_stack.pop;
-        `logLevel( bimodal, 1, $format("Bimodal : RAS0 hit"))
+        `logLevel( bimodal, 1, $format("Bimodal : RAS0 hit. Target:%h", target_address))
         hit[2] = 1;
       end
-      else if( tag2_compare == ras_tag1 && ras_valid1 == 1 && !ras_stack.empty)begin
+      else if( ras_tag_cmp == ras_tag1 && ras_valid1 == 1 && !ras_stack.empty
+                `ifndef compressed && request.pc[`ignore]==1 `endif )begin
       `ifdef compressed
         prediction1 = 3;
         if(hit2[2] == 0) begin
@@ -231,10 +242,10 @@ package bimodal;
         hit[2] = 1;
       `else
         prediction = 3;
-        target_address = ras_target_address0;
+        target_address = ras_stack.top;
         hit[2] = 1;
       `endif
-        `logLevel( bimodal, 1, $format("Bimodal : RAS1 hit"))
+        `logLevel( bimodal, 1, $format("Bimodal : RAS1 hit Target:%h", target_address))
         ras_stack.pop;
       end
     `endif
@@ -266,19 +277,20 @@ package bimodal;
     // LSB of the full_index. 
 		method Action prediction_req(PredictionRequest req)if(!rg_init);
       // first find the full index.
-      Bit#(TLog#(`btbsize)) full_index = truncate(req.pc>>`ignore);
+      Bit#(TLog#(`btbsize)) btb_full_index = truncate(req.pc>>`ignore);
+      Bit#(TLog#(`rassets)) ras_full_index = truncate(req.pc>>`ignore);
 
       // find the bank_index.
-      Bit#(TLog#(TDiv#(`btbsize, 2))) bank_index = truncateLSB(full_index); 
+      Bit#(TLog#(TDiv#(`btbsize, 2))) btb_bank_index = truncateLSB(btb_full_index); 
+      Bit#(TLog#(TDiv#(`rassets, 2))) ras_bank_index = truncateLSB(ras_full_index); 
 
-      mem_btb0.read(bank_index);
-      mem_btb1.read(bank_index);
-      mem_btb_tag0.read(bank_index);
-      mem_btb_tag1.read(bank_index);
+      mem_btb0.read(btb_bank_index);
+      mem_btb1.read(btb_bank_index);
+      mem_btb_tag0.read(btb_bank_index);
+      mem_btb_tag1.read(btb_bank_index);
     `ifdef ras
-      Bit#(TLog#(TDiv#(`rassets, 2))) index1 = truncate(pc>>`ignore);
-      mem_ras_tag0.read(index1);
-      mem_ras_tag1.read(index1);
+      mem_ras_tag0.read(ras_bank_index);
+      mem_ras_tag1.read(ras_bank_index);
     `endif
       if(req.fence) begin
         rg_init <= True;
@@ -286,8 +298,9 @@ package bimodal;
       end
       else begin
         ff_pred_request.enq(req);
-        `logLevel( bimodal, 0, $format("Bimodal : Prediction request for PC:%h bank_index:%d",
-                                        req.pc, bank_index))
+        `logLevel( bimodal, 0, $format("Bimodal : Prediction request for PC:%h btb_bank_index:%d",
+                                        req.pc, btb_bank_index 
+                           `ifdef ras  ," ras_bank_index:%d", ras_bank_index `endif ))
       end
 		endmethod
 
@@ -347,16 +360,27 @@ package bimodal;
     // Implicit Conditions : None 
     // Description : This method will update the RAS tag and state entries to indicate a pop
     method Action train_ras(Bit#(`vaddr) pc)if(!rg_init);
-      Bit#(TLog#(TDiv#(`rassets, 2))) index = truncate(pc>>2);
-      Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)), TSub#(`ignore, 1))) tag = truncateLSB(pc);
-      if(pc[`ignore - 1] == 0)begin
-        mem_ras_tag0.write(1, index, {1'b1, tag});
+      // first find the full index.
+      Bit#(TLog#(`rassets)) full_index = truncate(pc>>`ignore);
+
+      // find the bank_index.
+      Bit#(TLog#(TDiv#(`rassets, 2))) bank_index = truncateLSB(full_index); 
+      
+      // find the tag to be stored.=vaddr - Log(rassets) - ignorebits
+      Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)), `ignore)) tag = truncateLSB(pc);
+
+      if(pc[`ignore] == 0)begin
+        mem_ras_tag0.write(1, bank_index, {1'b1, tag});
         `logLevel( bimodal, 0, $format("Bimodal : Training RAS0 for ",fshow(pc)))
+        `logLevel( bimodal, 0, $format("Bimodal : Training RAS0 : bank_index:%d tag:%h", 
+                                        bank_index, tag))
       end
     `ifndef branch_speculation
       else begin
-        mem_ras_tag1.write(1, index, {1'b1, tag});
-        `logLevel( bimodal, 0, $format("Bimodal : Training RAS0 for ",fshow(pc)))
+        mem_ras_tag1.write(1, bank_index, {1'b1, tag});
+        `logLevel( bimodal, 0, $format("Bimodal : Training RAS1 for ",fshow(pc)))
+        `logLevel( bimodal, 0, $format("Bimodal : Training RAS1 : bank_index:%d tag:%h", 
+                                        bank_index, tag))
       end
     `endif
     endmethod
