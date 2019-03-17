@@ -41,276 +41,159 @@ package stage4;
   import BUtils::*;
   `ifndef dcache
     `define BUFFSIZE 2
+    import storebuffer::*;
   `endif
-`ifdef dcache
-  import cache_types::*;
-`else
-  import storebuffer::*;
-`endif
 
   import common_types::*;
+  import globals::*;
   `include "common_params.bsv"
+  `include "Logger.bsv"
 
   interface Ifc_stage4;
-    interface RXe#(PIPE3) rx_min;
+    //--- interfaces to recevie the executed result of the instruction
+    interface RXe#(Stage4Common) rx_common_from_stage3;
+    interface RXe#(Stage4Type)   rx_type_from_stage3;
+
+    // interface to send the instruction for retirement in the next stage
     interface TXe#(PIPE4) tx_min;
-    `ifdef rtldump
-      interface RXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) rx_inst;
-      interface TXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) tx_inst;
-    `endif
-  `ifdef dcache
-    interface Put#(DMem_response#(ELEN,1)) memory_response;
-  `else
-    interface Put#(MemoryReadResp#(1)) memory_read_response;
-    interface Put#(MemoryWriteResp) memory_write_response;
-		interface Get#(MemoryWriteReq#(`vaddr,1,ELEN)) memory_write_request;
-  `endif 
 
-    method Action update_wEpoch;
-  `ifndef dcache
-    method Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) store_response;
-    method Action start_store(Tuple2#(Bool,Bool) s);
-    method Bool storebuffer_empty;
+  `ifdef rtldump
+    interface RXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) rx_inst;
+    interface TXe#(Tuple2#(Bit#(`vaddr),Bit#(32))) tx_inst;
   `endif
-  endinterface
 
-  function Bit#(ELEN) fn_atomic_op (Bit#(5) op,  Bit#(ELEN) rs2,  Bit#(ELEN) loaded);
-    Bit#(ELEN) op1 = loaded;
-    Bit#(ELEN) op2 = rs2;
-    if(op[4]==0)begin
-			op1=signExtend(loaded[31:0]);
-      op2= signExtend(rs2[31:0]);
-    end
-    Int#(ELEN) s_op1 = unpack(op1);
-		Int#(ELEN) s_op2 = unpack(op2);
-    
-    case (op[3:0])
-				'b0011:return op2;
-				'b0000:return (op1+op2);
-				'b0010:return (op1^op2);
-				'b0110:return (op1&op2);
-				'b0100:return (op1|op2);
-				'b1100:return min(op1,op2);
-				'b1110:return max(op1,op2);
-				'b1000:return pack(min(s_op1,s_op2));
-				'b1010:return pack(max(s_op1,s_op2));
-				default:return op1;
-			endcase
-  endfunction
+    // interface to receive the response from dmem memory sub system
+    interface Put#(DMem_core_response#(ELEN,1)) memory_response;
+
+    // method to update epochs on redirection from write - back stage
+    method Action update_wEpoch;
+  endinterface
 
   (*synthesize*)
   module mkstage4(Ifc_stage4);
-    let verbosity = `VERBOSITY ;
-    RX#(PIPE3) rxmin <- mkRX;
+    String stage4 = "";  // for logging purposes.
+
+    // rx fifos to receive the execute result from the previous stage.
+    RX#(Stage4Common) rx_common <- mkRX;
+    RX#(Stage4Type)   rx_type   <- mkRX;
+
+    // tx fifo to send the instruction to the next stage.
     TX#(PIPE4) txmin <- mkTX;
+
   `ifdef rtldump
     RX#(Tuple2#(Bit#(`vaddr),Bit#(32))) rxinst <-mkRX;
     TX#(Tuple2#(Bit#(`vaddr),Bit#(32))) txinst <-mkTX;
   `endif
-  `ifndef dcache
-    Ifc_storebuffer storebuffer <- mkstorebuffer();
-  `endif
-  `ifdef dcache
-    FIFOF#(DMem_response#(ELEN,1)) ff_memory_response <- mkUGBypassFIFOF();
-  `else
-    Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr)))) wr_store_response <-mkDWire(tagged Invalid);
-    Wire#(Bool) wr_store_start<-mkDWire(False);
-    Wire#(Bool) wr_clear_sb<-mkDWire(False);
-    Wire#(Bool) wr_deq_storebuffer1<-mkDWire(False);
-    FIFOF#(MemoryReadResp#(1)) ff_memory_response <- mkUGBypassFIFOF();
-  `endif
-    // wire that carriues the information for operand forwarding
-    Reg#(Bit#(1)) rg_epoch <- mkReg(0);
 
+    // fifo to capture the response from the dmem subsystem
+    FIFOF#(DMem_core_response#(ELEN,1)) ff_memory_response <- mkUGBypassFIFOF();
 
-    rule check_operation;
- 
-      let offset = valueOf(XLEN)==64?2:1;
-      let {committype, field1, field2, field3, field4}=rxmin.u.first;
-    `ifdef rtldump
-      let {simpc,inst}=rxinst.u.first;
-    `endif
+    // Holds the current epoch of the pipe
+    Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
 
-      Bit#(`vaddr) badaddr = field1;
-      Bit#(5) fflags=truncate(field1);
-      Bit#(3) func3= field1[2:0];
-      Bit#(12) csraddr = field1[14:3];
-      Bit#(2) lpc = field1[16:15];
+    // RuleName: check_instruction
+    // Implicit Conditions: all rx fifos are not empty and tx fifos are not full.
+    // Explicit Conditions: None
+    // Description: 
+    // General Working: For bypass instruction types simply convert the types and proceed. In case
+    // of memory operations wait for cache to response. SFence is made a regular instruction in the
+    // previous stage itself and will be bypassed here. This is because the the TLB is onl flushed
+    // on the SFence and the cache is not receive any request and thus no response is provided to
+    // the core for SFence.
+    // 
+    // Note on Epochs: we do not check for epochs here since there could be a memory 
+    // operation that was initiated in the previous stage (eg. Load). Now the Load 
+    // instruction if waiting in this stage to receive a response from the Cache. 
+    // Assume now the write-back stage causes a trap and thus in the next cycle the Load 
+    // instruction is removed from the memory stage since the
+    // epochs do not match. However, the cache has not yet responded. If post trap taking, a
+    // load instruction is observed then the return value of the previous load will be used
+    // leading to wrong behavior. Thus for bypass instructions we depend on the write-back stage to
+    // drop the instructions
+    rule check_instruction;
+      let s4common = rx_common.u.first;
+      let s4type = rx_type.u.first;
+      CommitType pipe4data=?;
+      `logLevel( stage4, 0, $format("STAGE4: ",fshow(s4common)))
+      `logLevel( stage4, 0, $format("STAGE4: ",fshow(s4type)))
+      Bool operation_done = True;
+      if(s4type matches tagged Trap .t) 
+        pipe4data = tagged TRAP CommitTrap{cause    : t.cause,
+                                           pc       : s4common.pc,
+                                           badaddr  : t.badaddr} ;
+      else if(s4type matches tagged Regular .r)
+        pipe4data = tagged REG CommitRegular{ commitvalue : r.rdvalue,
+                                                  rd          : s4common.rd
+                                                `ifdef spfpu
+                                                  ,fflags     : r.fflags
+                                                  ,rdtype     : s4common.rdtype
+                                                `endif };
+      else if(s4type matches tagged System .s)
+        pipe4data = tagged SYSTEM CommitSystem { rs1      : s.rs1_imm, 
+                                                 lpc      : s.lpc,
+                                                 csraddr  : s.csr_address,
+                                                 func3    : s.funct3,
+                                                 rd       : s4common.rd} ;
+      else if(s4type matches tagged Memory .s) begin
+        if( ff_memory_response.notEmpty ) begin
+          let response = ff_memory_response.first;
+          ff_memory_response.deq;
 
-      Bit#(ELEN) storedata=field2;
-      Bit#(ELEN) commitvalue = field2;
-      Bit#(XLEN) rs1 = truncate(field2);
-      
-      Bit#(`vaddr) pc = field3;
-      
-      Bit#(1) epoch = field4[0];
-      Bit#(6) trapcause = field4[6:1];
-      Bit#(5) rd = field4[5:1];
-      RFType rdtype = unpack(field4[6]);
-      Access_type memaccess = unpack(field4[9:7]);
-      Bit#(2) size=field4[11:10];
-      Bit#(1) sign=field4[12];
-      Bit#(1) nanboxing=field4[13];
-      Bit#(5) atomic_op = {size[0],field4[17:14]};
-      CommitType temp1=?;
-      Bool complete=True;
-  
-      // check store_buffer entries
-    `ifndef dcache
-      let {storemask,storehit} <- storebuffer.check_address(badaddr); 
-    `endif
-      Bit#(TLog#(ELEN)) loadoffset = {badaddr[offset:0],3'b0}; // parameterize for XLEN
-      if(committype==TRAP)begin
-        temp1=tagged TRAP (CommitTrap{cause:trapcause, badaddr:badaddr, pc:pc});
-      end
-      else if(committype==REGULAR)begin
-        temp1=tagged REG CommitRegular{commitvalue:commitvalue,
-                                          fflags:fflags,
-                                          rdtype:rdtype,
-                                          rd:rd};
-      end
-      else if(committype==SYSTEM_INSTR)begin
-        temp1=tagged SYSTEM CommitSystem {rs1:rs1,
-                                          lpc:lpc,
-                                          csraddr:csraddr,
-                                          func3:func3,
-                                          rdtype:rdtype,
-                                          rd:rd};
-      end
-    `ifdef supervisor 
-      else if(committype==MEMORY && memaccess==SFence)begin
-        temp1=tagged REG CommitRegular{commitvalue:0,
-                                          fflags:0,
-                                          rdtype:IRF,
-                                          rd:0};
-      end
-    `endif
-      else if(committype==MEMORY) begin
-      `ifndef dcache
-        if(memaccess==Load `ifdef atomic || memaccess == Atomic `endif )begin
-      `endif
-        `ifdef rtldump
-          if(verbosity>0)
-            $display($time, "\tSTAGE4: PC: %h Load/Atomic Operation.", simpc);
-        `endif
-          if(ff_memory_response.notEmpty)begin
-            let {data, trap, cause, epochs}=ff_memory_response.first;
-            ff_memory_response.deq;
-            if(epochs==rg_epoch)begin
-            `ifndef dcache
-              Bit#(ELEN) update_data = data<<loadoffset;
-              update_data= (update_data&~storemask)|(storehit);
-              update_data= update_data>>{loadoffset};
-              if(size==0)
-                update_data=sign==0?signExtend(update_data[7:0]):zeroExtend(update_data[7:0]);
-              else if(size==1)
-                update_data=sign==0?signExtend(update_data[15:0]):zeroExtend(update_data[15:0]);
-              else if(size==2)
-                  update_data=sign==0?signExtend(update_data[31:0]):zeroExtend(update_data[31:0]);
-            `else
-              Bit#(ELEN) update_data=data;
-            `endif
-            `ifdef dpfpu
-              if(nanboxing==1)
-                  update_data[63:32]='1;
-            `endif
-              if(!trap)begin // no bus error
-              `ifdef atomic
-                if(memaccess==Atomic)begin
-                  temp1=tagged STORE CommitStore{pc:pc,
-                                                 rd: rd,  
-                                                 commitvalue:update_data};
-                `ifndef dcache
-                  storebuffer.allocate(badaddr, fn_atomic_op(atomic_op, storedata,  update_data), size);
-                `endif
-                end
-                else
-              `endif
-                if(memaccess==Store)begin
-                  temp1=tagged STORE CommitStore{pc:pc
-                                       `ifdef atomic
-                                         , rd: rd,  
-                                         commitvalue:0 
-                                       `endif };
-                end
-                else  
-                  temp1=tagged REG CommitRegular{commitvalue:update_data,
-                                                   fflags:0,
-                                                   rdtype:rdtype,
-                                                   rd:rd};
-              end
-              else begin
-                temp1=tagged TRAP CommitTrap{cause:cause, badaddr:badaddr, pc:pc};
-              end
-            end
+          `logLevel( stage4, 0, $format("STAGE4: Received: ",fshow(response)))
+
+          // Here we need to check if the response from the cache matches the epoch of the 
+          // instruction in this stage. If not, then we wait for another response from the cache
+          if(s4common.epochs == response.epochs) begin 
+            if(response.trap)
+              pipe4data = tagged TRAP CommitTrap{cause    : response.cause,
+                                                 pc       : s4common.pc,
+                                                 badaddr  : response.word };
             else begin
-              if(rg_epoch==epoch)
-                complete=False;
-            `ifdef dcache
-              if(trap)
-                temp1=tagged TRAP CommitTrap{cause:cause, badaddr:badaddr, pc:pc};
-              else if(memaccess==Store `ifdef atomic || memaccess==Atomic `endif )
-                temp1=tagged STORE CommitStore{pc:pc
-                                              `ifdef atomic 
-                                                , rd:0,  
-                                                commitvalue:0
-                                              `endif
-                                              };
+            `ifdef dpfpu
+              if( s.nanboxing == 1 )
+                response.word[63 : 32] = '1;
             `endif
-            if(verbosity>0)
-              $display($time,"\tSTAGE4: Dropping Memory Read Response");
+              if(s.memaccess == Store `ifdef atomic || s.memaccess == Atomic `endif )
+                pipe4data = tagged STORE CommitStore{ pc          : s4common.pc,
+                                                      commitvalue : `ifdef atomic 
+                                                                    s.memaccess == Atomic?
+                                                                    response.word : `endif 0
+                                                    `ifdef atomic
+                                                      ,rd         : s4common.rd
+                                                    `endif };
+              else
+                pipe4data = tagged REG CommitRegular{ commitvalue : response.word,
+                                                      rd          : s4common.rd
+                                                    `ifdef spfpu
+                                                      ,fflags     : 0 // since rd could be FRF
+                                                      ,rdtype     : s4common.rdtype
+                                                    `endif };
             end
           end
           else begin
-            complete=False;
-            if(verbosity>0)
-              $display($time,"\tSTAGE4: Waiting for Memory Read Response");
+            `logLevel( stage4, 0, $format("STAGE4: Instruction and Response Epochs do not match"))
+            operation_done = False;
           end
-      `ifndef dcache
         end
-        else if(memaccess==Store)begin
-          if(verbosity>0)
-            $display($time, "\tSTAGE4: PC: %h Store Operation.", simpc);
-          temp1=tagged STORE CommitStore{pc:pc
-                                       `ifdef atomic
-                                         , rd: rd,  
-                                         commitvalue:0 
-                                       `endif };
-          storebuffer.allocate(badaddr, storedata, size);
+        else begin
+          operation_done = False;
+          `logLevel( stage4, 0, $format("STAGE4: Waiting for Memory Response"))
         end
-        else if(memaccess==Fence || memaccess==FenceI)begin
-          if(verbosity>0)
-            $display($time, "\tSTAGE4: PC: %h Fence Operation.", simpc);
-          temp1=tagged REG CommitRegular{commitvalue:?,
-                                                 fflags:0,
-                                                 rdtype:rdtype,
-                                                 rd:rd};
-        end
-      `endif
       end
+      if( operation_done ) begin
+        `logLevel( stage4, 0, $format("STAGE4: Enquing: ", fshow(pipe4data)))
+        txmin.u.enq(tuple2(pipe4data,s4common.epochs));
+        rx_common.u.deq;
+        rx_type.u.deq;
       `ifdef rtldump
-        if(verbosity>1)
-          $display($time,"\tSTAGE4: PC: %h Inst: %h",simpc,inst);
+        txinst.u.enq(rxinst.u.first);
+        rxinst.u.deq;
       `endif
-      if(complete)begin
-        txmin.u.enq(tuple2(temp1,epoch));
-        rxmin.u.deq;
-        `ifdef rtldump
-          txinst.u.enq(rxinst.u.first);
-          rxinst.u.deq;
-        `endif
       end
     endrule
 
-  `ifndef dcache
-    rule deque_store_buffer(wr_clear_sb || wr_deq_storebuffer1);
-      storebuffer.deque;
-      if(wr_clear_sb)
-        storebuffer.clear_queue;
-    endrule
-  `endif
-
-    interface rx_min = rxmin.e;
+    interface rx_common_from_stage3 = rx_common.e;
+    interface rx_type_from_stage3 = rx_type.e;
     interface tx_min = txmin.e;
   `ifdef rtldump
     interface rx_inst = rxinst.e;
@@ -318,46 +201,13 @@ package stage4;
   `endif
   `ifdef dcache
     interface  memory_response= interface Put
-      method Action put (DMem_response#(ELEN,1) response)if(ff_memory_response.notFull);
-        if(verbosity>1)
-          $display($time, "\tSTAGE4: Read Response: ", fshow(response));
+      method Action put (DMem_core_response#(ELEN,1) response)if(ff_memory_response.notFull);
         ff_memory_response.enq(response);
       endmethod
     endinterface;
-  `else
-    interface  memory_read_response= interface Put
-      method Action put (MemoryReadResp#(1) response)if(ff_memory_response.notFull);
-        if(verbosity>1)
-          $display($time, "\tSTAGE4: Read Response: ", fshow(response));
-        ff_memory_response.enq(response);
-      endmethod
-    endinterface;
-  `endif
     method Action update_wEpoch;
-      rg_epoch<=~rg_epoch;
+      rg_wEpoch<=~rg_wEpoch;
     endmethod
-  `ifndef dcache
-    method Action start_store(Tuple2#(Bool,Bool) s);
-      wr_store_start<=tpl_1(s);
-      wr_clear_sb<=tpl_2(s);
-    endmethod
-		interface memory_write_request = interface Get
-      method ActionValue#(MemoryWriteReq#(`vaddr,1,ELEN)) get if(wr_store_start);
-        let x <- storebuffer.perform_store;
-        return x;
-      endmethod
-    endinterface;
-    interface memory_write_response = interface Put
-      method Action put(MemoryWriteResp r);
-        if(verbosity>1)
-          $display($time,"\tSTAGE4: Recieved Write response: %b",r);
-        wr_deq_storebuffer1<=True;
-        wr_store_response<=tagged Valid (tuple2(r,storebuffer.write_address));
-      endmethod
-    endinterface;
-    method store_response = wr_store_response;
-    method storebuffer_empty = storebuffer.storebuffer_empty;
-  `endif
   endmodule
 endpackage
 

@@ -69,27 +69,23 @@ package stage3;
     `define multicycle True
   `endif
   
-  // -- package imports - -//
+  // -- package imports --//
   import GetPut::*;
   import FIFOF::*;
   import SpecialFIFOs::*;
   import DReg::*;
 	import TxRx:: *;
 
-  // -- project imports - -//
+  // -- project imports --//
   import alu::*;                // implements the ALU function
   import fwding1 ::*;           // provides the operand bypassing logic
   import common_types::*;       // for pipe - line types
   `include "common_params.bsv"  // for core parameters
   `include "Logger.bsv"         // for logging display statements.
+  import globals :: *;          // for dmem request types
 
 
   interface Ifc_stage3;
-
-  `ifdef rtldump
-    // this interface is like a parallel for dumping the trace.
-    interface RXe#(Bit#(32)) rx_inst;
-  `endif
 
     // the follwing set of interfaces receive the decoded info from stage2;
     interface RXe#(Stage3Meta)    rx_meta_from_stage2;
@@ -97,11 +93,13 @@ package stage3;
     interface RXe#(Stage3OpMeta)  rx_opmeta_from_stage2;
 
     // interface to send the alu result to the next stage.
-		interface TXe#(PIPE3) tx_out;
+		interface TXe#(Stage4Common) tx_common_to_stage4;
+		interface TXe#(Stage4Type)   tx_type_to_stage4;
 
   `ifdef rtldump
     // interface to receive the instruction sequence for the rtl dump feature
     interface TXe#(Tuple2#(Bit#(`vaddr), Bit#(32))) tx_inst;  
+    interface RXe#(Bit#(32)) rx_inst;
   `endif
 
     // method to update epochs on redirection from write - back stage
@@ -111,12 +109,10 @@ package stage3;
     method Tuple2#(Bool, Bit#(`vaddr)) flush_from_exe;
 
     // interface to send memory requests to the dmem subsystem
+    interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
   `ifdef dcache
-		interface Get#(Tuple2#(DMem_request#(`vaddr , `vaddr, 1), Bool)) memory_request;
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
-  `else 
-		interface Get#(MemoryReadReq#(`vaddr, 1)) memory_read_request;
   `endif
 
     // method to receive the current status of the misa_c bit
@@ -162,7 +158,7 @@ package stage3;
 
     String stage3=""; // defined for logger
 
-    // --------------------- Start instantiations - -----------------------//
+    // --------------------- Start instantiations ------------------------//
 
     // rx fifos to receive the decoded information and the operands from the RF.
     RX#(Stage3Meta)   rx_meta   <- mkRX;
@@ -182,16 +178,15 @@ package stage3;
       Wire#(Bit#(`vaddr)) wr_push_ras <- mkWire();
     `endif
   `endif
-
-  // TODO
-	TX#(PIPE3) tx <- mkTX;							// send to the memory stage;
+  
+    TX#(Stage4Common)   tx_common <- mkTX;
+    TX#(Stage4Type)     tx_type   <- mkTX;
   `ifdef rtldump
     TX#(Tuple2#(Bit#(`vaddr), Bit#(32))) txinst <- mkTX;
   `endif
 
-  `ifdef multicycle
-    // TODO can we have a single module for both function and module type ALU?
     Ifc_alu alu <- mkalu();
+  `ifdef multicycle
     Reg#(Bool) rg_stall <- mkReg(False);
   `endif
 
@@ -210,11 +205,10 @@ package stage3;
     Reg#(Bit#(`vaddr)) wr_redirect_pc <- mkDWire(0);
 
   `ifdef dcache
-    // TODO have a unified interface for cache enable and disable
-    Wire#(Tuple2#(DMem_request#(`vaddr, `vaddr, 1), Bool)) wr_memory_request <- mkWire;
+    Wire#(DMem_request#(`vaddr, ELEN, 1)) wr_memory_request <- mkWire;
     Wire#(Bool) wr_cache_avail <- mkWire;
   `else 
-		FIFOF#(MemoryReadReq#(`vaddr, 1)) ff_memory_read_request <- mkBypassFIFOF;
+		FIFOF#(DMem_request#(`vaddr, ELEN, 1)) ff_memory_request <- mkBypassFIFOF;
   `endif
 
     // wire holding the compressed bit of the misa csr
@@ -233,11 +227,11 @@ package stage3;
     // This variable holds the current epoch values of the pipe
     let curr_epochs = {rg_eEpoch, rg_wEpoch};
 
-    // ---------------------- End Instatiations - -------------------------//
+    // ---------------------- End Instatiations --------------------------//
 
-    // ---------------------- Start local function definitions - ---------------//
+    // ---------------------- Start local function definitions ----------------//
 
-    // this function will deque the response from i - mem fifo and the branch prediction fifo
+    // this function will deque the response received from the previous stage
     function Action deq_rx = action
       rx_meta.u.deq;
       rx_opmeta.u.deq;
@@ -245,16 +239,55 @@ package stage3;
     `ifdef rtldump  
       rxinst.u.deq; 
     `endif          
-    `ifdef spfpu    
-      rxfpu.u.deq;  
-    `endif      
     endaction;
-    // ---------------------- End local function definitions - -----------------//
 
-    Bool rule_condition = True `ifdef dcache && wr_cache_avail `endif `ifdef multicycle && !rg_stall  `endif ;
+    // function to send the memory request to the data memory subsystem
+    function Action send_memory_request(Bit#(`vaddr) address, Bit#(1) epochs, Bit#(3) funct3, 
+                                        Access_type memaccess, Bit#(4) fn, Bit#(ELEN) data) = action
+        let req = DMem_request{address      : address,
+                               epochs       : epochs,
+                               size         : funct3
+                          `ifdef dcache
+                               ,fence       : memaccess == FenceI || memaccess == Fence
+                               ,access      : truncate(pack(memaccess))
+                               ,writedata   : data
+                            `ifdef atomic
+                               ,atomic_op   : {funct3[0], fn}
+                            `endif
+                            `ifdef supervisor
+                               ,sfence      : memaccess == SFence
+                               ,ptwalk_req  : False
+                               ,ptwalk_trap : False
+                            `endif
+                          `endif } ;
+      `ifdef dcache
+        wr_memory_request <= req;
+      `else
+        ff_memory_request.enq(req);
+      `endif
+    endaction;
+    // ---------------------- End local function definitions ------------------//
+    Bool rule_condition = True `ifdef dcache && wr_cache_avail `endif 
+                               `ifdef multicycle && !rg_stall  `endif ;
 
+    // RuleName : execute_operation
+    // Implicit Conditions : all rx fifo should not be empty. All tx fifos should not be full. next
+    //                     pc from the previous stage should be made available.
+    // Explicit Conditions : dcache should be available and all previous multicycle operations should
+    //                      be over (variable rule_condition captures this condition)
+    // Description : This rule performs the alu operation of the core - pipe. This rule calls the
+    // fwding logic to check if any of the following stages in the pipe hold an updated value of
+    // the operands fetched from the RF in the previous stage. Only when the latest value of all
+    // operands is available can the instruction execute. All arigthmetic, branch - compare,
+    // logical operations are performed by the "alu" module. This module will also generate the
+    // effective address required for load / stores. This module will also generate the redirection
+    // Pc in case of branches / JUMPs. Misaligned traps are also detected in the alu module itself.
+    // In case of multicycle operations like MULDIV / FPU the inputs are latched in the first cycle
+    // and the execute stage is stalled untill the operation is over.
+    // An instruction tagged as a TRAP in the previous stage will simply bypass the execute
+    // stage.
     rule execute_operation ( rule_condition );
-      // capturing the inputs from the previous stage.
+    //---------------------- capturing the inputs from the previous stage. -------------------- //
       let rf_ops  = rx_op.u.first;
       let opmeta  = rx_opmeta.u.first;
       let meta    = rx_meta.u.first;
@@ -263,30 +296,43 @@ package stage3;
     `ifdef branch_speculation
       Bit#(2) prediction = meta.prediction;
     `endif
-
     `ifdef rtldump
       let instruction = rxinst.u.first;
-    `endif
-//    `ifdef spfpu
-//      let {rs3addr, rs1type, rs2type, rs3type, rdtype} = rxfpu.u.first;
-//    `else
-//      RFType rdtype = IRF;
-//    `endif
-  
+    `endif 
       Bit#(`vaddr) pc = meta.pc;
+
+      `logLevel( stage3, 0, $format("STAGE3: PC:%h", meta.pc))
+      `logLevel( stage3, 0, $format("STAGE3: ", fshow(meta)))
+      let s4common = Stage4Common{pc    : meta.pc, 
+                                  rd    : opmeta.op_addr.rd,
+                                  epochs : meta.epochs[0]
+                                `ifdef spfpu
+                                  ,rdtype : opmeta.op_type.rdtype
+                                `endif } ;
+      // ---------------------------------------------------------------------------------------- //
+
       Bool execute_instruction = (curr_epochs == meta.epochs);
 
-      // ------------------ check if operands are available for execution - ----------------------//
-      let {rs1avail, rs1} <- fwding.read_rs1(rf_ops.op1, opmeta.op_addr.rs1addr 
-                                            `ifdef spfpu, opmeta.op_type.rs1type `endif );
+      // ------------------ check if operands are available for execution -----------------------//
+    `ifdef spfpu
+      RFType rf1type = `ifdef spfpu opmeta.op_type.rs1type == FloatingRF ? FRF : `endif IRF;
+      RFType rf2type = `ifdef spfpu opmeta.op_type.rs2type == FloatingRF ? FRF : `endif IRF;
+    `endif
+      let {rs1avail, rs1}     <- fwding.read_rs1(rf_ops.op1, opmeta.op_addr.rs1addr 
+                                            `ifdef spfpu, rf1type `endif );
 
-      let {rs2avail, rs2} <- fwding.read_rs2(rf_ops.op2, opmeta.op_addr.rs2addr 
-                                             `ifdef spfpu, opmeta.op_type.rs2type `endif );
+      let {rs2avail, rs2}     <- fwding.read_rs2(rf_ops.op2, opmeta.op_addr.rs2addr 
+                                            `ifdef spfpu, rf2type `endif );
     `ifdef spfpu
       let {rs3avail, rs3_imm} <- fwding.read_rs3(zeroExtend(rf_ops.op3), opmeta.op_addr.rs3addr, 
-                                                 opmeta.op_type.rs3type);
+                                             opmeta.op_type.rs3type);
     `else
       let rs3_imm = rf_ops.op3;
+    `endif
+      `logLevel( stage3, 1, $format("STAGE3: rs1avail:%b rs1:%h", rs1avail, rs1))
+      `logLevel( stage3, 1, $format("STAGE3: rs2avail:%b rs1:%h", rs2avail, rs2))
+    `ifdef spfpu
+      `logLevel( stage3, 1, $format("STAGE3: rs3avail:%b rs1:%h", rs3avail, rs3_imm))
     `endif
       // ---------------------------------------------------------------------------------------- //
 
@@ -294,7 +340,7 @@ package stage3;
       Bit#(XLEN)    arg1 = opmeta.op_type.rs1type == PC ? meta.pc : rs1;
       Bit#(XLEN)    arg2 = rs2;
       Bit#(`vaddr)  arg3 = (meta.inst_type == JALR || meta.inst_type == MEMORY) ? rs1 : meta.pc;
-      Bit#(`vaddr)  arg4 = rf_ops.op3;
+      Bit#(`vaddr)  arg4 = rs3_imm;
       // ---------------------------------------------------------------------------------------- //
 
 
@@ -308,6 +354,7 @@ package stage3;
         execute = False; 
 
       if(!execute_instruction)begin
+        `logLevel( stage3, 0, $format("STAGE3: Dropping Instructions"))
         deq_rx;
       end
       // here the trap could be because the misprediction from the previous jump.branch might
@@ -315,12 +362,12 @@ package stage3;
       // redirection has been checked.
       else if(meta.inst_type != TRAP && execute)begin
         if ( rs1avail && rs2avail `ifdef spfpu && rs3avail `endif ) begin
-            let aluout = fn_alu(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
+            let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
                                 meta.memaccess, meta.word32, wr_misa_c, truncate(meta.pc)
                                `ifdef branch_speculation, wr_next_pc, meta.compressed `endif ); 
           if(aluout.done)begin
             if(execute) begin
-            deq_rx;
+              deq_rx;
 
             // sending training updates to predictors
             `ifdef branch_speculation
@@ -345,204 +392,273 @@ package stage3;
               `endif
             `endif
 
-            rg_eEpoch         <= pack(aluout.redirect && aluout.cmtype != TRAP)^rg_eEpoch;
-            wr_redirect_pc    <= aluout.redirect_pc;
-            wr_flush_from_exe <= aluout.redirect && aluout.cmtype != TRAP;
-          `ifdef spfpu
-            Bit#(1) nanboxing = pack(aluout.cmtype == MEMORY 
-                                  && funct3[1 : 0] == 2 
-                                  && opmeta.op_type.rdtype == FRF);
-          `endif
-          `ifdef atomic
-            if(aluout.cmtype == MEMORY)begin // TODO doesn't the atomic fn conflict with alu fn ???
-              if(meta.memaccess == Atomic && fn == 'b0101) begin // LR
-                rg_loadreserved_addr <= tagged Valid aluout.effective_addr;
-                meta.memaccess = Load;
+              rg_eEpoch         <= pack(aluout.redirect && aluout.cmtype != TRAP)^rg_eEpoch;
+              wr_redirect_pc    <= aluout.redirect_pc;
+              wr_flush_from_exe <= aluout.redirect && aluout.cmtype != TRAP;
+            `ifdef dpfpu
+              Bit#(1) nanboxing = pack(aluout.cmtype == MEMORY 
+                                       && funct3[1 : 0] == 2 
+                                       && opmeta.op_type.rdtype == FRF);
+            `endif
+            `ifdef atomic
+              if(aluout.cmtype == MEMORY)begin 
+                if(meta.memaccess == Atomic && fn == 'b0101) begin // LR
+                  rg_loadreserved_addr <= tagged Valid aluout.effective_addr;
+                  meta.memaccess = Load;
+                end
               end
-            end
-            if(aluout.cmtype == MEMORY && meta.memaccess == Atomic && fn == 'b0111) begin // SC
-                rg_loadreserved_addr <= tagged Invalid;
-              if(rg_loadreserved_addr matches tagged Valid .scaddr &&& scaddr ==
-                                                                        aluout.effective_addr)begin
-                meta.memaccess = Store;
+              if(aluout.cmtype == MEMORY && meta.memaccess == Atomic && fn == 'b0111) begin // SC
+                  rg_loadreserved_addr <= tagged Invalid;
+                if(rg_loadreserved_addr matches tagged Valid .scaddr &&& scaddr ==
+                                                                          aluout.effective_addr)begin
+                  meta.memaccess = Store;
+                end
+                else begin
+                  aluout.aluresult = 1;
+                  aluout.cmtype = REGULAR;
+                end
               end
-              else begin
-                aluout.aluresult = 1;
+            `endif
+            `logLevel( stage3, 0, $format("STAGE3: Result: ",fshow(aluout)))
+
+            // --------------- In case of Memory operation send request to Dmem ----------------//
+              if(aluout.cmtype == MEMORY `ifndef dcache && (meta.memaccess == Load 
+                                            `ifdef atomic  || meta.memaccess == Atomic `endif )
+                                          `endif  )
+                send_memory_request(aluout.effective_addr, meta.epochs[0], funct3, 
+                                    meta.memaccess, fn, rs2);
+            // ---------------------------------------------------------------------------------- //
+
+            `ifdef supervisor
+              if( aluout.cmtype == MEMORY && meta.memaccess == SFence ) begin
                 aluout.cmtype = REGULAR;
               end
-            end
-          `endif
-          `ifdef dcache
-            if(aluout.cmtype == MEMORY)begin
-          `ifdef supervisor
-            `ifdef atomic
-              wr_memory_request <= tuple2((tuple8(addr, meta.memaccess == FenceI||meta.memaccess == Fence, meta.memaccess == SFence,
-                    meta.epochs[0], truncate(pack(meta.memaccess)), funct3, rs2,{funct3[0], fn})), False);
-            `else
-              wr_memory_request <= tuple2((tuple7(addr, meta.memaccess == FenceI||meta.memaccess == Fence, meta.memaccess == SFence,
-                                      meta.epochs[0], truncate(pack(meta.memaccess)), funct3, rs2)), False);
             `endif
-          `else
-            `ifdef atomic
-              wr_memory_request <= tuple2((tuple7(addr, meta.memaccess == FenceI || meta.memaccess == Fence,
-                            meta.epochs[0], truncate(pack(meta.memaccess)), funct3, rs2,{funct3[0], fn})), False);
-            `else
-              wr_memory_request <= tuple2((tuple6(addr, meta.memaccess == FenceI || meta.memaccess == Fence,
-                                       meta.epochs[0], truncate(pack(meta.memaccess)), funct3, rs2)), False);
+            // -------------------------- Derive types for Next stage --------------------------- //
+              let s4memory = Stage4Memory{  address     : aluout.effective_addr,
+                                            memaccess   : meta.memaccess
+                                        `ifndef dcache
+                                            ,data        : rs2
+                                            ,atomic_op   : {funct3[0], fn}
+                                            ,size        : funct3
+                                        `endif
+                                        `ifdef dpfpu
+                                            ,nanboxing   : nanboxing
+                                        `endif } ;
+              let s4trap = Stage4Trap { cause   : aluout.cause,
+                                        badaddr : aluout.effective_addr };
+
+              let s4regular = Stage4Regular { rdvalue   : aluout.aluresult
+                                        `ifdef spfpu
+                                              ,fflags    :0 
+                                        `endif };
+              let s4system = Stage4System {funct3     : funct3,
+                                           lpc        : truncate(meta.pc),
+                                           rs1_imm    : funct3[2] == 1?zeroExtend(arg4[16 : 12]):
+                                                                       aluout.aluresult,
+                                           csr_address : truncate(arg4) };
+
+              Stage4Type s4type = case(aluout.cmtype) matches 
+                                    REGULAR       : tagged Regular s4regular;
+                                    SYSTEM_INSTR  : tagged System s4system;
+                                    TRAP          : tagged Trap s4trap;
+                                    MEMORY        : tagged Memory s4memory;
+                                  endcase;
+            // ---------------------------------------------------------------------------------- //
+
+              `logLevel( stage3, 1, $format("STAGE3: Enquing: ",fshow(s4type)))
+              tx_common.u.enq(s4common);
+              tx_type.u.enq(s4type);
+            `ifdef rtldump
+              txinst.u.enq(tuple2(pc, instruction));
             `endif
-          `endif
             end
-          `else
-            if(aluout.cmtype == MEMORY && (meta.memaccess == Load `ifdef atomic || meta.memaccess == Atomic `endif ))begin
-              ff_memory_read_request.enq(tuple3(addr, meta.epochs[0], funct3));
-            end
-          `endif
-//            Bit#(6) smeta1 = {pack(opmeta.op_type.rdtype), opmeta.op_addr.rd};
-            Bit#(6) smeta1 = {1'b0, opmeta.op_addr.rd};
-            Bit#(17) mmeta = {fn, 1'b0, funct3, pack(meta.memaccess), smeta1};
-//            Bit#(17) mmeta = {fn, nanboxing, funct3, pack(meta.memaccess), smeta1};
-            Tbad_Maddr_Rmeta2_Smeta2 tple1 = 
-              case(aluout.cmtype)
-                REGULAR : 0;
-                default : zeroExtend(addr); 
-              endcase;
-
-            Mdata_Rrdvalue_Srs1 tple2 =
-              case(aluout.cmtype)
-                  MEMORY : rs2;
-                  REGULAR : out;
-                  SYSTEM_INSTR : if(funct3[2] == 1) zeroExtend(rs3_imm[16 : 12]); else out;
-                  default : 0;
-              endcase;
-    
-            Tpc_Mpc tple3 = pc;
-            Tcause_Mmeta_Rmeta1_Smeta1_epoch tple4 = 
-              case(aluout.cmtype)
-                TRAP : zeroExtend({cause, meta.epochs[0]});
-                MEMORY : zeroExtend({mmeta, meta.epochs[0]});
-                default : zeroExtend({smeta1, meta.epochs[0]});
-              endcase;
-            PIPE3 pipedata = tuple5(aluout.cmtype, tple1, tple2, tple3, tple4);
-
-	        `ifdef simulate
-	      	  if( meta.inst_type == BRANCH && aluout.cmtype != TRAP)
-	      		  aluout.aluresult = 0;
-  	      `endif
-
-            tx.u.enq(pipedata);
-          `ifdef rtldump
-            txinst.u.enq(tuple2(pc, instruction));
-          `endif
           end
-        end
-          else begin
+          else begin // aluout.done is false
           `ifdef multicycle
             rg_stall <= True;
           `endif
           end
         end
+        else begin // operands not available
+          `logLevel( stage3, 0, $format("STAGE3: Waiting for operands"))
+        end
       end
+      // in case we receive an instruction which was tagged as a TRAP in the previous stage, simply
+      // bypass it in this stage without performing any execution.
       else if(meta.inst_type == TRAP) begin
         deq_rx;
-        Bit#(XLEN) res = signExtend(pc); // badaddress
-        // TODO
-        PIPE3 pipedata = tuple5(TRAP, truncate(rf_ops.op1), ?, pc, zeroExtend({meta.funct, meta.epochs[0]})); 
-        tx.u.enq(pipedata);
+        let s4type = tagged Trap Stage4Trap{ cause : truncate(meta.funct), badaddr : rf_ops.op1};
+        tx_type.u.enq(s4type);
+        tx_common.u.enq(s4common);
+        `logLevel( stage3, 1, $format("STAGE3: Forwarding ",fshow(s4type)))
       `ifdef rtldump
         txinst.u.enq(tuple2(pc, instruction));
       `endif
         // else you need to simply drop the execution since epochs have changed.
       end
     endrule
+
   `ifdef multicycle
+    // RuleName : capture_stalled_output
+    // Implicit Conditions : all rx fifos are not empty. all tx fifos are not full. Alu is ready to
+    //                      provide delayed output
+    // Explicit Conditions : rg_stall == True
+    // Description : This rule is fired when an multicycle instruction is execute whose output takes
+    // atleast 2 cycles to be generated.
     rule capture_stalled_output(rg_stall);
-      let {opmeta, opdata, metadata, prediction} = rxmin.u.first;
-      let {rs1addr, rs2addr, op3, instrtype} = opmeta;
-      let {op1, op2, op4}=opdata;
-      let {rd, func_cause, memaccess, word32, epochs}=metadata;
-    `ifdef rtldump
-      let instruction = rxinst.u.first;
-    `endif
-    `ifdef spfpu
-      let {rs3addr, rdtype} = rxfpu.u.first;
-    `else
-      RFType rdtype = IRF;
-    `endif
-      Bit#(`vaddr) pc = (instrtype == MEMORY || instrtype == JALR) ? truncate(op1) : truncate(op3);
-      let {cmtype, out, addr, cause, redirect} <- alu.delayed_output;
-      Bit#(5) fflags = truncate(addr);
-        $display($time,"\tEXECUTE : Got delayed output from ALU : cmtype:",fshow(cmtype)," out: ", 
-            fshow(out)," trap: ", cause);
+      let opmeta  = rx_opmeta.u.first;
+      let meta    = rx_meta.u.first;
+      let aluout <- alu.delayed_output;
+      `logLevel( stage3, 0, $format("STAGE3: PC:%h", meta.pc))
+      `logLevel( stage3, 0, $format("STAGE3: Stalled Output: ",fshow(aluout)))
         
-      PIPE3 pipedata = tuple5(REGULAR, zeroExtend(fflags), out, pc, 
-                              zeroExtend({pack(rdtype), rd, meta.epochs[0]}) ); 
       Bool execute_instruction = (curr_epochs == meta.epochs);
 
+      let s4common = Stage4Common{pc    : meta.pc, 
+                                  rd    : opmeta.op_addr.rd,
+                                  epochs : meta.epochs[0]
+                                `ifdef spfpu
+                                  ,rdtype : opmeta.op_type.rdtype
+                                `endif } ;
+
+      Stage4Type s4type = tagged Regular (Stage4Regular { rdvalue   : aluout.aluresult
+                                `ifdef spfpu
+                                      ,fflags    : truncate(aluout.effective_addr)
+                                `endif } );
       if(execute_instruction)begin
       `ifdef rtldump
-        txinst.u.enq(tuple2(pc, instruction));
+        txinst.u.enq(tuple2(meta.pc, rxinst.u.first));
       `endif
-        tx.u.enq(pipedata);
+        tx_common.u.enq(s4common);
+        tx_type.u.enq(s4type);
       end
+      else
+        `logLevel( stage3, 0, $format("STAGE3: Dropping Instruction"))
       rg_stall <= False;
       deq_rx;
     endrule
   `endif
+    //--------------- interfaces to receive the decoded info from the previous stage. ------------//
     interface rx_meta_from_stage2   = rx_meta.e;
     interface rx_op_from_stage2     = rx_op.e;
     interface rx_opmeta_from_stage2 = rx_opmeta.e;
   `ifdef rtldump
     interface rx_inst = rxinst.e;
   `endif
-		interface tx_out = tx.e;
+    // -------------------------------------------------------------------------------------------//
+
+    // ------------------ interfaces to send the executed result to the next stage --------------//
+		interface tx_common_to_stage4 = tx_common.e;
+		interface tx_type_to_stage4   = tx_type.e;
   `ifdef rtldump
     interface tx_inst = txinst.e;
   `endif
+    // -------------------------------------------------------------------------------------------//
+    
+    // MethodName : update_wEpoch
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : This method fires when there is a flush from the write - back stage.
     method Action update_wEpoch;
       rg_wEpoch<= ~rg_wEpoch;
     endmethod
+
+    // MethodName : flush_from_exe 
+    // Implicit Conditions : when a redirection occurs. both wires should be written
+    // Explicit Conditions : None
+    // Thhis is method is fired when a branch / jump redicrection is detected from this stage.
     method flush_from_exe = tuple2(wr_flush_from_exe, wr_redirect_pc);
+
   `ifdef dcache
+    // MethodName : cache_is_available
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : captures if the dmem subsystem is available for sending requests
     method Action cache_is_available(Bool avail);
       wr_cache_avail <= avail;
     endmethod
+  `endif
+
+    // MethodName : memory_request
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : interface to send memory requests.
     interface memory_request = interface Get
-      method ActionValue#(Tuple2#(DMem_request#(`vaddr, `vaddr, 1), Bool)) get;
+      method ActionValue#(DMem_request#(`vaddr, ELEN, 1)) get;
+      `ifdef dcache
         return wr_memory_request;
+      `else 
+				ff_memory_request.deq;
+				return ff_memory_request.first;
+      `endif
       endmethod
     endinterface;
-  `else 
-		interface memory_read_request = interface Get 
-			method ActionValue#(MemoryReadReq#(`vaddr, 1)) get ;
-				ff_memory_read_request.deq;
-				return ff_memory_read_request.first;
-			endmethod
-		endinterface;
-  `endif
+
+    // MethodName : csr_misa_c
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : captures the current setting of the "C" bit in the misa csr.
     method Action csr_misa_c (Bit#(1) m);
       wr_misa_c <= m;
     endmethod
+
+    // MethodName : storebuffer_empty
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : captures if the storebuffer in the dmem or stage4 is empty. This used for
+    // blocking speculative loads
     method Action storebuffer_empty(Bool e);
       wr_storebuffer_empty <= e;
     endmethod
+    
+    // MethodName : fwd_from_pipe3
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : receives the bypass values from the pipe3
     method Action fwd_from_pipe3 (FwdType fwd);
       fwding.fwd_from_pipe3(fwd);
     endmethod
+
+    // MethodName : fwd_from_pipe4_first
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : receives the bypass values from the first element of pipe4
     method Action fwd_from_pipe4_first (FwdType fwd);
       fwding.fwd_from_pipe4_first(fwd);
     endmethod
+
   `ifdef PIPE2
+    // MethodName : fwd_from_pipe4_first
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : receives the bypass values from the second element of pipe4
     method Action fwd_from_pipe4_second (FwdType fwd);
       fwding.fwd_from_pipe4_second(fwd);
     endmethod
   `endif
+
+    // MethodName : latest_commit
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : captures the latest commit performed in the write - back stage
     method Action latest_commit(CommitData c);
       fwding.latest_commit(c);
     endmethod
+    
+    // MethodName : next_pc
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : captures the next_pc in the pipe
     method Action next_pc (Bit#(`vaddr) npc);
       wr_next_pc <= npc;
     endmethod
   `ifdef branch_speculation
+    
+    // MethodName : train_bpu
+    // Implicit Conditions : None
+    // Explicit Conditions : None
+    // Description : method to train the branch predictor BTB
     method train_bpu = wr_training_data;
     `ifdef ras
       method ras_push = wr_push_ras;
