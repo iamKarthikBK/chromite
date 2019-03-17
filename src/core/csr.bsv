@@ -7,7 +7,7 @@ provided that the following conditions are met:
 * Redistributions of source code must retain the above copyright notice, this list of conditions
   and the following disclaimer.  
 * Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and/or other materials provided 
+  conditions and the following disclaimer in the documentation and / or other materials provided 
  with the distribution.  
 * Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
   promote products derived from this software without specific prior written permission.
@@ -22,10 +22,10 @@ IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISI
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
-Author: Neel Gala
-Email id: neelgala@gmail.com
-Details: This module contains the methods and functions which will perform tasks related to CSRs:
-Trap handling and Updating the CSRs for system- instruction
+Author : Neel Gala
+Email id : neelgala@gmail.com
+Details : This module contains the methods and functions which will perform tasks related to CSRs:
+Trap handling and Updating the CSRs for system - instruction
 
 --------------------------------------------------------------------------------------------------
 */
@@ -38,6 +38,7 @@ package csr;
   import ConcatReg::*;
   import csrfile::*;
   import Vector::*;
+  `include "Logger.bsv"
 
   // package imports 
   import ConfigReg::*;
@@ -68,54 +69,51 @@ package csr;
     method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
     method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
   `endif
-  endinterface:Ifc_csr
+  endinterface : Ifc_csr
 
 
   (*synthesize*)
   (*mutually_exclusive="system_instruction, take_trap"*)
-  (*conflict_free="system_instruction,set_external_interrupt"*)
-  (*conflict_free="take_trap,set_external_interrupt"*)
+  (*conflict_free="system_instruction, set_external_interrupt"*)
+  (*conflict_free="take_trap, set_external_interrupt"*)
   module mkcsr(Ifc_csr);
-    let verbosity=`VERBOSITY ;
   
     Ifc_csrfile csrfile <- mkcsrfile();
 	  method ActionValue#(Tuple3#(Bool, Bit#(`vaddr), Bit#(XLEN))) system_instruction(
          Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
       Bool flush = False;
-      Bit#(`vaddr) jump_add=0;
-	  	let csrread<-csrfile.read_csr(csr_address);
-      Bit#(XLEN) writecsrdata=0;
-	  	Bit#(XLEN) destination_value=0;
-      if(verbosity>1)
-        $display($time, "\tCSR: csr: %h op1: %h, funct3: %b csr_read: %h", csr_address, 
-            op1, funct3, csrread);
+      Bit#(`vaddr) jump_add = 0;
+	  	let csrread <- csrfile.read_csr(csr_address);
+      Bit#(XLEN) writecsrdata = 0;
+	  	Bit#(XLEN) destination_value = 0;
+      `logLevel( csr, 2, $format("CSR : Operation csr: %h op1: %h, funct3: %b csr_read: %h", csr_address, 
+            op1, funct3, csrread))
 
 	  	case(funct3)
-        'd0:case (csr_address[11:8])
-              'h0, `ifdef supervisor 'h1, `endif 'h3:begin // URET, SRET, MRET
-                let temp<-csrfile.upd_on_ret( `ifdef non_m_traps unpack(csr_address[9:8]) `endif );
-                jump_add=temp;
-                flush=True;
-                if(verbosity>1)
-                  $display($time,"\tCSR: RET Function: %h",csr_address);
+        'd0 : case (csr_address[11 : 8])
+              'h0, `ifdef supervisor 'h1, `endif 'h3 : begin // URET, SRET, MRET
+                let temp <- csrfile.upd_on_ret( `ifdef non_m_traps unpack(csr_address[9 : 8]) `endif );
+                jump_add = temp;
+                flush = True;
+                `logLevel( csr, 1, $format("CSR : RET Function: %h",csr_address))
               end
 	  		    endcase
-        default: begin
-          destination_value=csrread;
-          if(funct3[1:0] == 'd1)
+        default : begin
+          destination_value = csrread;
+          if(funct3[1 : 0] == 'd1)
             writecsrdata = op1;
-          else if(funct3[1:0] == 'd2)
+          else if(funct3[1 : 0] == 'd2)
             writecsrdata = op1|csrread;
           else
-            writecsrdata = ~op1&csrread;
+            writecsrdata = ~op1 & csrread;
           csrfile.write_csr(csr_address, writecsrdata,  lpc);
         end
       endcase
-	  	return tuple3(flush,jump_add,destination_value);
+	  	return tuple3(flush, jump_add, destination_value);
 	  endmethod
 	
     method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(6) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
-      let jump_address<-csrfile.upd_on_trap(type_cause, pc, badaddr); 
+      let jump_address <- csrfile.upd_on_trap(type_cause, pc, badaddr); 
 		  return jump_address;
   	endmethod
 
@@ -129,25 +127,25 @@ package csr;
 	  method Action clint_mtime(Bit#(64) c_mtime);
 	  	csrfile.clint_mtime(c_mtime);
 	  endmethod
-    method incr_minstret=csrfile.incr_minstret;
+    method incr_minstret = csrfile.incr_minstret;
 		`ifdef supervisor
-			method csr_satp=csrfile.csr_satp;
+			method csr_satp = csrfile.csr_satp;
 		`endif
     `ifdef spfpu
       method Action update_fflags(Bit#(5) flags);
         csrfile.update_fflags(flags);
       endmethod
     `endif
-	  method Action set_external_interrupt(Bit#(1) ex_i)=csrfile.set_external_interrupt(ex_i);
-    method csr_misa_c=csrfile.csr_misa_c;
+	  method Action set_external_interrupt(Bit#(1) ex_i) = csrfile.set_external_interrupt(ex_i);
+    method csr_misa_c = csrfile.csr_misa_c;
   `ifdef cache_control
     method mv_cacheenable = csrfile.mv_cacheenable;
   `endif
     method curr_priv = csrfile.curr_priv;
-    method csr_mstatus= csrfile.csr_mstatus;
+    method csr_mstatus = csrfile.csr_mstatus;
   `ifdef pmp
-    method pmp_cfg=csrfile.pmp_cfg;
-    method pmp_addr=csrfile.pmp_addr;
+    method pmp_cfg = csrfile.pmp_cfg;
+    method pmp_addr = csrfile.pmp_addr;
   `endif
   endmodule
 endpackage
