@@ -364,7 +364,9 @@ package stage3;
         if ( rs1avail && rs2avail `ifdef spfpu && rs3avail `endif ) begin
             let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
                                 meta.memaccess, meta.word32, wr_misa_c, truncate(meta.pc)
-                               `ifdef branch_speculation, wr_next_pc, meta.compressed `endif ); 
+                               `ifdef branch_speculation, wr_next_pc 
+                                  `ifdef compressed ,meta.compressed `endif
+                                `endif ); 
           if(aluout.done)begin
             if(execute) begin
               deq_rx;

@@ -66,7 +66,9 @@ package alu;
                            Bit#(`vaddr) imm_value, Instruction_type inst_type, Funct3 funct3, 
                            Access_type memaccess `ifdef RV64 , Bool word32 `endif 
                            ,Bit#(1) misa_c, Bit#(2) lpc 
-                           `ifdef branch_speculation , Bit#(`vaddr) nextpc,  Bool comp `endif );
+                           `ifdef branch_speculation , Bit#(`vaddr) nextpc
+                              `ifdef compressed ,Bool comp `endif 
+                           `endif );
 
 	  /* ---------------------------- Perform all the arithmetic -------------------------------- */
 	  // ADD * ADDI * SUB* 
@@ -194,7 +196,7 @@ package alu;
 	  method ActionValue#(ALU_OUT) inputs (Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, 
          Bit#(`vaddr) op3, Bit#(`vaddr) imm_value, Instruction_type inst_type, Funct3 funct3, 
          Access_type memaccess `ifdef RV64 , Bool word32 `endif ,Bit#(1) misa_c, Bit#(2) lpc 
-         `ifdef branch_speculation , Bit#(`vaddr) nextpc,  Bool comp `endif );
+         `ifdef branch_speculation , Bit#(`vaddr) nextpc `ifdef compressed ,Bool comp `endif `endif );
   `ifdef multicycle
     // method to send the output from the muldiv or fpu when outputs are ready
 		method ActionValue#(ALU_OUT) delayed_output;
@@ -280,7 +282,7 @@ package alu;
 	  method ActionValue#(ALU_OUT) inputs (Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, 
          Bit#(`vaddr) op3, Bit#(`vaddr) imm_value, Instruction_type inst_type, Funct3 funct3, 
          Access_type memaccess `ifdef RV64 , Bool word32 `endif ,Bit#(1) misa_c, Bit#(2) lpc 
-         `ifdef branch_speculation , Bit#(`vaddr) nextpc,  Bool comp `endif );
+         `ifdef branch_speculation , Bit#(`vaddr) nextpc `ifdef compressed ,Bool comp `endif `endif );
       
       // send inputs to the muldiv unit and send a stall signal to the execute stage.
       `ifdef muldiv
@@ -310,7 +312,7 @@ package alu;
         // send inputs to the alu function and return the output of the same function
           return fn_alu(fn, truncate(op1), truncate(op2), truncate(op3), truncate(imm_value), 
                         inst_type, funct3, memaccess, word32, misa_c, lpc 
-                        `ifdef branch_speculation , nextpc, comp `endif );
+                     `ifdef branch_speculation , nextpc `ifdef compressed ,comp `endif `endif );
     endmethod
 
   `ifdef multicycle
