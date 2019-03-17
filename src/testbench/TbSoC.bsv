@@ -55,15 +55,22 @@ package TbSoC;
     Reg#(Bool) rg_read_rx<- mkDReg(False);
     Reg#(Bool) rg_stop <- mkReg(False);
 
-    let verbosity=`VERBOSITY;
     Reg#(Bit#(5)) rg_cnt <-mkReg(0);
+
+    `ifdef simulate
+      rule display_eol;
+	      let time_val <- $time; 
+        $display($format("\n[%10d]", time_val));
+      endrule
+    `endif
+
     `ifdef rtldump
  	  let dump <- mkReg(InvalidFile) ;
       rule open_file_rtldump(rg_cnt<5);
       String dumpFile = "rtl.dump" ;
     	File lfh <- $fopen( dumpFile, "w" ) ;
     	if ( lfh == InvalidFile )begin
-    	  if(verbosity>1) $display("cannot open %s", dumpFile); 
+    	  $display("cannot open %s", dumpFile); 
     	  $finish(0);
     	end
     	dump <= lfh ;
@@ -75,7 +82,7 @@ package TbSoC;
       String dumpFile1 = "app_log" ;
     	File lfh1 <- $fopen( dumpFile1, "w" ) ;
     	if (lfh1==InvalidFile )begin
-    	  if(verbosity>1) $display("cannot open %s", dumpFile1); 
+    	  $display("cannot open %s", dumpFile1); 
     	  $finish(0);
     	end
       dump1 <= lfh1;
@@ -113,13 +120,6 @@ package TbSoC;
           else
   			    $fwrite(dump, " x%d", rd, " 0x%16h", data, "\n"); 
         end
-      endrule
-    `endif
-
-    `ifdef simulate
-      rule display_eol;
-        if(verbosity!=0)
-          $display("\n");
       endrule
     `endif
   endmodule
