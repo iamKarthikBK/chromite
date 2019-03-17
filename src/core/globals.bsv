@@ -38,14 +38,14 @@ package globals;
     `ifdef icache
       Bool        fence;
     `endif
+    `ifdef supervisor
+      Bool        sfence;
+    `endif
   } ICache_request#(numeric type addr, numeric type esize) deriving(Bits, Eq, FShow);
   
   // entire fetch packet request to Imem
   typedef struct{
     ICache_request#(addr, esize) icache_req;
-  `ifdef supervisor
-    Bool sfence;
-  `endif
   `ifdef branch_speculation
     Bool discard;
   `endif

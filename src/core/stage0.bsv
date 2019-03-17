@@ -140,12 +140,12 @@ package stage0;
 
       return FetchRequest{ icache_req: ICache_request{ address : fetch_pc,
                                                        epochs  : curr_epoch
+                                                      `ifdef supervisor
+                                                        ,sfence :  rg_sfence
+                                                      `endif
                                                       `ifdef icache
                                                        ,fence  :   rg_fence
                                                       `endif }
-                          `ifdef supervisor
-                            ,sfence :  rg_sfence
-                          `endif
                           `ifdef branch_speculation
                             ,discard : discard
                           `endif

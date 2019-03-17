@@ -57,6 +57,9 @@ package cclass;
     import ptwalk_rv32::*;
   `endif
 `endif
+`ifdef branch_speculation
+  import bimodal :: * ;
+`endif
   `include "common_params.bsv"
   `include "Logger.bsv"
 
@@ -106,6 +109,9 @@ package cclass;
     let vaddr = valueOf(`vaddr);
     let paddr = valueOf(`paddr);
     Ifc_riscv riscv <- mkriscv();
+  `ifdef branch_speculation
+    Ifc_bimodal bpu <- mkbimodal();
+  `endif
   `ifdef supervisor
   `ifdef RV64
     Ifc_ptwalk_rv64#(`asidwidth) ptwalk <- mkptwalk_rv64;
@@ -141,23 +147,25 @@ package cclass;
 
     rule connect_instruction_req;
       let req <- riscv.inst_request;
-      imem.core_req.put(req);
+      imem.core_req.put(req.icache_req);
+      if( `ifdef supervisor !req.icache_req.sfence `endif && !req.icache_req.fence)
+        bpu.prediction_req(req.icache_req.address `ifdef compressed , req.discard `endif );
     endrule
 
   `ifdef branch_speculation
-    mkConnection(riscv.prediction_response, imem.prediction_response);
+    mkConnection(riscv.prediction_response, bpu.prediction_response);
     rule connect_prediction;
-      riscv.predicted_pc(imem.predicted_pc);
+      riscv.predicted_pc(bpu.predicted_pc);
     endrule
     rule connect_bpu_training;
-      imem.train_bpu(riscv.train_bpu);
+      bpu.train_bpu(riscv.train_bpu);
     endrule
     `ifdef ras
       rule connect_ras_training;
-        imem.train_ras(riscv.train_ras);
+        bpu.train_ras(riscv.train_ras);
       endrule
       rule connect_ras_push;
-        imem.ras_push(riscv.ras_push);
+        bpu.ras_push(riscv.ras_push);
       endrule
     `endif
   `endif
