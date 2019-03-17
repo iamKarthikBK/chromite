@@ -68,7 +68,7 @@ package alu;
                            ,Bit#(1) misa_c, Bit#(2) lpc 
                            `ifdef branch_speculation , Bit#(`vaddr) nextpc,  Bool comp `endif );
 
-	  /* ---------------------------- Perform all the arithmetic - ------------------------------- */
+	  /* ---------------------------- Perform all the arithmetic -------------------------------- */
 	  // ADD * ADDI * SUB* 
     Bit#(XLEN) inv = signExtend(fn[3]);
 	  let inv_op2 = op2^inv;
@@ -78,7 +78,7 @@ package alu;
     let adder_output = op1 + inv_op2 + zeroExtend(fn[3]);
     // ---------------------------------------------------------------------------------------- //
 
-    // ------------------------------- comparison based operations - --------------------------- //
+    // ------------------------------- comparison based operations ---------------------------- //
 	  // SLT SLTU
 	  Bit#(1) compare_out = fn[0]^(
 						(fn[3] == 0) ? pack(op1_xor_op2 == 0):
@@ -86,7 +86,7 @@ package alu;
 						(fn[1] == 1) ? op2[valueOf(XLEN) - 1] : op1[valueOf(XLEN) - 1]);
     // ---------------------------------------------------------------------------------------- //
 
-    // ----------------------------- Shift based operations - ---------------------------------- //
+    // ----------------------------- Shift based operations ----------------------------------- //
 	  // SLL SRL SRA
     //word32 is bool, shift_amt is used to describe the amount of shift
   `ifdef RV64
@@ -105,7 +105,7 @@ package alu;
                             ((fn==`FNSL) ? pack(shift_l) : 0); 
     // ---------------------------------------------------------------------------------------- //
 
-    // ----------------------------- Logical operations - -------------------------------------- //
+    // ----------------------------- Logical operations --------------------------------------- //
 	  // AND OR XOR
 	  let logic_output=	((fn==`FNXOR || fn==`FNOR) ? op1_xor_op2 : 0) |
 	  						((fn==`FNOR || fn==`FNAND) ? op1 & op2 : 0);
@@ -113,7 +113,7 @@ package alu;
 	  					 logic_output|shift_output;
     // ---------------------------------------------------------------------------------------- //
 
-    // ----------------------------- Mux for final output - ----------------------------------- //
+    // ----------------------------- Mux for final output ------------------------------------ //
 		Bit#(XLEN) final_output = (fn == `FNADD || fn == `FNSUB) ? adder_output : shift_logic;
     `ifdef RV64
   		if(word32)
@@ -132,7 +132,7 @@ package alu;
     if(inst_type == JALR)
       effective_address[0] = 0;
 
-    // ------------------------- Exception detection - ------------------------------------------ //
+    // ------------------------- Exception detection ------------------------------------------- //
     Bit#(6) cause=`Load_addr_misaligned;
     Bool exception = False;
 	  if( (inst_type == JALR || inst_type == JAL || (inst_type == BRANCH && compare_out == 1))
@@ -149,7 +149,7 @@ package alu;
     end
     // ----------------------------------------------------------------------------------------- //
  
-    // --------------------------- Check for redirection - ------------------------------------- //
+    // --------------------------- Check for redirection -------------------------------------- //
     Bool flush = False;
 
   `ifndef branch_speculation
@@ -175,15 +175,11 @@ package alu;
       committype = MEMORY;
     else if(inst_type == SYSTEM_INSTR)
       committype = SYSTEM_INSTR;
-	
-	  Bit#(`vaddr) effaddr_csrdata = (inst_type == SYSTEM_INSTR)? 
-                                      zeroExtend({lpc,imm_value[11 : 0],funct3}): 
-                                      effective_address;
 
     return ALU_OUT{done           : True,  
                    cmtype         : committype,  
                    aluresult      : final_output,  
-                   effective_addr : effaddr_csrdata, 
+                   effective_addr : effective_address, 
                    cause          : cause, 
                    redirect       : flush
                 `ifdef branch_speculation
@@ -218,7 +214,7 @@ package alu;
   (*conflict_free="capture_delayed_muldivputput, inputs"*)
 `endif
   module mkalu(Ifc_alu);
-    // ------------------------ Start Instantiations - ------------------------------------------ //
+    // ------------------------ Start Instantiations ------------------------------------------- //
 
       let output_unavail = ALU_OUT{done : False, cmtype : ?, aluresult : ?, effective_addr : ?,
                                  cause : ?, redirect : ?
@@ -240,7 +236,7 @@ package alu;
     `endif
       // ---------------------------------------------------------------------------------------- //
     
-      // ------------------------------------------ rules - -------------------------------------- //
+      // ------------------------------------------ rules --------------------------------------- //
     `ifdef spfpu
       // RuleName : capture_delayed_fpuoutput
       // Explicit Conditions : rg_wait == WaitFPU
@@ -249,7 +245,7 @@ package alu;
       rule capture_delayed_fpuoutput(rg_wait == WaitFPU);
         let fpu_result <- fpu.get_result;
         wr_delayed_output<=  ALU_OUT{done           : True,  
-                                     cmtype         : REDULAR,   
+                                     cmtype         : REGULAR,   
                                      aluresult      : fpu_result.final_result,  
                                      effective_addr : zeroExtend(fpu_result.fflags), 
                                      cause          : ?, 
