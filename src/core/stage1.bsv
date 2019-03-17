@@ -175,14 +175,15 @@ package stage1;
     // repsonse are probed in the next cycle.
     rule process_instruction;
       `ifdef branch_speculation
+          let pred = ff_prediction_resp.first;
+          `logLevel( stage1, 1, $format("STAGE1: Prediction: ", fshow(ff_prediction_resp.first)))
         `ifdef compressed
-          let {prediction0,prediction1, va, discard_lower} = ff_prediction_resp.first();
-          Bit#(2) prediction=prediction0;
-          `logLevel( stage1,1,$format("STAGE1: rg_prediction:%b rg_pc:%h rg_instruction:%h",rg_prediction, rg_pc,  rg_instruction))
+          Bit#(2) prediction = pred.prediction0;
+          `logLevel( stage1, 1, $format("STAGE1: rg_pred:%b rg_pc:%h rg_instr:%h", 
+                                         rg_prediction, rg_pc, rg_instruction))
         `else
-          let {prediction,va} = ff_prediction_resp.first();
+          Bit#(2) prediction = pred.prediction;
         `endif
-        `logLevel( stage1,1,$format("STAGE1: Prediction: ",fshow(ff_prediction_resp.first)))
       `endif
 
         // capture the response from the cache
@@ -207,7 +208,7 @@ package stage1;
         end
       `ifdef compressed
         // discard the lower-16bits of the imem-response.
-        else if(discard_lower && wr_csr_misa_c==1)begin
+        else if(pred.discard_lower && wr_csr_misa_c==1)begin
           deq_response;
           if(imem_resp.instr[17:16]==2'b11)begin
             rg_instruction<=imem_resp.instr[31:16];
@@ -215,9 +216,9 @@ package stage1;
             enque_instruction=False;
             rg_receiving_upper<=True;
         `ifdef branch_speculation
-            rg_prediction<= prediction1;
+            rg_prediction<= pred.prediction1;
           `ifdef compressed
-            rg_pc<= va;
+            rg_pc<= pred.va;
           `endif
         `endif
           end
@@ -225,8 +226,8 @@ package stage1;
             compressed=True;
             final_instruction=zeroExtend(imem_resp.instr[31:16]);
           `ifdef compressed
-            va[1]=1;
-            prediction=prediction1;
+            pred.va[1]=1;
+            prediction=pred.prediction1;
           `endif
           end
         end
@@ -237,7 +238,7 @@ package stage1;
           if(imem_resp.instr[1:0]=='b11)begin
             final_instruction=imem_resp.instr;
           `ifdef compressed
-            prediction=prediction0;
+            prediction=pred.prediction0;
           `endif
           end
           else if(wr_csr_misa_c==1) begin
@@ -246,10 +247,10 @@ package stage1;
             rg_instruction<=truncateLSB(imem_resp.instr);
         `ifdef branch_speculation
           `ifdef compressed
-            rg_action<=prediction0==0?CheckPrev:None;
-            prediction=prediction0;
-            rg_prediction<= prediction1;
-            rg_pc<= va;
+            rg_action<=pred.prediction0==0?CheckPrev:None;
+            prediction=pred.prediction0;
+            rg_prediction<= pred.prediction1;
+            rg_pc<= pred.va;
           `else
             rg_action<=CheckPrev;
           `endif
@@ -268,9 +269,9 @@ package stage1;
               rg_receiving_upper<=False;
             `ifdef compressed
               `ifdef branch_speculation
-                rg_pc<=va;
-                va=rg_pc;
-                va[1]=1;
+                rg_pc<=pred.va;
+                pred.va=rg_pc;
+                pred.va[1]=1;
               `endif
             `endif
           end
@@ -280,14 +281,14 @@ package stage1;
             rg_action<=None;
           `ifdef branch_speculation
             `ifdef compressed
-              va=rg_pc;
-              va[1]=1;
+              pred.va=rg_pc;
+              pred.va[1]=1;
             `endif
           `endif
           end
         end
         Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c==1)?2:4;
-				let pipedata=PIPE1{program_counter:va,
+				let pipedata=PIPE1{program_counter:pred.va,
                       instruction:final_instruction,
                       epochs:{rg_eEpoch,rg_wEpoch},
                       trap: imem_resp.trap
@@ -300,10 +301,10 @@ package stage1;
                     `ifdef supervisor
                       ,cause:imem_resp.cause
                     `endif }; 
-        `logLevel( stage1,0,$format("STAGE1: PC:%h: ",va,fshow(ff_memory_response.first)))
+        `logLevel( stage1,0,$format("STAGE1: PC:%h: ",pred.va,fshow(ff_memory_response.first)))
       `ifdef compressed
         `ifdef branch_speculation
-          `logLevel( stage1,1,$format("STAGE1: rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c,discard_lower))
+          `logLevel( stage1,1,$format("STAGE1: rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c,pred.discard_lower))
         `endif
       `endif
         if(enque_instruction) begin

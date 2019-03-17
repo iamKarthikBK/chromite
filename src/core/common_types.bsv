@@ -184,11 +184,6 @@ package common_types;
   typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), RFType) DumpType;
  
   typedef Tuple3#(Bit#(`vaddr), Bit#(`vaddr), Bit#(2)) Training_data;
-`ifdef compressed
-  typedef Tuple4#(Bit#(2), Bit#(2), Bit#( `vaddr ), Bool) PredictionResponse;
-`else
-  typedef Tuple2#(Bit#(2), Bit#(`vaddr )) PredictionResponse;
-`endif
                     // data, trap, cause, eopch size
   typedef Tuple4#(Bit#(ELEN), Bool, Bit#(6), Bit#(esize)) MemoryReadResp#(numeric type esize);
   

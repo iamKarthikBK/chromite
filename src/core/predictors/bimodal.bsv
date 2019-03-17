@@ -53,15 +53,10 @@ package bimodal;
   `endif
 
   typedef Tuple3#(Bit#(`vaddr), Bit#(`vaddr), Bit#(2)) Training_data;
-`ifdef compressed
-  typedef Tuple4#(Bit#(2), Bit#(2), Bit#( `vaddr ), Bool) PredictionResponse;
-`else
-  typedef Tuple2#(Bit#(2), Bit#(`vaddr )) PredictionResponse;
-`endif
 
 	interface Ifc_bimodal;
     // method to receive the new pc for which prediction is to be looked up.
-		method Action prediction_req(Bit#(`vaddr) pc `ifdef compressed ,Bool discard `endif );
+		method Action prediction_req(PredictionRequest req);
 
     // method to respond to stage0 with prediction state and new target address on hit
 		interface Get#(PredictionResponse) prediction_response; 
@@ -108,11 +103,7 @@ package bimodal;
     Reg#(Bool) rg_init <- mkReg(True);
     Reg#(Bit#(TAdd#(1,TLog#(TMax#(TDiv#(`btbsize, 2), TDiv#(`rassets,2)))))) rg_init_count <- mkReg(0);
 
-  `ifdef compressed
-    FIFOF#(Tuple2#(Bit#(`vaddr), Bool)) ff_pred_request <- mkSizedFIFOF(2);
-  `else
-    FIFOF#(Bit#(`vaddr)) ff_pred_request <- mkSizedFIFOF(2);
-  `endif
+    FIFOF#(PredictionRequest) ff_pred_request <- mkSizedFIFOF(2);
     FIFOF#(PredictionResponse) ff_prediction_resp <- mkBypassFIFOF();
 
     Reg#(PredictionToStage0) rg_prediction_pc[2] <-mkCReg(2,PredictionToStage0{prediction:0});

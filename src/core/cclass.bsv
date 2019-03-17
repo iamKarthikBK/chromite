@@ -149,7 +149,9 @@ package cclass;
       let req <- riscv.inst_request;
       imem.core_req.put(req.icache_req);
       if( `ifdef supervisor !req.icache_req.sfence `endif && !req.icache_req.fence)
-        bpu.prediction_req(req.icache_req.address `ifdef compressed , req.discard `endif );
+        bpu.prediction_req(PredictionRequest{pc       : req.icache_req.address,
+                                             fence    : req.icache_req.fence
+                          `ifdef compressed ,discard  : req.discard `endif });
     endrule
 
   `ifdef branch_speculation

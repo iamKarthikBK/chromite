@@ -97,5 +97,24 @@ package globals;
     Bit#(`vaddr) target_pc;
   } PredictionToStage0 deriving(Bits, Eq, FShow);
 
+  typedef struct{
+    Bit#(`vaddr) pc;
+    Bool         fence;
+  `ifdef compressed
+    Bool         discard;
+  `endif
+  } PredictionRequest deriving(Bits, Eq, FShow);
+
+  typedef struct{
+  `ifdef compressed
+    Bit#(2)       prediction0;
+    Bit#(2)       prediction1;
+    Bool          discard
+  `else
+    Bit#(2)       prediction;
+  `endif
+    Bit#(`vaddr)  va;
+  } PredictionResponse deriving(Bits, Eq, FShow);
+
 endpackage
 
