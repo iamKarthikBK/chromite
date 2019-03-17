@@ -7,7 +7,7 @@ provided that the following conditions are met:
 * Redistributions of source code must retain the above copyright notice, this list of conditions
   and the following disclaimer.  
 * Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and/or other materials provided 
+  conditions and the following disclaimer in the documentation and / or other materials provided 
  with the distribution.  
 * Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
   promote products derived from this software without specific prior written permission.
@@ -22,8 +22,8 @@ IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISI
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
-Author: Neel Gala
-Email id: neelgala@gmail.com
+Author : Neel Gala
+Email id : neelgala@gmail.com
 Details:
 
 --------------------------------------------------------------------------------------------------
@@ -48,48 +48,48 @@ package err_slave;
 
   module mkerr_slave(Ifc_err_slave#(awidth, dwidth, uwidth));
 	  AXI4_Slave_Xactor_IFC #(awidth, dwidth, uwidth)  s_xactor <- mkAXI4_Slave_Xactor;
-    Reg#(Mem_State) read_state <-mkReg(Idle);
-    Reg#(Mem_State) write_state <-mkReg(Idle);
-	  Reg#(Bit#(8)) rg_readburst_counter<-mkReg(0);
-	  Reg#(Bit#(8)) rg_read_length <-mkReg(0);
-    Reg#(Bit#(4)) rg_rd_id <-mkReg(0);
-	  Reg#(AXI4_Wr_Resp	#(uwidth)) rg_write_response <-mkReg(?);
-    rule receive_read_request(read_state==Idle);
-      let ar<-pop_o(s_xactor.o_rd_addr);
-      read_state<=Burst;
-      rg_rd_id<= ar.arid;
-      rg_readburst_counter<= 0;
-		  rg_read_length<=ar.arlen;
+    Reg#(Mem_State) read_state <- mkReg(Idle);
+    Reg#(Mem_State) write_state <- mkReg(Idle);
+	  Reg#(Bit#(8)) rg_readburst_counter <- mkReg(0);
+	  Reg#(Bit#(8)) rg_read_length <- mkReg(0);
+    Reg#(Bit#(4)) rg_rd_id <- mkReg(0);
+	  Reg#(AXI4_Wr_Resp	#(uwidth)) rg_write_response <- mkReg(?);
+    rule receive_read_request(read_state == Idle);
+      let ar <- pop_o(s_xactor.o_rd_addr);
+      read_state <= Burst;
+      rg_rd_id <= ar.arid;
+      rg_readburst_counter <= 0;
+		  rg_read_length <= ar.arlen;
     endrule
 
-    rule send_error_response(read_state==Burst);
-      AXI4_Rd_Data#(data_width, user_width) r = AXI4_Rd_Data {rresp: AXI4_DECERR, rdata: 0 , 
-        rlast:rg_readburst_counter==rg_read_length, ruser: 0, rid:rg_rd_id};
-      if(rg_readburst_counter==rg_read_length)
-        read_state<=Idle;
+    rule send_error_response(read_state == Burst);
+      AXI4_Rd_Data#(data_width, user_width) r = AXI4_Rd_Data {rresp : AXI4_DECERR, rdata: ? , 
+        rlast : rg_readburst_counter == rg_read_length, ruser : 0, rid : rg_rd_id};
+      if(rg_readburst_counter == rg_read_length)
+        read_state <= Idle;
       else
-        rg_readburst_counter<= rg_readburst_counter+1;
+        rg_readburst_counter <= rg_readburst_counter + 1;
 
       s_xactor.i_rd_data.enq(r);
     endrule
 
-    rule receive_write_request(write_state==Idle);
+    rule receive_write_request(write_state == Idle);
       let aw <- pop_o (s_xactor.o_wr_addr);
       let w  <- pop_o (s_xactor.o_wr_data);
-	    let b = AXI4_Wr_Resp {bresp: AXI4_DECERR, buser: aw.awuser, bid:w.wid};
+	    let b = AXI4_Wr_Resp {bresp : AXI4_DECERR, buser : aw.awuser, bid : w.wid};
       if(!w.wlast)
-        write_state<= Burst;
+        write_state <= Burst;
       else
   	  	s_xactor.i_wr_resp.enq (b);
-      rg_write_response<= b;
+      rg_write_response <= b;
     endrule
     // if the request is a write burst then keeping popping all the data on the data_channel and
     // send a error response on receiving the last data.
-    rule write_request_data_channel(write_state==Burst);
+    rule write_request_data_channel(write_state == Burst);
       let w  <- pop_o (s_xactor.o_wr_data);
       if(w.wlast)begin
 	  	  s_xactor.i_wr_resp.enq (rg_write_response);
-        write_state<= Idle;
+        write_state <= Idle;
       end
     endrule
     interface slave = s_xactor.axi_side;
