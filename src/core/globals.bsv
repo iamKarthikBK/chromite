@@ -7,7 +7,7 @@ provided that the following conditions are met:
 * Redistributions of source code must retain the above copyright notice, this list of conditions
   and the following disclaimer.  
 * Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and/or other materials provided 
+  conditions and the following disclaimer in the documentation and / or other materials provided 
  with the distribution.  
 * Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
   promote products derived from this software without specific prior written permission.
@@ -22,14 +22,15 @@ IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISI
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
-Author: Neel Gala
-Email id: neelgala@gmail.com
+Author : Neel Gala
+Email id : neelgala@gmail.com
 Details:
 
 --------------------------------------------------------------------------------------------------
 */
 package globals;
 
+  // ---------------------- Types for IMem and Core interaction ------------------------------- //
   // structure defining the request packet for the instruction cache.
   typedef struct{
       Bit#(addr)  address;
@@ -37,18 +38,18 @@ package globals;
     `ifdef icache
       Bool        fence;
     `endif
-  } ICache_request#(numeric type addr, numeric type esize) deriving(Bits,Eq,FShow);
+  } ICache_request#(numeric type addr, numeric type esize) deriving(Bits, Eq, FShow);
   
   // entire fetch packet request to Imem
   typedef struct{
-    ICache_request#(addr,esize) icache_req;
+    ICache_request#(addr, esize) icache_req;
   `ifdef supervisor
     Bool sfence;
   `endif
   `ifdef branch_speculation
     Bool discard;
   `endif
-  } FetchRequest#(numeric type addr, numeric type esize) deriving (Bits,Eq,FShow);
+  } FetchRequest#(numeric type addr, numeric type esize) deriving (Bits, Eq, FShow);
 
  // response packet from the Instruction cache
   typedef struct{
@@ -57,18 +58,39 @@ package globals;
     Bit#(`causesize) cause;
     Bit#(esize) epochs;
   } FetchResponse#(numeric type iwidth, numeric type esize) deriving (Bits, Eq, FShow); 
+  // -------------------------------------------------------------------------------------------//
 
-  typedef enum {Hit, Miss, None} RespState deriving(Eq,Bits,FShow);
-  // ---------------------- Instruction Cache types ---------------------------------------------//
-                 // word , trap, cause , epoch
-  typedef Tuple4#(Bit#(data), Bool, Bit#(6), Bit#(esize)) ICore_response#(numeric type data, 
-                                                                          numeric type esize);
-                // addr ,  burst len, burst_size 
-  typedef Tuple3#(Bit#(addr),  Bit#(8), Bit#(3)) ICache_read_request#(numeric type addr);
-                    // data,  last , err
-  typedef Tuple3#(Bit#(data), Bool, Bool) ICache_read_response#(numeric type data);
-// -------------------------------------------------------------------------------------------//
+  // ---------------------- Types for DMem and Core interaction ------------------------------- //
+  typedef struct{
+    Bit#(addr)    address;
+    Bit#(esize)   epochs;
+    Bit#(3)       size;
+`ifdef dcache
+    Bool          fence;
+    Bit#(2)       access;
+    Bit#(data)    writedata;
+  `ifdef atomic
+    Bit#(5)       atomic_op;
+  `endif
+  `ifdef supervisor
+    Bool          sfence;
+    Bool          ptwalk_req;
+    Bool          ptwalk_trap;
+  `endif
+`endif
+  } DMem_request#(numeric type addr, 
+                  numeric type data, 
+                  numeric type esize ) deriving(Bits, Eq, FShow);
+  
+  typedef struct{
+    Bit#(data)        word;
+    Bool              trap;
+    Bit#(`causesize)  cause;
+    Bit#(esize)       epochs;
+  } DMem_core_response#( numeric type data, numeric type esize) deriving (Bits, Eq, FShow);
+  // -------------------------------------------------------------------------------------------//
 
+  typedef enum {Hit, Miss, None} RespState deriving(Eq, Bits, FShow);
 // ------ Structures related to Branch Prediction -------//
   typedef struct{
     Bit#(2) prediction;

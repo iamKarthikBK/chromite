@@ -5,7 +5,7 @@ All rights reserved.
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
 *  Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-*  Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+*  Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and / or other materials provided with the distribution.
 *  Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
@@ -15,7 +15,7 @@ Author Names : Neel Gala
 Email ID : neelgala@gmail.com
 
 Description : 
-This is the 64-bit core of the c_class processor. It containes rules for each stage. The description of each stage 
+This is the 64 - bit core of the c_class processor. It containes rules for each stage. The description of each stage 
 is given in the respective rules.
 */
 package riscv;
@@ -55,23 +55,19 @@ package riscv;
     `endif
   `endif
     interface Put#(FetchResponse#(32, `iesize)) inst_response;
+    interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
   `ifdef dcache
-		interface Get#(Tuple2#(DMem_request#(`vaddr , `vaddr, 1),Bool)) memory_request;
-  `else 
-		interface Get#(MemoryReadReq#(`vaddr,1)) memory_read_request;
-  `endif
-  `ifdef dcache
-    interface Put#(DMem_response#(ELEN,1)) memory_response;
+    interface Put#(DMem_core_response#(ELEN, 1)) memory_response;
     (*always_enabled*)
     method Action storebuffer_empty(Bool e);
-    method Tuple2#(Bool,Bool) initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
+    method Tuple2#(Bool, Bool) initiate_store;
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1), Bit#(`vaddr))) r);
     method Action store_is_cached(Bool c);
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
   `else
     interface Put#(MemoryReadResp#(1)) memory_read_response;
-		interface Get#(MemoryWriteReq#(`vaddr,1,ELEN)) memory_write_request;
+		interface Get#(MemoryWriteReq#(`vaddr, 1,ELEN)) memory_write_request;
     interface Put#(MemoryWriteResp) memory_write_response;
   `endif 
     method Action clint_msip(Bit#(1) intrpt);
@@ -96,9 +92,9 @@ package riscv;
   endinterface
 
   (*synthesize*)
-  (*preempts="fwding_from_exe1,nofwding_from_exe1"*)
+  (*preempts="fwding_from_exe1, nofwding_from_exe1"*)
   `ifndef PIPE2
-  (*preempts="fwding_from_mem1,nofwding_from_mem1"*)
+  (*preempts="fwding_from_mem1, nofwding_from_mem1"*)
   `endif
   module mkriscv(Ifc_riscv);
     let verbosity = `VERBOSITY ;
@@ -112,7 +108,7 @@ package riscv;
 
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
 
-    FIFOF#(PIPE1) pipe1<-mkSizedFIFOF(2);
+    FIFOF#(PIPE1) pipe1 <- mkSizedFIFOF(2);
 
     FIFOF#(Stage3Meta) pipe2_meta <- mkLFIFOF();
     FIFOF#(Stage3OpMeta) pipe2_opmeta <- mkLFIFOF();
@@ -123,22 +119,26 @@ package riscv;
   `endif
 
 `ifdef PIPE2
-    FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
+//    FIFOF#(PIPE3) pipe3 <- mkSizedFIFOF(2);
+    FIFOF#(Stage4Common) pipe3common <- mkSizedFIFOF(2);
+    FIFOF#(Stage4Type)   pipe3type   <- mkSizedFIFOF(2);
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe3inst <-mkSizedFIFOF(2);
+    FIFOF#(Tuple2#(Bit#(`vaddr), Bit#(32))) pipe3inst <- mkSizedFIFOF(2);
   `endif
     Ifc_PipeFIFOF#(PIPE4) pipe4 <- mkPipeFIFOF();
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe4inst <-mkSizedFIFOF(2);
+    FIFOF#(Tuple2#(Bit#(`vaddr), Bit#(32))) pipe4inst <- mkSizedFIFOF(2);
   `endif
 `else
-    FIFOF#(PIPE3) pipe3 <- mkLFIFOF();
+    //FIFOF#(PIPE3) pipe3 <- mkLFIFOF();
+    FIFOF#(Stage4Common) pipe3common <- mkLFIFOF();
+    FIFOF#(Stage4Type)   pipe3type   <- mkLFIFOF();
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe3inst <-mkLFIFOF();
+    FIFOF#(Tuple2#(Bit#(`vaddr), Bit#(32))) pipe3inst <- mkLFIFOF();
   `endif
     FIFOF#(PIPE4) pipe4 <- mkLFIFOF();
   `ifdef rtldump
-    FIFOF#(Tuple2#(Bit#(`vaddr),Bit#(32))) pipe4inst <-mkLFIFOF();
+    FIFOF#(Tuple2#(Bit#(`vaddr), Bit#(32))) pipe4inst <- mkLFIFOF();
   `endif
 `endif
 
@@ -158,33 +158,30 @@ package riscv;
     mkConnection(pipe2inst, stage3.rx_inst);
   `endif
 
-  `ifdef PIPE2
-    mkConnection(stage3.tx_out, pipe3);
-    mkConnection(pipe3, stage4.rx_min);
-  `else
-    mkConnection(stage3.tx_out, pipe3);
-    mkConnection(pipe3, stage4.rx_min);
-  `endif
+    mkConnection(stage3.tx_common_to_stage4, pipe3common);
+    mkConnection(pipe3common, stage4.rx_common_from_stage3);
+    mkConnection(stage3.tx_type_to_stage4, pipe3type);
+    mkConnection(pipe3type, stage4.rx_type_from_stage3);
 
   `ifdef rtldump
-    mkConnection(stage3.tx_inst,pipe3inst);
-    mkConnection(pipe3inst,stage4.rx_inst);
+    mkConnection(stage3.tx_inst, pipe3inst);
+    mkConnection(pipe3inst, stage4.rx_inst);
   `endif
 
   `ifdef PIPE2  
-    mkConnection(stage4.tx_min,pipe4.fifo);
-    mkConnection(pipe4.fifo,stage5.rx_in);
+    mkConnection(stage4.tx_min, pipe4.fifo);
+    mkConnection(pipe4.fifo, stage5.rx_in);
   `else
-    mkConnection(stage4.tx_min,pipe4);
-    mkConnection(pipe4,stage5.rx_in);
+    mkConnection(stage4.tx_min, pipe4);
+    mkConnection(pipe4, stage5.rx_in);
   `endif
 
   `ifdef rtldump
-    mkConnection(stage4.tx_inst,pipe4inst);
-    mkConnection(pipe4inst,stage5.rx_inst);
+    mkConnection(stage4.tx_inst, pipe4inst);
+    mkConnection(pipe4inst, stage5.rx_inst);
   `endif
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
-    let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor ,sfence `endif }=stage5.flush;
+    let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor, sfence `endif }=stage5.flush;
 
   `ifdef branch_speculation
     rule send_next_pc;
@@ -203,12 +200,12 @@ package riscv;
     endrule
 
     rule flush_stage0(flush_from_exe||flush_from_wb);
-        stage0.flush(Stage0Flush{ pc:flush_from_wb?flushpc_from_wb:flushpc_from_exe
+        stage0.flush(Stage0Flush{ pc : flush_from_wb ? flushpc_from_wb : flushpc_from_exe
                                 `ifdef icache 
-                                  ,fence:flush_from_wb?fenceI:False
+                                  ,fence : flush_from_wb ? fenceI : False
                                 `endif
                                 `ifdef supervisor 
-                                  , sfence:flush_from_wb?sfence:False
+                                  , sfence : flush_from_wb ? sfence : False
                                 `endif });
     endrule
     rule connect_csrs;
@@ -242,22 +239,36 @@ package riscv;
       stage3.storebuffer_empty(stage4.storebuffer_empty);
     endrule
   `endif
-    // TODO RAS support will enable the following rule.
-//    rule ras_push_connect;
-//      stage1.push_ras(stage3.ras_push);
-//    endrule
 
     rule fwding_from_exe1;
-      let data = pipe3.first;
-      let {committype, field1, field2, field3, field4}=data;
-      Bit#(5) rd = field4[5:1];
-      RFType rdtype = unpack(field4[6]);
-      Bit#(ELEN) rdval = field2;
-      Bool available = (committype==REGULAR);
+      let s4common = pipe3common.first;
+      let s4type   = pipe3type.first;
+
+      Bit#(5) rd = s4common.rd;
     `ifdef spfpu
-      stage3.fwd_from_pipe3(tuple5(committype!=TRAP && field4[0]==rg_wEpoch, available,rd,rdval,rdtype));
+      RFType rdtype = s4common.rdtype;
+    `endif
+      
+      Bool available = False;
+      if (s4type matches tagged Regular .*)
+        available = True;
+
+      Bit#(ELEN) rdval = s4type.Regular.rdvalue;
+      Bool valid = s4common.epochs == rg_wEpoch ;
+      if ( valid &&& s4type matches tagged Trap .*)
+        valid=False;
+
+
+//      let data = pipe3.first;
+//      let {committype, field1, field2, field3, field4}=data;
+//      Bit#(5) rd = field4[5 : 1];
+//      RFType rdtype = unpack(field4[6]);
+//      Bit#(ELEN) rdval = field2;
+//      Bool available = (committype == REGULAR);
+    `ifdef spfpu
+      stage3.fwd_from_pipe3(tuple5(valid, available, rd, rdval, rdtype));
     `else
-      stage3.fwd_from_pipe3(tuple4(committype!=TRAP && field4[0]==rg_wEpoch, available,rd,rdval));
+      stage3.fwd_from_pipe3(tuple4(valid, available, rd, rdval));
     `endif
     endrule
     rule nofwding_from_exe1;
@@ -270,96 +281,100 @@ package riscv;
   `ifdef PIPE2
     rule fwding_from_mem1;
       let {present, data} = pipe4.first_data;
-      let {committype , epoch}=data;
+      let {committype, epoch}=data;
       Bit#(5) rd = 0;
       RFType rdtype = FRF;
       Bit#(ELEN) rdval = 0;
       Bool available = False;
       if(committype matches tagged REG .r)begin
-        available=True;
-        rd=r.rd;
+        available = True;
+        rd = r.rd;
         rdval = r.commitvalue;
+      `ifdef spfpu
         rdtype = r.rdtype;
+      `endif
       end
     `ifdef atomic
       else if (committype matches tagged STORE .s)begin
-        available=True;
-        rd=s.rd;
-        rdval=s.commitvalue;
-        rdtype=IRF;
+        available = True;
+        rd = s.rd;
+        rdval = s.commitvalue;
+        rdtype = IRF;
       end
     `endif
     `ifdef spfpu
-      stage3.fwd_from_pipe4_first(tuple5(present && epoch == rg_wEpoch,available,rd,rdval,rdtype));
+      stage3.fwd_from_pipe4_first(tuple5(present && epoch == rg_wEpoch, available, rd, rdval, rdtype));
     `else
-      stage3.fwd_from_pipe4_first(tuple4(present && epoch == rg_wEpoch,available,rd,rdval));
+      stage3.fwd_from_pipe4_first(tuple4(present && epoch == rg_wEpoch, available, rd, rdval));
     `endif
     if(present && epoch == rg_wEpoch)
     `ifdef spfpu
-      stage2.fwd_from_wb(tuple3(rd,rdval,rdtype));
+      stage2.fwd_from_wb(tuple3(rd, rdval, rdtype));
     `else
-      stage2.fwd_from_wb(tuple2(rd,rdval));
+      stage2.fwd_from_wb(tuple2(rd, rdval));
     `endif
     endrule
     rule fwding_from_mem2;
       let {present, data} = pipe4.second_data;
-      let {committype , epoch}=data;
+      let {committype, epoch}=data;
       Bit#(5) rd = 0;
       RFType rdtype = FRF;
       Bit#(ELEN) rdval = 0;
       Bool available = False;
       if(committype matches tagged REG .r)begin
-        available=True;
-        rd=r.rd;
+        available = True;
+        rd = r.rd;
         rdval = r.commitvalue;
+      `ifdef spfpu
         rdtype = r.rdtype;
+      `endif
       end
     `ifdef atomic
       else if (committype matches tagged STORE .s)begin
-        available=True;
-        rd=s.rd;
-        rdval=s.commitvalue;
-        rdtype=IRF;
+        available = True;
+        rd = s.rd;
+        rdval = s.commitvalue;
+        rdtype = IRF;
       end
     `endif
     `ifdef spfpu
-      stage3.fwd_from_pipe4_second(tuple5(present && epoch == rg_wEpoch, available,rd,rdval,rdtype));
+      stage3.fwd_from_pipe4_second(tuple5(present && epoch == rg_wEpoch, available, rd, rdval, rdtype));
     `else
-      stage3.fwd_from_pipe4_second(tuple4(present && epoch == rg_wEpoch, available,rd,rdval));
+      stage3.fwd_from_pipe4_second(tuple4(present && epoch == rg_wEpoch, available, rd, rdval));
     `endif
     endrule
   `else
     rule fwding_from_mem1;
       let data = pipe4.first;
-      let {committype , epoch}=data;
+      let {committype, epoch}=data;
       Bit#(5) rd = 0;
       RFType rdtype = FRF;
       Bit#(ELEN) rdval = 0;
       Bool available = False;
       if(committype matches tagged REG .r)begin
-        available=True;
-        rd=r.rd;
+        available = True;
+        rd = r.rd;
         rdval = r.commitvalue;
         rdtype = r.rdtype;
       end
     `ifdef atomic
       else if (committype matches tagged STORE .s)begin
-        available=True;
-        rd=s.rd;
-        rdval=s.commitvalue;
-        rdtype=IRF;
+        available = True;
+        rd = s.rd;
+        rdval = s.commitvalue;
+        rdtype = IRF;
       end
     `endif
     `ifdef spfpu
-      stage3.fwd_from_pipe4_first(tuple5(epoch==rg_wEpoch, available,rd,rdval,rdtype));
+      stage3.fwd_from_pipe4_first(tuple5(epoch == rg_wEpoch, available, rd, rdval, rdtype));
     `else
-      stage3.fwd_from_pipe4_first(tuple4(epoch==rg_wEpoch, available,rd,rdval));
+      stage3.fwd_from_pipe4_first(tuple4(epoch == rg_wEpoch, available, rd, rdval));
     `endif
       if(epoch == rg_wEpoch)begin
       `ifdef spfpu
-        stage2.fwd_from_wb(tuple3(rd,rdval,rdtype));
+        stage2.fwd_from_wb(tuple3(rd, rdval, rdtype));
       `else
-        stage2.fwd_from_wb(tuple2(rd,rdval));
+        stage2.fwd_from_wb(tuple2(rd, rdval));
       `endif
       end
     endrule
@@ -373,35 +388,31 @@ package riscv;
   `endif
     ///////////////////////////////////////////
 
-    interface inst_request=stage0.inst_request;
+    interface inst_request = stage0.inst_request;
   `ifdef branch_speculation
-    interface prediction_response=stage1.prediction_response;
+    interface prediction_response = stage1.prediction_response;
     method predicted_pc = stage0.predicted_pc;
     method train_bpu = stage3.train_bpu;
     `ifdef ras
-      method train_ras=stage2.train_ras;
+      method train_ras = stage2.train_ras;
       method ras_push = stage3.ras_push;
     `endif
   `endif
-    interface inst_response=stage1.inst_response;
-  `ifdef dcache
-    interface memory_request=stage3.memory_request;
-  `else
-    interface memory_read_request=stage3.memory_read_request;
-  `endif
-    method Action clint_msip(Bit#(1) intrpt)=stage5.clint_msip(intrpt);
-    method Action clint_mtip(Bit#(1) intrpt)=stage5.clint_mtip(intrpt);
-    method Action clint_mtime(Bit#(64) c_mtime)=stage5.clint_mtime(c_mtime);
+    interface inst_response = stage1.inst_response;
+    interface memory_request = stage3.memory_request;
+    method Action clint_msip(Bit#(1) intrpt) = stage5.clint_msip(intrpt);
+    method Action clint_mtip(Bit#(1) intrpt) = stage5.clint_mtip(intrpt);
+    method Action clint_mtime(Bit#(64) c_mtime) = stage5.clint_mtime(c_mtime);
     `ifdef rtldump
-      interface dump=stage5.dump;
+      interface dump = stage5.dump;
     `endif
   `ifdef dcache
-    interface memory_response=stage4.memory_response;
+    interface memory_response = stage4.memory_response;
     method Action storebuffer_empty(Bool e);
       stage3.storebuffer_empty(e);
     endmethod
-    method initiate_store =stage5.initiate_store;
-    method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
+    method initiate_store = stage5.initiate_store;
+    method Action write_resp(Maybe#(Tuple2#(Bit#(1), Bit#(`vaddr))) r);
       stage5.write_resp(r);
     endmethod
     method Action store_is_cached(Bool c);
@@ -411,22 +422,22 @@ package riscv;
       stage3.cache_is_available(avail);
     endmethod
   `else
-    interface memory_read_response=stage4.memory_read_response;
-		interface memory_write_request=stage4.memory_write_request;
-    interface memory_write_response=stage4.memory_write_response;
+    interface memory_read_response = stage4.memory_read_response;
+		interface memory_write_request = stage4.memory_write_request;
+    interface memory_write_response = stage4.memory_write_response;
   `endif
-	  method Action set_external_interrupt(Bit#(1) ex_i)=stage5.set_external_interrupt(ex_i);
-    method csr_mstatus= stage5.csr_mstatus;
+	  method Action set_external_interrupt(Bit#(1) ex_i) = stage5.set_external_interrupt(ex_i);
+    method csr_mstatus = stage5.csr_mstatus;
   `ifdef cache_control
     method mv_cacheenable = stage5.mv_cacheenable;
   `endif
     method curr_priv = stage5.curr_priv;
 		`ifdef supervisor
-			method csr_satp=stage5.csr_satp;
+			method csr_satp = stage5.csr_satp;
 		`endif
   `ifdef pmp
-    method pmp_cfg=stage5.pmp_cfg;
-    method pmp_addr=stage5.pmp_addr;
+    method pmp_cfg = stage5.pmp_cfg;
+    method pmp_addr = stage5.pmp_addr;
   `endif
   endmodule
 
