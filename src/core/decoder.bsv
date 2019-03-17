@@ -507,10 +507,7 @@ package decoder;
  		RFType rs3type=FRF;
     RFType rdtype=IRF;
 
-    Bool r4type= (opcode[4:2]=='b100);
     if(csrs.csr_misa[2]==1)begin
-      Quadrant quad =unpack(inst[1:0]);
-      Bit#(3) funct3 = inst[15:13];
       rs3=0;
       rs3type=IRF;
       if( (quad==Q0||quad==Q2) && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
@@ -879,7 +876,6 @@ package decoder;
  		RFType rs3type=FRF;
     RFType rdtype=IRF;
 
-    Bool r4type= (opcode[4:2]=='b100);
     if(opcode=='b00001 || (opcode[4:2]=='b101 &&  
        funct7[6:3]!='b1010 && funct7[6:3]!='b1100 && funct7[6:3]!='b1110 ) || opcode[4:2]=='b100) 
       rdtype=FRF; 
@@ -890,7 +886,7 @@ package decoder;
   `endif
 
     let op_addr = OpAddr{rs1addr:rs1, rs2addr:rs2, rd:rd 
-            `ifdef spfpu ,rs3: rs3 `endif };
+            `ifdef spfpu ,rs3addr: rs3 `endif };
     let op_type = OpType{rs1type: rs1type, rs2type:rs2type
           `ifdef spfpu ,rs3type: rs3type, rdtype: rdtype `endif };
     let instr_meta = InstrMeta{inst_type: inst_type, memaccess: mem_access,funct:temp1,
