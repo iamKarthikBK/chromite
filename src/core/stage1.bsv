@@ -268,9 +268,9 @@ package stage1;
               rg_receiving_upper<=False;
             `ifdef compressed
               `ifdef branch_speculation
+                rg_pc<=va;
                 va=rg_pc;
                 va[1]=1;
-                rg_pc<=va;
               `endif
             `endif
           end
@@ -308,7 +308,7 @@ package stage1;
       `endif
         if(enque_instruction) begin
           tx.u.enq(pipedata);
-          `logLevel( stage1,0,$format("STAGE1: Enquing to Next Stage: ",fshow(pipedata)))
+          `logLevel( stage1,0,$format("STAGE1: Enquing: ",fshow(pipedata)))
         end
     endrule
 
@@ -327,7 +327,7 @@ package stage1;
     // be there?
 		interface inst_response= interface Put
 			method Action put (FetchResponse#(32, `iesize) resp);
-        `logLevel( stage1, 1, $format("STAGE1: Recevied from IMEM: ",fshow(resp)))
+        `logLevel( stage1, 1, $format("STAGE1: ",fshow(resp)))
         ff_memory_response.enq(resp);
 			endmethod
     endinterface;
