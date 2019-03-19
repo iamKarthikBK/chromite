@@ -95,7 +95,7 @@ package stage1;
     // This register indicates that the lower 16-bits of the response from the cache need to be
     // ignored. This happens because, when there is jump to non-4-byte aligned address the cache
     // still receives a previous 4-byte-ailgned address from the fetch stage.
-    Reg#(Bool) rg_discard_lower <- mkReg(False);
+    Reg#(Bool) rg_discard <- mkReg(False);
     Reg#(Bool) rg_receiving_upper <- mkReg(False);
 
     // This register holds the 16-bits of instruction from the previous cache response if required.
@@ -142,7 +142,7 @@ package stage1;
     //    2. wr_csr is written in the same cycle
     //    3. tostage FIFO notFull
     // Schedule Conflicts: This rule will not fire if there is flush from the write-back stage. A
-    // flush from the write-back stage will cause a change in the rg_pc and rg_discard_lower,
+    // flush from the write-back stage will cause a change in the rg_pc and rg_discard,
     // both of which are being updated in this method as well. This schedule is acceptable since
     // anyways the response from the memory currently to be handled in this rule will match epochs
     // and will be dropped.
@@ -153,7 +153,7 @@ package stage1;
     // 
     // 1. First the epochs are compared and if a mis-match is observed then the response is dropped
     // without any other changes to the state of the module.
-    // 2. if rg_discard_lower is set and compressed is enabled then the lower 16-bits of the
+    // 2. if rg_discard is set and compressed is enabled then the lower 16-bits of the
     // resposne are discarded and the upper 16-bits are probed to check if it is a compressed
     // instruction. If so, then the instruction is sent to the next stage. However is it is not a
     // compressed instruction it means the upper 16-bits of the response refer to the lower 16-bits
@@ -206,9 +206,41 @@ package stage1;
           enque_instruction=False;
           `logLevel( stage1,1,$format("STAGE1: Dropping Instruction"))
         end
+        else if(rg_action == CheckPrev)begin
+        `ifdef compressed
+          prediction=rg_prediction;
+        `endif
+          if(rg_instruction[1:0]==2'b11)begin
+            final_instruction={imem_resp.instr[15:0],rg_instruction};
+            rg_instruction<=truncateLSB(imem_resp.instr);
+            deq_response;
+            if(rg_receiving_upper)
+              rg_receiving_upper<=False;
+            `ifdef compressed
+              `ifdef branch_speculation
+                rg_pc<=pred.va;
+                pred.va=rg_pc;
+                pred.va[1]=1;
+              if(rg_prediction>1)
+                rg_action<=None;
+              `endif
+            `endif
+          end
+          else begin
+            compressed=True;
+            final_instruction=zeroExtend(rg_instruction);
+            rg_action<=None;
+          `ifdef branch_speculation
+            `ifdef compressed
+              pred.va=rg_pc;
+              pred.va[1]=1;
+            `endif
+          `endif
+          end
+        end
       `ifdef compressed
         // discard the lower-16bits of the imem-response.
-        else if(pred.discard_lower && wr_csr_misa_c==1)begin
+        else if(pred.discard && wr_csr_misa_c==1)begin
           deq_response;
           if(imem_resp.instr[17:16]==2'b11)begin
             rg_instruction<=imem_resp.instr[31:16];
@@ -257,36 +289,6 @@ package stage1;
         `endif
           end
         end
-        else begin
-        `ifdef compressed
-          prediction=rg_prediction;
-        `endif
-          if(rg_instruction[1:0]==2'b11)begin
-            final_instruction={imem_resp.instr[15:0],rg_instruction};
-            rg_instruction<=truncateLSB(imem_resp.instr);
-            deq_response;
-            if(rg_receiving_upper)
-              rg_receiving_upper<=False;
-            `ifdef compressed
-              `ifdef branch_speculation
-                rg_pc<=pred.va;
-                pred.va=rg_pc;
-                pred.va[1]=1;
-              `endif
-            `endif
-          end
-          else begin
-            compressed=True;
-            final_instruction=zeroExtend(rg_instruction);
-            rg_action<=None;
-          `ifdef branch_speculation
-            `ifdef compressed
-              pred.va=rg_pc;
-              pred.va[1]=1;
-            `endif
-          `endif
-          end
-        end
         Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c==1)?2:4;
 				let pipedata=PIPE1{program_counter:pred.va,
                       instruction:final_instruction,
@@ -304,7 +306,7 @@ package stage1;
         `logLevel( stage1,0,$format("STAGE1: PC:%h: ",pred.va,fshow(ff_memory_response.first)))
       `ifdef compressed
         `ifdef branch_speculation
-          `logLevel( stage1,1,$format("STAGE1: rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c,pred.discard_lower))
+          `logLevel( stage1,1,$format("STAGE1: rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c,pred.discard))
         `endif
       `endif
         if(enque_instruction) begin

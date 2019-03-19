@@ -85,9 +85,12 @@ package stage0;
     Reg#(Bool) rg_fence  <- mkReg(False);
     Reg#(Bool) rg_flush  <- mkReg(False);
 
-  `ifdef branch_speculation
+`ifdef branch_speculation
     Wire#(PredictionToStage0) wr_prediction <- mkWire();
+  `ifdef compressed
+    Reg#(Tuple2#(Bool, Bit#(`vaddr))) rg_delayed_redirect <- mkReg(tuple2(False,?));
   `endif
+`endif
 
     // local variable to hold the next+4 pc value. Ensure only a single adder is used.
     let curr_epoch = {rg_eEpoch, rg_wEpoch};
@@ -117,13 +120,27 @@ package stage0;
 
       if(!rg_fence && !rg_sfence) begin
 
-      `ifdef branch_speculation
+    `ifdef branch_speculation
         let pred = wr_prediction;
-        if ( pred.prediction > 1 && !rg_flush )
+      `ifdef compressed
+        if(tpl_1(rg_delayed_redirect))begin
+          fetch_pc = tpl_2(rg_delayed_redirect);
+          rg_delayed_redirect<=tuple2(False,?);
+          `logLevel( stage0, 0, $format("STAGE0: Sending Delayed Redirect"))
+        end
+        else if(pred.edgecase && pred.epochs == curr_epoch && pred.prediction > 1) begin
+          rg_delayed_redirect<=tuple2(True, pred.target_pc);
+          `logLevel( stage0, 0, $format("STAGE0: Edge Case received."))
+        end
+        else 
+      `endif
+        if ( pred.prediction > 1 && !rg_flush ) begin
           fetch_pc=pred.target_pc;
+          `logLevel( stage0, 0, $format("STAGE0: Redirection from BPU"))
+        end
 
         discard = (fetch_pc[1] == 1);
-      `endif
+    `endif
         fetch_pc[1] = 0;
 
         rg_pc<=fetch_pc+4;
@@ -136,7 +153,8 @@ package stage0;
       rg_flush <= False;
 
       `logLevel( stage0, 1, $format("STAGE0: Prediction from BPU: ",fshow(wr_prediction), " Flush:%b",rg_flush))
-      `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b rg_pc",fetch_pc, discard, rg_pc))
+      `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b rg_pc:%h fence:%b sfence:%b",
+                                    fetch_pc, discard, rg_pc, rg_fence, rg_sfence))
 
       return FetchRequest{ icache_req: ICache_request{ address : fetch_pc,
                                                        epochs  : curr_epoch
@@ -165,6 +183,11 @@ package stage0;
       rg_sfence<=f.sfence;
     `endif
       rg_flush<=True;
+  `ifdef branch_speculation
+    `ifdef compressed
+      rg_delayed_redirect<=tuple2(False,?);
+    `endif
+  `endif
       `logLevel( stage0,0, $format("STAGE0: Received Flush: ",fshow(f)))
     endmethod
 
