@@ -34,6 +34,7 @@ package fwding1;
   import Vector::*;
   import GetPut::*;
   import BUtils::*;
+  `include "Logger.bsv"
 
   interface Ifc_fwding;
     method Action fwd_from_pipe3 (FwdType fwd);
@@ -53,7 +54,6 @@ package fwding1;
 
   (*synthesize*)
   module mkfwding(Ifc_fwding);
-    let verbosity = `VERBOSITY ;
     Wire#(FwdType) wr_from_pipe3        <- mkWire();
     Wire#(FwdType) wr_from_pipe4_first  <- mkWire();
     Reg#(CommitData) rg_recent_commit <-mkReg(unpack(0));
@@ -113,9 +113,8 @@ package fwding1;
         else if(pick_p5 && !p5_avail )
           available=False;
       end
-      if(verbosity>2)begin
-        $display($time,"\tFWDING: Returning RS1 Avail: %b Val: %h",available,returnval);
-      end
+      `logLevel( fwding, 2, $format("FWDING: Returning RS1 Avail: %b Val: %h", 
+                                      available,returnval))
       return tuple2(available,returnval);
     endmethod
     method ActionValue#(Tuple2#(Bool,Bit#(ELEN))) read_rs2(Bit#(ELEN) val, Bit#(5) addr 
@@ -169,9 +168,8 @@ package fwding1;
         else if(pick_p5 && !p5_avail )
           available=False;
       end
-      if(verbosity>2)begin
-        $display($time,"\tFWDING: Returning RS2 Avail: %b Val: %h",available,returnval);
-      end
+      `logLevel( fwding, 2, $format("FWDING: Returning RS2 Avail: %b Val: %h", 
+                                      available,returnval))
       return tuple2(available,returnval);
     endmethod
   `ifdef spfpu
@@ -226,9 +224,8 @@ package fwding1;
         else if(pick_p5 && !p5_avail )
           available=False;
       end
-      if(verbosity>2)begin
-        $display($time,"\tFWDING: Returning RS3 Avail: %b Val: %h",available,returnval);
-      end
+      `logLevel( fwding, 2, $format("FWDING: Returning RS3 Avail: %b Val: %h", 
+                                      available,returnval))
       return tuple2(available,returnval);
     endmethod
   `endif

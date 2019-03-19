@@ -27,7 +27,7 @@ endef
 
 TOP_MODULE:=mkTbSoC
 TOP_FILE:=TbSoC.bsv
-TOP_DIR:=./src/testbench/
+TOP_DIR:=./src/testbench
 WORKING_DIR := $(shell pwd)
 
 ifneq (,$(findstring RV64,$(ISA)))
@@ -92,6 +92,16 @@ endif
 ifeq ($(PMP), enable)
 	override define_macros += -D pmp=True
 endif
+ifeq ($(BPU), enable)
+	override define_macros += -D bpu=True
+endif
+ifeq ($(RAS), enable)
+	override define_macros += -D ras=True
+endif
+ifeq ($(BPU), enable)
+	override define_macros += -D branch_speculation=True
+endif
+
 
 
 ifeq ($(COVERAGE), none)
@@ -121,10 +131,12 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
 								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) -D desize=$(DESIZE) \
 								 -D dsbsize=$(DSBSIZE) -D ibuswidth=$(IBUSWIDTH) \
 								 -D PIPE$(PIPE)=True -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
-								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) 
+								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) \
+								 -D btbsize=$(BTBSIZE) -D rassets=$(RASSETS) -D rassize=$(RASSIZE) \
+                 -D causesize=$(CAUSESIZE)
 		
 
-CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/
+CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/:./src/core/predictors/
 M_EXT:=./src/core/m_ext/
 FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
 UNCORE:=./src/uncore

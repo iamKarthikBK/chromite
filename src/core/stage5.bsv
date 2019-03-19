@@ -33,6 +33,7 @@ package stage5;
   import GetPut::*;
   import common_types::*;
   `include "common_params.bsv"
+  `include "Logger.bsv"
 
   import FIFO::*;
   import FIFOF::*;
@@ -82,9 +83,9 @@ package stage5;
 
   (*synthesize*)
   (*conflict_free="instruction_commit,increment_instruction_counter"*)
+  (*conflict_free="set_external_interrupt,instruction_commit"*)
   module mkstage5(Ifc_stage5);
 
-    let verbosity = `VERBOSITY ;
 
     RX#(PIPE4) rx<-mkRX;
   `ifdef rtldump
@@ -131,8 +132,7 @@ package stage5;
       Bit#(`vaddr) jump_address=?;
       Bool fl = False;
       `ifdef rtldump
-        if(verbosity>0)
-          $display($time,"\tWBMEM: PC: %h: inst: %h commit: ",simpc,inst,fshow(commit));
+        `logLevel( stage5, 0, $format("STAGE5: PC: %h: inst: %h commit: ",simpc,inst,fshow(commit)))
       `endif
       if(rg_epoch==epoch)begin
         if(commit matches tagged TRAP .t)begin
@@ -153,8 +153,7 @@ package stage5;
           `ifdef rtldump
             rxinst.u.deq;
           `endif
-          if(verbosity>0)
-            $display($time, "\tWBMEM: Received TRAP: ", t.cause, " New PC: %h",jump_address);
+          `logLevel( stage5, 0, $format("STAGE5: Received TRAP:%d NewPC:%h fl:%b",t.cause,jump_address,fl))
         end
         else if (commit matches tagged STORE .s)begin
         `ifdef dcache
@@ -186,13 +185,11 @@ package stage5;
           else if(!rg_store_initiated)begin
             wr_initiate_store <= tuple2(unpack(rg_epoch),True);
             rg_store_initiated<=True;
-            if(verbosity>0)
-              $display($time,"\tSTAGE5: Initiating Store request");
+            `logLevel( stage5, 0, $format("STAGE5: Initiating Store request"))
           end
           else if(wr_store_response matches tagged Valid .resp) begin
             rg_store_initiated<=False;
-            if(verbosity>1)
-              $display($time,"\tSTAGE5: Store response Received: ",fshow(resp));
+            `logLevel( stage5, 0, $format("STAGE5: Store response Received: ",fshow(resp)))
             let {err, badaddr} = resp;
             if(err==0)begin
               wr_increment_minstret<=True;
@@ -229,20 +226,17 @@ package stage5;
             end
           end
           else begin
-            if(verbosity>1)
-              $display($time,"\tSTAGE5: Waiting for Store response");
+            `logLevel( stage5, 0, $format("STAGE5: Waiting for Store response"))
           end
           
         `else
           if(!rg_store_initiated)begin // if store has not started yet.
-            if(verbosity>0)
-              $display($time,"\tSTAGE5: Initiating Store request");
+            `logLevel( stage5, 0, $format("STAGE5: Initiating Store request"))
             rg_store_initiated<=True;
             wr_initiate_store<=tuple2(True,False);
           end
           else if(wr_store_response matches tagged Valid .resp)begin
-            if(verbosity>1)
-              $display($time,"\tSTAGE5: Store response Received: ",fshow(resp));
+            `logLevel( stage5, 0, $format("STAGE5: Store response Received: ",fshow(resp)))
             let {err, badaddr} = resp;
             if(err==0)begin
               wr_increment_minstret<=True;
@@ -282,8 +276,7 @@ package stage5;
             rg_store_initiated<=False;
           end
           else begin
-            if(verbosity>1)
-              $display($time,"\tSTAGE5: Waiting for Store response");
+            `logLevel( stage5, 0, $format("STAGE5: Waiting for Store response"))
           end
         `endif
         end
@@ -292,14 +285,14 @@ package stage5;
           jump_address=newpc;
           fl=drain;
         `ifdef spfpu
-          wr_commit <= tagged Valid (tuple3(sys.rd, zeroExtend(dest), sys.rdtype));
+          wr_commit <= tagged Valid (tuple3(sys.rd, zeroExtend(dest), IRF));
         `else
           wr_commit <= tagged Valid (tuple2(sys.rd, dest));
         `endif
         `ifdef rtldump 
           if(sys.rd==0)
             dest=0;
-          dump_ff.enq(tuple6(prv, signExtend(simpc), inst, sys.rd, zeroExtend(dest), sys.rdtype));
+          dump_ff.enq(tuple6(prv, signExtend(simpc), inst, sys.rd, zeroExtend(dest), IRF));
         `endif
         `ifdef rtldump
           rxinst.u.deq;
@@ -308,8 +301,7 @@ package stage5;
         end
         else if(commit matches tagged REG .r)begin
           // in case of regular instruction simply update RF and forward the data.
-          if(verbosity>0)
-            $display($time,"\tWBMEM: Regular commit");
+          `logLevel( stage5, 0, $format("WBMEM: Regular commit"))
           wr_increment_minstret<=True;
         `ifdef spfpu
           wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdtype));
@@ -325,7 +317,8 @@ package stage5;
           let data=r.commitvalue;
           if(r.rd==0 `ifdef spfpu && r.rdtype==IRF `endif )
             data=0;
-          dump_ff.enq(tuple6(prv, signExtend(simpc), inst, r.rd, data, r.rdtype));
+            dump_ff.enq(tuple6(prv, signExtend(simpc), inst, r.rd, data, `ifdef spfpu r.rdtype `else
+            IRF `endif ));
         `endif
         end
         
@@ -340,8 +333,7 @@ package stage5;
         end
       end
       else begin
-        if(verbosity>1)
-          $display($time, "\tWBMEM: Dropping instruction. Epoch: %b rg_epoch: %b",epoch,rg_epoch);
+          `logLevel( stage5, 0, $format("WBMEM: Dropping instruction"))
           if(commit matches tagged STORE .s)
           `ifdef dcache
             wr_initiate_store<=tuple2(unpack(rg_epoch),True);

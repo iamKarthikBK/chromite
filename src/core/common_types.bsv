@@ -7,7 +7,7 @@ provided that the following conditions are met:
 * Redistributions of source code must retain the above copyright notice, this list of conditions
   and the following disclaimer.  
 * Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and/or other materials provided 
+  conditions and the following disclaimer in the documentation and / or other materials provided 
  with the distribution.  
 * Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
   promote products derived from this software without specific prior written permission.
@@ -22,8 +22,8 @@ IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISI
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
-Author: Neel Gala
-Email id: neelgala@gmail.com
+Author : Neel Gala
+Email id : neelgala@gmail.com
 Details:
 
 --------------------------------------------------------------------------------------------------
@@ -49,91 +49,91 @@ package common_types;
   typedef 0 USERSPACE ;
   typedef TMax#(XLEN, FLEN) ELEN;
 
-  // ---------------- following types are used to define the memory interfaces from the core ---//
-`ifdef icache
-  `ifdef supervisor
-    typedef Tuple4#(Bit#(addr), Bool, Bool, Bit#(esize)) ICore_request#(numeric type addr, 
-                                                                            numeric type esize);
-  `else                                                                          
-                    // addr, Fence, epoch
-    typedef Tuple3#(Bit#(addr), Bool, Bit#(esize)) ICore_request#(numeric type addr, 
-                                                                            numeric type esize);
+  typedef struct{
+    Bit#(`vaddr) pc;
+  `ifdef icache
+    Bool  fence;
   `endif
-`else
-                    // addr,epoch
-    typedef Tuple2#(Bit#(addr), Bit#(esize)) ICore_request#(numeric type addr, numeric type esize);
-`endif
-`ifdef dcache
   `ifdef supervisor
-    `ifdef atomic
-                    // addr, Fence, sFence, epoch, access_type, access_size data,  atomic_op
-      typedef Tuple8#(Bit#(addr), Bool, Bool, Bit#(esize), Bit#(2), Bit#(3), Bit#(data),  Bit#(5)) 
-                      DMem_request#(numeric type addr, numeric type data, numeric type esize);
-    `else
-                    // addr, Fence, sFence epoch, access_type, access_size data,  atomic_op
-      typedef Tuple7#(Bit#(addr), Bool, Bool, Bit#(esize), Bit#(1), Bit#(3), Bit#(data)) 
-                      DMem_request#(numeric type addr, numeric type data, numeric type esize);
-    `endif
-  `else                                                                          
-    `ifdef atomic
-                      // addr, Fence, epoch, access_type, access_size data,  atomic_op
-      typedef Tuple7#(Bit#(addr), Bool, Bit#(esize), Bit#(2), Bit#(3), Bit#(data),  Bit#(5)) 
-                        DMem_request#(numeric type addr, numeric type data, numeric type esize);
-    `else
-                      // addr, Fence, epoch, access_type, access_size data,  atomic_op
-      typedef Tuple6#(Bit#(addr), Bool, Bit#(esize), Bit#(1), Bit#(3), Bit#(data)) 
-                        DMem_request#(numeric type addr, numeric type data, numeric type esize);
-    `endif
+    Bool  sfence;
   `endif
-  typedef Tuple4#(Bit#(data), Bool, Bit#(6), Bit#(esize)) DMem_response#(numeric type data, 
-                                                                          numeric type esize);
-`endif
-  // ------------------------------------------------------------------------------------- //
+  } Stage0Flush deriving(Bits, Eq, FShow);
+
 
   //------ The follwing contain common tuples across the stages ------------- 
 	typedef enum {ALU, MEMORY, BRANCH, JAL, JALR, SYSTEM_INSTR, TRAP, WFI
-      `ifdef spfpu ,FLOAT `endif `ifdef muldiv ,MULDIV `endif } Instruction_type 
-      deriving(Bits, Eq, FShow); // the type of the decoded instruction.
-	typedef enum {Load=0, Store=1, Fence=3 , FenceI=4 
-                `ifdef atomic ,Atomic=2 `endif 
-                `ifdef supervisor ,SFence=5 `endif } Access_type 
-                                                                        deriving (Bits, Eq, FShow);
+                `ifdef spfpu, FLOAT `endif 
+                `ifdef muldiv, MULDIV `endif } Instruction_type deriving(Bits, Eq, FShow);
+
+	typedef enum {Load = 0, Store = 1, Fence = 3, FenceI = 4 
+                `ifdef atomic,      Atomic = 2 `endif 
+                `ifdef supervisor,  SFence = 5 `endif } Access_type deriving (Bits, Eq, FShow);
+
   `ifdef bpu                                                                     
   	typedef enum {CheckNPC, CheckRPC, None} Flush_type deriving (Bits, Eq, FShow);
   `else
   	typedef enum {CheckRPC, None} Flush_type deriving (Bits, Eq, FShow);
   `endif
   typedef enum {Regular, None} Flush_type2 deriving (Bits, Eq, FShow);
-	typedef enum {`ifdef spfpu FloatingRF=2, `endif IntegerRF=0, PC=1} Op1type deriving(Bits, Eq, FShow);
-	typedef enum {`ifdef spfpu FloatingRF=4, `endif IntegerRF=0, Immediate=1, Constant4=2, Constant2=3} 
+	typedef enum {`ifdef spfpu FloatingRF = 2, `endif IntegerRF = 0, PC = 1} Op1type deriving(Bits, Eq, FShow);
+	typedef enum {`ifdef spfpu FloatingRF = 4, `endif IntegerRF = 0, Immediate = 1, Constant4 = 2, Constant2 = 3} 
                                                                   Op2type deriving(Bits, Eq, FShow);
-  typedef enum {FRF=1, IRF=0} RFType deriving(Bits, Eq, FShow);
+  typedef enum {FRF = 1, IRF = 0} RFType deriving(Bits, Eq, FShow);
 //  typedef enum {SYSTEM_INSTR, REGULAR, TRAP} Commit_type deriving(Eq, Bits, FShow);
   typedef enum {MEMORY, SYSTEM_INSTR, REGULAR, TRAP} PreCommit_type deriving(Eq, Bits, FShow);
-  typedef enum {Machine=3, Supervisor=1, User=0} Privilege_mode 
+  typedef enum {Machine = 3, Supervisor = 1, User = 0} Privilege_mode 
                                                                           deriving(Eq, Bits, FShow);
   // -------------------------------------------------------------------------------------
 
   // ------- The following typdefs are used to define the output from the decode stage -----
   // data structure of the fwding data structure
-//  typedef union tagged{
-//    Bit#(width) Present;
-//  	void Absent;
-//  } FwdType#(numeric type width) deriving(Bits,Eq,FShow);
   `ifdef spfpu
     typedef Tuple5#(Bool, Bool, Bit#(5), Bit#(ELEN), RFType) FwdType;
   `else
     typedef Tuple4#(Bool, Bool, Bit#(5), Bit#(ELEN)) FwdType;
   `endif
   
-  //                  rs1,   rs2,      rd      op1 type , op2 type
-    typedef Tuple5#(Bit#(5), Bit#(5), Bit#(5), Op1type, Op2type) OpType_min;
-  //                {fn,f3}   instr-Type       mem-type     Imm
-    typedef Tuple4#(Bit#(7), Instruction_type, Access_type, Bit#(32)) DecodeMeta; 
-                                          // resume_wfi , rerun
-    typedef Tuple4#(OpType_min,DecodeMeta, Bool, Bool) DecodeOut;
-    
-    typedef Tuple3#(Bit#(5), RFType, RFType) OpType_fpu;
+  // This struct captures the decoded addresses of the operands and destination registers.
+  // Max width : 20 bits
+  typedef struct{
+    Bit#(5) rs1addr;
+    Bit#(5) rs2addr;
+    Bit#(5) rd;
+  `ifdef spfpu
+    Bit#(5) rs3addr;
+  `endif
+  } OpAddr deriving(Bits, Eq, FShow);
+
+  // this struct captures the type of the operands based on the instruction being decoded.
+  // Max width : 2+3 + 1+1 = 7 bits
+  typedef struct{
+    Op1type rs1type;
+    Op2type rs2type;
+  `ifdef spfpu
+    RFType  rs3type;
+    RFType  rdtype;
+  `endif
+  } OpType deriving(Bits, Eq, FShow);
+
+  // this struct holds the meta decoded information of an instruction
+  typedef struct{
+    Instruction_type inst_type; // instruction type
+    Access_type memaccess;      // memory access type
+    Bit#(32) immediate;         // immediate fields
+    Bit#(7) funct;              // concatenation of f3 and fn fields
+    Bool    resume_wfi;         // indicates if core should resume from wfi
+    Bool    rerun;              // indicates if the current instruction needs to be rerun
+  } InstrMeta deriving(Bits, Eq, FShow); 
+
+  // the final structure of the response from the decoder
+  typedef struct{
+    OpAddr    op_addr;
+    OpType    op_type;
+    InstrMeta meta;
+  `ifdef compressed
+    Bool compressed;
+  `endif
+  } DecodeOut deriving(Bits, Eq, FShow);
   // ------------------------------------------------------------------------------------------
 
   `ifdef spfpu
@@ -144,15 +144,23 @@ package common_types;
   `endif
 
   // define all tuples here
-  typedef Tuple5#(PreCommit_type, Bit#(ELEN), Bit#(`vaddr), Bit#(6), Flush_type) ALU_OUT;
+  typedef struct{
+    Bool done; 
+    PreCommit_type cmtype;
+    Bit#(ELEN) aluresult ;
+    Bit#(`vaddr) effective_addr;
+    Bit#(`causesize) cause;
+    Bool redirect;
+  `ifdef branch_speculation
+    Bool branch_taken;
+    Bit#(`vaddr) redirect_pc;
+  `endif
+  } ALU_OUT deriving (Bits,  Eq,  FShow);
   
   typedef Tuple5#(Bit#(`paddr), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
   typedef Tuple4#(Bit#(`paddr), Access_type, Bit#(2), Bit#(1)) CoreRequest;
 
   typedef Tuple3#(Bit#(5), Bool, Bit#(XLEN)) OpFwding;
-  // rg_prv,  csr_mip, csr_mie, csr_mideleg, csr_misa, csr_counteren, rg_mie, {fs,frm}
-//  typedef Tuple8#(Privilege_mode, Bit#(12), Bit#(12), Bit#(12), Bit#(26), Bit#(3), 
-//                   Bit#(1), Bit#(4)) CSRtoDecode;
   typedef struct{
     Privilege_mode prv;
     Bit#(12) csr_mip;
@@ -171,22 +179,11 @@ package common_types;
   `endif
     Bit#(26) csr_misa;
     Bit#(XLEN) csr_mstatus;
-    Bit#(3) frm;} CSRtoDecode deriving(Bits,Eq,FShow);
+    Bit#(3) frm;} CSRtoDecode deriving(Bits, Eq, FShow);
 
   typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), RFType) DumpType;
-  
-  typedef struct {
-  	Bit#(addr_width) pc;
-  	Bit#(addr_width) branch_address;
-  	Bit#(2) state;
-    } Training_data#(numeric type addr_width) deriving (Bits, Eq);
-  
-  typedef Tuple3#(
-    Bit#(addr), // ADDR
-    Bit#(esize),// epoch
-    Bit#(3))    // access_size
-    MemoryReadReq#(numeric type addr, numeric type esize);
-                    // data , trap, cause, eopch size
+ 
+                    // data, trap, cause, eopch size
   typedef Tuple4#(Bit#(ELEN), Bool, Bit#(6), Bit#(esize)) MemoryReadResp#(numeric type esize);
   
   typedef Tuple3#(
@@ -194,14 +191,22 @@ package common_types;
     Bit#(data), // DATA
     Bit#(2))    // access_size
     MemoryWriteReq#(numeric type addr, numeric type esize, numeric type data);
-                    // err , eopch size
+                    // err, eopch size
   typedef Bit#(1) MemoryWriteResp;
+
+  typedef struct{
+    Bit#(`vaddr ) pc;
+  `ifdef branch_speculation
+    Bit#(2) prediction;
+  `endif
+    Bit#(2) epoch;
+  } PIPE0 deriving(Bits, Eq, FShow);
 
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
   	Bit#(`vaddr) program_counter;
   	Bit#(32) instruction;
-  	Bit#(2) epochs;
+  	Bit#(`iesize) epochs;
     Bool trap ;
   `ifdef supervisor
     Bit#(6) cause;
@@ -209,156 +214,139 @@ package common_types;
   `ifdef compressed
     Bool upper_err;
   `endif
-  }PIPE1_min deriving (Bits,Eq);
-
-  typedef struct{Bit#(2) prediction;} PIPE1_opt1 deriving(Bits,Eq,FShow);
-  typedef struct{Bit#(1) pagefault;} PIPE1_opt2 deriving(Bits,Eq,FShow);
-
+  `ifdef branch_speculation
+    Bit#(2) prediction;
+  `endif
+  }PIPE1 deriving (Bits, Eq, FShow);
   
   // ---------- Tuples for the second Pipeline Stage -----------//
+  // type holding the meta information for stage3.
+  // Max Width : 7+3 + 4+64 + 1+2 = 81 bits
+  typedef struct{
+    Bit#(`vaddr) pc;
+    Bit#(7) funct;
+    Access_type memaccess;
+    Instruction_type inst_type;
+  `ifdef RV64
+    Bool  word32;
+  `endif
+    Bit#(2) epochs;
+  `ifdef compressed
+    Bool compressed;
+  `endif
+  `ifdef branch_speculation
+    Bit#(2) prediction;
+  `endif
+  } Stage3Meta deriving(Bits, Eq, FShow);
 
-  typedef Tuple4#(Bit#(5), // rs1addr
-                 Bit#(5), // rs2addr
-                 Bit#(`vaddr), // pc_rs1,
-                 Instruction_type)  OpMeta;
-  typedef Tuple3#(
-                 Bit#(msize), // rs1_pc
-                 Bit#(msize), // rs2_instruction(for badaddr)
-                 Bit#(t))     // rs3_imm. Incase fpu is on then t = FLEN else `vaddr
-                 OpData#(numeric type msize, numeric type t);
-  typedef Tuple5#(Bit#(5), // rd
-                 Bit#(7), // {fn,f3} or cause
-                 Access_type, // memory access type
-                 Bool, //Word32
-                 Bit#(2) // epochs
-                ) MetaData;
-  typedef Tuple3#(OpMeta, OpData#(msize,t), MetaData) PIPE2_min#(numeric type msize, numeric type t);
-  typedef Tuple5#(Bit#(5), // rs3addr
-                 RFType, // rs1type
-                 RFType, // rs2type
-                 RFType, // rs3type
-                 RFType // rdtype
-                ) OpFpu;
+  // struct holding the operands read from the RF in decode stage.
+  // Max width = 64 * 3 = 192 bits
+  typedef struct{
+    Bit#(ELEN) op1;
+    Bit#(ELEN) op2;
+    Bit#(FLEN) op3;
+  } RFOperands deriving(Bits, Eq, FShow);
 
+  typedef struct{
+    OpAddr op_addr;
+    OpType op_type;
+  } Stage3OpMeta deriving(Bits, Eq, FShow);
+
+  
   // -------------------------------------------------------------
   // ---------- Tuples for the third Pipeline Stage -----------//
 
-  //for TRAP type commit: total : 85
-  // cause                7 bits            
-  // badaddr              `vaddr             -done
-  // pc                   `vaddr             -done
+  typedef struct{
+    Bit#(`vaddr) pc;
+    Bit#(5)      rd;
+    Bit#(1)      epochs;
+  `ifdef spfpu
+    RFType        rdtype;
+  `endif
+  } Stage4Common deriving(Bits, Eq, FShow);
 
-  // for MEMORY type      total: 156
-  // address              `vaddr             -done
-  // data                 ELEN              -done
-  // pc                   `vaddr             -done required to generate TRAP
-  // atomic op            4-bits      
-  // accesstype           3-bits            
-  // access_size          3-bits
-  // rdtype               1.bit
-  // rd                   5-bits            
-  // meta_arrangement:    {atomic_op, nanboxing,access_size,accesstype,rdtype,rd} = 17
+  typedef struct{
+    Bit#(`vaddr)  address;
+    Access_type   memaccess;
+  `ifndef dcache
+    Bit#(ELEN)    data;
+    Bit#(5)       atomic_op;
+    Bit#(3)       size;
+  `endif
+  `ifdef dpfpu
+    Bit#(1)       nanboxing;
+  `endif
+  } Stage4Memory deriving(Bits, Eq, FShow);
 
-  // for REGULAR          total: 78
-  // rdvalue              ELEN              -done
-  // fpu-flags            5 bits            -done
-  // rdtype               1 bits            -done
-  // rd                   5 bits            -done
-  // meta1_arrangement:    {rdtype,rd} = 6
-  // meta2_arrangement:    {fpu-flags} = 5
+  typedef struct{
+    Bit#(`causesize)    cause;
+    Bit#(`vaddr)        badaddr;
+  } Stage4Trap deriving(Bits, Eq, FShow);
 
-  // for SYSTEM_INSTR     total: 90 bits
-  // csr_imm or rs1       XLEN              -done
-  // lpc                  2 bits            -done
-  // csr_address          12 bits           -done
-  // funct3               3 bits            -done
-  // rdtype               1-bit             -done
-  // rd                   5-bits            -done
-  // meta2_arrangement:    {lpc,csraddress,funct3} = 17
-  // meta1_arrangement:    {rdtype,rd} = 6
+  typedef struct{
+    Bit#(ELEN)    rdvalue;
+  `ifdef spfpu
+    Bit#(5)       fflags;
+  `endif
+  } Stage4Regular deriving(Bits, Eq, FShow);
 
-  // Common: epoch 1-bit
+  typedef struct{
+    Bit#(ELEN)    rs1_imm;
+    Bit#(2)       lpc;
+    Bit#(12)      csr_address;
+    Bit#(3)       funct3;
+  } Stage4System deriving(Bits, Eq, FShow);
 
-  typedef Bit#(`vaddr)     Tbad_Maddr_Rmeta2_Smeta2;
-  typedef Bit#(ELEN)      Mdata_Rrdvalue_Srs1;
-  typedef Bit#(`vaddr)     Tpc_Mpc;
-  typedef Bit#(18)        Tcause_Mmeta_Rmeta1_Smeta1_epoch;
+  typedef union tagged{
+    Stage4Memory  Memory;
+    Stage4Trap    Trap;
+    Stage4Regular Regular;
+    Stage4System  System;
+  } Stage4Type deriving (Bits, Eq, FShow);
 
-  typedef Tuple5#(PreCommit_type, Tbad_Maddr_Rmeta2_Smeta2, Mdata_Rrdvalue_Srs1,
-                                                Tpc_Mpc,Tcause_Mmeta_Rmeta1_Smeta1_epoch) PIPE3;
                 
   // ----------------------------------------------------------//
-  // ---------- Tuples for the third Pipeline Stage -----------//
-
-  //for TRAP type commit: total : 85
-  // cause                7 bits            
-  // badaddr              `vaddr             -done
-  // pc                   `vaddr             -done
-
-  // for STORE type      total: 42
-  // pc                   `vaddr           
-  // rdindex              3-bits
-
-  // for REGULAR          total: 78
-  // rdvalue              ELEN              -done
-  // fpu-flags            5 bits            -done
-  // rdtype               1 bits            -done
-  // rd                   5 bits            -done
-  // rdindex              3 bits            -done
-  // meta1_arrangement:    {rdtype,rd,rdindex} = 9
-  // meta2_arrangement:    {fpu-flags} = 5
-
-  // for SYSTEM_INSTR     total: 90 bits
-  // csr_imm or rs1       XLEN              -done
-  // lpc                  2 bits            -done
-  // csr_address          12 bits           -done
-  // funct3               3 bits            -done
-  // rdtype               1-bit             -done
-  // rd                   5-bits            -done
-  // rdindex              3 bits            -done
-  // meta2_arrangement:    {lpc,csraddress,funct3} = 17
-  // meta1_arrangement:    {rdtype,rd,rdindex} = 9
-
-  // Common: epoch 1-bit
+  // Common : epoch 1 - bit
   typedef struct{
-    Bit#(6) cause;
+    Bit#(`causesize) cause;
     Bit#(`vaddr) badaddr;
-    Bit#(`vaddr) pc;}CommitTrap deriving(Bits,Eq,FShow);
+    Bit#(`vaddr) pc;
+  } CommitTrap deriving(Bits, Eq, FShow);
 
   typedef struct{
     Bit#(`vaddr) pc;
   `ifdef atomic
     Bit#(ELEN) commitvalue;
     Bit#(5) rd;
-  `endif }CommitStore deriving (Bits,Eq,FShow);
+  `endif 
+  } CommitStore deriving (Bits, Eq, FShow);
 
   typedef struct{
     Bit#(ELEN) commitvalue;
+    Bit#(5) rd;
+  `ifdef spfpu
     Bit#(5) fflags;
     RFType rdtype;
-    Bit#(5) rd;
-    }CommitRegular deriving(Bits,Eq,FShow);
+  `endif
+  } CommitRegular deriving(Bits, Eq, FShow);
 
   typedef struct{
     Bit#(XLEN) rs1;
     Bit#(2) lpc;
     Bit#(12) csraddr;
     Bit#(3) func3;
-    RFType rdtype;
     Bit#(5) rd;
-    }CommitSystem deriving(Bits,Eq,FShow);
+  } CommitSystem deriving(Bits, Eq, FShow);
 
   typedef union tagged{
     CommitTrap TRAP;
     CommitStore STORE;
     CommitRegular REG;
-    CommitSystem SYSTEM;} CommitType deriving(Bits,Eq,FShow);
+    CommitSystem SYSTEM;} CommitType deriving(Bits, Eq, FShow);
 
-  typedef Tuple2#(CommitType,Bit#(1)) PIPE4;
+  typedef Tuple2#(CommitType, Bit#(1)) PIPE4;
 
   // ----------------------------------------------------------//
-
-  
 
   typedef struct {
   	Bit#(1)			mprv;
@@ -379,6 +367,6 @@ package common_types;
   typedef struct{
 		Bit#(width) final_result;					// the final result for the operation
 		Bit#(5) fflags; 					// indicates if any exception is generated.
-	}Floating_output#(numeric type width) deriving(Bits,Eq);				// data structure of the output FIFO.
+	}Floating_output#(numeric type width) deriving(Bits, Eq);				// data structure of the output FIFO.
 
 endpackage

@@ -344,6 +344,11 @@ package decoder;
       'b1:rs2=inst[6:2];
       endcase
     end
+    
+    // --- capturing memory access type.Only valid are Load/Store
+    Access_type mem_access=Load;
+		if( ((quad==Q0 || quad==Q2) && (funct3=='b110 || funct3=='b101 || funct3=='b111)) )
+			mem_access=Store;
 
     //----------------------------------- inferring rd
     Bit#(5) rd=inst[11:7];
@@ -358,7 +363,7 @@ package decoder;
       case(funct3)
         `ifdef RV32 'b001: rd=1; `endif //C.JAL
         'b100: rd[4:3]=2'b01; //C.SRLI,SRAI,ANDI,SUB,XOR,OR,AND,SUBW,ADDW
-        'b101,'b110,'b111: rd=0; //C.J,C.BEQZ,C.BNEZ
+        'b101,'b110,'b111: begin rd=0; mem_access=Store; end //C.J,C.BEQZ,C.BNEZ
       endcase
     end
     if(quad==Q2)begin
@@ -374,10 +379,6 @@ package decoder;
       endcase
     end
 	
-    // --- capturing memory access type.Only valid are Load/Store
-    Access_type mem_access=Load;
-		if( ((quad==Q0 || quad==Q2) && (funct3=='b110 || funct3=='b101 || funct3=='b111)) )
-			mem_access=Store;
 
     // --- deriving fn bits
     Bit#(4) fn=0;
@@ -500,12 +501,29 @@ package decoder;
     Bit#(7) temp1 = {fn,f3};
     if(inst_type==TRAP)
       temp1={1'b0,trapcause};
+  
+ `ifdef spfpu
+    Bit#(5) rs3=0;
+ 		RFType rs3type=FRF;
+    RFType rdtype=IRF;
 
+    if(csrs.csr_misa[2]==1)begin
+      rs3=0;
+      rs3type=IRF;
+      if( (quad==Q0||quad==Q2) && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
+        rdtype=FRF;
+    end
+  `endif
+
+    let op_addr = OpAddr{rs1addr:rs1, rs2addr:rs2, rd:rd 
+            `ifdef spfpu ,rs3addr: rs3 `endif };
+    let op_type = OpType{rs1type: rs1type, rs2type:rs2type
+          `ifdef spfpu ,rs3type: rs3type, rdtype: rdtype `endif };
+    let instr_meta = InstrMeta{inst_type: inst_type, memaccess: mem_access,funct:temp1,
+                              immediate: immediate_value, resume_wfi:False, rerun:False};
     
-    OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
-    DecodeMeta t2 = tuple4(temp1, inst_type, mem_access, immediate_value);
-    return tuple4(t1, t2, False, False);
-
+    return DecodeOut{op_addr:op_addr, op_type:op_type, meta:instr_meta
+                    `ifdef compressed , compressed:True `endif };
 
   endfunction
 
@@ -853,43 +871,65 @@ package decoder;
 
     Bool rerun = mem_access==Fence || mem_access==FenceI || inst_type==SYSTEM_INSTR 
                 `ifdef supervisor || mem_access==SFence `endif ;
-
-
-    OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
-    DecodeMeta t2 = tuple4(temp1, inst_type, mem_access, immediate_value);
-    return tuple4(t1, t2, False, rerun);
-
-  endfunction
-
-  (*noinline*)
-  function OpType_fpu decode_fpu_meta(Bit#(32) inst, Bit#(1) csr_misa_c);
+  `ifdef spfpu
     Bit#(5) rs3=inst[31:27];
  		RFType rs3type=FRF;
     RFType rdtype=IRF;
 
-		Bit#(5) opcode= inst[6:2];
-    Bool r4type= (opcode[4:2]=='b100);
-    Bit#(7) funct7 = inst[31:25]; 
-    if(csr_misa_c==1 && inst[1:0]!='b11)begin
-      Quadrant quad =unpack(inst[1:0]);
-      Bit#(3) funct3 = inst[15:13];
+    if(opcode=='b00001 || (opcode[4:2]=='b101 &&  
+       funct7[6:3]!='b1010 && funct7[6:3]!='b1100 && funct7[6:3]!='b1110 ) || opcode[4:2]=='b100) 
+      rdtype=FRF; 
+    if(!r4type)begin
       rs3=0;
       rs3type=IRF;
-      if( (quad==Q0||quad==Q2) && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
-        rdtype=FRF;
     end
-    else begin
-      if(opcode=='b00001 || (opcode[4:2]=='b101 &&  
-         funct7[6:3]!='b1010 && funct7[6:3]!='b1100 && funct7[6:3]!='b1110 ) || opcode[4:2]=='b100) 
-        rdtype=FRF; 
-      if(!r4type)begin
-        rs3=0;
-        rs3type=IRF;
-      end
-    end
+  `endif
 
-    return tuple3(rs3,rs3type,rdtype);
+    let op_addr = OpAddr{rs1addr:rs1, rs2addr:rs2, rd:rd 
+            `ifdef spfpu ,rs3addr: rs3 `endif };
+    let op_type = OpType{rs1type: rs1type, rs2type:rs2type
+          `ifdef spfpu ,rs3type: rs3type, rdtype: rdtype `endif };
+    let instr_meta = InstrMeta{inst_type: inst_type, memaccess: mem_access,funct:temp1,
+                              immediate: immediate_value, resume_wfi:False, rerun:rerun};
+    return DecodeOut{op_addr:op_addr, op_type:op_type, meta:instr_meta
+                    `ifdef compressed , compressed:False `endif };
+
+//
+//    OpType_min t1 = tuple5(rs1, rs2, rd, rs1type, rs2type);
+//    DecodeMeta t2 = tuple4(temp1, inst_type, mem_access, immediate_value);
+//    return tuple4(t1, t2, False, rerun);
+
   endfunction
+//
+//  (*noinline*)
+//  function OpType_fpu decode_fpu_meta(Bit#(32) inst, Bit#(1) csr_misa_c);
+//    Bit#(5) rs3=inst[31:27];
+// 		RFType rs3type=FRF;
+//    RFType rdtype=IRF;
+//
+//		Bit#(5) opcode= inst[6:2];
+//    Bool r4type= (opcode[4:2]=='b100);
+//    Bit#(7) funct7 = inst[31:25]; 
+//    if(csr_misa_c==1 && inst[1:0]!='b11)begin
+//      Quadrant quad =unpack(inst[1:0]);
+//      Bit#(3) funct3 = inst[15:13];
+//      rs3=0;
+//      rs3type=IRF;
+//      if( (quad==Q0||quad==Q2) && (funct3=='b001 `ifdef RV32 || funct3=='b011 `endif ))
+//        rdtype=FRF;
+//    end
+//    else begin
+//      if(opcode=='b00001 || (opcode[4:2]=='b101 &&  
+//         funct7[6:3]!='b1010 && funct7[6:3]!='b1100 && funct7[6:3]!='b1110 ) || opcode[4:2]=='b100) 
+//        rdtype=FRF; 
+//      if(!r4type)begin
+//        rs3=0;
+//        rs3type=IRF;
+//      end
+//    end
+//
+//    return tuple3(rs3,rs3type,rdtype);
+//  endfunction
 
   (*noinline*)
   function Bool decode_word32 (Bit#(32) inst, Bit#(1) misa_c);
@@ -928,19 +968,17 @@ package decoder;
         `ifdef usertraps
           ,csrs.csr_uip, csrs.csr_uie
         `endif );
-      let {t1, t2, t3, t4} = result_decode;
-      let {rs1addr,rs2addr,rd,rs1type,rs2type} = t1;
-      let {func_cause, inst_type,  mem_access,  immediate_value}=t2;
-      Instruction_type x_inst_type = inst_type;
-      Op1type x_rs1type = rs1type;
-      Op2type x_rs2type = rs2type;
-      Bit#(5) x_rs1addr = rs1addr;
-      Bit#(5) x_rs2addr = rs2addr;
+      let func_cause=result_decode.meta.funct;
+      Instruction_type x_inst_type = result_decode.meta.inst_type;
+      Op1type x_rs1type = result_decode.op_type.rs1type;
+      Op2type x_rs2type = result_decode.op_type.rs2type;
+      Bit#(5) x_rs1addr = result_decode.op_addr.rs1addr;
+      Bit#(5) x_rs2addr = result_decode.op_addr.rs2addr;
 
       if(curr_rerun)begin
         x_inst_type=TRAP;
         func_cause=rerun_fencei?`IcacheFence : `ifdef supervisor rerun_sfence?`SFence: `endif `Rerun ;
-        t4=False;
+        result_decode.meta.rerun=False;
       end
       else if(takeinterrupt)begin
         func_cause={1'b0,icause};
@@ -963,9 +1001,17 @@ package decoder;
         else
           x_rs1type=IntegerRF;
       end
+      result_decode.meta.inst_type=x_inst_type;
+      result_decode.meta.funct=func_cause;
+      result_decode.op_type.rs1type=x_rs1type;
+      result_decode.op_type.rs2type=x_rs2type;
+      result_decode.op_addr.rs1addr=x_rs1addr;
+      result_decode.op_addr.rs2addr=x_rs2addr;
+      result_decode.meta.resume_wfi=resume_wfi;
 
-      DecodeMeta tupl2 = tuple4(func_cause, x_inst_type, mem_access, immediate_value);
-      return tuple4(tuple5(x_rs1addr, x_rs2addr, rd, x_rs1type,x_rs2type), tupl2, resume_wfi, t4);
+//      DecodeMeta tupl2 = tuple4(func_cause, x_inst_type, mem_access, immediate_value);
+//      return tuple4(tuple5(x_rs1addr, x_rs2addr, rd, x_rs1type,x_rs2type), tupl2, resume_wfi, t4);
+      return result_decode;
 
   endactionvalue;
 endpackage

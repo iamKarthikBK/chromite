@@ -28,10 +28,6 @@ Details:
 This module will interact with the memory subsystem to fetch relevant instructions from memory. The
 module will also receive flushes from the write-back stage which could be because of a fence or trap
 handling. 
-TODO: Add support to interact with Branch predictor.
-TODO: Currently the cache responds only with bus-error. In case of supervisor mode the cache is
-expected to respond if a page-fault occurred for the said request and thus the error response will
-be 2 bits wide instead of the current 1-bit.
 --------------------------------------------------------------------------------------------------
 */
 package stage1;
@@ -40,33 +36,36 @@ package stage1;
   import SpecialFIFOs::*;
   import FIFO::*;
   import GetPut::*;
+  import Assert::*;
 
-  // -- local imports --//
-	import TxRx	::*;
-  import common_types::*;
-  `include "common_params.bsv"
+  // -- project imports --//
+	import TxRx	::*;            // for interstage buffer connection
+  import common_types::*;     // for pipe-line types
+  `include "common_params.bsv"// for core parameters
+  `include "Logger.bsv"       // for logging display statements.
+  import globals::*;          // for global interface definitions
+
   
   // Enum to define the action to be taken when an instruction arrives.
-  typedef enum {CheckPrev, None} ActionType deriving(Bits,Eq,FShow);
+  typedef enum {CheckPrev, None} ActionType deriving(Bits, Eq, FShow);
 
 	interface Ifc_stage1;
-    //instruction request to the memory subsytem or the memory bus.
- 	  interface Get#(ICore_request#( `vaddr, 3)) inst_request;
 
     // instruction response from the memory subsytem or the memory bus
-    //                     inst , trap, cause, epoch 
-    interface Put#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) inst_response;
+    interface Put#(FetchResponse#(32, `iesize)) inst_response;
 
-    // instruction along with other results to be sent to the next stage
-    interface TXe#(PIPE1_min) tx_min;
-  `ifdef bpu
-    interface TXe#(PIPE1_opt1) tx_opt1;
+  `ifdef branch_speculation
+   // this interface receives the prediction response from the branch prediction unit 
+    interface Put#(PredictionResponse) prediction_response;
   `endif
 
-    // flush from the write-back or exe stage.
-    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef supervisor ,Bool sfence `endif
-                                                                        `endif ); //fence integration
+    // instruction along with other results to be sent to the next stage
+    interface TXe#(PIPE1) tx_to_stage2;
+
+    // method to update epochs on redirection from execute stage
 		method Action update_eEpoch;
+    
+      // method to update epochs on redirection from writeback stage
 		method Action update_wEpoch;
 
     // csrs from the csrfile.
@@ -77,28 +76,17 @@ package stage1;
   (*synthesize*)
   module mkstage1(Ifc_stage1);
 
-    let verbosity = `VERBOSITY ;
-    
+    String stage1=""; // defined for logger
+
+    // --------------------- Start instantiations ------------------------//
+
     // this wire carries the current values of certain csrs.
-    Wire#(Bit#(1)) wr_csr_misa_c <-mkWire();
-    // This register holds the request address to be sent to the cache.
-    Reg#(Bit#(`vaddr)) rg_icache_request <- mkReg(`resetpc );
-    // This register holds the PC value that needs to be sent to the next stage in the pipe.
-    Reg#(Bit#(`vaddr)) rg_pc <- mkReg(`resetpc );
-  `ifdef icache
-    // This register indicates if a fence of the i-cache was requested and is set during a flush
-    // from the write back stage. Once the fence request is sent this is register is de-asserted.
-    Reg#(Bool) rg_fence <-mkReg(False);
-    `ifdef supervisor
-      Reg#(Bool) rg_sfence <-mkReg(False);
-    `endif
-  `endif
+    Wire#(Bit#(1)) wr_csr_misa_c <- mkWire();
 
     // The following registers are use to the maintain epochs from various pipeline stages:
-    // writeback, execute stage and fetch stage.
+    // writeback and execute stage.
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
     Reg#(Bit#(1)) rg_eEpoch <- mkReg(0);
-    Reg#(Bit#(1)) rg_iEpoch <- mkReg(0);
 
     // This register implements a simple state-machine which indicates how the instruction should be
     // extracted from the cache response.
@@ -107,20 +95,45 @@ package stage1;
     // This register indicates that the lower 16-bits of the response from the cache need to be
     // ignored. This happens because, when there is jump to non-4-byte aligned address the cache
     // still receives a previous 4-byte-ailgned address from the fetch stage.
-    Reg#(Bool) rg_discard_lower <- mkReg(False);
+    Reg#(Bool) rg_discard <- mkReg(False);
     Reg#(Bool) rg_receiving_upper <- mkReg(False);
 
     // This register holds the 16-bits of instruction from the previous cache response if required.
     Reg#(Bit#(16)) rg_instruction <- mkReg(0);
+  `ifdef branch_speculation
+      Reg#(Bit#(2)) rg_prediction <- mkReg(0);
+    `ifdef compressed
+      Reg#(Bit#(`vaddr)) rg_pc <- mkReg(0);
+    `endif
+  `endif
 
     // This FIFO receives the response from the memory subsytem (a.k.a cache)
-    FIFOF#(Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3))) ff_memory_response<-mkSizedFIFOF(2);
+    FIFOF#(FetchResponse#(32, `iesize)) ff_memory_response <- mkBypassFIFOF();
+
+  `ifdef branch_speculation
+    // This FIFO receives the response from the branch prediction unit (bpu or ras)
+    FIFOF#(PredictionResponse) ff_prediction_resp <- mkBypassFIFOF();
+  `endif
 
     // FIFO to interface with the next pipeline stage
-		TX#(PIPE1_min) txmin<-mkTX;
-    `ifdef bpu
-  		TX#(PIPE1_opt1) txopt1<-mkTX;
+		TX#(PIPE1) tx <- mkTX;
+
+    // This variable holds the current epoch values of the pipe
+    let curr_epoch = {rg_eEpoch, rg_wEpoch};
+
+    // ---------------------- End Instatiations --------------------------//
+
+
+    // ---------------------- Start local function definitions ----------------//
+
+    // this function will deque the response from i-mem fifo and the branch prediction fifo
+    function Action deq_response = action
+      ff_memory_response.deq; 
+    `ifdef branch_speculation 
+      ff_prediction_resp.deq; 
     `endif
+    endaction;
+    // ---------------------- End local function definitions ------------------//
 
     // RuleName: process_instruction
     // Explicit Conditions: None
@@ -129,7 +142,7 @@ package stage1;
     //    2. wr_csr is written in the same cycle
     //    3. tostage FIFO notFull
     // Schedule Conflicts: This rule will not fire if there is flush from the write-back stage. A
-    // flush from the write-back stage will cause a change in the rg_pc and rg_discard_lower,
+    // flush from the write-back stage will cause a change in the rg_pc and rg_discard,
     // both of which are being updated in this method as well. This schedule is acceptable since
     // anyways the response from the memory currently to be handled in this rule will match epochs
     // and will be dropped.
@@ -140,7 +153,7 @@ package stage1;
     // 
     // 1. First the epochs are compared and if a mis-match is observed then the response is dropped
     // without any other changes to the state of the module.
-    // 2. if rg_discard_lower is set and compressed is enabled then the lower 16-bits of the
+    // 2. if rg_discard is set and compressed is enabled then the lower 16-bits of the
     // resposne are discarded and the upper 16-bits are probed to check if it is a compressed
     // instruction. If so, then the instruction is sent to the next stage. However is it is not a
     // compressed instruction it means the upper 16-bits of the response refer to the lower 16-bits
@@ -161,171 +174,205 @@ package stage1;
     // rg_instruction. rg_Action in this case will remain CheckPrev so that the upper bits of this
     // repsonse are probed in the next cycle.
     rule process_instruction;
-        let {cache_response,err,cause,epoch}=ff_memory_response.first;
-        Bit#(32) final_instruction=0;
+      `ifdef branch_speculation
+          let pred = ff_prediction_resp.first;
+          `logLevel( stage1, 1, $format("STAGE1: Prediction: ", fshow(ff_prediction_resp.first)))
+        `ifdef compressed
+          Bit#(2) prediction = pred.prediction0;
+          `logLevel( stage1, 1, $format("STAGE1: rg_pred:%b rg_pc:%h rg_instr:%h", 
+                                         rg_prediction, rg_pc, rg_instruction))
+        `else
+          Bit#(2) prediction = pred.prediction;
+        `endif
+      `endif
+
+        // capture the response from the cache
+        let imem_resp=ff_memory_response.first;
+
+        // local variable to hold the instruction to be enqueued
+        Bit#(32) final_instruction=?;
+
+        // local variable to indicate if the instruction being analysed is compressed or not
         Bool compressed=False;
+
+        // local variable indicating if the current instruction under analysis should be enqueued to
+        // the next stage or dropped.
         Bool enque_instruction=True;
+
         // if epochs do not match then drop the instruction
-        if(verbosity>2)
-          $display($time,"\tSTAGE1: Analyzing Response: ",fshow(ff_memory_response.first), 
-          "rg_action: ",fshow(rg_action), " misa[c]:%b rg_discard:%b",wr_csr_misa_c,rg_discard_lower);
-        if({rg_iEpoch,rg_eEpoch,rg_wEpoch}!=epoch)begin
-          ff_memory_response.deq;
+        if(curr_epoch != imem_resp.epochs)begin
+          deq_response;
           rg_action<=None;
           enque_instruction=False;
-          if(verbosity>0)
-            $display($time,"\tSTAGE1: Dropping Instruction from Cache. CurrEpoch: %b RespEpoch: %b ",
-              {rg_iEpoch,rg_eEpoch,rg_wEpoch},epoch, fshow(ff_memory_response.first));
+          `logLevel( stage1,1,$format("STAGE1: Dropping Instruction"))
         end
-        else if(rg_discard_lower && wr_csr_misa_c==1)begin
-          rg_discard_lower<=False;
-          ff_memory_response.deq;
-          if(cache_response[17:16]==2'b11)begin
-            rg_instruction<=cache_response[31:16];
-            rg_action<=CheckPrev;
-            enque_instruction=False;
-            rg_receiving_upper<=True;
-          end
-          else begin
-            compressed=True;
-            final_instruction=zeroExtend(cache_response[31:16]);
-          end
-        end
-        else if(rg_action == None)begin
-          ff_memory_response.deq;
-          if(cache_response[1:0]=='b11)begin
-            final_instruction=cache_response;
-          end
-          else if(wr_csr_misa_c==1) begin
-            compressed=True;
-            final_instruction=zeroExtend(cache_response[15:0]);
-            rg_instruction<=truncateLSB(cache_response);
-            rg_action<=CheckPrev;
-          end
-        end
-        else begin
+        else if(rg_action == CheckPrev)begin
+        `ifdef compressed
+          prediction=rg_prediction;
+        `endif
           if(rg_instruction[1:0]==2'b11)begin
-            final_instruction={cache_response[15:0],rg_instruction};
-            rg_instruction<=truncateLSB(cache_response);
-            ff_memory_response.deq;
+            final_instruction={imem_resp.instr[15:0],rg_instruction};
+            rg_instruction<=truncateLSB(imem_resp.instr);
+            deq_response;
             if(rg_receiving_upper)
               rg_receiving_upper<=False;
+            `ifdef compressed
+              `ifdef branch_speculation
+                rg_pc<=pred.va;
+                pred.va=rg_pc;
+                pred.va[1]=1;
+              if(rg_prediction>1)
+                rg_action<=None;
+              `endif
+            `endif
           end
           else begin
             compressed=True;
             final_instruction=zeroExtend(rg_instruction);
             rg_action<=None;
+          `ifdef branch_speculation
+            `ifdef compressed
+              pred.va=rg_pc;
+              pred.va[1]=1;
+            `endif
+          `endif
+          end
+        end
+      `ifdef compressed
+        // discard the lower-16bits of the imem-response.
+        else if(pred.discard && wr_csr_misa_c==1)begin
+          deq_response;
+          if(imem_resp.instr[17:16]==2'b11)begin
+            rg_instruction<=imem_resp.instr[31:16];
+            rg_action<=CheckPrev;
+            enque_instruction=False;
+            rg_receiving_upper<=True;
+        `ifdef branch_speculation
+            rg_prediction<= pred.prediction1;
+          `ifdef compressed
+            rg_pc<= pred.va;
+          `endif
+        `endif
+          end
+          else begin
+            compressed=True;
+            final_instruction=zeroExtend(imem_resp.instr[31:16]);
+          `ifdef compressed
+            pred.va[1]=1;
+            prediction=pred.prediction1;
+          `endif
+          end
+        end
+      `endif
+        else if(rg_action == None)begin
+          // No updates to va required
+          deq_response;
+          if(imem_resp.instr[1:0]=='b11)begin
+            final_instruction=imem_resp.instr;
+          `ifdef compressed
+            prediction=pred.prediction0;
+          `endif
+          end
+          else if(wr_csr_misa_c==1) begin
+            compressed=True;
+            final_instruction=zeroExtend(imem_resp.instr[15:0]);
+            rg_instruction<=truncateLSB(imem_resp.instr);
+        `ifdef branch_speculation
+          `ifdef compressed
+            rg_action<=pred.prediction0==0?CheckPrev:None;
+            prediction=pred.prediction0;
+            rg_prediction<= pred.prediction1;
+            rg_pc<= pred.va;
+          `else
+            rg_action<=CheckPrev;
+          `endif
+        `endif
           end
         end
         Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c==1)?2:4;
-        let next_pc = rg_pc+incr_value;
-				let pipedata=PIPE1_min{program_counter:rg_pc,
+				let pipedata=PIPE1{program_counter:pred.va,
                       instruction:final_instruction,
                       epochs:{rg_eEpoch,rg_wEpoch},
-                      trap: err
+                      trap: imem_resp.trap
+                    `ifdef branch_speculation
+                      ,prediction:prediction
+                    `endif
                     `ifdef compressed
-                      ,upper_err:rg_receiving_upper&&err
+                      ,upper_err:rg_receiving_upper && imem_resp.trap
                     `endif
                     `ifdef supervisor
-                      ,cause:cause
+                      ,cause:imem_resp.cause
                     `endif }; 
-        if(enque_instruction) begin
-          rg_pc<=next_pc;
-          txmin.u.enq(pipedata);
-        `ifdef bpu
-          tx_opt1.u.enq(PIPE1_opt1{prediction:0}); // TODO fix when supporting bpu
+        `logLevel( stage1,0,$format("STAGE1: PC:%h: ",pred.va,fshow(ff_memory_response.first)))
+      `ifdef compressed
+        `ifdef branch_speculation
+          `logLevel( stage1,1,$format("STAGE1: rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c,pred.discard))
         `endif
-          if(verbosity!=0) begin
-            $display($time, "\tSTAGE1: PC: %h Inst: %h, Err: %b Cause:%d Epoch: %b", rg_pc, final_instruction,
-                                                                          err, cause, epoch);
-            $display($time,"\tSTAGE1: rg_action: ",fshow(rg_action)," compressed: %b final_inst:\
-  %h rg_instruction: %h enque_instruction: %b curr_epoch: %b", compressed, final_instruction, 
-              rg_instruction, enque_instruction,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
-          end
+      `endif
+        if(enque_instruction) begin
+          tx.u.enq(pipedata);
+          `logLevel( stage1,0,$format("STAGE1: Enquing: ",fshow(pipedata)))
         end
     endrule
-    
-    // this method will send the address to the memory subsytem for the next instruction
-    // Explicit Conditions: None
-    // Implicit Conditions: None
-    // Schedule Conflicts: This method will not fire if there is flush from the write-back stage. A
-    // flush from any lower stages will cause a change in the rg_icache_request and rg_fence,
-    // both of which are being updated in this method as well. This conflict is acceptable since we
-    // do not wish to populate the cache with an unwanted request and initiate a new request asap.
-    interface inst_request=interface Get
-      method ActionValue#(ICore_request#( `vaddr, 3)) get;
-      `ifdef icache
-		    if(rg_fence==True)
-			    rg_fence<=False; // reset fence once the command is sent
-        `ifdef supervisor
-          else if(rg_sfence==True)
-            rg_sfence<=False;
-        `endif
-        else
-      `endif
-          rg_icache_request<=rg_icache_request+4;
-        if(verbosity>1)
-          $display($time,"\tSTAGE1: Sending Request for Addr: %h to Memory Epoch:%b",
-              rg_icache_request, {rg_iEpoch,rg_eEpoch,rg_wEpoch});
-      `ifdef icache
-        `ifdef supervisor
-          return tuple4(rg_icache_request,rg_fence, rg_sfence, {rg_iEpoch,rg_eEpoch,rg_wEpoch});
-        `else
-          return tuple3(rg_icache_request,rg_fence,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
-        `endif
-      `else
-        return tuple2(rg_icache_request,{rg_iEpoch,rg_eEpoch,rg_wEpoch});
-      `endif
-      endmethod
-    endinterface;
 
-    // This method will capture the response from the memory subsytem and enque it in a FIFO.
+    // MethodName: inst_response_put
     // Explicit Conditions: None
     // Implicit Conditions: ff_memory_response.notFull
+    // Description: This method will capture the response from the memory subsytem and enque it in 
+    // a FIFO. One could of think of performing all the function in the process_instruction
+    // rule in this method itself. This would only work if you are not supporting compressed
+    // instructions. When you support compressed, the cache can send a single response which
+    // contains 2 16-bit instruction. In such a case the process_instruction rule will fire twice
+    // and deque the fifo only on the second run. Thus we need to have a fifo which will store the
+    // response from the cache for an extra cycle. 
+    // The former approach could work with compressed as well if : we process both the instructions
+    // and enqueue them simultaneously into the next stage. Not sure what other dependencies would
+    // be there?
 		interface inst_response= interface Put
-			method Action put (Tuple4#(Bit#(32),Bool,Bit#(6),Bit#(3)) resp);
-        if(verbosity>1)
-          $display($time,"\tSTAGE1: Recevied response from the Memory: ",fshow(resp));
+			method Action put (FetchResponse#(32, `iesize) resp);
+        `logLevel( stage1, 1, $format("STAGE1: ",fshow(resp)))
         ff_memory_response.enq(resp);
 			endmethod
     endinterface;
-    
-		interface tx_min = txmin.e;
-  `ifdef bpu
-		interface tx_opt1 = txopt1.e;
-  `endif
-    // This method will fire when a flush from the write back stage or execute stage is initiated.
+  
+  `ifdef branch_speculation
+    // MethodName: prediction_response_put
     // Explicit Conditions: None
-    // Implicit Conditions: None
-    method Action flush(Bit#(`vaddr) newpc `ifdef icache ,Bool fence `ifdef supervisor ,Bool sfence `endif
-                                                                  `endif ); //fence integration
-  `ifdef icache
-		  if(fence)
-		  	rg_fence<=True;
-    `ifdef supervisor
-      if(sfence)
-        rg_sfence<=True;
-    `endif
+    // Implicit Conditions: ff_prediction_resp.notFull
+    // Description: This interface will capture the prediction response from the BTB module. If
+    // compressed is supported the, BTB will provide 2 predictions for each of the 2byte addresses
+    // that have been fetched from the I-mem. If compressed is not supported then a single
+    // prediction is only provided for the entire 32-bit instruction has been received from the
+    // I-cache.
+    interface prediction_response = interface Put
+      method Action put(PredictionResponse p);
+        `logLevel( stage1, 1, $format("STAGE1: Recevied Prediction: ",fshow(p)))
+        ff_prediction_resp.enq(p);
+      endmethod
+    endinterface;
   `endif
-      rg_pc<=newpc;
-      rg_icache_request<={truncateLSB(newpc),2'b0};
-      if(newpc[1:0]!=0)
-        rg_discard_lower<=True;
-      else
-        rg_discard_lower<=False;
-      if(verbosity>1)
-        $display($time, "\tSTAGE1: Received Flush. PC: %h",newpc `ifdef icache ," Fence: %b",fence 
-        `ifdef supervisor ," Sfence: ",sfence `endif `endif ); 
-      ff_memory_response.clear();
-    endmethod
+   
+    // MethodName: tx_to_stage2
+    // Explicit Conditions: None
+    // Implicit Conditions: tx is not empty.
+    // Description: This method will transmit the instruction to the next stage.
+		interface tx_to_stage2= tx.e;
+
+    // MethodName: update_eEpoch
+    // Explicit Conditions: None
+    // Implicit Conditions: None 
     method Action update_eEpoch;
       rg_eEpoch<=~rg_eEpoch;
     endmethod
+
+    // MethodName: update_wEpoch
+    // Explicit Conditions: None
+    // Implicit Conditions: None 
     method Action update_wEpoch;
       rg_wEpoch<=~rg_wEpoch;
     endmethod
     
-    // This method captures the csrs from the csrfile
+    // This method captures the "c" of misa csr
     method Action csr_misa_c (Bit#(1) c);
       wr_csr_misa_c <= c;
     endmethod

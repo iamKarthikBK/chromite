@@ -37,7 +37,7 @@ package muldiv_fpga;
   `include "common_params.bsv"
 
 	interface Ifc_muldiv;
-		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) operand1, Bit#(XLEN) operand2, 
+		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) operand1, Bit#(XLEN) operand2, 
         Bit#(3) funct3 `ifdef RV64 , Bool word32 `endif );
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 	endinterface:Ifc_muldiv
@@ -69,7 +69,7 @@ package muldiv_fpga;
       end
     endrule
 
-		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) operand1, Bit#(XLEN) operand2,
+		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) operand1, Bit#(XLEN) operand2,
         Bit#(3) funct3 `ifdef RV64 , Bool word32 `endif ) if(rg_count==0);
       // logic to choose the upper bits
       // in case of division,  this variable is set is the operation is a remainder operation
@@ -144,7 +144,8 @@ package muldiv_fpga;
         rg_complement<= lv_take_complement;
         `ifdef RV64 rg_word32<= word32; `endif
       end
-      return tuple2(result_avail, tuple5(REGULAR, zeroExtend(default_out), 0, 0, None));
+      return ALU_OUT{done : result_avail, cmtype : REGULAR, aluresult : default_out, effective_addr:?, cause:?, 
+            redirect : False, branch_taken: ?, redirect_pc: ?};
     endmethod
 		method ActionValue#(ALU_OUT) delayed_output if((rg_count== fromInteger(`MULSTAGES) && !mul_div)
                                             || (rg_count==(fromInteger(`DIVSTAGES)+ 1) && mul_div));
@@ -154,7 +155,8 @@ package muldiv_fpga;
         reslt=~reslt+ 1;
       Bit#(XLEN) product=`ifdef RV64 rg_word32?signExtend(reslt[31:0]): `endif 
           (!mul_div && rg_upperbits)? truncateLSB(reslt): truncate(reslt);
-      return tuple5(REGULAR, zeroExtend(product), 0, 0, None); 
+      return ALU_OUT{done : True, cmtype : REGULAR, aluresult : product, effective_addr:?, cause:?, 
+            redirect : False, branch_taken: ?, redirect_pc: ?};
     endmethod
 	endmodule:mkmuldiv
 /*
