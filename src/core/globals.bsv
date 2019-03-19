@@ -109,7 +109,7 @@ package globals;
   `ifdef compressed
     Bit#(2)       prediction0;
     Bit#(2)       prediction1;
-    Bool          discard
+    Bool          discard;
   `else
     Bit#(2)       prediction;
   `endif
