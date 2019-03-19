@@ -104,7 +104,9 @@ package cclass;
     `endif
     (*preempts="core_req_to_dmem, ptwalk_request_to_dcache"*)
   `endif
+`ifdef ras
   (*conflict_free="connect_instruction_req,connect_ras_training"*)
+`endif
   module mkcclass_axi4(Ifc_cclass_axi4);
     String core = "";
     let vaddr = valueOf(`vaddr);
