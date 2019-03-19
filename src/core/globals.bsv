@@ -93,13 +93,19 @@ package globals;
   typedef enum {Hit, Miss, None} RespState deriving(Eq, Bits, FShow);
 // ------ Structures related to Branch Prediction -------//
   typedef struct{
-    Bit#(2) prediction;
-    Bit#(`vaddr) target_pc;
+    Bit#(2)       prediction;
+    Bit#(`vaddr)  target_pc;
+    Bit#(2)       epochs;
+  `ifdef compressed
+    Bool          edgecase;
+  `endif
+  
   } PredictionToStage0 deriving(Bits, Eq, FShow);
 
   typedef struct{
     Bit#(`vaddr) pc;
     Bool         fence;
+    Bit#(2)      epochs;
   `ifdef compressed
     Bool         discard;
   `endif
@@ -115,6 +121,25 @@ package globals;
   `endif
     Bit#(`vaddr)  va;
   } PredictionResponse deriving(Bits, Eq, FShow);
+
+  typedef struct {
+      Bit#(`vaddr)  pc;
+      Bit#(`vaddr)  target;
+      Bit#(2)       state;
+    `ifdef gshare
+      Bool          mispredict;
+    `endif
+    `ifdef compressed
+      Bool          edgecase;
+    `endif
+  } Training_data deriving (Bits, Eq, FShow);
+
+  typedef struct {
+    Bit#(`vaddr) pc;
+  `ifdef compressed
+    Bool          edgecase;
+  `endif
+  } RASTraining deriving (Bits, Eq, FShow);
 
 endpackage
 
