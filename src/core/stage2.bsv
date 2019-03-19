@@ -79,6 +79,7 @@ package stage2;
   import common_types::*;       // for pipe - line types
   `include "common_params.bsv"  // for core parameters
   `include "Logger.bsv"         // for logging display statements.
+  import globals::*;
 
 
 	interface Ifc_stage2;
@@ -119,7 +120,7 @@ package stage2;
   `ifdef ras
     // this is an output method which the current stage uses to train the RAS unit in the BTB when a
     // return instruction is detected.
-    method Bit#(`vaddr) train_ras;
+    method RASTraining train_ras;
   `endif
 	endinterface : Ifc_stage2
 
@@ -147,7 +148,7 @@ package stage2;
 
   `ifdef ras
     // wire to train the RAS
-    Wire#(Bit#(`vaddr)) wr_train_ras <- mkWire();
+    Wire#(RASTraining) wr_train_ras <- mkWire();
   `endif
    
     Wire#(CSRtoDecode) wr_csrs <- mkWire();
@@ -219,7 +220,8 @@ package stage2;
       let word32 = decode_word32(inst,wr_csrs.csr_misa[2]);
     `ifdef ras
       if(instrType == JALR && (decoded.op_addr.rs1addr == 'b00001 || decoded.op_addr.rs1addr == 'b00101))
-        wr_train_ras <= pc;
+        wr_train_ras <= RASTraining{pc : pc `ifdef compressed ,edgecase : !decoded.compressed 
+                                                                      && pc[1]==1 `endif } ;
     `endif
 
     `ifdef spfpu

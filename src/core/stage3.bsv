@@ -378,18 +378,46 @@ package stage3;
                 if(aluout.branch_taken)begin
                   if(prediction < 3)begin
                     prediction = prediction + 1;
-                    wr_training_data <= tuple3(meta.pc, aluout.effective_addr, prediction);
+                    wr_training_data <= Training_data{ pc           : meta.pc, 
+                                                       target       : aluout.effective_addr, 
+                                                       state        : prediction
+                                                     `ifdef compressed
+                                                       ,edgecase    : !meta.compressed &&
+                                                                      meta.pc[1]==1
+                                                     `endif
+                                                     `ifdef gshare
+                                                        ,mispredict : aluout.redirect
+                                                    `endif };
                   end
                 end
                 else begin
                   if(prediction > 0) begin
                     prediction = prediction - 1;
-                    wr_training_data <= tuple3(meta.pc, aluout.effective_addr, prediction);
+                    wr_training_data <= Training_data{ pc           : meta.pc, 
+                                                       target       : aluout.effective_addr, 
+                                                       state        : prediction
+                                                     `ifdef compressed
+                                                       ,edgecase    : !meta.compressed &&
+                                                                      meta.pc[1]==1
+                                                     `endif
+                                                     `ifdef gshare
+                                                        ,mispredict : aluout.redirect
+                                                    `endif };
                   end
                 end
               end
-              else if(meta.inst_type == JAL)
-                wr_training_data <= tuple3(meta.pc, aluout.effective_addr, 3);
+              else if(meta.inst_type == JAL) begin
+                  wr_training_data <= Training_data{   pc           : meta.pc, 
+                                                       target       : aluout.effective_addr, 
+                                                       state        : 3
+                                                     `ifdef compressed
+                                                       ,edgecase    : !meta.compressed &&
+                                                                      meta.pc[1]==1
+                                                     `endif
+                                                     `ifdef gshare
+                                                        ,mispredict : aluout.redirect
+                                                    `endif };
+              end
               `ifdef ras
                 if( (meta.inst_type == JALR || meta.inst_type == JAL) && 
                     (opmeta.op_addr.rd == 'b00001 || opmeta.op_addr.rd == 'b00101) &&
