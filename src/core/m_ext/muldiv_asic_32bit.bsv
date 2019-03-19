@@ -33,13 +33,6 @@ package muldiv_asic_32bit;
  
   function Bit#(XLEN) single_mult ( Bit#(XLEN) in1, Bit#(XLEN) in2,
                                               Bit#(3) funct3 `ifdef RV64 ,Bool word_flag );
-  `ifdef RV64
-    if(word_flag)begin
-      in1=funct3[0]==0? signExtend(in1[31:0]):zeroExtend(in1[31:0]);
-      in2=funct3[0]==0? signExtend(in2[31:0]):zeroExtend(in2[31:0]);
-    end
-  `endif
-
 	  Bool lv_take_complement = False;
     if(funct3==1 ) // in case of MULH or DIV
 	    lv_take_complement=unpack(in1[valueOf(XLEN)-1]^in2[valueOf(XLEN)-1]);
@@ -70,10 +63,6 @@ package muldiv_asic_32bit;
     else
       default_out=truncate(out);
 
-  `ifdef RV64
-    if(word_flag)
-      default_out=signExtend(default_out[31:0]);
-  `endif
     return default_out;
   endfunction
 
@@ -241,7 +230,7 @@ package muldiv_asic_32bit;
 				rg_signed<=False;
 			end
 			else begin 
-				if(funct3==0 && `MULTSTAGE!=0) begin
+				if(funct3==0) begin
 					upper_bits<=False;		//used only for MUL
 					if(is_mul==1)
 						rg_signed<=op1[xlen-1]!=op2[xlen-1];
@@ -256,7 +245,7 @@ package muldiv_asic_32bit;
 						rg_signed<= False;
 				end
 
-				if(is_mul==1 && `MULTSTAGE!=0) begin
+				if(is_mul==1 && `MULSTAGES!=0) begin
 						rg_result_sign<=op1[xlen-1];
 						temp_multiplier_sign<=0;
 						multiplicand_divisor<={in2_sign,op2[31:0]};

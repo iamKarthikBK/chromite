@@ -30,6 +30,7 @@ package muldiv_asic;
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 		method Action flush;
 	endinterface
+  
 
   function Bit#(XLEN) single_mult ( Bit#(XLEN) in1, Bit#(XLEN) in2,
                                               Bit#(3) funct3 `ifdef RV64 ,Bool word_flag );
@@ -76,6 +77,7 @@ package muldiv_asic;
   `endif
     return default_out;
   endfunction
+
 
 	function Bit#(73) func_mult(Bit#(9) op1, Bit#(65) op2);
 		Bit#(73) lv_result=  signExtend(op1) * signExtend(op2);
@@ -250,6 +252,7 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 				accumulator[128 : 0] <= remainder;
 				rg_state_counter[1] <= rg_state_counter[1] + 1;
 			end
+      $display($time,"\tMULDIV: accumulator:%h remainder:%h divisor:%h",accumulator,remainder,multiplicand_divisor);
 		endrule
 
 		rule first_stage(rg_count[1] == 8);
@@ -303,7 +306,7 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 				rg_signed <= False;
 			end
 			else begin 
-				if(funct3 == 0 && `MULSTAGES!=0 ) begin
+				if(funct3 == 0) begin
 					upper_bits <= False;		//used only for MUL
 					if(is_mul == 1)
 						rg_signed <= op1[xlen - 1] != op2[xlen - 1];
@@ -312,7 +315,7 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 				end
 				else begin
 					upper_bits <= True;		//used only for MUL
-					if(is_mul == 1)
+					if(is_mul == 1 && `MULSTAGES!=0)
 						rg_signed <= unpack(in1_sign);
 					else
 						rg_signed <= False;
@@ -339,7 +342,7 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
                                             funct3 `ifdef RV64, Bool word_flag `endif );
       if(`MULSTAGES==0 && funct3[2]==0) begin
-        let product = single_mult(in1, in2, funct3, word_flag);
+        let product = single_mult( in1, in2, funct3 `ifdef RV64 ,word_flag `endif );
         return ALU_OUT{done : True, cmtype : REGULAR, aluresult : product, 
                        effective_addr : ?, cause : ?, redirect : False 
                        `ifdef branch_speculation, branch_taken : ?, 
