@@ -140,7 +140,7 @@ package bimodal;
       Bit#(2) prediction1 = 0;
       Bit#(2) prediction = 0;
     `else
-      Bit#(2) prediction = 0;
+      Bit#(2) prediction = 1;
     `endif
   
       // extract tag from the request PC for comparison
@@ -360,6 +360,7 @@ package bimodal;
     // Implicit Conditions : None 
     // Description : This method will update the RAS tag and state entries to indicate a pop
     method Action train_ras(Bit#(`vaddr) pc)if(!rg_init);
+      $display("Training RAS");
       // first find the full index.
       Bit#(TLog#(`rassets)) full_index = truncate(pc>>`ignore);
 
@@ -369,20 +370,18 @@ package bimodal;
       // find the tag to be stored.=vaddr - Log(rassets) - ignorebits
       Bit#(TSub#(TSub#(`vaddr, TLog#(`rassets)), `ignore)) tag = truncateLSB(pc);
 
-      if(pc[`ignore] == 0)begin
+      if(truncate(full_index)==1'b0)begin
         mem_ras_tag0.write(1, bank_index, {1'b1, tag});
         `logLevel( bimodal, 0, $format("Bimodal : Training RAS0 for ",fshow(pc)))
         `logLevel( bimodal, 0, $format("Bimodal : Training RAS0 : bank_index:%d tag:%h", 
                                         bank_index, tag))
       end
-    `ifndef branch_speculation
       else begin
         mem_ras_tag1.write(1, bank_index, {1'b1, tag});
         `logLevel( bimodal, 0, $format("Bimodal : Training RAS1 for ",fshow(pc)))
         `logLevel( bimodal, 0, $format("Bimodal : Training RAS1 : bank_index:%d tag:%h", 
                                         bank_index, tag))
       end
-    `endif
     endmethod
 
     // MethodName : ras_push
