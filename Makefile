@@ -136,7 +136,7 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
                  -D causesize=$(CAUSESIZE)
 		
 
-CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/
+CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/:./src/core/predictors/
 M_EXT:=./src/core/m_ext/
 FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
 UNCORE:=./src/uncore
