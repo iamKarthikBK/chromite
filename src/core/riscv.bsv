@@ -50,7 +50,7 @@ package riscv;
     method Action predicted_pc(PredictionToStage0 pred);
     method Training_data train_bpu;
     `ifdef ras
-      method Bit#(`vaddr) train_ras;
+      method RASTraining train_ras;
       method Bit#(`vaddr) ras_push;
     `endif
   `endif
