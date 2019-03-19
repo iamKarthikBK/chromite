@@ -30,6 +30,52 @@ package muldiv_asic_32bit;
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 		method Action flush;
 	endinterface
+ 
+  function Bit#(XLEN) single_mult ( Bit#(XLEN) in1, Bit#(XLEN) in2,
+                                              Bit#(3) funct3 `ifdef RV64 ,Bool word_flag );
+  `ifdef RV64
+    if(word_flag)begin
+      in1=funct3[0]==0? signExtend(in1[31:0]):zeroExtend(in1[31:0]);
+      in2=funct3[0]==0? signExtend(in2[31:0]):zeroExtend(in2[31:0]);
+    end
+  `endif
+
+	  Bool lv_take_complement = False;
+    if(funct3==1 ) // in case of MULH or DIV
+	    lv_take_complement=unpack(in1[valueOf(XLEN)-1]^in2[valueOf(XLEN)-1]);
+    else if(funct3==2)
+	    lv_take_complement=unpack(in1[valueOf(XLEN)-1]);
+
+    Bool invert_op1 = False;
+    Bool invert_op2 = False;
+    Bool lv_upperbits = funct3[2]==0?unpack(|funct3[1:0]):unpack(funct3[1]);
+    if(funct3[2]==0 && (funct3[0]^funct3[1])==1 && in1[valueOf(XLEN)-1]==1)
+      invert_op1=True;
+    if(funct3[2]==0 && funct3[1:0]==1 && in2[valueOf(XLEN)-1]==1)// in multiplication operations
+      invert_op2=True;
+
+    Bit#(XLEN) t1=signExtend(pack(invert_op1));
+    Bit#(XLEN) t2=signExtend(pack(invert_op2));
+    Bit#(XLEN) op1= (t1^in1)+ zeroExtend(pack(invert_op1));
+    Bit#(XLEN) op2= (t2^in2)+ zeroExtend(pack(invert_op2));
+
+    Bit#(TMul#(2, XLEN)) out = zeroExtend(op1)*zeroExtend(op2); 
+
+    if(lv_take_complement)
+      out=~out+1;
+
+    Bit#(XLEN) default_out;
+    if(lv_upperbits)
+      default_out=truncateLSB(out);
+    else
+      default_out=truncate(out);
+
+  `ifdef RV64
+    if(word_flag)
+      default_out=signExtend(default_out[31:0]);
+  `endif
+    return default_out;
+  endfunction
 
 	function Bit#(41) func_mult(Bit#(9) op1, Bit#(33) op2);
 		Bit#(41) lv_result=  signExtend(op1)*signExtend(op2);
@@ -80,7 +126,7 @@ package muldiv_asic_32bit;
 		Reg#(Bit#(6)) rg_state_counter[2]<-mkCReg(2,0);										// to count the number of iterations
 		Reg#(Bit#(2)) rg_funct3 <-mkReg(0);
 
-		rule unroll_multiplication(rg_is_mul && rg_count[1]!=4);
+		rule unroll_multiplication(rg_is_mul && rg_count[1]!=4 && `MULTSTAGE!=0);
 
 			//Bit#(137) x=partial_prod_generator(multiplier_sign,multiplicand,accumulator[1]);
 			Bit#(41) product<- wrapper_mul_1.func({temp_multiplier_sign,accumulator[7:0]}, multiplicand_divisor);
@@ -163,7 +209,7 @@ package muldiv_asic_32bit;
 
 			Bit#(TAdd#(XLEN,1)) op1;
 			Bit#(TAdd#(XLEN,1)) op2;
-			if(is_mul==1) begin
+			if(is_mul==1 && `MULTSTAGE!=0) begin
 				op1= {1'b0,in1};
 				op2= {1'b0,in2};
 			end
@@ -195,7 +241,7 @@ package muldiv_asic_32bit;
 				rg_signed<=False;
 			end
 			else begin 
-				if(funct3==0) begin
+				if(funct3==0 && `MULTSTAGE!=0) begin
 					upper_bits<=False;		//used only for MUL
 					if(is_mul==1)
 						rg_signed<=op1[xlen-1]!=op2[xlen-1];
@@ -210,7 +256,7 @@ package muldiv_asic_32bit;
 						rg_signed<= False;
 				end
 
-				if(is_mul==1) begin
+				if(is_mul==1 && `MULTSTAGE!=0) begin
 						rg_result_sign<=op1[xlen-1];
 						temp_multiplier_sign<=0;
 						multiplicand_divisor<={in2_sign,op2[31:0]};
@@ -230,8 +276,17 @@ package muldiv_asic_32bit;
 
 		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
     funct3 );
-			ff_input.enq(tuple4(in1,in2,funct3[1:0], ~funct3[2]));
-      return tuple2(False, tuple5(REGULAR, '1, 0, 0, None));
+      if(`MULSTAGES==0 && funct3[2]==0) begin
+        let product = single_mult(in1, in2, funct3, word_flag);
+        return ALU_OUT{done : True, cmtype : REGULAR, aluresult : product, 
+                       effective_addr : ?, cause : ?, redirect : False 
+                       `ifdef branch_speculation, branch_taken : ?, 
+                       redirect_pc : ? `endif };
+      end
+      else begin
+			  ff_input.enq(tuple4(in1,in2,funct3[1:0], ~funct3[2]));
+        return tuple2(False, tuple5(REGULAR, '1, 0, 0, None));
+      end
 		endmethod
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 			ff_muldiv_result.deq;

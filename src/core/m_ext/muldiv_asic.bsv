@@ -31,6 +31,52 @@ package muldiv_asic;
 		method Action flush;
 	endinterface
 
+  function Bit#(XLEN) single_mult ( Bit#(XLEN) in1, Bit#(XLEN) in2,
+                                              Bit#(3) funct3 `ifdef RV64 ,Bool word_flag );
+  `ifdef RV64
+    if(word_flag)begin
+      in1=funct3[0]==0? signExtend(in1[31:0]):zeroExtend(in1[31:0]);
+      in2=funct3[0]==0? signExtend(in2[31:0]):zeroExtend(in2[31:0]);
+    end
+  `endif
+
+	  Bool lv_take_complement = False;
+    if(funct3==1 ) // in case of MULH or DIV
+	    lv_take_complement=unpack(in1[valueOf(XLEN)-1]^in2[valueOf(XLEN)-1]);
+    else if(funct3==2)
+	    lv_take_complement=unpack(in1[valueOf(XLEN)-1]);
+
+    Bool invert_op1 = False;
+    Bool invert_op2 = False;
+    Bool lv_upperbits = funct3[2]==0?unpack(|funct3[1:0]):unpack(funct3[1]);
+    if(funct3[2]==0 && (funct3[0]^funct3[1])==1 && in1[valueOf(XLEN)-1]==1)
+      invert_op1=True;
+    if(funct3[2]==0 && funct3[1:0]==1 && in2[valueOf(XLEN)-1]==1)// in multiplication operations
+      invert_op2=True;
+
+    Bit#(XLEN) t1=signExtend(pack(invert_op1));
+    Bit#(XLEN) t2=signExtend(pack(invert_op2));
+    Bit#(XLEN) op1= (t1^in1)+ zeroExtend(pack(invert_op1));
+    Bit#(XLEN) op2= (t2^in2)+ zeroExtend(pack(invert_op2));
+
+    Bit#(TMul#(2, XLEN)) out = zeroExtend(op1)*zeroExtend(op2); 
+
+    if(lv_take_complement)
+      out=~out+1;
+
+    Bit#(XLEN) default_out;
+    if(lv_upperbits)
+      default_out=truncateLSB(out);
+    else
+      default_out=truncate(out);
+
+  `ifdef RV64
+    if(word_flag)
+      default_out=signExtend(default_out[31:0]);
+  `endif
+    return default_out;
+  endfunction
+
 	function Bit#(73) func_mult(Bit#(9) op1, Bit#(65) op2);
 		Bit#(73) lv_result=  signExtend(op1) * signExtend(op2);
 		return lv_result;
@@ -293,42 +339,8 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
                                             funct3 `ifdef RV64, Bool word_flag `endif );
       if(`MULSTAGES==0 && funct3[2]==0) begin
-        if(word_flag)begin
-          in1=funct3[0]==0? signExtend(in1[31:0]):zeroExtend(in1[31:0]);
-          in2=funct3[0]==0? signExtend(in2[31:0]):zeroExtend(in2[31:0]);
-        end
-	      Bool lv_take_complement = False;
-    	  if(funct3==1 ) // in case of MULH or DIV
-		      lv_take_complement=unpack(in1[valueOf(XLEN)-1]^in2[valueOf(XLEN)-1]);
-    	  else if(funct3==2)
-		      lv_take_complement=unpack(in1[valueOf(XLEN)-1]);
-        Bool invert_op1 = False;
-        Bool invert_op2 = False;
-        Bool lv_upperbits = funct3[2]==0?unpack(|funct3[1:0]):unpack(funct3[1]);
-        if(funct3[2]==0 && (funct3[0]^funct3[1])==1 && in1[valueOf(XLEN)-1]==1)
-          invert_op1=True;
-        if(funct3[2]==0 && funct3[1:0]==1 && in2[valueOf(XLEN)-1]==1)// in multiplication operations
-          invert_op2=True;
-        Bit#(XLEN) t1=signExtend(pack(invert_op1));
-        Bit#(XLEN) t2=signExtend(pack(invert_op2));
-        Bit#(XLEN) op1= (t1^in1)+ zeroExtend(pack(invert_op1));
-        Bit#(XLEN) op2= (t2^in2)+ zeroExtend(pack(invert_op2));
-        $display($time,"\tALU: in1:%h in2:%h",op1, op2);
-        Bit#(TMul#(2, XLEN)) out = zeroExtend(op1)*zeroExtend(op2); 
-        $display($time,"\tALU OUT: %h",out);
-        if(lv_take_complement)
-          out=~out+1;
-        Bit#(XLEN) default_out;
-        if(lv_upperbits)
-          default_out=truncateLSB(out);
-        else
-          default_out=truncate(out);
-      `ifdef RV64
-        if(word_flag)
-          default_out=signExtend(default_out[31:0]);
-      `endif
-
-        return ALU_OUT{done : True, cmtype : REGULAR, aluresult : default_out, 
+        let product = single_mult(in1, in2, funct3, word_flag);
+        return ALU_OUT{done : True, cmtype : REGULAR, aluresult : product, 
                        effective_addr : ?, cause : ?, redirect : False 
                        `ifdef branch_speculation, branch_taken : ?, 
                        redirect_pc : ? `endif };
