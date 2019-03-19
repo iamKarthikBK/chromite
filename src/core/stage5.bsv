@@ -82,6 +82,7 @@ package stage5;
   endinterface
 
   (*synthesize*)
+  (*conflict_free="instruction_commit,set_external_interrupt"*)
   (*conflict_free="instruction_commit,increment_instruction_counter"*)
   (*conflict_free="set_external_interrupt,instruction_commit"*)
   module mkstage5(Ifc_stage5);
@@ -161,7 +162,11 @@ package stage5;
             wr_initiate_store <= tuple2(unpack(rg_epoch),True);
             wr_increment_minstret<=True;
             `ifdef spfpu
-              wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
+              `ifdef atomic
+                wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
+              `else
+                wr_commit <= tagged Valid (tuple3(0, 0, IRF)); 
+              `endif
             `else
               `ifdef atomic
                 wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
@@ -194,7 +199,11 @@ package stage5;
             if(err==0)begin
               wr_increment_minstret<=True;
             `ifdef spfpu
-              wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
+              `ifdef atomic
+                wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
+              `else
+                wr_commit <= tagged Valid (tuple3(0, 0, IRF)); 
+              `endif
             `else
               `ifdef atomic
                 wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
