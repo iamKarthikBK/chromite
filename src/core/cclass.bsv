@@ -151,9 +151,10 @@ package cclass;
     rule connect_instruction_req;
       let req <- riscv.inst_request;
       imem.core_req.put(req.icache_req);
-      if( `ifdef supervisor !req.icache_req.sfence `endif && !req.icache_req.fence)
+      if( `ifdef supervisor !req.icache_req.sfence `endif )
         bpu.prediction_req(PredictionRequest{pc       : req.icache_req.address,
-                                             fence    : req.icache_req.fence
+                                             fence    : req.icache_req.fence,
+                                             epochs   : req.icache_req.epochs
                           `ifdef compressed ,discard  : req.discard `endif });
     endrule
 
