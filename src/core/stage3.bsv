@@ -154,6 +154,7 @@ package stage3;
   endinterface
 
   (*synthesize*)
+  (*preempts="capture_stalled_output,count_stalls"*)
   module mkstage3(Ifc_stage3);
 
     String stage3=""; // defined for logger
@@ -387,17 +388,22 @@ package stage3;
                   end
                 end
               end
+              else if(meta.inst_type == JAL)
+                wr_training_data <= tuple3(meta.pc, aluout.effective_addr, 3);
               `ifdef ras
                 if( (meta.inst_type == JALR || meta.inst_type == JAL) && 
                     (opmeta.op_addr.rd == 'b00001 || opmeta.op_addr.rd == 'b00101) &&
                     aluout.cmtype != TRAP)
-                  wr_push_ras <= aluout.effective_addr;
+                  wr_push_ras <= aluout.aluresult;
               `endif
             `endif
 
               rg_eEpoch         <= pack(aluout.redirect && aluout.cmtype != TRAP)^rg_eEpoch;
               wr_redirect_pc    <= aluout.redirect_pc;
               wr_flush_from_exe <= aluout.redirect && aluout.cmtype != TRAP;
+              if(aluout.redirect && aluout.cmtype != TRAP)
+                `logLevel( stage3, 0, $format("STAGE3: Misprediction. Inst: ",fshow(meta.inst_type),
+                                              " PC:%h Target:%h", meta.pc, aluout.redirect_pc))
             `ifdef dpfpu
               Bit#(1) nanboxing = pack(aluout.cmtype == MEMORY 
                                        && funct3[1 : 0] == 2 
@@ -484,7 +490,7 @@ package stage3;
           end
         end
         else begin // operands not available
-          `logLevel( stage3, 0, $format("STAGE3: Waiting for operands"))
+          `logLevel( stage3, 0, $format("STAGE3: Waiting for operands. PC:%h",meta.pc))
         end
       end
       // in case we receive an instruction which was tagged as a TRAP in the previous stage, simply
@@ -509,6 +515,11 @@ package stage3;
     // Explicit Conditions : rg_stall == True
     // Description : This rule is fired when an multicycle instruction is execute whose output takes
     // atleast 2 cycles to be generated.
+    `ifdef simulate
+      rule count_stalls(rg_stall);
+        `logLevel( stage3, 0, $format("STAGE3: Stalled for MulDiv/FPU"))
+      endrule
+    `endif
     rule capture_stalled_output(rg_stall);
       let opmeta  = rx_opmeta.u.first;
       let meta    = rx_meta.u.first;
