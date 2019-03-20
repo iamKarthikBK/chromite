@@ -125,7 +125,7 @@ package bimodal;
 
     // boolean register and counter used to initialize the ram structure on reset.
     Reg#(Bool) rg_init <- mkReg(True);
-    Reg#(Bit#(TAdd#(1, TLog#(TMax#(TDiv#(`btbsize, 2), TDiv#(`rassets, 2)))))) rg_init_count <- mkReg(0);
+    Reg#(Bit#(TAdd#(0, TLog#(TMax#(TDiv#(`btbsize, 2), TDiv#(`rassets, 2)))))) rg_init_count <- mkReg(0);
 
     FIFOF#(PredictionRequest)  ff_pred_request      <- mkSizedFIFOF(2);
     FIFOF#(PredictionResponse) ff_prediction_resp   <- mkBypassFIFOF();
@@ -145,7 +145,7 @@ package bimodal;
       mem_ras_tag1.write(1, truncate(rg_init_count), pack(RASEntryC{tag : ?, valid : 0
                                            `ifdef compressed ,edgecase : False `endif }));
     `endif
-      if(rg_init_count == fromInteger(max((`btbsize / 2),(`rassets / 2)))) begin
+      if(rg_init_count == fromInteger(max((`btbsize / 2),(`rassets / 2))-1)) begin
 				rg_init <= False;
 			end
       `logLevel( bimodal, 0, $format("Bimodal : Init stage. Count:%d",rg_init_count))
