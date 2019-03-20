@@ -134,7 +134,7 @@ package stage0;
         end
         else 
       `endif
-        if ( pred.prediction > 1 && !rg_flush ) begin
+        if ( pred.prediction > 1 && !rg_flush && pred.epochs == curr_epoch) begin
           fetch_pc=pred.target_pc;
           `logLevel( stage0, 0, $format("STAGE0: Redirection from BPU"))
         end
@@ -153,8 +153,8 @@ package stage0;
       rg_flush <= False;
 
       `logLevel( stage0, 1, $format("STAGE0: Prediction from BPU: ",fshow(wr_prediction), " Flush:%b",rg_flush))
-      `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b rg_pc:%h fence:%b sfence:%b",
-                                    fetch_pc, discard, rg_pc, rg_fence, rg_sfence))
+      `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b rg_pc:%h fence:%b sfence:%b \
+epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
 
       return FetchRequest{ icache_req: ICache_request{ address : fetch_pc,
                                                        epochs  : curr_epoch
