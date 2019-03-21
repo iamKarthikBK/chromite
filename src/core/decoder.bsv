@@ -77,7 +77,7 @@ package decoder;
               'b00: case(addr[7:4])
                 // supervisor trap setup
                 'h0:case(addr[3:0])
-                  'h0, 'h1, 'h4, 'h5, 'h6: valid=unpack(misa[18]);
+                  'h0, 'h4, 'h5, 'h6: valid=unpack(misa[18]);
                 `ifdef usertraps
                   'h2, 'h3: valid=unpack(misa[13]&misa[20]);
                 `endif
@@ -121,13 +121,11 @@ package decoder;
                   'hB: if((`PMPSIZE!=0 ) && addr[3:0]<=fromInteger(valueOf(TSub#(`PMPSIZE,1) ))) valid=True;
                   endcase
               // Machine Counter/Timers
-           'b10: `ifdef RV32 if(addr[6:5]==0) `else if(addr[7:5]==0) `endif valid=True;
-              // Debug Trace
+            'b10: `ifdef RV32 if(addr[6:5]==0) `else if(addr[7:5]==0) `endif valid=True;
+           // TODO B01 and 801 should be invalid
           `ifdef debug
-            'b01: case(addr[7:4]) 
-                    'hA: if(addr[3:0]<4) valid=True;
-                    'hB: if(addr[3:0]<3) valid=True;
-                  endcase
+              // DTVEC and DEnable
+            'b01: if( addr[7:0] == 'hC0 || addr[7:0] == 'hC1 ) valid = True;
           `endif
           endcase
     endcase
@@ -151,13 +149,16 @@ package decoder;
  
   (*noinline*)
 	function Tuple3#(Bit#(6), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(XLEN) mstatus,
-        Bit#(12) mip, Bit#(12) mie `ifdef non_m_traps , Bit#(12) mideleg `endif
+        Bit#(14) mip, Bit#(12) mie `ifdef non_m_traps , Bit#(12) mideleg `endif
       `ifdef supervisor
         ,Bit#(12) sip, Bit#(12) sie `ifdef usertraps , Bit#(12) sideleg `endif
       `endif
       `ifdef usertraps
         ,Bit#(12) uip, Bit#(12) uie
-      `endif  );
+      `endif  
+      `ifdef debug 
+        ,DebugStatus debug, Bool step_done
+      `endif );
     Bool m_enabled = (prv != Machine) || (mstatus[3]==1);
   `ifdef supervisor
     Bool s_enabled = (prv == User) || (mstatus[1]==1 && prv==Supervisor);
@@ -165,24 +166,45 @@ package decoder;
   `ifdef usertraps
     Bool u_enabled = (mstatus[0]==1 && prv==User);
   `endif
-    Bool resume_wfi= unpack(|(mie&mip));
-    Bit#(12) m_interrupts = mie & mip & signExtend(pack(m_enabled)) 
-                                                      `ifdef non_m_traps & ~mideleg `endif ;
+    Bool resume_wfi= unpack(|( mie&truncate(mip))); // should halt interrupt on wfi cause
+
+  `ifdef debug
+    Bit#(14) debug_interrupts = { mip[13],mip[12],12'd0};
+    Bool d_enabled = debug.debugger_available && debug.core_debugenable;
+  `endif
+
+    // truncating because in debug mode mie and mip are 14 bits. 12-halt-req 13-resume-req
+    Bit#(12) m_interrupts = mie & truncate(mip) & signExtend(pack(m_enabled)) 
+             `ifdef non_m_traps & ~mideleg `endif 
+             `ifdef debug       & signExtend(pack(!debug.core_is_halted)) `endif ;
   `ifdef supervisor
-    Bit#(12) s_interrupts = mie & mip & mideleg & signExtend(pack(s_enabled)) 
-                                            `ifdef usertraps & ~sideleg `endif ;
+    Bit#(12) s_interrupts = sie & sip & mideleg & signExtend(pack(s_enabled)) 
+               `ifdef usertraps & ~sideleg `endif 
+               `ifdef debug     & signExtend(pack(!debug.core_is_halted)) `endif ;
   `endif
   `ifdef usertraps
     Bit#(12) u_interrupts = uie & uip & mideleg & signExtend(pack(u_enabled)) 
-                                            `ifdef supervisor & sideleg `endif ; 
+              `ifdef supervisor & sideleg `endif 
+              `ifdef debug      & signExtend(pack(!debug.core_is_halted)) `endif ;
   `endif
 
-    Bit#(12) pending_interrupts = (m_enabled?m_interrupts:0) 
-      `ifdef supervisor |  (s_enabled?s_interrupts:0) `endif 
-      `ifdef usertraps  |  (u_enabled?u_interrupts:0) `endif ;
+  Bit#(14) pending_interrupts = `ifdef debug d_enabled? debug_interrupts:0 | `endif
+                           (m_enabled?zeroExtend(m_interrupts):0) 
+      `ifdef supervisor |  (s_enabled?zeroExtend(s_interrupts):0) `endif 
+      `ifdef usertraps  |  (u_enabled?zeroExtend(u_interrupts):0) `endif ;
 		// format pendingInterrupt value to return
-		Bool taketrap=unpack(|pending_interrupts);
+    Bool taketrap=unpack(|pending_interrupts) `ifdef debug ||  step_done `endif ;
     Bit#(5) cause=0;
+  `ifdef debug
+    if(step_done ) begin
+      cause = `HaltStep;
+    end
+    else if(pending_interrupts[12] == 1)
+      cause = `HaltDebugger;
+    else if(pending_interrupts[13] == 1)
+      cause = `Resume_int;
+    else
+  `endif
     if(pending_interrupts[11]==1)
       cause=`Machine_external_int;
     else if(pending_interrupts[3]==1)
@@ -533,6 +555,12 @@ package decoder;
     Bit#(1) fs = |csrs.csr_mstatus[14:13];
     Bit#(3) frm = csrs.frm;
 
+  `ifdef debug
+    Bool ebreakm = unpack(csrs.csr_dcsr[15]);
+    Bool ebreaks = unpack(`ifdef supervisor csrs.csr_dcsr[14] `else 0 `endif );
+    Bool ebreaku = unpack(`ifdef user csrs.csr_dcsr[13] `else 0 `endif );
+  `endif
+
     // ------- Default declarations of all local variables -----------//
 
 		Bit#(5) rs1=inst[19:15];
@@ -793,7 +821,11 @@ package decoder;
           'b000: if(inst[31:7]==0) trapcause=(csrs.csr_misa[20]==1 && csrs.prv==User)?`Ecall_from_user: 
                                              (csrs.csr_misa[18]==1 && csrs.prv==Supervisor)?`Ecall_from_supervisor: 
                                               `Ecall_from_machine;
-                 else if(inst[31:7]=='h2000) trapcause=`Breakpoint ;
+                 else if(inst[31:7]=='h2000) trapcause = `ifdef debug 
+                                                   ( (ebreakm && csrs.prv == Machine) ||
+                                                     (ebreaks && csrs.prv == Supervisor) ||
+                                                     (ebreaku && csrs.prv == User))? `HaltEbreak :
+                                                  `endif `Breakpoint ;
                  else if(inst[31:20]=='h002 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[13]==1) inst_type=SYSTEM_INSTR;
               `ifdef supervisor
                  else if(inst[31:20]=='h102 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[18]==1 &&
@@ -955,18 +987,22 @@ package decoder;
   endfunction
   
   function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bool trap, 
-                `ifdef supervisor Bit#(6) cause, `endif CSRtoDecode csrs, Bool curr_rerun, 
-                Bool rerun_fencei `ifdef supervisor ,Bool rerun_sfence `endif ) =  actionvalue
+                `ifdef supervisor Bit#(`causesize) cause, `endif CSRtoDecode csrs, Bool curr_rerun, 
+                Bool rerun_fencei `ifdef supervisor ,Bool rerun_sfence `endif 
+                `ifdef debug , DebugStatus debug, Bool step_done `endif ) =  actionvalue
       DecodeOut result_decode = decoder_func_32(inst, csrs);
       if(inst[1:0]!='b11 && csrs.csr_misa[2]==1)
         result_decode = decoder_func_16(truncate(inst),csrs);
       let {icause, takeinterrupt, resume_wfi} = chk_interrupt( csrs.prv, csrs.csr_mstatus,
-          csrs.csr_mip, csrs.csr_mie `ifdef non_m_traps ,csrs.csr_mideleg `endif
+          zeroExtend(csrs.csr_mip), csrs.csr_mie `ifdef non_m_traps ,csrs.csr_mideleg `endif
         `ifdef supervisor
           ,csrs.csr_sip, csrs.csr_sie `ifdef usertraps ,csrs.csr_sideleg `endif
         `endif
         `ifdef usertraps
           ,csrs.csr_uip, csrs.csr_uie
+        `endif 
+        `ifdef debug
+          ,debug, step_done
         `endif );
       let func_cause=result_decode.meta.funct;
       Instruction_type x_inst_type = result_decode.meta.inst_type;

@@ -154,7 +154,9 @@ package stage3;
   endinterface
 
   (*synthesize*)
+`ifdef multicycle
   (*preempts="capture_stalled_output,count_stalls"*)
+`endif
   module mkstage3(Ifc_stage3);
 
     String stage3=""; // defined for logger

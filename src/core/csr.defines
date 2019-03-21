@@ -77,6 +77,11 @@
 `define PMPADDR14    'h3BE
 `define PMPADDR15    'h3BF
 ////////////////////////////////////////////////////////////////////////////////////
+`define DCSR			'h7b0 // Debug CSR
+`define DPC				'h7b1 // Debug PC
+`define DSCRATCH  'h7b2 // Debug Scratch
+`define DTVEC     'h7C0 // Debug trap vector
+`define DENABLE   'h7C1 // Debug enable register
 ////////////////////////// Non-Standard User RW CSRS ///////////////////////////////
 `define CACHECNTRL 'h800 // cache control register
 

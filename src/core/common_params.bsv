@@ -134,9 +134,9 @@
 `define Load_pagefault        13
 `define Store_pagefault       15
 //------------ internal encodings --------------//
-`define Rerun                 31
-`define IcacheFence           30
-`define SFence                29
+`define Rerun                 23
+`define IcacheFence           24
+`define SFence                25
 // --------------------------------------------//
 `define User_soft_int         0
 `define Supervisor_soft_int   1
@@ -147,3 +147,9 @@
 `define User_external_int     8
 `define Supervisor_external_int 9
 `define Machine_external_int  11
+`define HaltEbreak            17
+`define HaltTrigger           18
+`define HaltDebugger          19
+`define HaltStep              20
+`define HaltReset             21
+`define Resume_int            22

@@ -72,6 +72,10 @@ package cclass;
   import GetPut:: *;
   import BUtils::*;
 
+`ifdef debug
+  import debug_types::*;
+`endif
+
   `ifdef supervisor
     typedef enum {None, IWalk, DWalk} PTWState deriving(Bits, Eq, FShow);
   `endif
@@ -89,6 +93,9 @@ package cclass;
     interface Put#(Bit#(1)) sb_externalinterrupt;
   `ifdef rtldump
     interface Get#(DumpType) io_dump;
+  `endif
+  `ifdef debug
+    interface Hart_Debug_Ifc debug_server;
   `endif
   endinterface : Ifc_cclass_axi4
 
@@ -137,6 +144,11 @@ package cclass;
 
     FIFOF#(Bit#(`iesize))  ff_epoch <- mkSizedFIFOF(4);
     let curr_priv = riscv.curr_priv;
+
+    // TODO debug
+  `ifdef debug
+    Reg#(Maybe#(Bit#(DXLEN))) rg_abst_response <- mkReg(tagged Invalid); // registered container for responses
+  `endif
 
   `ifdef cache_control
 	  rule handle_nc_resp;
@@ -562,6 +574,47 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
     `ifdef rtldump
       interface io_dump = riscv.dump;
     `endif
+  `ifdef debug
+    interface debug_server = interface Hart_Debug_Ifc
+
+      method Action   abstractOperation(AbstractRegOp cmd)if (!(isValid(rg_abst_response)));
+        if(cmd.address < zeroExtend(14'h1000))begin // Explot address bits to optimize this filter
+          let lv_resp <- riscv.debug_access_csrs(cmd);
+          rg_abst_response <= tagged Valid zeroExtend(lv_resp);
+        end
+        else if(cmd.address < `ifdef spfpu 'h1040 `else 'h1020 `endif )begin
+          let lv_resp <- riscv.debug_access_gprs(cmd);
+          rg_abst_response <= tagged Valid zeroExtend(lv_resp);
+        end
+        else begin
+          rg_abst_response <= tagged Valid zeroExtend(32'h00000000);
+        end
+      endmethod
+
+      method ActionValue#(Bit#(DXLEN)) abstractReadResponse if (isValid(rg_abst_response));
+        rg_abst_response <= tagged Invalid;
+        return validValue(rg_abst_response);
+      endmethod
+
+      method haltRequest = riscv.debug_halt_request;
+
+      method resumeRequest = riscv.debug_resume_request;
+
+      method dm_active = riscv.debugger_available;
+
+      method is_halted = riscv.core_is_halted();
+
+      method is_unavailable = ~riscv.core_debugenable;
+
+      method Action hartReset(Bit#(1) hart_reset_v); // Change to reset type // Signal TO Reset HART -Active HIGH
+        noAction;
+      endmethod
+
+      method Bit#(1) has_reset;
+        return 1;
+      endmethod
+    endinterface;
+  `endif
   endmodule : mkcclass_axi4
 
 endpackage

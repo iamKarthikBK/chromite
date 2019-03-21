@@ -80,6 +80,9 @@ package stage2;
   `include "common_params.bsv"  // for core parameters
   `include "Logger.bsv"         // for logging display statements.
   import globals::*;
+`ifdef debug
+  import debug_types :: *; // for importing the debug abstract interface
+`endif
 
 
 	interface Ifc_stage2;
@@ -121,6 +124,15 @@ package stage2;
     // this is an output method which the current stage uses to train the RAS unit in the BTB when a
     // return instruction is detected.
     method RASTraining train_ras;
+  `endif
+
+  `ifdef debug
+    // interface to interact with debugger
+    method ActionValue#(Bit#(XLEN)) debug_access_gprs(AbstractRegOp cmd);
+
+    // debug related info checking interrupts
+    (*always_enabled, always_ready*)
+    method Action debug_status (DebugStatus status);
   `endif
 	endinterface : Ifc_stage2
 
@@ -183,7 +195,16 @@ package stage2;
     // redirection from the exe / wb stage is received.
     Wire#(Bool) wr_flush_from_exe <- mkDWire(False);
     Wire#(Bool) wr_flush_from_wb  <- mkDWire(False);
-    
+
+  `ifdef debug
+    // This wire will capture info about the current debug state of the core
+    Wire#(DebugStatus) wr_debug_info <- mkWire();
+
+    // This register indicates when an instruction passed the decode stage after a resume request is
+    // received while is step is set.
+    Reg#(Bool) rg_step_done <- mkReg(False);
+  `endif
+
     // ---------------------- End Instatiations --------------------------//
 
     // ---------------------- Start Rules -------------------------------//
@@ -211,9 +232,12 @@ package stage2;
     `endif
       // -------------------------------------------------------------------- //
 
+      `logLevel( stage2, 0, $format("STAGE2: csrs:",fshow(wr_csrs)))
+
       let decoded <- decoder_func(inst,trap, `ifdef supervisor trapcause, `endif wr_csrs, 
                                   rg_rerun, rg_fencei_rerun 
-                                  `ifdef supervisor ,rg_sfence_rerun `endif );
+                                  `ifdef supervisor ,rg_sfence_rerun `endif 
+                                  `ifdef debug ,wr_debug_info, rg_step_done `endif );
       let imm = decoded.meta.immediate;
       let func_cause = decoded.meta.funct;
       let instrType = decoded.meta.inst_type;
@@ -231,6 +255,22 @@ package stage2;
       `logLevel( stage2, 0, $format("STAGE2 : PC:%h Instruction:%h",pc, inst))
 
       if(instrType != WFI && {eEpoch, wEpoch}==epochs)begin
+
+      // The following logic is used to ensure correct step functionality. When the core is halted
+      // or free-running rg_step_done is set to false. When the step bit in dcsr is set and resume
+      // request is received, the very next instruction (matching epochs) will set rg_step_done to
+      // True. The core needs to halt after this instruction commit. Thus, the 2nd instruction in
+      // the stream (which matches the epochs which could have changed if the first instruction is a
+      // branch/jump) is tagged as a Trap with HaltStep cause code, thus causing the core to go back
+      // to the halted stage. When the core is again halted then, rg_step_done is reset to False.
+      `ifdef debug
+        if(rg_step_done && wr_debug_info.core_is_halted)
+          rg_step_done<=False;
+        else
+          rg_step_done <= !wr_debug_info.core_is_halted && wr_debug_info.step_set
+                                                      && wr_debug_info.debugger_available;
+      `endif
+
         let rs1 <- registerfile.read_rs1(decoded.op_addr.rs1addr 
                             `ifdef spfpu ,rf1type `endif );
         let rs2 <- registerfile.read_rs2(decoded.op_addr.rs2addr 
@@ -239,8 +279,6 @@ package stage2;
         let rs3 <- registerfile.read_rs3(decoded.op_addr.rs3addr);
       `endif
 
-//        Bit#(ELEN) op1 = (rs1type == PC) ? signExtend(pc) : rs1;
-//        Bit#(`vaddr) op3 = (instrType == MEMORY || instrType == JALR) ? truncate(rs1) : zeroExtend(pc); 
         Bit#(ELEN) op1 = rs1;
         Bit#(ELEN) op2 = (decoded.op_type.rs2type == Constant2) ? 'd2: // constant2 only is C enabled.
                        (decoded.op_type.rs2type == Constant4) ? 'd4:
@@ -347,5 +385,11 @@ package stage2;
     method train_ras = wr_train_ras;
   `endif
 
+  `ifdef debug
+    method debug_access_gprs = registerfile.debug_access_gprs;
+    method Action debug_status (DebugStatus status);
+      wr_debug_info <= status;
+    endmethod
+  `endif
   endmodule
 endpackage

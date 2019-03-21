@@ -101,6 +101,12 @@ endif
 ifeq ($(BPU), enable)
 	override define_macros += -D branch_speculation=True
 endif
+ifeq ($(DEBUG), enable)
+	override define_macros += -D debug=True
+endif
+ifeq ($(OPENOCD), enable)
+	override define_macros += -D openocd=True
+endif
 
 
 
@@ -141,15 +147,16 @@ M_EXT:=./src/core/m_ext/
 FABRIC:=./src/fabrics/axi4:./src/fabrics/axi4lite:./src/fabrics/tilelink_lite
 UNCORE:=./src/uncore
 TESTBENCH:=./src/testbench/
-PERIPHERALS:=./src/devices/bootrom:./src/devices/pwm:./src/devices/uart:./src/devices/clint:./src/devices/bram
+PERIPHERALS:=./src/devices/bootrom:./src/devices/pwm:./src/devices/uart:./src/devices/clint:./src/devices/bram:./src/devices/riscvDebug013:./src/devices/jtagdtm/
 WRAPPERS:=./src/wrappers/
 LIB:=./src/common_bsv
 VERILATOR_FLAGS += --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
---noassert --cc $(TOP_MODULE).v sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
+--noassert sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
 -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS) \
 -DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(LIB):$(FABRIC):$(UNCORE):$(TESTBENCH):$(PERIPHERALS):$(WRAPPERS):$(M_EXT)
 default: generate_verilog link_verilator generate_boot_files
+gdb: generate_verilog link_verilator_gdb generate_boot_files
 
 check-env:
 	@if test -z "$$BLUESPECDIR"; then echo "BLUESPECDIR variable not set"; exit 1; fi;
@@ -214,7 +221,7 @@ generate_verilog: check-restore check-env
 	@mkdir -p $(BSVBUILDDIR); 
 	@mkdir -p $(VERILOGDIR); 
 	@echo "old_define_macros = $(define_macros)" > old_vars
-	bsc -u -verilog +RTS -K40000M -RTS -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
+	bsc -u -verilog +RTS -K40000M -RTS -remove-dollar -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
   $(define_macros) -D verilog=True $(BSVCOMPILEOPTS) $(VERILOG_FILTER) \
   -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1) 
 	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ${VERILOGDIR}  
@@ -238,7 +245,9 @@ generate_verilog: check-restore check-env
 	@cp ${BLUESPECDIR}/Verilog/SyncRegister.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/MakeClock.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/UngatedClockMux.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/ClockInverter.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/MakeResetA.v ${VERILOGDIR}
+	@cp ${BLUESPECDIR}/Verilog/MakeReset0.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/SyncResetA.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/ResetEither.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/SyncHandshake.v ${VERILOGDIR}
@@ -292,6 +301,26 @@ link_ncverilog:
 	@chmod +x $(BSVOUTDIR)/out
 	@echo Linking finished
 
+.PHONY: link_ncverilog_openocd
+link_ncverilog_openocd: 
+	@echo "Linking $(TOP_MODULE) using ncverilog..."
+	@rm -rf work include bin/work
+	@mkdir -p bin 
+	@mkdir work
+	@echo "Building RBB VPI"
+	@echo "define work ./work" > cds.lib
+	@echo "define WORK work" > hdl.var
+	@ncvlog -64BIT -sv -cdslib ./cds.lib -hdlvar ./hdl.var +define+TOP=$(TOP_MODULE) \
+	${BLUESPECDIR}/Verilog/main.v \
+	-y $(VERILOGDIR)/ \
+	-y ${BLUESPECDIR}/Verilog/ 
+	@ncelab -64BIT -cdslib ./cds.lib -hdlvar ./hdl.var work.main -loadvpi rbb_vpi.so: -timescale 1ns/1ps
+	@echo 'ncsim -64BIT -cdslib ./cds.lib -hdlvar ./hdl.var -loadvpi rbb_vpi.so: work.main #> /dev/null' > $(BSVOUTDIR)/out
+	@mv ./*.so $(BSVOUTDIR)/
+	@mv work cds.lib hdl.var $(BSVOUTDIR)/
+	@chmod +x $(BSVOUTDIR)/out
+	@echo Linking finished
+
 .PHONY: link_irun
 link_irun:
 	@irun -define TOP=mkTbSoC -timescale 1ns/1ps $(VERILOGDIR)/main.v \
@@ -327,11 +356,33 @@ link_verilator:
 	@mkdir -p $(BSVOUTDIR) obj_dir
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > src/testbench/sim_main.h
 	@echo '#include "V$(TOP_MODULE).h"' >> src/testbench/sim_main.h
-	verilator $(VERILATOR_FLAGS) -y $(VERILOGDIR) --exe
+	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v -y $(VERILOGDIR) --exe
 	@ln -f -s ../src/testbench/sim_main.cpp obj_dir/sim_main.cpp
 	@ln -f -s ../src/testbench/sim_main.h obj_dir/sim_main.h
 	@make -j8 -C obj_dir -f V$(TOP_MODULE).mk
 	@cp obj_dir/V$(TOP_MODULE) $(BSVOUTDIR)/out
+
+
+.PHONY: link_verilator_gdb
+link_verilator_gdb:
+	@echo "Linking Verilator With the Shakti RBB Vpi"
+	@mkdir -p bin
+	@echo "#define TOPMODULE V$(TOP_MODULE)_edited" > src/testbench/sim_main.h
+	@echo '#include "V$(TOP_MODULE)_edited.h"' >> src/testbench/sim_main.h
+	@sed  -f src/devices/jtagdtm/sed_script.txt  $(VERILOGDIR)/$(TOP_MODULE).v > tmp1.v
+	@cat  src/devices/jtagdtm/verilator_config.vlt \
+	      src/devices/jtagdtm/vpi_sv.v \
+	      tmp1.v                         > $(VERILOGDIR)/$(TOP_MODULE)_edited.v
+	@rm   -f  tmp1.v
+	verilator --threads-dpi all --cc $(TOP_MODULE)_edited.v --exe sim_main.cpp RBB_Shakti.c -y $(VERILOGDIR) $(VERILATOR_FLAGS)
+	@ln -f -s ../src/testbench/sim_main.cpp obj_dir/sim_main.cpp
+	@ln -f -s ../src/testbench/sim_main.h obj_dir/sim_main.h
+	@ln -f -s ../src/devices/jtagdtm/RBB_Shakti.c obj_dir/RBB_Shakti.c
+	@echo "INFO: Linking verilated files"
+	@make -j8 -C obj_dir -f V$(TOP_MODULE)_edited.mk
+	@cp obj_dir/V$(TOP_MODULE)_edited bin/out
+	@cp gdb_setup/code.mem* ./bin/
+	@echo Linking finished
 
 .PHONY: ip_build
 ip_build: 

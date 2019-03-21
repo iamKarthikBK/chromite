@@ -50,6 +50,9 @@ package registerfile;
 	import ConfigReg::*;
   import GetPut::*;
   `include "Logger.bsv"
+`ifdef debug
+  import debug_types :: *; // for importing the debug abstract interface
+`endif
 	/*===========================*/
 
 	interface Ifc_registerfile;
@@ -58,15 +61,18 @@ package registerfile;
   `ifdef spfpu 
     method ActionValue#(Bit#(ELEN)) read_rs3(Bit#(5) addr);
   `endif
-	`ifdef Debug
-    method ActionValue#(Bit#(XLEN)) read_write_gprs(Bit#(5) r, Bit#(ELEN) data, Bool rw 
-          `ifdef spfpu, RFType rfselect `endif );
-	`endif
 		method Action commit_rd (Maybe#(CommitData) commit);
     method Action fwd_from_wb(CommitData commit);
+  `ifdef debug
+    // interface to interact with debugger
+    method ActionValue#(Bit#(XLEN)) debug_access_gprs(AbstractRegOp cmd);
+  `endif
 	endinterface
 
 	(*synthesize*)
+`ifdef debug
+  (*conflict_free="debug_access_gprs,commit_rd"*)
+`endif
 	module mkregisterfile(Ifc_registerfile);
     String rf ="";
 		RegFile#(Bit#(5), Bit#(XLEN)) integer_rf <- mkRegFileWCF(0, 31);
@@ -181,28 +187,31 @@ package registerfile;
 			  end
       end
 		endmethod
-		`ifdef Debug
-      method ActionValue#(Bit#(XLEN)) read_write_gprs(Bit#(5) r, Bit#(ELEN) data, Bool rw 
-          `ifdef spfpu, RFType rfselect `endif ) if(!initialize);
-          Bit#(XLEN) resultop = 0;
-          if(rw) begin // write_operation
-            `ifdef spfpu
-              if(rfselect == FRF)
-                floating_rf.upd(r, data);
-              else
-            `endif
-                integer_rf.upd(r, data);
-          end
-          else begin // read operation
-            `ifdef spfpu
-              if(rfselect == FRF)
-                resultop = floating_rf.sub(r);
-              else
-            `endif
-                resultop = integer_rf.sub(r);
-          end
-        return resultop;
-      endmethod
-		`endif
+  `ifdef debug
+    // MethodName: debug_access_gprs
+    // Explicit Conditions: initialize = False;
+    // Implicit Conditions: None;
+    // Description: This method is used by te debugger to access the register files.
+    method ActionValue#(Bit#(XLEN)) debug_access_gprs(AbstractRegOp cmd) if(!initialize);
+      Bit#(XLEN) resultop = 0;
+      if(cmd.read_write) begin // write_operation
+        `ifdef spfpu
+          if(cmd.rftype)
+            floating_rf.upd(truncate(cmd.address), cmd.writedata);
+          else
+        `endif
+            integer_rf.upd(truncate(cmd.address), cmd.writedata);
+      end
+      else begin // read operation
+        `ifdef spfpu
+          if(cmd.rftype)
+            resultop = floating_rf.sub(truncate(cmd.address));
+          else
+        `endif
+            resultop = integer_rf.sub(truncate(cmd.address));
+      end
+      return resultop;
+    endmethod
+  `endif
 	endmodule
 endpackage

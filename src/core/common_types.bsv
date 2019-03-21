@@ -163,7 +163,7 @@ package common_types;
   typedef Tuple3#(Bit#(5), Bool, Bit#(XLEN)) OpFwding;
   typedef struct{
     Privilege_mode prv;
-    Bit#(12) csr_mip;
+    Bit#(`ifdef debug 14 `else 12 `endif ) csr_mip;
     Bit#(12) csr_mie;
   `ifdef non_m_traps
     Bit#(12) csr_mideleg;
@@ -171,15 +171,26 @@ package common_types;
   `ifdef supervisor
     Bit#(12) csr_sip;
     Bit#(12) csr_sie;
-    Bit#(12) csr_sideleg;
   `endif
   `ifdef usertraps
     Bit#(12) csr_uip;
     Bit#(12) csr_uie;
+    Bit#(12) csr_sideleg;
   `endif
     Bit#(26) csr_misa;
     Bit#(XLEN) csr_mstatus;
-    Bit#(3) frm;} CSRtoDecode deriving(Bits, Eq, FShow);
+    Bit#(3) frm;
+  `ifdef debug
+    Bit#(32)  csr_dcsr;
+  `endif } CSRtoDecode deriving(Bits, Eq, FShow);
+
+  typedef struct {
+      Bool debugger_available;
+      Bool core_is_halted;
+      Bool step_set;
+      Bool step_ie;
+      Bool core_debugenable;
+  } DebugStatus deriving(Bits, Eq, FShow);
 
   typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), RFType) DumpType;
  

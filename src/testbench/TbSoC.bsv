@@ -1,5 +1,5 @@
 /* 
-Copyright (c) 2013, IIT Madras All rights reserved.
+Copyright (c) 2018, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
 provided that the following conditions are met:
@@ -41,19 +41,24 @@ package TbSoC;
   import device_common::*;
   import DReg::*;
 
+`ifdef openocd
+  import "BDPI" function ActionValue #(int) init_rbb_jtag(Bit#(1) dummy);
+  import "BDPI" function ActionValue #(Bit #(8))get_frame(int client_fd);
+  import "BDPI" function Action send_tdo(Bit #(1) tdo , int client_fd);
+`endif
   module mkTbSoC(Empty);
 
     let def_clk <- exposeCurrentClock;
     let def_rst <- exposeCurrentReset;
-    `ifdef EXTERNAL
-      Ifc_SoC soc <- mkSoC(def_clk, def_rst);
-    `else
-      Ifc_SoC soc <- mkSoC();
-    `endif
+    
+    MakeClockIfc#(Bit#(1)) tck_clk <-mkUngatedClock(1);
+    MakeResetIfc trst <- mkReset(0,False,tck_clk.new_clk);
+
+
+    Ifc_SoC soc <- mkSoC(tck_clk.new_clk,trst.new_rst);
     
     UserInterface#(`paddr,XLEN,16) uart <- mkuart_user(5);
     Reg#(Bool) rg_read_rx<- mkDReg(False);
-    Reg#(Bool) rg_stop <- mkReg(False);
 
     Reg#(Bit#(5)) rg_cnt <-mkReg(0);
 
@@ -108,12 +113,14 @@ package TbSoC;
     endrule
 
     `ifdef rtldump
-      rule write_dump_file(rg_cnt>=5 && !rg_stop);
-          let {prv, pc, instruction, rd, data, rdtype}<- soc.io_dump.get;
-        if(instruction=='h00006f||instruction =='h00a001)begin
+      rule write_dump_file(rg_cnt>=5 );
+        let {prv, pc, instruction, rd, data, rdtype}<- soc.io_dump.get;
+      `ifndef openocd
+        if(instruction=='h00006f||instruction =='h00a001)
           $finish(0);
-      	end
-        else begin
+        else 
+      `endif 
+        begin
   		  	$fwrite(dump, prv, " 0x%16h", pc, " (0x%8h", instruction, ")"); 
           if(rdtype==FRF)
   		  	  $fwrite(dump, " f%d", rd, " 0x%16h", data, "\n"); 
@@ -122,5 +129,54 @@ package TbSoC;
         end
       endrule
     `endif
+
+    `ifdef openocd
+      Wire#(Bit#(1)) wr_tdo <-mkWire();
+      Wire#(Bit#(1)) wr_tck <-mkWire();
+      Wire#(Bit#(1)) wr_tdi <-mkWire();
+      Wire#(Bit#(1)) wr_tms <-mkWire();
+      Wire#(Bit#(1)) wr_trst <-mkWire();
+      rule connect_jtag_io;
+        soc.wire_tdi(wr_tdi);
+        soc.wire_tms(wr_tms);
+      endrule
+      rule rl_wr_tdo;
+        wr_tdo <= soc.wire_tdo();
+      endrule
+        Reg#(Bit#(1)) rg_initial <- mkRegA(0);
+        Reg#(Bit#(1)) rg_end_sim <- mkRegA(0);
+        Reg#(int) rg_client_fd <- mkRegA(32'hffffffff);
+        Reg#(Bit#(5)) delayed_actor <- mkReg(0);
+        Reg#(Bit#(5)) delayed_actor2 <- mkReg(0);
+        Reg#(Bit#(5)) delayed_actor3 <- mkReg(0);
+        Reg#(Bit#(5)) delayed_actor4 <- mkReg(0);
+        Reg#(Bit#(5)) delayed_actor5 <- mkReg(0);
+        rule rl_initial(rg_initial == 0);
+          let x <- init_rbb_jtag(0);
+          if(x != 32'hffffffff)begin
+            rg_initial <= 1'b1;
+            rg_client_fd <= x;
+          end
+        endrule
+        rule rl_get_frame((rg_initial == 1'b1));
+          let x <- get_frame(rg_client_fd);
+          delayed_actor <= truncate(x);
+          delayed_actor2 <= delayed_actor;
+          delayed_actor3 <= delayed_actor2;
+          delayed_actor4 <= delayed_actor3;
+          delayed_actor5 <= delayed_actor4;
+          tck_clk.setClockValue(delayed_actor2[2]);
+          if(delayed_actor2[4] == 1)
+            trst.assertReset();
+          if(delayed_actor5[3] == 1 )
+            send_tdo(wr_tdo,rg_client_fd);
+          wr_tdi <= delayed_actor[0];
+          wr_tms <= delayed_actor[1];
+          if( x[5] == 1)begin
+            $display("OpenOcd Exit");
+            $finish();
+          end
+        endrule
+      `endif
   endmodule
 endpackage: TbSoC
