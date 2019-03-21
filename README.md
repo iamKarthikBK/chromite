@@ -14,6 +14,7 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
   * [Directory Structure](#directory-structure)
   * [Block Diagram](#block-diagram)
   * [FEATURES of C-CLASS](#features-of-c-class)
+  * [Pending Features](#pending-features)
   * [Configuring the Core](#configuring-the-core)
       - [Current ILLEGAL Configs](#current-illegal-configs)
   * [Compiling the Core/SoC](#compiling-the-core-soc)
@@ -22,12 +23,17 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
       - [Supporting printf](#supporting-printf)
       - [Platform Setup](#platform-setup)
       - [Simulation Outputs](#simulation-outputs)
-  * [Linux on Shakti](#linux-on-shakti)
+  * [Connecting to GDB](#connecting-to-gdb)
       - [Generate RTL](#generate-rtl)
+      - [Execute the RTL](#execute-the-rtl)
+      - [Connect to OpenOCD](#connect-to-openocd)
+      - [Connect to GDB](#connect-to-gdb)
+  * [Linux on Shakti](#linux-on-shakti)
+      - [Generate RTL](#generate-rtl-1)
       - [Generate Linux Image](#generate-linux-image)
       - [To simulate on C-class](#to-simulate-on-c-class)
   * [FreeRTOS on Shakti](#freertos-on-shakti)
-      - [Generate RTL](#generate-rtl-1)
+      - [Generate RTL](#generate-rtl-2)
       - [Generate FreeRTOS Image](#generate-freertos-image)
       - [To simulate on C-class](#to-simulate-on-c-class-1)
   * [CI/CD](#ci-cd)
@@ -267,6 +273,44 @@ The core along with a minimal SoC can be simulated on a number of commercial and
 1. if `RTLDUMP` variable is `enabled` then an rtl.dump file is created which contains the trace of the instruction execution sequence.
 2. if `VERBOSITY` variable is set more than 0, then executing the `out` binary will print all the display statements on the screen.
 3. if printf is used in application code, then those get dumped in the `app_log` file.
+
+## Connecting to GDB
+
+A debugger implementation following the riscv-debug-draft-013 has been integrated with the core. 
+** Triggers are not yet supported ** (Will be done soon !! )
+Perform the following steps to connect to the core executable with a gdb terminal. This assumes you have installed openocd and is available as part of you $PATH variable.
+
+#### Generate RTL
+In the default soc_config.inc set DEBUG and OPENOCD to `enable`
+```
+....
+DEBUG=enable
+OPENOCD=enable
+....
+
+```
+
+Then type `make gdb`. The BSV-to-verilog generation and the verilator linking both with take significant time. Please be patient.
+
+This will create the executable `out` in the bin folder.
+
+#### Execute the RTL
+In your current terminal go to the bin folder and type `./out > /dev/null`
+
+#### Connect to OpenOCD
+Open a new terminal and go to the `gdb_setup` folder and type the following:
+```
+openocd -f shakti_ocd.cfg
+```
+
+#### Connect to GDB
+Open yet another terminal and go to the `gdb_setup` folder and type the following:
+```
+riscv64-unknown-elf-gdb -x gdb.script
+```
+
+In this window you can now perform gdb commands like : `set $pc, i r, etc`:w
+
 
 ## Linux on Shakti 
 
