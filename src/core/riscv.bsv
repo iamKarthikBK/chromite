@@ -41,6 +41,10 @@ package riscv;
   import CustomFIFOs::*;
   import globals::*;
   `include "common_params.bsv"
+
+`ifdef debug
+  import debug_types ::*;
+`endif
   
   interface Ifc_riscv;
     
@@ -89,6 +93,17 @@ package riscv;
     method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
     method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
   `endif
+
+  `ifdef debug
+    // interface to interact with debugger
+    method ActionValue#(Bit#(XLEN)) debug_access_gprs(AbstractRegOp cmd);
+    method ActionValue#(Bit#(XLEN)) debug_access_csrs(AbstractRegOp cmd);
+    method Action debug_halt_request(Bit#(1) ip);
+    method Action debug_resume_request(Bit#(1) ip);
+    method Bit#(1) core_is_halted;
+    method Bit#(1) core_debugenable;
+    method Action debugger_available (Bit#(1) avail);
+  `endif
   endinterface
 
   (*synthesize*)
@@ -105,6 +120,10 @@ package riscv;
     Ifc_stage3 stage3 <- mkstage3();
     Ifc_stage4 stage4 <- mkstage4();
     Ifc_stage5 stage5 <- mkstage5();
+
+  `ifdef debug
+    Wire#(Bool) wr_debugger_available <- mkWire();
+  `endif
 
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
 
@@ -258,13 +277,6 @@ package riscv;
       if ( valid &&& s4type matches tagged Trap .*)
         valid=False;
 
-
-//      let data = pipe3.first;
-//      let {committype, field1, field2, field3, field4}=data;
-//      Bit#(5) rd = field4[5 : 1];
-//      RFType rdtype = unpack(field4[6]);
-//      Bit#(ELEN) rdval = field2;
-//      Bool available = (committype == REGULAR);
     `ifdef spfpu
       stage3.fwd_from_pipe3(tuple5(valid, available, rd, rdval, rdtype));
     `else
@@ -386,6 +398,16 @@ package riscv;
     `endif
     endrule
   `endif
+
+  `ifdef debug
+    rule connect_debug_info;
+      stage2.debug_status(DebugStatus {debugger_available : wr_debugger_available ,
+                                       core_is_halted     : unpack(stage5.core_is_halted),
+                                       step_set           : unpack(stage5.step_is_set),
+                                       step_ie            : unpack(stage5.step_ie),
+                                       core_debugenable   : unpack(stage5.core_debugenable)} );
+    endrule
+  `endif
     ///////////////////////////////////////////
 
     interface inst_request = stage0.inst_request;
@@ -438,6 +460,17 @@ package riscv;
   `ifdef pmp
     method pmp_cfg = stage5.pmp_cfg;
     method pmp_addr = stage5.pmp_addr;
+  `endif
+  `ifdef debug
+    method debug_access_gprs = stage2.debug_access_gprs;
+    method debug_access_csrs = stage5.debug_access_csrs;
+    method debug_halt_request = stage5.debug_halt_request;
+    method debug_resume_request = stage5.debug_resume_request;
+    method core_is_halted = stage5.core_is_halted;
+    method core_debugenable = stage5.core_debugenable;
+    method Action debugger_available (Bit#(1) avail);
+      wr_debugger_available <= unpack(avail);
+    endmethod
   `endif
   endmodule
 
