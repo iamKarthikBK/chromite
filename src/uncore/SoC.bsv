@@ -55,9 +55,12 @@ package SoC;
   import GetPut:: *;
   import Vector::*;
 
+`ifdef debug
   import debug_types::*;                                                                          
   import jtagdtm::*;                                                                              
   import riscvDebug013::*;                                                                        
+  import debug_halt_loop::*;
+`endif
  
  `ifdef CORE_TLU
     function Tuple2 #(Bool, Bit#(TLog#(`Num_Slaves))) fn_slave_map (A_Opcode_lite cmd, 
@@ -139,8 +142,7 @@ package SoC;
  		Ifc_bram_axi4#(`paddr, ELEN, USERSPACE, `Addr_space) main_memory <- mkbram_axi4(`MemoryBase, 
                                                 "code.mem.MSB", "code.mem.LSB", "MainMEM");
   `ifdef debug
- 		Ifc_bram_axi4#(`paddr, ELEN, USERSPACE, 4) debug_memory <- mkbram_axi4(0, "debug.mem.MSB", 
-                                                                        "debug.mem.LSB", "DebugMEM");
+    Ifc_debug_halt_loop#(`paddr, ELEN, USERSPACE) debug_memory <- mkdebug_halt_loop;
   `endif
 		Ifc_bootrom_axi4#(`paddr, ELEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
 	  Ifc_uart_axi4#(`paddr,ELEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);

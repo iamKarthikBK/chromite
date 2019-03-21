@@ -52,6 +52,6 @@
 `define SignEnd     'h0002_000c
 `ifdef debug
   `define DebugBase   'h0000_0000
-  `define DebugEnd    'h0000_0010
+  `define DebugEnd    'h0000_000F
 `endif
 
