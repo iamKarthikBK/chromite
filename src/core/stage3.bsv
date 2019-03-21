@@ -155,7 +155,9 @@ package stage3;
 
   (*synthesize*)
 `ifdef multicycle
-  (*preempts="capture_stalled_output,count_stalls"*)
+  `ifdef simulate
+    (*preempts="capture_stalled_output,count_stalls"*)
+  `endif
 `endif
   module mkstage3(Ifc_stage3);
 
