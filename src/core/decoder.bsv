@@ -77,7 +77,7 @@ package decoder;
               'b00: case(addr[7:4])
                 // supervisor trap setup
                 'h0:case(addr[3:0])
-                  'h0, 'h1, 'h4, 'h5, 'h6: valid=unpack(misa[18]);
+                  'h0, 'h4, 'h5, 'h6: valid=unpack(misa[18]);
                 `ifdef usertraps
                   'h2, 'h3: valid=unpack(misa[13]&misa[20]);
                 `endif
@@ -121,13 +121,11 @@ package decoder;
                   'hB: if((`PMPSIZE!=0 ) && addr[3:0]<=fromInteger(valueOf(TSub#(`PMPSIZE,1) ))) valid=True;
                   endcase
               // Machine Counter/Timers
-           'b10: `ifdef RV32 if(addr[6:5]==0) `else if(addr[7:5]==0) `endif valid=True;
-              // Debug Trace
+            'b10: `ifdef RV32 if(addr[6:5]==0) `else if(addr[7:5]==0) `endif valid=True;
+           // TODO B01 and 801 should be invalid
           `ifdef debug
-            'b01: case(addr[7:4]) 
-                    'hA: if(addr[3:0]<4) valid=True;
-                    'hB: if(addr[3:0]<3) valid=True;
-                  endcase
+              // DTVEC and DEnable
+            'b01: if( addr[7:0] == 'hC0 || addr[7:0] == 'hC1 ) valid = True;
           `endif
           endcase
     endcase
