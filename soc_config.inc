@@ -18,6 +18,8 @@ RAS=enable
 RASSETS=64
 RASSIZE=8
 CAUSESIZE=6
+DEBUG=enable
+OPENOCD=enable
 
 # Verilator options
 COVERAGE=none
