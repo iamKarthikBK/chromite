@@ -38,6 +38,7 @@ package csrfile;
   import ConcatReg::*;
   import BUtils::*;
   import Vector::*;
+  import ConfigReg::*;
   interface Ifc_csrfile;
     method ActionValue#(Bit#(XLEN)) read_csr (Bit#(12) addr);
     method Action write_csr(Bit#(12) addr,  Bit#(XLEN) word, Bit#(2) lpc);
@@ -67,6 +68,14 @@ package csrfile;
   `ifdef pmp
     method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
     method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+  `endif
+  `ifdef debug
+    method Action debug_halt_request(Bit#(1) ip);
+    method Action debug_resume_request(Bit#(1) ip);
+    method Bit#(1) core_is_halted;
+    method Bit#(1) step_is_set;
+    method Bit#(1) step_ie;
+    method Bit#(1) core_debugenable;
   `endif
   endinterface
 
@@ -198,6 +207,7 @@ package csrfile;
     `else
       Bit#(1) spp	= 0;
     `endif
+
     Reg#(Bit#(1)) rg_mpie <- mkReg(0);
     Bit#(1) hpie = 0;
     `ifdef supervisor
@@ -206,7 +216,8 @@ package csrfile;
       Bit#(1) spie = 0;
     `endif
       	Reg#(Bit#(1)) rg_upie <- mkReg(0);
-	Reg#(Bit#(1)) rg_mie	<- mkReg(0);
+
+    Reg#(Bit#(1)) rg_mie	<- mkReg(`ifdef debug 1 `else 0 `endif ); // TODO  
     Bit#(1) hie = 0;
     `ifdef supervisor
       Reg#(Bit#(1)) sie <- mkReg(0);
@@ -253,6 +264,7 @@ package csrfile;
     `endif
     
 	  // mip fields
+
     Reg#(Bit#(1)) rg_meip <- mkReg(0);
     Bit#(1) heip = 0;
     `ifdef supervisor
@@ -339,7 +351,7 @@ package csrfile;
 
       // SEDELEG and SIDELEG registers
       `ifdef usertraps
-        Reg#(Bit#(12)) rg_sideleg <- mkReg(0);
+        Reg#(Bit#(14)) rg_sideleg <- mkReg(0);
         Reg#(Bit#(9)) rg_sedeleg_l9 <- mkReg(0); // cause 0 - 8
         Reg#(Bit#(2)) rg_sedeleg_m2 <- mkReg(0);  // cause 12 - 13
         Reg#(Bit#(1)) rg_sedeleg_u1 <- mkReg(0);  // cause 15
@@ -407,9 +419,54 @@ package csrfile;
     Reg#(Bit#(2)) rg_cachecontrol <- mkReg({lv_denable, lv_ienable}); 
   `endif
 	  //////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////// Debug Module CSRs /////////////////////////////////////////
+  `ifdef debug
+    // DCSR - debug spec
+    Reg#(Bit#(4)) rg_dcsr_xdebugver = readOnlyReg(4);                         // DCSR b31-28
+    Reg#(Bit#(1)) rg_dcsr_ebreakm   <- mkReg(1);                              // DCSR b15
+    Reg#(Bit#(1)) rg_dcsr_ebreaks   <- mkReg(0);                              // DCSR b13
+    Reg#(Bit#(1)) rg_dcsr_ebreaku   <- mkReg(0);                              // DCSR b12
+    Reg#(Bit#(1)) rg_dcsr_stepie    <- mkReg(0);                              // DCSR b11
+    Reg#(Bit#(1)) rg_dcsr_stopcount <- mkReg(0);                              // DCSR b10
+    Reg#(Bit#(1)) rg_dcsr_stoptime  <- mkReg(0);                              // DCSR b9
+    Reg#(Bit#(3)) rg_dcsr_cause     <- mkReg(0);                              // DCSR b8-6
+    Reg#(Bit#(1)) rg_dcsr_mprven    <- mkReg(0);                              // DCSR b4
+    Reg#(Bit#(1)) rg_dcsr_nmip      <- mkReg(0);                              // DCSR b3
+    Reg#(Bit#(1)) rg_dcsr_step      <- mkReg(0);                              // DCSR b2
+    Reg#(Bit#(2)) rg_dcsr_prv       <- mkReg(3);                              // DCSR b1-0
+    Reg#(Bit#(32)) rg_csr_dcsr =  concatReg15(rg_dcsr_xdebugver,readOnlyReg(12'd0),rg_dcsr_ebreakm,
+      readOnlyReg(1'd0),rg_dcsr_ebreaks,rg_dcsr_ebreaku,rg_dcsr_stepie,rg_dcsr_stopcount,
+      rg_dcsr_stoptime,readOnlyReg(rg_dcsr_cause),readOnlyReg(1'd0),rg_dcsr_mprven,readOnlyReg(rg_dcsr_nmip),
+      rg_dcsr_step,rg_dcsr_prv);
+
+    // DPC - debug spec
+	  Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dpc  		<- mkReg(0);
+
+    // DSCRATCH - debug spec
+    Reg#(Bit#(XLEN))  rg_csr_dscratch     <- mkReg(0);
+
+    // Part of shakti specific debug registers for control flow
+    Reg#(Bit#(1))     rg_core_halted  <- mkConfigReg(0);     // using configreg to resolve conflicts
+    Reg#(Bit#(1))     rg_halt_int     <- mkReg(0);
+    Reg#(Bit#(1))     rg_resume_int   <- mkReg(0);
+    Reg#(Bit#(1))     rg_halt_ie      = readOnlyReg(1);    
+    Reg#(Bit#(1))     rg_resume_ie    = readOnlyReg(1);
+    // Shakti Debug DtVec - a machine mode accesabvle csr register. This will define where the
+    // self-loop is 
+    Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dtvec <- mkReg(0); // Place debug loop at zero for starters
+    Reg#(Bit#(1)) rg_csr_denable <- mkReg(1);
+
+  `else
+    Reg#(Bit#(1)) rg_halt_ie    =  readOnlyReg(0);
+    Reg#(Bit#(1)) rg_halt_int   =  readOnlyReg(0);
+    Reg#(Bit#(1)) rg_resume_int =  readOnlyReg(0);
+    Reg#(Bit#(1)) rg_resume_ie  =  readOnlyReg(0);
+  `endif
     
-    Bit#(12) csr_mip= {rg_meip, heip, misa_s & seip, misa_n & rg_ueip, rg_mtip, htip, misa_s & stip, 
-                       misa_n & rg_utip, misa_s & rg_msip, hsip, misa_s & ssip, misa_n & rg_usip};
+	  //////////////////////////////////////////////////////////////////////////////////////////
+    let csr_mip= { `ifdef debug rg_resume_int&rg_core_halted, rg_halt_int&~rg_core_halted, `endif 
+                   rg_meip, heip, misa_s & seip, misa_n & rg_ueip, rg_mtip, htip, misa_s & stip, 
+                   misa_n & rg_utip, misa_s & rg_msip, hsip, misa_s & ssip, misa_n & rg_usip};
     Bit#(12) csr_mie= {rg_meie, heie, seie, rg_ueie, rg_mtie, htie, stie, rg_utie, rg_msie,
                           hsie, ssie, rg_usie};
   `ifdef supervisor
@@ -432,7 +489,7 @@ package csrfile;
 	  		mcycleh <= new_cycle[63 : 32];
 	  	`endif
     endrule
-    
+
     method ActionValue#(Bit#(XLEN)) read_csr (Bit#(12) addr);
         `logLevel( csr, 0, $format("CSRFILE : Read Operation : Addr:%h",addr))
         Bit#(XLEN) data = 0;
@@ -564,6 +621,13 @@ package csrfile;
         if (addr == `FCSR ) data = zeroExtend({frm, fflags});
       `ifdef cache_control
         if (addr == `CACHECNTRL ) data = zeroExtend(rg_cachecontrol);
+      `endif
+      `ifdef debug
+        if(addr == `DCSR) data = zeroExtend(rg_csr_dcsr);
+        if(addr == `DPC ) data = signExtend({rg_csr_dpc,1'd0});
+        if(addr == `DSCRATCH ) data = rg_csr_dscratch;
+        if(addr == `DTVEC ) data = signExtend({rg_csr_dtvec,1'd0});
+        if(addr == `DENABLE ) data = zeroExtend(rg_csr_denable);
       `endif
         return data;
     endmethod
@@ -826,6 +890,13 @@ package csrfile;
         `CACHECNTRL:
           rg_cachecontrol <= truncate(word);
       `endif
+      `ifdef debug
+          `DCSR:  rg_csr_dcsr <=  truncate(word);
+          `DPC:   rg_csr_dpc  <=  truncate(word>>1);
+          `DSCRATCH: rg_csr_dscratch <= truncate(word);
+          `DTVEC  : rg_csr_dtvec <= truncate(word>>1);
+          `DENABLE : rg_csr_denable <= truncate(word);
+      `endif
         default : noAction;
       endcase
     endmethod
@@ -845,9 +916,9 @@ package csrfile;
       `ifdef supervisor
         csr_sip : csr_sip,
         csr_sie : csr_sie,
-        csr_sideleg : rg_sideleg,
       `endif
       `ifdef usertraps
+        csr_sideleg : rg_sideleg,
         csr_uie : csr_uie,
         csr_uip : csr_uip,
       `endif
@@ -936,8 +1007,8 @@ package csrfile;
           `ifdef supervisor
             `logLevel( csr, 2, $format("CSRFILE : rg_stvec:%h rg_smode:%b", rg_stvec, rg_smode))
           `endif
-        
-          
+
+       // TODO: reduce the adders here to a single adder 
         `ifdef supervisor
           if(prv == Supervisor) begin
             stval <= signExtend(tval);
@@ -970,33 +1041,76 @@ package csrfile;
           end else
         `endif
           begin
-            rg_mtval <= signExtend(tval);
-			      rg_mepc <= truncateLSB(pc);
-			      rg_mcause <= cause[4 : 0];
-            rg_minterrupt <= cause[5];
-			      rg_mie <= 0;
-			      rg_mpp <= pack(rg_prv);
-			      rg_mpie <= rg_mie;
-			      rg_prv <= Machine;
-            if(rg_mode == 1 && cause[5] == 1)
-              return ({(rg_mtvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
-            else
-              return {rg_mtvec, 2'b0}; // pc jumps to base
+            Bit#(`vaddr) redirect; 
+          `ifdef debug
+            if(cause >= {1'b1,`HaltEbreak} && cause <= {1'b1, `HaltReset} ) begin
+              `logLevel( csr, 3, $format("CSRFILE: Taking Halt interrupt. DCause:%d", cause[2:0]))
+              rg_csr_dpc <= truncateLSB(pc);
+              rg_dcsr_cause <= truncate(cause);
+              rg_core_halted <= 1;
+              rg_dcsr_prv <= pack(rg_prv);
+              rg_prv <= Machine;
+              redirect = {rg_csr_dtvec,1'd0};
+            end
+            else 
+            if( cause == {1'b1,`Resume_int} ) begin
+              redirect = {rg_csr_dpc,1'd0};
+              rg_core_halted <= 0;
+              rg_prv<= unpack(rg_dcsr_prv);
+            end
+            else 
+          `endif
+            begin
+              rg_mtval <= signExtend(tval);
+			        rg_mepc <= truncateLSB(pc);
+			        rg_mcause <= cause[4 : 0];
+              rg_minterrupt <= cause[5];
+			        rg_mie <= 0;
+			        rg_mpp <= pack(rg_prv);
+			        rg_mpie <= rg_mie;
+			        rg_prv <= Machine;
+              if(rg_mode == 1 && cause[5] == 1)
+                redirect = ({(rg_mtvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+              else
+                redirect =  {rg_mtvec, 2'b0}; // pc jumps to base
+            end
+            return redirect;
           end
       `else
         begin
-          rg_mtval <= signExtend(tval);
-			    rg_mepc <= truncateLSB(pc);
-			    rg_mcause <= cause[4 : 0];
-          rg_minterrupt <= cause[5];
-			    rg_mie <= 0;
-			    rg_mpp <= pack(rg_prv);
-			    rg_mpie <= rg_mie;
-			    rg_prv <= Machine;
-          if(rg_mode == 1 && cause[5] == 1)
-            return ({(rg_mtvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
-          else
-            return {rg_mtvec, 2'b0}; // pc jumps to base
+            Bit#(`vaddr) redirect = {rg_csr_dtvec,1'd0};
+          `ifdef debug
+            if(cause >= {1'b1,`HaltEbreak} && cause <= {1'b1, `HaltReset} ) begin
+              `logLevel( csr, 3, $format("CSRFILE: Taking Halt interrupt. DCause:%d", cause[2:0]))
+              rg_csr_dpc <= truncateLSB(pc);
+              rg_dcsr_cause <= truncate(cause);
+              rg_core_halted <= 1;
+              rg_dcsr_prv <= pack(rg_prv);
+              rg_prv <= Machine;
+            end
+            else 
+            if( cause == {1'b1,`Resume_int} ) begin
+              redirect = {rg_csr_dpc,1'd0};
+              rg_core_halted <= 0;
+              rg_prv<= unpack(rg_dcsr_prv);
+            end
+            else 
+          `endif
+            begin
+              rg_mtval <= signExtend(tval);
+			        rg_mepc <= truncateLSB(pc);
+			        rg_mcause <= cause[4 : 0];
+              rg_minterrupt <= cause[5];
+			        rg_mie <= 0;
+			        rg_mpp <= pack(rg_prv);
+			        rg_mpie <= rg_mie;
+			        rg_prv <= Machine;
+              if(rg_mode == 1 && cause[5] == 1)
+                redirect = ({(rg_mtvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+              else
+                redirect =  {rg_mtvec, 2'b0}; // pc jumps to base
+            end
+            return redirect;
         end
       `endif
     endmethod
@@ -1055,6 +1169,18 @@ package csrfile;
   `ifdef pmp
     method pmp_cfg = readVReg(v_pmp_cfg);
     method pmp_addr = readVReg(v_pmp_addr);
+  `endif
+  `ifdef debug
+    method Action debug_halt_request(Bit#(1) ip);
+      rg_halt_int <= ip;
+    endmethod
+    method Action debug_resume_request(Bit#(1) ip);
+      rg_resume_int <= ip;
+    endmethod
+    method core_is_halted = rg_core_halted;
+    method step_is_set = rg_dcsr_step;
+    method step_ie = rg_dcsr_stepie;
+    method core_debugenable = rg_csr_denable;
   `endif
   endmodule
 endpackage

@@ -40,6 +40,10 @@ package csr;
   import Vector::*;
   `include "Logger.bsv"
 
+`ifdef debug
+  import debug_types::*;
+`endif
+
   // package imports 
   import ConfigReg::*;
 	
@@ -68,6 +72,16 @@ package csr;
   `ifdef pmp
     method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
     method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+  `endif
+
+  `ifdef debug
+    method ActionValue#(Bit#(XLEN)) debug_access_csrs(AbstractRegOp cmd);
+    method Action debug_halt_request(Bit#(1) ip);
+    method Action debug_resume_request(Bit#(1) ip);
+    method Bit#(1) core_is_halted;
+    method Bit#(1) step_is_set;
+    method Bit#(1) step_ie;
+    method Bit#(1) core_debugenable;
   `endif
   endinterface : Ifc_csr
 
@@ -146,6 +160,24 @@ package csr;
   `ifdef pmp
     method pmp_cfg = csrfile.pmp_cfg;
     method pmp_addr = csrfile.pmp_addr;
+  `endif
+  `ifdef debug
+    method ActionValue#(Bit#(XLEN)) debug_access_csrs(AbstractRegOp cmd);
+      if(cmd.read_write) begin
+        csrfile.write_csr(truncate(cmd.address), cmd.writedata, 'd0);
+        return 0;
+      end
+      else begin
+        let x <- csrfile.read_csr(truncate(cmd.address));
+        return x;
+      end
+    endmethod
+    method debug_halt_request = csrfile.debug_halt_request;
+    method debug_resume_request = csrfile.debug_resume_request ;
+    method core_is_halted = csrfile.core_is_halted ;
+    method step_is_set = csrfile.step_is_set;
+    method step_ie = csrfile.step_ie;
+    method core_debugenable = csrfile.core_debugenable;
   `endif
   endmodule
 endpackage

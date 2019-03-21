@@ -41,6 +41,11 @@ package stage5;
   import csrfile::*;
   import DReg::*;
   import Vector::*;
+`ifdef debug
+  import debug_types::*;
+`endif
+
+
   interface Ifc_stage5;
     interface RXe#(PIPE4) rx_in;
     `ifdef rtldump
@@ -79,12 +84,24 @@ package stage5;
     method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
     method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
   `endif
+  `ifdef debug
+    method ActionValue#(Bit#(XLEN)) debug_access_csrs(AbstractRegOp cmd);
+    method Action debug_halt_request(Bit#(1) ip);
+    method Action debug_resume_request(Bit#(1) ip);
+    method Bit#(1) core_is_halted;
+    method Bit#(1) step_is_set;
+    method Bit#(1) step_ie;
+    method Bit#(1) core_debugenable;
+  `endif
   endinterface
 
   (*synthesize*)
   (*conflict_free="instruction_commit,set_external_interrupt"*)
   (*conflict_free="instruction_commit,increment_instruction_counter"*)
   (*conflict_free="set_external_interrupt,instruction_commit"*)
+`ifdef debug
+  (*conflict_free="debug_access_csrs,instruction_commit"*)
+`endif
   module mkstage5(Ifc_stage5);
 
 
@@ -409,6 +426,15 @@ package stage5;
   `ifdef pmp
     method pmp_cfg=csr.pmp_cfg;
     method pmp_addr=csr.pmp_addr;
+  `endif
+  `ifdef debug
+    method debug_access_csrs = csr.debug_access_csrs; 
+    method debug_halt_request = csr.debug_halt_request;
+    method debug_resume_request = csr.debug_resume_request;
+    method core_is_halted = csr.core_is_halted;
+    method step_is_set = csr.step_is_set;
+    method step_ie = csr.step_ie;
+    method core_debugenable = csr.core_debugenable;
   `endif
   endmodule
 endpackage
