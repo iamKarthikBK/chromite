@@ -156,7 +156,7 @@ VERILATOR_FLAGS += --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --
 -DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(LIB):$(FABRIC):$(UNCORE):$(TESTBENCH):$(PERIPHERALS):$(WRAPPERS):$(M_EXT)
 default: generate_verilog link_verilator generate_boot_files
-gdb: generate_verilog link_verilator_svdpi generate_boot_files
+gdb: generate_verilog link_verilator_gdb generate_boot_files
 
 check-env:
 	@if test -z "$$BLUESPECDIR"; then echo "BLUESPECDIR variable not set"; exit 1; fi;
@@ -363,8 +363,8 @@ link_verilator:
 	@cp obj_dir/V$(TOP_MODULE) $(BSVOUTDIR)/out
 
 
-.PHONY: link_verilator_svdpi
-link_verilator_svdpi:
+.PHONY: link_verilator_gdb
+link_verilator_gdb:
 	@echo "Linking Verilator With the Shakti RBB Vpi"
 	@mkdir -p bin
 	@echo "#define TOPMODULE V$(TOP_MODULE)_edited" > src/testbench/sim_main.h
@@ -381,6 +381,7 @@ link_verilator_svdpi:
 	@echo "INFO: Linking verilated files"
 	@make -j8 -C obj_dir -f V$(TOP_MODULE)_edited.mk
 	@cp obj_dir/V$(TOP_MODULE)_edited bin/out
+	@cp gdb_setup/code.mem* ./bin/
 	@echo Linking finished
 
 .PHONY: ip_build
