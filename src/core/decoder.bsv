@@ -196,7 +196,7 @@ package decoder;
     Bool taketrap=unpack(|pending_interrupts) `ifdef debug ||  step_done `endif ;
     Bit#(5) cause=0;
   `ifdef debug
-    if(step_done ) begin
+    if(step_done && !debug.core_is_halted) begin
       cause = `HaltStep;
     end
     else if(pending_interrupts[12] == 1)
