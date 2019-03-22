@@ -25,14 +25,14 @@ package muldiv_asic_32bit;
 	`define UnrollDiv 1
 
 	interface Ifc_muldiv;
-		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
+		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
     funct3 );
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 		method Action flush;
 	endinterface
  
   function Bit#(XLEN) single_mult ( Bit#(XLEN) in1, Bit#(XLEN) in2,
-                                              Bit#(3) funct3 `ifdef RV64 ,Bool word_flag );
+                                                Bit#(3) funct3 `ifdef RV64 ,Bool word_flag `endif );
 	  Bool lv_take_complement = False;
     if(funct3==1 ) // in case of MULH or DIV
 	    lv_take_complement=unpack(in1[valueOf(XLEN)-1]^in2[valueOf(XLEN)-1]);
@@ -94,6 +94,10 @@ package muldiv_asic_32bit;
 	(*descending_urgency = "get_inputs, perform_n_restoring_steps"*)
 	module mkmuldiv(Ifc_muldiv);
 
+    let output_unavail = ALU_OUT{done : False, cmtype : ?, aluresult : ?, effective_addr : ?,
+               cause : ?, redirect : False `ifdef branch_speculation, branch_taken : ?, 
+               redirect_pc : ? `endif };
+
     let xlen = valueOf(XLEN);
     let verbosity=`VERBOSITY;
 		Wrapper2#(Bit#(41), Bit#(41), Bit#(41))   wrapper_add_1     <- mkUniqueWrapper2( \+ );
@@ -115,7 +119,7 @@ package muldiv_asic_32bit;
 		Reg#(Bit#(6)) rg_state_counter[2]<-mkCReg(2,0);										// to count the number of iterations
 		Reg#(Bit#(2)) rg_funct3 <-mkReg(0);
 
-		rule unroll_multiplication(rg_is_mul && rg_count[1]!=4 && `MULTSTAGE!=0);
+		rule unroll_multiplication(rg_is_mul && rg_count[1]!=4 && `MULSTAGES!=0);
 
 			//Bit#(137) x=partial_prod_generator(multiplier_sign,multiplicand,accumulator[1]);
 			Bit#(41) product<- wrapper_mul_1.func({temp_multiplier_sign,accumulator[7:0]}, multiplicand_divisor);
@@ -198,7 +202,7 @@ package muldiv_asic_32bit;
 
 			Bit#(TAdd#(XLEN,1)) op1;
 			Bit#(TAdd#(XLEN,1)) op2;
-			if(is_mul==1 && `MULTSTAGE!=0) begin
+			if(is_mul==1 && `MULSTAGES!=0) begin
 				op1= {1'b0,in1};
 				op2= {1'b0,in2};
 			end
@@ -263,25 +267,28 @@ package muldiv_asic_32bit;
 			end
 		endrule
 
-		method ActionValue#(Tuple2#(Bool, ALU_OUT)) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
+		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
     funct3 );
       if(`MULSTAGES==0 && funct3[2]==0) begin
-        let product = single_mult(in1, in2, funct3, word_flag);
-        return ALU_OUT{done : True, cmtype : REGULAR, aluresult : product, 
+        let product = single_mult(in1, in2, funct3 `ifdef RV64 , word_flag `endif );
+        return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
                        effective_addr : ?, cause : ?, redirect : False 
                        `ifdef branch_speculation, branch_taken : ?, 
                        redirect_pc : ? `endif };
       end
       else begin
 			  ff_input.enq(tuple4(in1,in2,funct3[1:0], ~funct3[2]));
-        return tuple2(False, tuple5(REGULAR, '1, 0, 0, None));
+        return output_unavail;
       end
 		endmethod
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 			ff_muldiv_result.deq;
       let default_out=ff_muldiv_result.first();
       // zero extend is required when XLEN<ELEN
-      return tuple5(REGULAR, zeroExtend(default_out), 0, 0, None); 
+      return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(default_out), 
+                       effective_addr : ?, cause : ?, redirect : False 
+                       `ifdef branch_speculation, branch_taken : ?, 
+                       redirect_pc : ? `endif };
 		endmethod
 		method Action flush;
 			rg_count[0]<=4;

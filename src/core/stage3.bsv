@@ -342,10 +342,10 @@ package stage3;
       // ---------------------------------------------------------------------------------------- //
 
       // --------------------- Mux the operands according to the ALU arguments  ----------------- //
-      Bit#(XLEN)    arg1 = opmeta.op_type.rs1type == PC ? meta.pc : rs1;
-      Bit#(XLEN)    arg2 = rs2;
-      Bit#(`vaddr)  arg3 = (meta.inst_type == JALR || meta.inst_type == MEMORY) ? rs1 : meta.pc;
-      Bit#(`vaddr)  arg4 = rs3_imm;
+      Bit#(ELEN)    arg1 = opmeta.op_type.rs1type == PC ? zeroExtend(meta.pc) : rs1;
+      Bit#(ELEN)    arg2 = rs2;
+      Bit#(`vaddr)  arg3 = (meta.inst_type == JALR || meta.inst_type == MEMORY) ? truncate(rs1) : meta.pc;
+      Bit#(TMax#(`vaddr,FLEN))  arg4 = rs3_imm;
       // ---------------------------------------------------------------------------------------- //
 
 
@@ -368,10 +368,9 @@ package stage3;
       else if(meta.inst_type != TRAP && execute)begin
         if ( rs1avail && rs2avail `ifdef spfpu && rs3avail `endif ) begin
             let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
-                                meta.memaccess, meta.word32, wr_misa_c, truncate(meta.pc)
-                               `ifdef branch_speculation, wr_next_pc 
-                                  `ifdef compressed ,meta.compressed `endif
-                                `endif ); 
+                         meta.memaccess, `ifdef RV64 meta.word32, `elsif dpfpu meta.word32, `endif 
+                         wr_misa_c, truncate(meta.pc) `ifdef branch_speculation, wr_next_pc 
+                         `ifdef compressed ,meta.compressed `endif `endif ); 
           if(aluout.done)begin
             if(execute) begin
               deq_rx;
@@ -426,7 +425,7 @@ package stage3;
                 if( (meta.inst_type == JALR || meta.inst_type == JAL) && 
                     (opmeta.op_addr.rd == 'b00001 || opmeta.op_addr.rd == 'b00101) &&
                     aluout.cmtype != TRAP)
-                  wr_push_ras <= aluout.aluresult;
+                  wr_push_ras <= truncate(aluout.aluresult);
               `endif
             `endif
 
@@ -496,7 +495,7 @@ package stage3;
               let s4system = Stage4System {funct3     : funct3,
                                            lpc        : truncate(meta.pc),
                                            rs1_imm    : funct3[2] == 1?zeroExtend(arg4[16 : 12]):
-                                                                       aluout.aluresult,
+                                                                       truncate(aluout.aluresult),
                                            csr_address : truncate(arg4) };
 
               Stage4Type s4type = case(aluout.cmtype) matches 
@@ -529,7 +528,8 @@ package stage3;
       // bypass it in this stage without performing any execution.
       else if(meta.inst_type == TRAP) begin
         deq_rx;
-        let s4type = tagged Trap Stage4Trap{ cause : truncate(meta.funct), badaddr : rf_ops.op1};
+        let s4type = tagged Trap Stage4Trap{ cause : truncate(meta.funct), 
+                                             badaddr : truncate(rf_ops.op1)};
         tx_type.u.enq(s4type);
         tx_common.u.enq(s4common);
         `logLevel( stage3, 1, $format("STAGE3: Forwarding ",fshow(s4type)))

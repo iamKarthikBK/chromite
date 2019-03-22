@@ -144,8 +144,8 @@ package muldiv_fpga;
         rg_complement<= lv_take_complement;
         `ifdef RV64 rg_word32<= word32; `endif
       end
-      return ALU_OUT{done : result_avail, cmtype : REGULAR, aluresult : default_out, effective_addr:?, cause:?, 
-            redirect : False, branch_taken: ?, redirect_pc: ?};
+      return ALU_OUT{done : result_avail, cmtype : REGULAR, aluresult : zeroExtend(default_out), 
+                      effective_addr:?, cause:?, redirect : False, branch_taken: ?, redirect_pc: ?};
     endmethod
 		method ActionValue#(ALU_OUT) delayed_output if((rg_count== fromInteger(`MULSTAGES) && !mul_div)
                                             || (rg_count==(fromInteger(`DIVSTAGES)+ 1) && mul_div));
@@ -155,8 +155,8 @@ package muldiv_fpga;
         reslt=~reslt+ 1;
       Bit#(XLEN) product=`ifdef RV64 rg_word32?signExtend(reslt[31:0]): `endif 
           (!mul_div && rg_upperbits)? truncateLSB(reslt): truncate(reslt);
-      return ALU_OUT{done : True, cmtype : REGULAR, aluresult : product, effective_addr:?, cause:?, 
-            redirect : False, branch_taken: ?, redirect_pc: ?};
+      return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
+                    effective_addr:?, cause:?, redirect : False, branch_taken: ?, redirect_pc: ?};
     endmethod
 	endmodule:mkmuldiv
 /*

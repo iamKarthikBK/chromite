@@ -343,7 +343,7 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
                                             funct3 `ifdef RV64, Bool word_flag `endif );
       if(`MULSTAGES==0 && funct3[2]==0) begin
         let product = single_mult( in1, in2, funct3 `ifdef RV64 ,word_flag `endif );
-        return ALU_OUT{done : True, cmtype : REGULAR, aluresult : product, 
+        return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
                        effective_addr : ?, cause : ?, redirect : False 
                        `ifdef branch_speculation, branch_taken : ?, 
                        redirect_pc : ? `endif };
@@ -356,8 +356,8 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 			ff_muldiv_result.deq;
       let default_out = ff_muldiv_result.first();
-      return ALU_OUT{done : True, cmtype : REGULAR, aluresult : default_out, effective_addr:?, cause:?, 
-            redirect : False, branch_taken: ?, redirect_pc: ?};
+      return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(default_out), 
+                     effective_addr:?, cause:?, redirect : False, branch_taken: ?, redirect_pc: ?};
 		endmethod
 		method Action flush;
 			rg_count[0] <= 8;

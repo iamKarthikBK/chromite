@@ -240,6 +240,8 @@ package common_types;
     Instruction_type inst_type;
   `ifdef RV64
     Bool  word32;
+  `elsif dpfpu
+    Bool word32;
   `endif
     Bit#(2) epochs;
   `ifdef compressed
@@ -302,7 +304,7 @@ package common_types;
   } Stage4Regular deriving(Bits, Eq, FShow);
 
   typedef struct{
-    Bit#(ELEN)    rs1_imm;
+    Bit#(XLEN)    rs1_imm;
     Bit#(2)       lpc;
     Bit#(12)      csr_address;
     Bit#(3)       funct3;

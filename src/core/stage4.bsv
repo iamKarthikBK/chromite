@@ -147,7 +147,7 @@ package stage4;
             if(response.trap)
               pipe4data = tagged TRAP CommitTrap{cause    : response.cause,
                                                  pc       : s4common.pc,
-                                                 badaddr  : response.word };
+                                                 badaddr  : truncate(response.word) };
             else begin
             `ifdef dpfpu
               if( s.nanboxing == 1 )

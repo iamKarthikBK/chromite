@@ -287,10 +287,10 @@ package stage2;
         if(instrType == TRAP && func_cause == `Illegal_inst )
             op1 = zeroExtend(inst); // for badaddr
         else if(instrType == TRAP && func_cause == `Inst_pagefault)
-            op1 = pc; 
+            op1 = zeroExtend(pc); 
       `ifdef compressed
         if(instrType == TRAP && func_cause == `Inst_pagefault && upper_err)
-            op1 = pc + 2;
+            op1 = zeroExtend(pc) + 2;
       `endif
       `ifdef spfpu
         Bit#(FLEN) op4 = (decoded.op_type.rs3type == FRF) ? rs3 : signExtend(imm);
@@ -311,7 +311,8 @@ package stage2;
 
         let stage3meta = Stage3Meta{funct : func_cause, memaccess : decoded.meta.memaccess, 
                                     inst_type : instrType, pc : pc, epochs : epochs 
-                                    `ifdef RV64               , word32:     word32     `endif
+                                    `ifdef RV64               , word32:     word32     
+                                    `elsif dpfpu              , word32:     word32 `endif
                                     `ifdef compressed         , compressed : decoded.compressed `endif 
                                     `ifdef branch_speculation , prediction : prediction `endif };
 
