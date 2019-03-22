@@ -122,10 +122,14 @@ package TbSoC;
       `endif 
         begin
   		  	$fwrite(dump, prv, " 0x%16h", pc, " (0x%8h", instruction, ")"); 
-          if(rdtype==FRF)
-  		  	  $fwrite(dump, " f%d", rd, " 0x%16h", data, "\n"); 
-          else
-  			    $fwrite(dump, " x%d", rd, " 0x%16h", data, "\n"); 
+          if(rdtype == FRF && valueOf(FLEN) == 64)
+  		  	  $fwrite(dump, " f%d", rd, " 0x%16h", data[63:0], "\n"); 
+          else if(rdtype == FRF && valueOf(FLEN) == 32)
+  		  	  $fwrite(dump, " f%d", rd, " 0x%8h", data[31:0], "\n"); 
+          else if(rdtype == IRF && valueOf(XLEN) == 64)
+  			    $fwrite(dump, " x%d", rd, " 0x%16h", data[63:0], "\n"); 
+          else if(rdtype == IRF && valueOf(XLEN) == 32)
+  			    $fwrite(dump, " x%d", rd, " 0x%8h", data[31:0], "\n"); 
         end
       endrule
     `endif

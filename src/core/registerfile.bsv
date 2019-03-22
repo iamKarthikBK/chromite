@@ -59,7 +59,7 @@ package registerfile;
     method ActionValue#(Bit#(ELEN)) read_rs1(Bit#(5) addr `ifdef spfpu, RFType rs1type `endif );
     method ActionValue#(Bit#(ELEN)) read_rs2(Bit#(5) addr `ifdef spfpu, RFType rs2type `endif );
   `ifdef spfpu 
-    method ActionValue#(Bit#(ELEN)) read_rs3(Bit#(5) addr);
+    method ActionValue#(Bit#(FLEN)) read_rs3(Bit#(5) addr);
   `endif
 		method Action commit_rd (Maybe#(CommitData) commit);
     method Action fwd_from_wb(CommitData commit);
@@ -113,7 +113,7 @@ package registerfile;
         return rdval;
     `ifdef spfpu
       else if(rs1type == FRF)
-        return floating_rf.sub(addr);
+        return zeroExtend(floating_rf.sub(addr));
     `endif
       else
         return zeroExtend(integer_rf.sub(addr)); // zero extend is required when XLEN<ELEN
@@ -133,7 +133,7 @@ package registerfile;
         return rdval;
     `ifdef spfpu
       else if(rs2type == FRF)
-        return floating_rf.sub(addr);
+        return zeroExtend(floating_rf.sub(addr));
     `endif
       else
         return zeroExtend(integer_rf.sub(addr));// zero extend is required when XLEN<ELEN
@@ -144,11 +144,11 @@ package registerfile;
     // Floating register file. Integer RF is not looked - up for rs3 at all.
     // Explicit Conditions : fire only when initialize is False;
     // Implicit Conditions : None
-    method ActionValue#(Bit#(ELEN)) read_rs3(Bit#(5) addr) if(!initialize);
+    method ActionValue#(Bit#(FLEN)) read_rs3(Bit#(5) addr) if(!initialize);
       let {commit, rdaddr, rdval} = wr_commit;
       let rdtype = wr_commit_type;
       if (commit && addr == rdaddr && rdtype == FRF)
-        return rdval;
+        return truncate(rdval);
       else 
         return floating_rf.sub(addr);
     endmethod

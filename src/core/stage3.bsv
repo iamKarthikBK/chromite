@@ -329,7 +329,7 @@ package stage3;
       let {rs2avail, rs2}     <- fwding.read_rs2(rf_ops.op2, opmeta.op_addr.rs2addr 
                                             `ifdef spfpu, rf2type `endif );
     `ifdef spfpu
-      let {rs3avail, rs3_imm} <- fwding.read_rs3(zeroExtend(rf_ops.op3), opmeta.op_addr.rs3addr, 
+      let {rs3avail, rs3_imm} <- fwding.read_rs3(signExtend(rf_ops.op3), opmeta.op_addr.rs3addr, 
                                              opmeta.op_type.rs3type);
     `else
       let rs3_imm = rf_ops.op3;

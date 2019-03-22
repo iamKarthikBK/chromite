@@ -763,18 +763,16 @@ package decoder;
     'b11110: (inst[24:20]==0 && funct3==0); //FMV.W.X
     default: False;
   endcase;
-`ifdef dpfpu
   Bool validFloatOpD = case(inst[31:27])
     'b11000: (inst[24:21]=='b0001 && valid_rounding); // FCVT.L.D FCVT.LU.D
-    'b11100: (inst[24:20]==0 && funct3==0); // FMV.X.D
     'b11010: (inst[24:21]=='b0001 && valid_rounding); // FCVT.D.L FCVT.D.LU
+  `ifdef dpfpu
     'b11110: (inst[24:20]==0 && funct3==0); // FMV.D.X
+    'b11100: (inst[24:20]==0 && funct3==0); // FMV.X.D
+  `endif
     'b01000: (inst[24:21]=='b0 && valid_rounding); // FCVT.S.D
     default: False;
   endcase;
-`else 
-  Bool validFloatOpD=False;
-`endif
 	Bool address_is_valid=address_valid(inst[31:20],csrs.csr_misa);
 	Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], csrs.prv);
   Instruction_type inst_type = TRAP;
