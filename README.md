@@ -14,7 +14,6 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
   * [Directory Structure](#directory-structure)
   * [Block Diagram](#block-diagram)
   * [FEATURES of C-CLASS](#features-of-c-class)
-  * [Pending Features](#pending-features)
   * [Configuring the Core](#configuring-the-core)
       - [Current ILLEGAL Configs](#current-illegal-configs)
   * [Compiling the Core/SoC](#compiling-the-core-soc)
@@ -96,14 +95,6 @@ This an overview of the c-class core. More detail documents commenting about the
 * Supervisor mode - sv32/sv39.
 * Boots riscv-linux kernel, FreeRTOS, Zephyr.
 * Performance: **TBD**
-
-## Pending Features
-The current version of the core is missing the following features and are under current development. This are the highest priority tasks which will be resolved asap:
-
-1. Branch predictor and RAS integration as stage-0
-2. JTAG based debugger also needs to be integrated
-
-The above features exist in the previous draft of the core available in the bitbucket repo.
 
 ## Configuring the Core
 
