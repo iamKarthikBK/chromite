@@ -444,6 +444,10 @@ package csrfile;
 
     // DSCRATCH - debug spec
     Reg#(Bit#(XLEN))  rg_csr_dscratch     <- mkReg(0);
+    // Shakti Debug DtVec - a machine mode accesabvle csr register. This will define where the
+    // self-loop is 
+    Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dtvec <- mkReg(0); // Place debug loop at zero for starters
+    Reg#(Bit#(1)) rg_csr_denable <- mkReg(1);
 
     // Part of shakti specific debug registers for control flow
     Reg#(Bit#(1))     rg_core_halted  <- mkConfigReg(0);     // using configreg to resolve conflicts
@@ -451,10 +455,6 @@ package csrfile;
     Reg#(Bit#(1))     rg_resume_int   <- mkReg(0);
     Reg#(Bit#(1))     rg_halt_ie      = readOnlyReg(1);    
     Reg#(Bit#(1))     rg_resume_ie    = readOnlyReg(1);
-    // Shakti Debug DtVec - a machine mode accesabvle csr register. This will define where the
-    // self-loop is 
-    Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dtvec <- mkReg(0); // Place debug loop at zero for starters
-    Reg#(Bit#(1)) rg_csr_denable <- mkReg(1);
 
   `else
     Reg#(Bit#(1)) rg_halt_ie    =  readOnlyReg(0);
@@ -629,6 +629,7 @@ package csrfile;
         if(addr == `DTVEC ) data = signExtend({rg_csr_dtvec,1'd0});
         if(addr == `DENABLE ) data = zeroExtend(rg_csr_denable);
       `endif
+        `logLevel( csr, 0, $format("CSRFILE : Read Operation : Addr:%h Data:%h",addr,data))
         return data;
     endmethod
 
@@ -922,7 +923,10 @@ package csrfile;
         csr_uie : csr_uie,
         csr_uip : csr_uip,
       `endif
-        frm : frm};
+        frm : frm
+      `ifdef debug
+        ,csr_dcsr : rg_csr_dcsr
+      `endif };
   	method Action clint_msip(Bit#(1) intrpt);
   		rg_msip <= intrpt;
   	endmethod
@@ -1044,7 +1048,8 @@ package csrfile;
             Bit#(`vaddr) redirect; 
           `ifdef debug
             if(cause >= {1'b1,`HaltEbreak} && cause <= {1'b1, `HaltReset} ) begin
-              `logLevel( csr, 3, $format("CSRFILE: Taking Halt interrupt. DCause:%d", cause[2:0]))
+              `logLevel( csr, 3, $format("CSRFILE: Taking Halt interrupt. DCause:%d PC:%h", 
+                                          cause[2:0], pc))
               rg_csr_dpc <= truncateLSB(pc);
               rg_dcsr_cause <= truncate(cause);
               rg_core_halted <= 1;
@@ -1054,6 +1059,8 @@ package csrfile;
             end
             else 
             if( cause == {1'b1,`Resume_int} ) begin
+              `logLevel( csr, 3, $format("CSRFILE: Taking Resume interrupt. DPC:%h", 
+                                          {rg_csr_dpc,1'd0}))
               redirect = {rg_csr_dpc,1'd0};
               rg_core_halted <= 0;
               rg_prv<= unpack(rg_dcsr_prv);
