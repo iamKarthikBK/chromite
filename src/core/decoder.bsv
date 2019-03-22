@@ -300,6 +300,11 @@ package decoder;
     Bit#(3) frm = csrs.frm;
     Quadrant quad =unpack(inst[1:0]);
     Bit#(3) funct3 = inst[15:13];
+  `ifdef debug
+    Bool ebreakm = unpack(csrs.csr_dcsr[15]);
+    Bool ebreaks = unpack(`ifdef supervisor csrs.csr_dcsr[14] `else 0 `endif );
+    Bool ebreaku = unpack(`ifdef user csrs.csr_dcsr[13] `else 0 `endif );
+  `endif
 
     //----------------------------------- inferring rs1 and rs1type
     Bit#(5) rs1={2'b01,inst[9:7]};
@@ -502,7 +507,10 @@ package decoder;
     Bit#(6) trapcause=`Illegal_inst;
     if(quad==Q2 && funct3=='b100 && inst[12]==1 && inst[11:2]==0)begin
       inst_type=TRAP;
-      trapcause = `Breakpoint;
+      trapcause = `ifdef debug ( (ebreakm && csrs.prv == Machine) ||
+                                                     (ebreaks && csrs.prv == Supervisor) ||
+                                                     (ebreaku && csrs.prv == User))? `HaltEbreak :
+                                                  `endif `Breakpoint ;
     end
     else if(inst==0 || (quad==Q0 && funct3=='b100) || 
           (quad==Q1 && inst[15:10]=='b100111 && inst[6]==1)) begin
