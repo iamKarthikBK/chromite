@@ -509,7 +509,7 @@ package decoder;
       inst_type=TRAP;
       trapcause = `ifdef debug ( (ebreakm && csrs.prv == Machine) ||
                                                      (ebreaks && csrs.prv == Supervisor) ||
-                                                     (ebreaku && csrs.prv == User))? `HaltEbreak :
+                                                     (ebreaku && csrs.prv == User))?{1'b1,`HaltEbreak} :
                                                   `endif `Breakpoint ;
     end
     else if(inst==0 || (quad==Q0 && funct3=='b100) || 
@@ -830,7 +830,7 @@ package decoder;
                  else if(inst[31:7]=='h2000) trapcause = `ifdef debug 
                                                    ( (ebreakm && csrs.prv == Machine) ||
                                                      (ebreaks && csrs.prv == Supervisor) ||
-                                                     (ebreaku && csrs.prv == User))? `HaltEbreak :
+                                                     (ebreaku && csrs.prv == User))? {1'b1,`HaltEbreak} :
                                                   `endif `Breakpoint ;
                  else if(inst[31:20]=='h002 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[13]==1) inst_type=SYSTEM_INSTR;
               `ifdef supervisor
