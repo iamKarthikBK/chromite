@@ -264,6 +264,7 @@ package stage2;
       // branch/jump) is tagged as a Trap with HaltStep cause code, thus causing the core to go back
       // to the halted stage. When the core is again halted then, rg_step_done is reset to False.
       `ifdef debug
+        `logLevel( stage2, 0, $format("STAGE2: step_done:%b",rg_step_done))
         if(rg_step_done && wr_debug_info.core_is_halted)
           rg_step_done<=False;
         else

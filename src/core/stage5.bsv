@@ -155,6 +155,7 @@ package stage5;
       if(rg_epoch==epoch)begin
         if(commit matches tagged TRAP .t)begin
           if(t.cause==`Rerun || t.cause==`IcacheFence `ifdef supervisor || t.cause==`SFence `endif )begin
+            `logLevel( stage5, 0, $format("STAGE5: Rerun initiated"))
             fl=True;
             jump_address=t.pc;
             fenceI=(t.cause==`IcacheFence );
