@@ -248,10 +248,10 @@ package alu;
       rule capture_delayed_fpuoutput(rg_wait == WaitFPU);
         let fpu_result <- fpu.get_result;
         wr_delayed_output<=  ALU_OUT{done           : True,  
-                                     cmtype         : REGULAR,   
+                                     cmtype         : fpu_result.commit_type,   
                                      aluresult      : fpu_result.final_result,  
                                      effective_addr : zeroExtend(fpu_result.fflags), 
-                                     cause          : ?, 
+                                     cause          : fpu_result.cause,
                                      redirect       : False
                                   `ifdef bpu
                                      ,branch_taken  : False

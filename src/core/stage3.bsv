@@ -551,10 +551,17 @@ package stage3;
                                   ,rdtype : opmeta.op_type.rdtype
                                 `endif } ;
 
-      Stage4Type s4type = tagged Regular (Stage4Regular { rdvalue   : aluout.aluresult
+      let s4trap = Stage4Trap {cause   : aluout.cause,
+                               badaddr : aluout.effective_addr};
+      
+      let s4regular = Stage4Regular  {rdvalue   : aluout.aluresult
                                 `ifdef spfpu
                                       ,fflags    : truncate(aluout.effective_addr)
-                                `endif } );
+                                `endif };
+      Stage4Type s4type = case(aluout.cmtype) matches 
+                                    REGULAR       : tagged Regular s4regular;
+                                    TRAP          : tagged Trap s4trap;
+                          endcase;
       if(execute_instruction)begin
       `ifdef rtldump
         txinst.u.enq(tuple2(meta.pc, rxinst.u.first));

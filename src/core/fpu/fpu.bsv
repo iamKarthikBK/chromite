@@ -617,8 +617,27 @@ module mkfpu(Ifc_fpu);
     endmethod
  
 	method ActionValue#(Floating_output#(ELEN)) get_result;
+    Bit#(6) cause =0;
+    PreCommit_type commit_type = REGULAR;
 		ff_result.deq;
-		return ff_result.first;
+    `ifdef ARITH_EXCEP
+    if(ff_result.first.fflags!=0)
+      begin
+      $display("TRAP from fpu:fflags %b",ff_result.first.fflags);
+      commit_type=TRAP;
+      end
+    if (ff_result.first.fflags[0]==1)
+      cause =18;//Invalid
+    else if (ff_result.first.fflags[1]==1)
+      cause=19;//Divide_by_zero_float
+    else if (ff_result.first.fflags[2]==1)
+      cause=20;//Overflow
+    else if (ff_result.first.fflags[3]==1)
+      cause=21;//Underflow
+    else if (ff_result.first.fflags[4]==1)
+      cause=22;//Inexact
+		`endif
+     return Float_result{commit_type:commit_type,final_result:ff_result.first.final_result,fflags:ff_result.first.fflags,cause:cause};
 	endmethod
 	method Action flush;
 		  wr_flush<=True;

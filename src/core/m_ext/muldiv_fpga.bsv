@@ -138,6 +138,13 @@ package muldiv_fpga;
         if(word32)
           default_out=signExtend(default_out[31:0]);
       `endif
+    `ifdef ARITH_EXCEP
+     let is_mul = ~funct3[2];
+     if(is_mul==0 && operand2 == 0)
+      return ALU_OUT{done:True, cmtype :TRAP,aluresult :'b1,effective_addr:?,cause:17,redirect:False};//DIV_BY_ZER0 trap
+      else
+      `endif
+      begin
       if((funct3[2]==0 && `MULSTAGES!=0) || (funct3[2]==1 && `DIVSTAGES!=0) && !result_avail)begin
         rg_count<= rg_count+ 1;
         rg_upperbits<= lv_upperbits;
@@ -146,6 +153,7 @@ package muldiv_fpga;
       end
       return ALU_OUT{done : result_avail, cmtype : REGULAR, aluresult : zeroExtend(default_out), 
                       effective_addr:?, cause:?, redirect : False, branch_taken: ?, redirect_pc: ?};
+      end
     endmethod
 		method ActionValue#(ALU_OUT) delayed_output if((rg_count== fromInteger(`MULSTAGES) && !mul_div)
                                             || (rg_count==(fromInteger(`DIVSTAGES)+ 1) && mul_div));

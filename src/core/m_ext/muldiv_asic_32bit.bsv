@@ -269,6 +269,13 @@ package muldiv_asic_32bit;
 
 		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
     funct3 );
+      `ifdef ARITH_EXCEP
+     let is_mul = ~funct3[2];
+     if(is_mul==0)
+      if(in2==0)
+      return ALU_OUT{done:True, cmtype :REGULAR,aluresult :'b1,effective_addr:?,cause:17,redirect:False};//DIV_BY_ZER0 trap
+     else
+    `endif
       if(`MULSTAGES==0 && funct3[2]==0) begin
         let product = single_mult(in1, in2, funct3 `ifdef RV64 , word_flag `endif );
         return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
