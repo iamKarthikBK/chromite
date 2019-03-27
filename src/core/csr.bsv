@@ -65,6 +65,10 @@ package csr;
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
     method Bit#(3) mv_cacheenable;
+  `ifdef ARITH_EXCEP
+   //This method returns value of csr_reg which enables or disables arithmetic exceptions
+    method Bit#(1) arith_excep;
+  `endif
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
   `ifdef pmp
@@ -151,6 +155,10 @@ package csr;
 	  method Action set_external_interrupt(Bit#(1) ex_i) = csrfile.set_external_interrupt(ex_i);
     method csr_misa_c = csrfile.csr_misa_c;
     method mv_cacheenable = csrfile.mv_cacheenable;
+ 
+  `ifdef ARITH_EXCEP
+    method arith_excep = csrfile.arith_excep;
+  `endif
     method curr_priv = csrfile.curr_priv;
     method csr_mstatus = csrfile.csr_mstatus;
   `ifdef pmp

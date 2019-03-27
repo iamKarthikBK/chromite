@@ -40,6 +40,9 @@ package muldiv_fpga;
 		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) operand1, Bit#(XLEN) operand2, 
         Bit#(3) funct3 `ifdef RV64 , Bool word32 `endif );
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
+   `ifdef ARITH_EXCEP
+      method Action rd_arith_excep_en(Bit#(1) arith_en);
+   `endif
 	endinterface:Ifc_muldiv
 
   (*synthesize*)
@@ -54,6 +57,11 @@ package muldiv_fpga;
     Reg#(Bool) rg_complement <- mkReg(False);
     `ifdef RV64 Reg#(Bool) rg_word32 <- mkReg(False); `endif
     Reg#(Bit#(1)) rg_sign_op1 <- mkReg(0);
+    
+    
+    `ifdef ARITH_EXCEP
+    Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
+    `endif
 
     rule increment_counter(rg_count!=0);
       if((rg_count== fromInteger(`MULSTAGES) && !mul_div) || 
@@ -140,7 +148,7 @@ package muldiv_fpga;
       `endif
     `ifdef ARITH_EXCEP
      let is_mul = ~funct3[2];
-     if(is_mul==0 && operand2 == 0)
+     if(is_mul==0 && operand2 == 0 && wr_arith_en==1'b1)
       return ALU_OUT{done:True, cmtype :TRAP,aluresult :'b1,effective_addr:?,cause:17,redirect:False};//DIV_BY_ZER0 trap
       else
       `endif
@@ -166,6 +174,15 @@ package muldiv_fpga;
       return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
                     effective_addr:?, cause:?, redirect : False, branch_taken: ?, redirect_pc: ?};
     endmethod
+
+
+
+   `ifdef ARITH_EXCEP
+      method  Action rd_arith_excep_en(Bit#(1) arith_en);
+      wr_arith_en<=arith_en;
+      endmethod
+   `endif
+
 	endmodule:mkmuldiv
 /*
   module mkTb(Empty);

@@ -84,4 +84,5 @@
 `define DENABLE   'h7C1 // Debug enable register
 ////////////////////////// Non-Standard User RW CSRS ///////////////////////////////
 `define CACHECNTRL 'h800 // cache control register
+`define ARITH_EXCEP_EN 'h810
 

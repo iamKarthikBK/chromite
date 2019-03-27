@@ -54,6 +54,10 @@ package csrfile;
     method Action update_fflags(Bit#(5) flags);
   `endif
     method Bit#(3) mv_cacheenable;
+  //returns arithmetic exception enabled/disabled
+  `ifdef ARITH_EXCEP
+    method Bit#(1) arith_excep;
+  `endif
     method Bit#(1) csr_misa_c;
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
@@ -426,6 +430,12 @@ package csrfile;
   `endif
 
     Reg#(Bit#(3)) rg_cachecontrol = concatReg3(rg_bpuenable, rg_denable, rg_ienable); 
+  `ifdef ARITH_EXCEP
+   //   enabling this bit enables traps for arithmetic exceptions
+   //   Address :'h810
+   Reg#(Bit#(1)) rg_arith_excep <-mkReg(1); 
+    
+  `endif
 	  //////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// Debug Module CSRs /////////////////////////////////////////
   `ifdef debug
@@ -443,9 +453,8 @@ package csrfile;
     Reg#(Bit#(1)) rg_dcsr_step      <- mkReg(0);                              // DCSR b2
     Reg#(Bit#(2)) rg_dcsr_prv       <- mkReg(3);                              // DCSR b1-0
     Reg#(Bit#(32)) rg_csr_dcsr =  concatReg15(rg_dcsr_xdebugver,readOnlyReg(12'd0),rg_dcsr_ebreakm,
-      readOnlyReg(1'd0),rg_dcsr_ebreaks,rg_dcsr_ebreaku,rg_dcsr_stepie,rg_dcsr_stopcount,
-      rg_dcsr_stoptime,readOnlyReg(rg_dcsr_cause),readOnlyReg(1'd0),rg_dcsr_mprven,readOnlyReg(rg_dcsr_nmip),
-      rg_dcsr_step,rg_dcsr_prv);
+    readOnlyReg(1'd0),rg_dcsr_ebreaks,rg_dcsr_ebreaku,rg_dcsr_stepie,rg_dcsr_stopcount,
+    rg_dcsr_stoptime,readOnlyReg(rg_dcsr_cause),readOnlyReg(1'd0),rg_dcsr_mprven,  readOnlyReg(rg_dcsr_nmip),rg_dcsr_step,rg_dcsr_prv);
 
     // DPC - debug spec
 	  Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dpc  		<- mkReg(0);
@@ -628,6 +637,9 @@ package csrfile;
         if (addr == `FRM ) data = zeroExtend(frm);
         if (addr == `FCSR ) data = zeroExtend({frm, fflags});
         if (addr == `CACHECNTRL ) data = zeroExtend(rg_cachecontrol);
+      `ifdef ARITH_EXCEP
+        if (addr == `ARITH_EXCEP_EN)data = zeroExtend(rg_arith_excep);
+      `endif
       `ifdef debug
         if(addr == `DCSR) data = zeroExtend(rg_csr_dcsr);
         if(addr == `DPC ) data = signExtend({rg_csr_dpc,1'd0});
@@ -1178,6 +1190,9 @@ package csrfile;
       `endif
     endmethod
     method mv_cacheenable = rg_cachecontrol;
+  `ifdef ARITH_EXCEP
+    method Bit#(1) arith_excep = rg_arith_excep;
+  `endif
   `ifdef pmp
     method pmp_cfg = readVReg(v_pmp_cfg);
     method pmp_addr = readVReg(v_pmp_addr);

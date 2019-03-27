@@ -1,5 +1,5 @@
 /*
-Authors     : Vinod.G, Arjun Menon
+Authors     : Vinod.G, Arjun Menon,Deepa N. Sarma
 Email       : g.vinod1993@gmail.com, c.arjunmenon@gmail.com
 Last update : 27th November 2017
 See LICENSE for more details
@@ -40,8 +40,11 @@ interface Ifc_fpu;							//interface to module mk_fpu
                        Bit#(ELEN) operand3, Bit#(4) opcode, 
                        Bit#(7) funct7,      Bit#(3) funct3, 
                        Bit#(2) imm, Bool issp
-                      ); 
-	method ActionValue#(Floating_output#(ELEN)) get_result;
+                      );
+ `ifdef ARITH_EXCEP
+      method Action rd_arith_excep_en(Bit#(1) arith_en);
+ `endif
+	method ActionValue#(Float_result#(ELEN)) get_result;
 	method Action flush;
 endinterface
 
@@ -63,8 +66,13 @@ module mkfpu(Ifc_fpu);
   // ============================================
   let verbosity=`VERBOSITY;
 	FIFO# (Floating_output#(ELEN)) ff_result <- mkFIFO1;
-    FIFO# (Input_Packet) ff_input   <- mkFIFO1;
+  FIFO# (Input_Packet) ff_input   <- mkFIFO1;
 	Wire#(Bool) wr_flush<-mkDWire(False);
+ 
+ `ifdef ARITH_EXCEP
+  Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
+ `endif
+
   // =============================================
  
   // ==============================================
@@ -616,27 +624,34 @@ module mkfpu(Ifc_fpu);
       end
     endmethod
  
-	method ActionValue#(Floating_output#(ELEN)) get_result;
+	method ActionValue#(Float_result#(ELEN)) get_result;
     Bit#(6) cause =0;
     PreCommit_type commit_type = REGULAR;
 		ff_result.deq;
+
+    //Generating TRAPS for FPU exception flags is optional.....This can be configured by setting   /csr_reg arith_excep...enabling bit generates traps for all FPU flags with cause values as written below//  
     `ifdef ARITH_EXCEP
-    if(ff_result.first.fflags!=0)
-      begin
-      $display("TRAP from fpu:fflags %b",ff_result.first.fflags);
-      commit_type=TRAP;
-      end
-    if (ff_result.first.fflags[0]==1)
-      cause =18;//Invalid
-    else if (ff_result.first.fflags[1]==1)
-      cause=19;//Divide_by_zero_float
-    else if (ff_result.first.fflags[2]==1)
-      cause=20;//Overflow
-    else if (ff_result.first.fflags[3]==1)
-      cause=21;//Underflow
-    else if (ff_result.first.fflags[4]==1)
-      cause=22;//Inexact
-		`endif
+    if(wr_arith_en==1'b1)
+    begin
+      if(ff_result.first.fflags!=0)
+        begin
+          if(verbosity > 0)
+          $display("TRAP from fpu:fflags %b",ff_result.first.fflags);
+          commit_type=TRAP;
+        end
+      if (ff_result.first.fflags[0]==1)
+        cause =18;//Invalid
+      else if (ff_result.first.fflags[1]==1)
+        cause=19;//Divide_by_zero_float
+      else if (ff_result.first.fflags[2]==1)
+        cause=20;//Overflow
+      else if (ff_result.first.fflags[3]==1)
+        cause=21;//Underflow
+      else if (ff_result.first.fflags[4]==1)
+        cause=22;//Inexact
+    end
+	  `endif
+
      return Float_result{commit_type:commit_type,final_result:ff_result.first.final_result,fflags:ff_result.first.fflags,cause:cause};
 	endmethod
 	method Action flush;
@@ -650,6 +665,13 @@ module mkfpu(Ifc_fpu);
         inst_dpfm_add_sub.flush();
       `endif
 	endmethod
+
+
+  `ifdef ARITH_EXCEP
+      method  Action rd_arith_excep_en(Bit#(1) arith_en);
+      wr_arith_en<=arith_en;
+      endmethod
+   `endif
 
 endmodule
 endpackage

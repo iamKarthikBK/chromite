@@ -201,7 +201,13 @@ package alu;
   `ifdef multicycle
     // method to send the output from the muldiv or fpu when outputs are ready
 		method ActionValue#(ALU_OUT) delayed_output;
+
   `endif
+
+  //Read csr_reg to check if arith_exception is enabled
+   `ifdef ARITH_EXCEP
+      method Action rd_arith_excep_en(Bit#(1) arith_en);
+   `endif
   endinterface : Ifc_alu
 
   `ifdef multicycle
@@ -236,6 +242,11 @@ package alu;
     `ifdef multicycle
       Reg#(WaitState) rg_wait <- mkReg(None);
       Wire#(ALU_OUT) wr_delayed_output <- mkWire();
+    `endif
+
+
+    `ifdef ARITH_EXCEP
+    Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
     `endif
       // ---------------------------------------------------------------------------------------- //
     
@@ -272,7 +283,14 @@ package alu;
         rg_wait <= None;
       endrule
     `endif
-      // ---------------------------------------------------------------------------------------- //
+
+
+    `ifdef ARITH_EXCEP
+    rule get_excep_en; 
+      muldiv.rd_arith_excep_en(wr_arith_en);
+      fpu.rd_arith_excep_en(wr_arith_en);
+    endrule
+    `endif
 
     // MethodName : inputs
     // Explicit Conditions : None 
@@ -327,5 +345,14 @@ package alu;
       return wr_delayed_output;
     endmethod
   `endif
+
+
+   `ifdef ARITH_EXCEP
+      method  Action rd_arith_excep_en(Bit#(1) arith_en);
+      wr_arith_en<=arith_en;
+      endmethod
+   `endif
+
+
   endmodule
 endpackage : alu

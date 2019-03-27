@@ -112,6 +112,9 @@ package stage3;
     interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
+   `ifdef ARITH_EXCEP
+      method Action rd_arith_excep_en(Bit#(1) arith_en);
+   `endif
 
     // method to receive the current status of the misa_c bit
     method Action csr_misa_c (Bit#(1) m);
@@ -197,6 +200,11 @@ package stage3;
 		Reg#(Bit#(1)) rg_eEpoch <- mkReg(0);
 		Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
 
+    //Enable/disable arith_excep at run time
+    `ifdef ARITH_EXCEP
+    Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
+    `endif
+
     // Wire sending redirection indication to the previous stages.
     Reg#(Bool) wr_flush_from_exe <- mkDWire(False);
 
@@ -275,6 +283,13 @@ package stage3;
     // and the execute stage is stalled untill the operation is over.
     // An instruction tagged as a TRAP in the previous stage will simply bypass the execute
     // stage.
+    
+    `ifdef ARITH_EXCEP
+    rule get_arith_en; 
+      alu.rd_arith_excep_en(wr_arith_en);
+    endrule
+    `endif
+
     rule execute_operation ( rule_condition );
     //---------------------- capturing the inputs from the previous stage. -------------------- //
       let rf_ops  = rx_op.u.first;
@@ -682,8 +697,12 @@ package stage3;
     method Action next_pc (Bit#(`vaddr) npc);
       wr_next_pc <= tagged Valid npc;
     endmethod
+   `ifdef ARITH_EXCEP
+      method  Action rd_arith_excep_en(Bit#(1) arith_en);
+      wr_arith_en<=arith_en;
+      endmethod
+   `endif
   `ifdef bpu
-    
     // MethodName : train_bpu
     // Implicit Conditions : None
     // Explicit Conditions : None
