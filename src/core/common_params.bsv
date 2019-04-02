@@ -117,6 +117,8 @@
 ////////////////////////////////////////////////////////////////////////////////////
 `ifdef simulate
   `define BAUD_RATE 5 //130 //
+`else
+  `define BAUD_RATE 5 
 `endif
 
 `define Inst_addr_misaligned  0 

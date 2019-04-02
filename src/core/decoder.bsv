@@ -121,7 +121,7 @@ package decoder;
                   'hB: if((`PMPSIZE!=0 ) && addr[3:0]<=fromInteger(valueOf(TSub#(`PMPSIZE,1) ))) valid=True;
                   endcase
               // Machine Counter/Timers
-            'b10: `ifdef RV32 if(addr[6:5]==0) `else if(addr[7:5]==0) `endif valid=True;
+            'b10: `ifdef RV32 if(addr[6:5]==0 `else if(addr[7:5]==0 `endif && addr[3:0]!=1) valid=True;
            // TODO B01 and 801 should be invalid
           `ifdef debug
               // DTVEC and DEnable
