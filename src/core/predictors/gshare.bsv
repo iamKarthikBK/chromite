@@ -28,7 +28,7 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package bimodal;
+package gshare;
 	/*===== Pacakge imports ===== */
 	import FIFO::*;
 	import FIFOF::*;
@@ -101,9 +101,11 @@ package bimodal;
 
 	(*synthesize*)
 	module mkbpu(Ifc_bpu);
-    String bimodal="";
+    String gshare="";
     Ifc_mem_config1r1w#(TDiv#(`btbsize, 2) , `vaddr, 1) mem_btb0 <- mkmem_config1r1w(False,"double");
     Ifc_mem_config1r1w#(TDiv#(`btbsize, 2) , `vaddr, 1) mem_btb1 <- mkmem_config1r1w(False,"double");
+ 		Reg#(Bit#(TAdd#(5,TLog#(`btbsize)))) rg_ghistory[2] <- mkCReg(2,0);
+ 		Reg#(Bit#(3)) rg_inflight_cntr[2] <- mkCReg(2,0);
 
     // ram to hold the tag of the address being predicted. The 2 bits are deducted since we are
     // supporting only non - compressed ISA. When compressed is supported, 1 will be dedudcted.
@@ -148,8 +150,10 @@ package bimodal;
       if(rg_init_count == fromInteger(max((`btbsize / 2),(`rassets / 2))-1)) begin
 				rg_init <= False;
 			end
-      `logLevel( bimodal, 0, $format("Bimodal : Init stage. Count:%d",rg_init_count))
+      `logLevel( gshare, 0, $format("GSHARE : Init stage. Count:%d",rg_init_count))
       rg_init_count <= rg_init_count + 1;
+      rg_ghistory[1]<=0;
+      rg_inflight_cntr[1]<=0;
 		endrule
 
     // RuleName : perform_prediction
@@ -174,11 +178,11 @@ package bimodal;
       Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore)) btb_tag_cmp = truncateLSB(request.pc);
 
       // extract the target - address, tags, counter - value and prediction state from bank0
-      let bimodal_target_addr0 = mem_btb0.read_response;
+      let gshare_target_addr0 = mem_btb0.read_response;
       BTBEntry btbentry0 = unpack(mem_btb_tag0.read_response);
 
       // extract the target - address, tags, counter - value and prediction state from bank1
-      let bimodal_target_addr1 = mem_btb1.read_response;
+      let gshare_target_addr1 = mem_btb1.read_response;
       BTBEntryC btbentry1 = unpack(mem_btb_tag1.read_response);
 
     `ifdef ras
@@ -193,9 +197,10 @@ package bimodal;
       let ras_target_address = ras_stack.top;
     `endif
 
-      Bit#(`vaddr) target_address = bimodal_target_addr0;
+      Bit#(`vaddr) target_address = gshare_target_addr0;
 
-      // ------------------------------ bimodal look-up start ----------------------------------- //
+
+      // ------------------------------ gshare look-up start ----------------------------------- //
       // When compressed is disabled we need to check which bank should the prediction be taken
       // from. This is done by checking the LSB bit of the full - index (a.k.a the va[ignore]). This
       // is required because 2 PCs which have the same bank_index (but point to different banks) 
@@ -211,9 +216,9 @@ package bimodal;
       `else
         prediction = btbentry0.state;
       `endif
-        `logLevel( bimodal, 1, $format("Bimodal : btb_tag_cmp:%h, tag0:%h,",
+        `logLevel( gshare, 1, $format("GSHARE : btb_tag_cmp:%h, tag0:%h,",
                                         btb_tag_cmp, btbentry0.tag))
-        `logLevel( bimodal, 1, $format("Bimodal : BTB0 hit"))
+        `logLevel( gshare, 1, $format("GSHARE : BTB0 hit"))
         hit[0] = 1;
       end
       if (btb_tag_cmp == btbentry1.tag && btbentry1.valid == 1
@@ -221,19 +226,29 @@ package bimodal;
       `ifdef compressed
         prediction1 = btbentry1.state[1 : 0];
         if(hit[0] == 0)begin
-          target_address = bimodal_target_addr1;
+          target_address = gshare_target_addr1;
           prediction = btbentry1.state;
           edgecase=btbentry1.edgecase;
         end
         hit[0] = 1;
       `else
         prediction = btbentry1.state;
-        target_address = bimodal_target_addr1;
+        target_address = gshare_target_addr1;
         hit[1] = 1;
       `endif
-        `logLevel( bimodal, 1, $format("Bimodal : BTB0 hit"))
+        `logLevel( gshare, 1, $format("GSHARE : btb_tag_cmp:%h, tag0:%h,",
+                                        btb_tag_cmp, btbentry1.tag))
+        `logLevel( gshare, 1, $format("GSHARE : BTB1 hit"))
       end
-      // ----------------------------------- bimod look up end --------------------------------- //
+      `logLevel( gshare, 0, $format("GSHARE: Prediction HistBuff:%h inflight:%d ", rg_ghistory[0],
+                                                                    rg_inflight_cntr[0] ))
+      if(|hit == 1)begin
+        rg_ghistory[0] <= {truncate(rg_ghistory[0]),prediction[1]};
+        rg_inflight_cntr[0] <= rg_inflight_cntr[0] + 1;
+        `logLevel( gshare, 0, $format("GSHARE: Hit in BTB"))
+      end
+
+      // ----------------------------------- gshare look up end --------------------------------- //
 
       // ------------------------------------ RAS look-up start -------------------------------- //
     `ifdef ras
@@ -247,7 +262,7 @@ package bimodal;
       `endif
         target_address = ras_target_address;
         ras_stack.pop;
-        `logLevel( bimodal, 1, $format("Bimodal : RAS0 hit. Target:%h", target_address))
+        `logLevel( gshare, 1, $format("GSHARE : RAS0 hit. Target:%h", target_address))
         hit[2] = 1;
       end
       else if( ras_tag_cmp == rasentry1.tag && rasentry1.valid == 1 && !ras_stack.empty
@@ -265,7 +280,7 @@ package bimodal;
         target_address = ras_stack.top;
         hit[2] = 1;
       `endif
-        `logLevel( bimodal, 1, $format("Bimodal : RAS1 hit Target:%h", target_address))
+        `logLevel( gshare, 1, $format("GSHARE : RAS1 hit Target:%h", target_address))
         ras_stack.pop;
       end
     `endif
@@ -282,7 +297,7 @@ package bimodal;
                                   `else
                                      ,prediction : prediction
                                   `endif } ;
-      `logLevel( bimodal, 0, $format("Bimodal : enquing Response:",fshow(resp)))
+      `logLevel( gshare, 0, $format("GSHARE : enquing Response:",fshow(resp)))
       rg_prediction_pc[0] <= PredictionToStage0{  prediction : prediction,
                                                   target_pc  : target_address,
                                                   epochs     : request.epochs
@@ -302,8 +317,10 @@ package bimodal;
 		method Action prediction_req(PredictionRequest req)if(!rg_init);
 
       // first find the full index.
-      Bit#(TLog#(`btbsize)) btb_full_index = truncate(req.pc>>`ignore);
+      Bit#(TLog#(`btbsize)) btb_full_index = truncate(req.pc>>`ignore) ^ truncate(rg_ghistory[1]);
       Bit#(TLog#(`rassets)) ras_full_index = truncate(req.pc>>`ignore);
+      `logLevel( gshare, 0, $format("GSHARE: PredReq HistBuff:%h fullindex:%d", rg_ghistory[1],
+                                                                                  btb_full_index))
 
       // find the bank_index.
       Bit#(TLog#(TDiv#(`btbsize, 2))) btb_bank_index = truncateLSB(btb_full_index); 
@@ -319,11 +336,11 @@ package bimodal;
     `endif
       if(req.fence) begin
         rg_init <= True;
-        `logLevel( bimodal, 0, $format("Bimodal : Fence Recieved"))
+        `logLevel( gshare, 0, $format("GSHARE : Fence Recieved"))
       end
       else begin
         ff_pred_request.enq(req);
-        `logLevel( bimodal, 0, $format("Bimodal : Prediction request for PC:%h btb_bank_index:%d",
+        `logLevel( gshare, 0, $format("GSHARE : Prediction request for PC:%h btb_bank_index:%d",
                                         req.pc, btb_bank_index 
                            `ifdef ras  ," ras_bank_index:%d", ras_bank_index `endif ))
       end
@@ -349,8 +366,12 @@ package bimodal;
 		method Action train_bpu (Training_data td)if(!rg_init);
 
       // first find the full index.
-      Bit#(TLog#(`btbsize)) full_index = truncate(td.pc>>`ignore);
+      Bit#(TLog#(`btbsize)) full_index = truncate(td.pc>>`ignore) ^ truncate(rg_ghistory[1] >>
+                                                                    rg_inflight_cntr[1] );
 
+      `logLevel( gshare, 0, $format("GSHARE: Full_index:%d",full_index))
+      `logLevel( gshare, 0, $format("GSHARE: Training HistBuff:%h inflight:%d ", rg_ghistory[1],
+                                                                    rg_inflight_cntr[1] ))
       // find the bank_index.
       Bit#(TLog#(TDiv#(`btbsize, 2))) bank_index = truncateLSB(full_index); 
       
@@ -363,17 +384,23 @@ package bimodal;
       if (truncate(full_index) == 1'b0)begin
         mem_btb0.write    (1, bank_index, td.target);
         mem_btb_tag0.write(1, bank_index, pack(update));
-        `logLevel( bimodal, 0, $format("Bimodal : Training BTB0: ",fshow(td)))
-        `logLevel( bimodal, 0, $format("Bimodal : Training BTB0 : bank_index:%d tag:%h state:%b",
+        `logLevel( gshare, 0, $format("GSHARE : Training BTB0: ",fshow(td)))
+        `logLevel( gshare, 0, $format("GSHARE : Training BTB0 : bank_index:%d tag:%h state:%b",
                                         bank_index, tag, td.state))
       end
       else begin
         mem_btb1.write    (1, bank_index, td.target);
         mem_btb_tag1.write(1, bank_index, pack(updatec));
-        `logLevel( bimodal, 0, $format("Bimodal : Training BTB1: ",fshow(td)))
-        `logLevel( bimodal, 0, $format("Bimodal : Training BTB1 : bank_index:%d tag:%h state:%b", 
+        `logLevel( gshare, 0, $format("GSHARE : Training BTB1: ",fshow(td)))
+        `logLevel( gshare, 0, $format("GSHARE : Training BTB1 : bank_index:%d tag:%h state:%b", 
                                        bank_index, tag, td.state))
       end
+      if(td.mispredict)begin
+        rg_inflight_cntr[1] <= 0;
+        rg_ghistory[1] <= rg_ghistory[1] >> rg_inflight_cntr[1];
+      end
+      else 
+        rg_inflight_cntr[1] <= rg_inflight_cntr[1] - 1;
 		endmethod
 
     // MethodName : prediction_pc
@@ -403,14 +430,14 @@ package bimodal;
 
       if(truncate(full_index)==1'b0)begin
         mem_ras_tag0.write(1, bank_index, pack(update));
-        `logLevel( bimodal, 0, $format("Bimodal : Training RAS0 for ",fshow(td)))
-        `logLevel( bimodal, 0, $format("Bimodal : Training RAS0 : bank_index:%d tag:%h", 
+        `logLevel( gshare, 0, $format("GSHARE : Training RAS0 for ",fshow(td)))
+        `logLevel( gshare, 0, $format("GSHARE : Training RAS0 : bank_index:%d tag:%h", 
                                         bank_index, tag))
       end
       else begin
         mem_ras_tag1.write(1, bank_index, pack(updatec));
-        `logLevel( bimodal, 0, $format("Bimodal : Training RAS1 for ",fshow(td)))
-        `logLevel( bimodal, 0, $format("Bimodal : Training RAS1 : bank_index:%d tag:%h", 
+        `logLevel( gshare, 0, $format("GSHARE : Training RAS1 for ",fshow(td)))
+        `logLevel( gshare, 0, $format("GSHARE : Training RAS1 : bank_index:%d tag:%h", 
                                         bank_index, tag))
       end
     endmethod
@@ -420,7 +447,7 @@ package bimodal;
     // Implicit Conditions : None 
     // Description : This method will push a return address on the RAS stack
     method Action ras_push(Bit#(`vaddr) pc);
-      `logLevel( bimodal, 0, $format("Bimodal : Pushing to RAS:%h ",pc))
+      `logLevel( gshare, 0, $format("GSHARE : Pushing to RAS:%h ",pc))
       ras_stack.push(pc);
     endmethod
   `endif

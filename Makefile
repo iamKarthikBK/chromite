@@ -139,7 +139,7 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
 								 -D PIPE$(PIPE)=True -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
 								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) \
 								 -D btbsize=$(BTBSIZE) -D rassets=$(RASSETS) -D rassize=$(RASSIZE) \
-                 -D causesize=$(CAUSESIZE)
+                 -D causesize=$(CAUSESIZE) -D $(PREDICTOR)=True
 		
 
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/:./src/core/predictors/

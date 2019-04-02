@@ -381,33 +381,23 @@ package stage3;
                 if(aluout.branch_taken)begin
                   if(prediction < 3)begin
                     prediction = prediction + 1;
-                    wr_training_data <= Training_data{ pc           : meta.pc, 
-                                                       target       : aluout.effective_addr, 
-                                                       state        : prediction
-                                                     `ifdef compressed
-                                                       ,edgecase    : !meta.compressed &&
-                                                                      meta.pc[1]==1
-                                                     `endif
-                                                     `ifdef gshare
-                                                        ,mispredict : aluout.redirect
-                                                    `endif };
                   end
                 end
                 else begin
                   if(prediction > 0) begin
                     prediction = prediction - 1;
-                    wr_training_data <= Training_data{ pc           : meta.pc, 
-                                                       target       : aluout.effective_addr, 
-                                                       state        : prediction
-                                                     `ifdef compressed
-                                                       ,edgecase    : !meta.compressed &&
-                                                                      meta.pc[1]==1
-                                                     `endif
-                                                     `ifdef gshare
-                                                        ,mispredict : aluout.redirect
-                                                    `endif };
                   end
                 end
+                wr_training_data <= Training_data{ pc           : meta.pc, 
+                                                   target       : aluout.effective_addr, 
+                                                   state        : prediction
+                                                 `ifdef compressed
+                                                   ,edgecase    : !meta.compressed &&
+                                                                  meta.pc[1]==1
+                                                 `endif
+                                                 `ifdef gshare
+                                                    ,mispredict : aluout.redirect
+                                                `endif };
               end
               else if(meta.inst_type == JAL) begin
                   wr_training_data <= Training_data{   pc           : meta.pc, 

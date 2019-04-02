@@ -58,7 +58,11 @@ package cclass;
   `endif
 `endif
 `ifdef branch_speculation
-  import bimodal :: * ;
+  `ifdef gshare
+    import gshare :: * ;
+  `else
+    import bimodal :: * ;
+  `endif
 `endif
   `include "common_params.bsv"
   `include "Logger.bsv"
@@ -120,7 +124,7 @@ package cclass;
     let paddr = valueOf(`paddr);
     Ifc_riscv riscv <- mkriscv();
   `ifdef branch_speculation
-    Ifc_bimodal bpu <- mkbimodal();
+    Ifc_bpu bpu <- mkbpu();
   `endif
   `ifdef supervisor
   `ifdef RV64
