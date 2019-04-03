@@ -405,11 +405,11 @@ package gshare;
         `logLevel( gshare, 0, $format("GSHARE : Training BTB1 : bank_index:%d tag:%h state:%b", 
                                        bank_index, tag, td.state))
       end
-      if(td.mispredict)begin
+      if(td.mispredict && rg_inflight_cntr[1] != 0)begin
         rg_inflight_cntr[1] <= 0;
         rg_ghistory[1] <= rg_ghistory[1] >> rg_inflight_cntr[1];
       end
-      else if(rg_inflight_cntr[1] > 0)
+      else if(rg_inflight_cntr[1] != 0)
         rg_inflight_cntr[1] <= rg_inflight_cntr[1] - 1;
 		endmethod
 
