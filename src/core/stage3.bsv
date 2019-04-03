@@ -227,7 +227,7 @@ package stage3;
     Reg#(Maybe#(Bit#(`vaddr))) rg_loadreserved_addr <- mkReg(tagged Invalid);
   `endif
     // wire holding the PC value of the next instruction fetched into the pipe
-    Wire#(Bit#(`vaddr)) wr_next_pc <- mkWire();
+    Wire#(Maybe#(Bit#(`vaddr))) wr_next_pc <- mkDWire(tagged Invalid);
 
     // This variable holds the current epoch values of the pipe
     let curr_epochs = {rg_eEpoch, rg_wEpoch};
@@ -357,6 +357,9 @@ package stage3;
                               `ifdef atomic     || meta.memaccess == Atomic `endif 
                               `ifdef supervisor || meta.memaccess == SFence `endif ) )
         execute = False; 
+      if((meta.inst_type == BRANCH || meta.inst_type == JALR || meta.inst_type == JAL) &&&
+          wr_next_pc matches tagged Invalid)
+        execute = False;
 
       if(!execute_instruction)begin
         `logLevel( stage3, 0, $format("STAGE3: Dropping Instructions"))
@@ -369,8 +372,8 @@ package stage3;
         if ( rs1avail && rs2avail `ifdef spfpu && rs3avail `endif ) begin
             let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
                          meta.memaccess, `ifdef RV64 meta.word32, `elsif dpfpu meta.word32, `endif 
-                         wr_misa_c, truncate(meta.pc) `ifdef branch_speculation, wr_next_pc 
-                         `ifdef compressed ,meta.compressed `endif `endif ); 
+                         wr_misa_c, truncate(meta.pc) `ifdef branch_speculation,
+                         fromMaybe(?,wr_next_pc) `ifdef compressed ,meta.compressed `endif `endif ); 
           if(aluout.done)begin
             if(execute) begin
               deq_rx;
@@ -425,7 +428,7 @@ package stage3;
               if(aluout.redirect && aluout.cmtype != TRAP)
                 `logLevel( stage3, 0, $format("STAGE3: Misprediction. Inst: ",fshow(meta.inst_type),
                                               " PC:%h Target:%h NextPC:%h", meta.pc, 
-                                              aluout.redirect_pc, wr_next_pc))
+                                              aluout.redirect_pc, fromMaybe(?,wr_next_pc)))
             `ifdef dpfpu
               Bit#(1) nanboxing = pack(aluout.cmtype == MEMORY 
                                        && funct3[1 : 0] == 2 
@@ -688,7 +691,7 @@ package stage3;
     // Explicit Conditions : None
     // Description : captures the next_pc in the pipe
     method Action next_pc (Bit#(`vaddr) npc);
-      wr_next_pc <= npc;
+      wr_next_pc <= tagged Valid npc;
     endmethod
   `ifdef branch_speculation
     
