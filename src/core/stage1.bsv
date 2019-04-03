@@ -213,6 +213,11 @@ package stage1;
           if(rg_instruction[1:0]==2'b11)begin
             final_instruction={imem_resp.instr[15:0],rg_instruction};
             rg_instruction<=truncateLSB(imem_resp.instr);
+          `ifdef branch_speculation
+            `ifdef compressed
+              rg_prediction <= pred.prediction1;
+            `endif
+          `endif
             deq_response;
             if(rg_receiving_upper)
               rg_receiving_upper<=False;
@@ -279,7 +284,7 @@ package stage1;
             rg_instruction<=truncateLSB(imem_resp.instr);
         `ifdef branch_speculation
           `ifdef compressed
-            rg_action<=pred.prediction0==0?CheckPrev:None;
+            rg_action<=pred.prediction0<2?CheckPrev:None;
             prediction=pred.prediction0;
             rg_prediction<= pred.prediction1;
             rg_pc<= pred.va;
@@ -330,7 +335,7 @@ package stage1;
     // be there?
 		interface inst_response= interface Put
 			method Action put (FetchResponse#(32, `iesize) resp);
-        `logLevel( stage1, 1, $format("STAGE1: ",fshow(resp)))
+        `logLevel( stage1, 3, $format("STAGE1: ",fshow(resp)))
         ff_memory_response.enq(resp);
 			endmethod
     endinterface;
@@ -346,7 +351,7 @@ package stage1;
     // I-cache.
     interface prediction_response = interface Put
       method Action put(PredictionResponse p);
-        `logLevel( stage1, 1, $format("STAGE1: Recevied Prediction: ",fshow(p)))
+        `logLevel( stage1, 3, $format("STAGE1: Recevied Prediction: ",fshow(p)))
         ff_prediction_resp.enq(p);
       endmethod
     endinterface;

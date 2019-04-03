@@ -424,7 +424,8 @@ package stage3;
               wr_flush_from_exe <= aluout.redirect && aluout.cmtype != TRAP;
               if(aluout.redirect && aluout.cmtype != TRAP)
                 `logLevel( stage3, 0, $format("STAGE3: Misprediction. Inst: ",fshow(meta.inst_type),
-                                              " PC:%h Target:%h", meta.pc, aluout.redirect_pc))
+                                              " PC:%h Target:%h NextPC:%h", meta.pc, 
+                                              aluout.redirect_pc, wr_next_pc))
             `ifdef dpfpu
               Bit#(1) nanboxing = pack(aluout.cmtype == MEMORY 
                                        && funct3[1 : 0] == 2 

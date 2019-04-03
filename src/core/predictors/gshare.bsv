@@ -54,14 +54,14 @@ package gshare;
 
   // struct stored in the tag array for pc cmoparison
   typedef struct {
+    Bit#(`vaddr)  target;
     Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)), `ignore )) tag;
-    Bit#(2) state;
     Bit#(1) valid;
   } BTBEntry deriving (Bits, Eq, FShow);
 
   typedef struct {
+    Bit#(`vaddr)  target;
     Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)), `ignore )) tag;
-    Bit#(2) state;
     Bit#(1) valid;
   `ifdef compressed
     Bool    edgecase;
@@ -102,17 +102,21 @@ package gshare;
 	(*synthesize*)
 	module mkbpu(Ifc_bpu);
     String gshare="";
-    Ifc_mem_config1r1w#(TDiv#(`btbsize, 2) , `vaddr, 1) mem_btb0 <- mkmem_config1r1w(False,"double");
-    Ifc_mem_config1r1w#(TDiv#(`btbsize, 2) , `vaddr, 1) mem_btb1 <- mkmem_config1r1w(False,"double");
  		Reg#(Bit#(TAdd#(5,TLog#(`btbsize)))) rg_ghistory[2] <- mkCReg(2,0);
  		Reg#(Bit#(3)) rg_inflight_cntr[2] <- mkCReg(2,0);
 
     // ram to hold the tag of the address being predicted. The 2 bits are deducted since we are
     // supporting only non - compressed ISA. When compressed is supported, 1 will be dedudcted.
-    Ifc_mem_config1r1w#(TDiv#(`btbsize,  2) , SizeOf#(BTBEntry), 1) mem_btb_tag0 
+    Ifc_mem_config1r1w#(TDiv#(`btbsize,  2) , SizeOf#(BTBEntry), 1) mem_btb0 
                                                               <- mkmem_config1r1w(False,"double");
-    Ifc_mem_config1r1w#(TDiv#(`btbsize,  2) , SizeOf#(BTBEntryC), 1) mem_btb_tag1 
+    Ifc_mem_config1r1w#(TDiv#(`btbsize,  2) , SizeOf#(BTBEntryC), 1) mem_btb1 
                                                               <- mkmem_config1r1w(False,"double");
+    Reg#(Bit#(2)) arr_state0 [`btbsize/2 ];
+    Reg#(Bit#(2)) arr_state1 [`btbsize/2 ];
+    for(Integer i=0; i<`btbsize/2 ; i=i+1)begin
+      arr_state0[i] <- mkConfigReg(1);
+      arr_state1[i] <- mkConfigReg(1);
+    end
 
   `ifdef ras 
     // ram to hold the tag bits for return instructions
@@ -139,8 +143,8 @@ package gshare;
     // Implicit Conditions : None
     // on system reset first initialize the ram structure with valid = 0.
     rule initialize(rg_init);
-      mem_btb_tag0.write(1, truncate(rg_init_count), pack(BTBEntry{tag : ?, valid : 0, state : 1}));
-      mem_btb_tag1.write(1, truncate(rg_init_count), pack(BTBEntryC{tag : ?, valid : 0, state : 1
+      mem_btb0.write(1, truncate(rg_init_count), pack(BTBEntry{target : ?, tag : ?, valid : 0}));
+      mem_btb1.write(1, truncate(rg_init_count), pack(BTBEntryC{target : ?, tag : ?, valid : 0
                                            `ifdef compressed ,edgecase : False `endif }));
     `ifdef ras
       mem_ras_tag0.write(1, truncate(rg_init_count), pack(RASEntry{tag : ?, valid : 0}));
@@ -167,9 +171,9 @@ package gshare;
       ff_pred_request.deq();
     `ifdef compressed
       Bool edgecase = False;
-      Bit#(2) prediction0 = 0;
-      Bit#(2) prediction1 = 0;
-      Bit#(2) prediction = 0;
+      Bit#(2) prediction0 = 1;
+      Bit#(2) prediction1 = 1;
+      Bit#(2) prediction = 1;
     `else
       Bit#(2) prediction = 1;
     `endif
@@ -178,12 +182,13 @@ package gshare;
       Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore)) btb_tag_cmp = truncateLSB(request.pc);
 
       // extract the target - address, tags, counter - value and prediction state from bank0
-      let gshare_target_addr0 = mem_btb0.read_response;
-      BTBEntry btbentry0 = unpack(mem_btb_tag0.read_response);
+      BTBEntry btbentry0 = unpack(mem_btb0.read_response);
+      let gshare_target_addr0 = btbentry0.target;
+
 
       // extract the target - address, tags, counter - value and prediction state from bank1
-      let gshare_target_addr1 = mem_btb1.read_response;
-      BTBEntryC btbentry1 = unpack(mem_btb_tag1.read_response);
+      BTBEntryC btbentry1 = unpack(mem_btb1.read_response);
+      let gshare_target_addr1 = btbentry1.target;
 
     `ifdef ras
       // extract tag from the request PC for comparison
@@ -198,7 +203,14 @@ package gshare;
     `endif
 
       Bit#(`vaddr) target_address = gshare_target_addr0;
+      Bit#(TLog#(`btbsize)) state_full_index = truncate(request.pc>>`ignore) ^
+                                               truncate(rg_ghistory[0]);
+      Bit#(TLog#(TDiv#(`btbsize, 2))) state_bank_index = truncateLSB(state_full_index); 
 
+      `logLevel( gshare, 0, $format("GSHARE: Prediction StateFull:%d StateBank:%d GBuf:%h", 
+                                              state_full_index, state_bank_index, rg_ghistory[0]))
+      Bit#(2) state0 = arr_state0[state_bank_index];
+      Bit#(2) state1 = arr_state1[state_bank_index];
 
       // ------------------------------ gshare look-up start ----------------------------------- //
       // When compressed is disabled we need to check which bank should the prediction be taken
@@ -211,33 +223,33 @@ package gshare;
                `ifdef  compressed !request.discard `else request.pc[`ignore] == 0 `endif ) begin
 
       `ifdef compressed
-        prediction0 = btbentry0.state;
-        prediction = btbentry0.state;
+        prediction0 = state0;
+        prediction = state0;
       `else
-        prediction = btbentry0.state;
+        prediction = state0;
       `endif
-        `logLevel( gshare, 1, $format("GSHARE : btb_tag_cmp:%h, tag0:%h,",
-                                        btb_tag_cmp, btbentry0.tag))
+        `logLevel( gshare, 1, $format("GSHARE : btb_tag_cmp:%h, tag0:%h, state:%d",
+                                        btb_tag_cmp, btbentry0.tag, state0))
         `logLevel( gshare, 1, $format("GSHARE : BTB0 hit"))
         hit[0] = 1;
       end
       if (btb_tag_cmp == btbentry1.tag && btbentry1.valid == 1
                `ifndef compressed && request.pc[`ignore] == 1 `endif ) begin
       `ifdef compressed
-        prediction1 = btbentry1.state[1 : 0];
+        prediction1 = state1;
         if(hit[0] == 0)begin
           target_address = gshare_target_addr1;
-          prediction = btbentry1.state;
+          prediction = state1;
           edgecase=btbentry1.edgecase;
         end
         hit[0] = 1;
       `else
-        prediction = btbentry1.state;
+        prediction = state1;
         target_address = gshare_target_addr1;
         hit[1] = 1;
       `endif
-        `logLevel( gshare, 1, $format("GSHARE : btb_tag_cmp:%h, tag0:%h,",
-                                        btb_tag_cmp, btbentry1.tag))
+        `logLevel( gshare, 1, $format("GSHARE : btb_tag_cmp:%h, tag0:%h, state:%d",
+                                        btb_tag_cmp, btbentry1.tag, state1))
         `logLevel( gshare, 1, $format("GSHARE : BTB1 hit"))
       end
       `logLevel( gshare, 0, $format("GSHARE: Prediction HistBuff:%h inflight:%d ", rg_ghistory[0],
@@ -317,10 +329,8 @@ package gshare;
 		method Action prediction_req(PredictionRequest req)if(!rg_init);
 
       // first find the full index.
-      Bit#(TLog#(`btbsize)) btb_full_index = truncate(req.pc>>`ignore) ^ truncate(rg_ghistory[1]);
+      Bit#(TLog#(`btbsize)) btb_full_index = truncate(req.pc>>`ignore);
       Bit#(TLog#(`rassets)) ras_full_index = truncate(req.pc>>`ignore);
-      `logLevel( gshare, 0, $format("GSHARE: PredReq HistBuff:%h fullindex:%d", rg_ghistory[1],
-                                                                                  btb_full_index))
 
       // find the bank_index.
       Bit#(TLog#(TDiv#(`btbsize, 2))) btb_bank_index = truncateLSB(btb_full_index); 
@@ -328,8 +338,6 @@ package gshare;
 
       mem_btb0.read(btb_bank_index);
       mem_btb1.read(btb_bank_index);
-      mem_btb_tag0.read(btb_bank_index);
-      mem_btb_tag1.read(btb_bank_index);
     `ifdef ras
       mem_ras_tag0.read(ras_bank_index);
       mem_ras_tag1.read(ras_bank_index);
@@ -366,31 +374,33 @@ package gshare;
 		method Action train_bpu (Training_data td)if(!rg_init);
 
       // first find the full index.
-      Bit#(TLog#(`btbsize)) full_index = truncate(td.pc>>`ignore) ^ truncate(rg_ghistory[1] >>
-                                                                    rg_inflight_cntr[1] );
+      Bit#(TLog#(`btbsize)) full_index = truncate(td.pc>>`ignore);
+      Bit#(TLog#(`btbsize)) state_full_index = truncate(td.pc>>`ignore) ^
+                                               truncate(rg_ghistory[1]);
+      Bit#(TLog#(TDiv#(`btbsize, 2))) state_bank_index = truncateLSB(state_full_index); 
 
-      `logLevel( gshare, 0, $format("GSHARE: Full_index:%d",full_index))
-      `logLevel( gshare, 0, $format("GSHARE: Training HistBuff:%h inflight:%d ", rg_ghistory[1],
-                                                                    rg_inflight_cntr[1] ))
+      `logLevel( gshare, 0, $format("GSHARE: Fullindex:%d StateFull:%d StateBank:%d GBuf:%h Inflt:%d",
+                                    full_index, state_full_index, state_bank_index,
+                                    rg_ghistory[1], rg_inflight_cntr[1]))
       // find the bank_index.
       Bit#(TLog#(TDiv#(`btbsize, 2))) bank_index = truncateLSB(full_index); 
       
       // find the tag to be stored.=vaddr - Log(btbsize) - ignorebits
       Bit#(TSub#(TSub#(`vaddr, TLog#(`btbsize)),`ignore)) tag = truncateLSB(td.pc);
-      let update = BTBEntry{ tag : tag, valid : 1, state : td.state};
-      let updatec = BTBEntryC{ tag : tag, valid : 1, state : td.state 
+      let update = BTBEntry{ target : td.target, tag : tag, valid : 1};
+      let updatec = BTBEntryC{ target : td.target, tag : tag, valid : 1 
                               `ifdef compressed ,edgecase : td.edgecase `endif };
 
       if (truncate(full_index) == 1'b0)begin
-        mem_btb0.write    (1, bank_index, td.target);
-        mem_btb_tag0.write(1, bank_index, pack(update));
+        mem_btb0.write(1, bank_index, pack(update));
+        arr_state0[state_bank_index] <= td.state;
         `logLevel( gshare, 0, $format("GSHARE : Training BTB0: ",fshow(td)))
         `logLevel( gshare, 0, $format("GSHARE : Training BTB0 : bank_index:%d tag:%h state:%b",
                                         bank_index, tag, td.state))
       end
       else begin
-        mem_btb1.write    (1, bank_index, td.target);
-        mem_btb_tag1.write(1, bank_index, pack(updatec));
+        mem_btb1.write(1, bank_index, pack(updatec));
+        arr_state1[state_bank_index] <= td.state;
         `logLevel( gshare, 0, $format("GSHARE : Training BTB1: ",fshow(td)))
         `logLevel( gshare, 0, $format("GSHARE : Training BTB1 : bank_index:%d tag:%h state:%b", 
                                        bank_index, tag, td.state))
@@ -399,7 +409,7 @@ package gshare;
         rg_inflight_cntr[1] <= 0;
         rg_ghistory[1] <= rg_ghistory[1] >> rg_inflight_cntr[1];
       end
-      else 
+      else if(rg_inflight_cntr[1] > 0)
         rg_inflight_cntr[1] <= rg_inflight_cntr[1] - 1;
 		endmethod
 
