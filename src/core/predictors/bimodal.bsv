@@ -163,9 +163,9 @@ package bimodal;
       ff_pred_request.deq();
     `ifdef compressed
       Bool edgecase = False;
-      Bit#(2) prediction0 = 0;
-      Bit#(2) prediction1 = 0;
-      Bit#(2) prediction = 0;
+      Bit#(2) prediction0 = 1;
+      Bit#(2) prediction1 = 1;
+      Bit#(2) prediction = 1;
     `else
       Bit#(2) prediction = 1;
     `endif
