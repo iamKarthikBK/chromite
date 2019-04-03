@@ -440,6 +440,10 @@ patch:
 unpatch:
 	@cd $(SHAKTI_HOME)/verification/riscv-tests/env && git apply -R $(SHAKTI_HOME)/verification/patches/riscv-tests-shakti-signature.patch
 
+.PHONY: yml
+yml:
+	@SHAKTI_HOME=$$PWD python3 $(SHAKTI_HOME)/verification/verif-scripts/gen_yml.py $(opts)
+
 .PHONY: clean
 clean:
 	rm -rf $(BSVBUILDDIR) *.log $(BSVOUTDIR) obj_dir
