@@ -376,12 +376,12 @@ package gshare;
       // first find the full index.
       Bit#(TLog#(`btbsize)) full_index = truncate(td.pc>>`ignore);
       Bit#(TLog#(`btbsize)) state_full_index = truncate(td.pc>>`ignore) ^
-                                               truncate(rg_ghistory[1]);
+                                               truncate(rg_ghistory[1]>>rg_inflight_cntr[1]);
       Bit#(TLog#(TDiv#(`btbsize, 2))) state_bank_index = truncateLSB(state_full_index); 
 
       `logLevel( gshare, 0, $format("GSHARE: Fullindex:%d StateFull:%d StateBank:%d GBuf:%h Inflt:%d",
                                     full_index, state_full_index, state_bank_index,
-                                    rg_ghistory[1], rg_inflight_cntr[1]))
+                                    rg_ghistory[1] >> rg_inflight_cntr[1], rg_inflight_cntr[1]))
       // find the bank_index.
       Bit#(TLog#(TDiv#(`btbsize, 2))) bank_index = truncateLSB(full_index); 
       
