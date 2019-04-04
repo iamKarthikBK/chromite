@@ -370,10 +370,29 @@ package stage3;
       // redirection has been checked.
       else if(meta.inst_type != TRAP && execute)begin
         if ( rs1avail && rs2avail `ifdef spfpu && rs3avail `endif ) begin
-            let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
+          let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
                          meta.memaccess, `ifdef RV64 meta.word32, `elsif dpfpu meta.word32, `endif 
                          wr_misa_c, truncate(meta.pc) `ifdef branch_speculation,
                          fromMaybe(?,wr_next_pc) `ifdef compressed ,meta.compressed `endif `endif ); 
+          let td = Training_data{pc : meta.pc,
+                                 target : aluout.effective_addr,
+                                 state  : ?
+                              `ifdef compressed
+                                 ,edgecase : !meta.compressed && meta.pc[1] == 1
+                              `endif
+                              `ifdef gshare
+                                 ,mispredict : aluout.redirect
+                                 ,ci         : ?
+                              `endif };
+          if((meta.inst_type == JAL || meta.inst_type == JALR) && opmeta.op_addr.rd[0]==1)
+            td.ci = Call;
+          else if(meta.inst_type == JALR && opmeta.op_addr.rs1addr == 'b00001) // TODO add x5 check
+            td.ci = Ret;
+          else if(meta.inst_type == JAL || meta.inst_type == JALR)
+            td.ci = JAL;
+          else
+            td.ci = Branch;
+
           if(aluout.done)begin
             if(execute) begin
               deq_rx;
@@ -391,28 +410,12 @@ package stage3;
                     prediction = prediction - 1;
                   end
                 end
-                wr_training_data <= Training_data{ pc           : meta.pc, 
-                                                   target       : aluout.effective_addr, 
-                                                   state        : prediction
-                                                 `ifdef compressed
-                                                   ,edgecase    : !meta.compressed &&
-                                                                  meta.pc[1]==1
-                                                 `endif
-                                                 `ifdef gshare
-                                                    ,mispredict : aluout.redirect
-                                                `endif };
+                td.state = prediction;
+                wr_training_data <= td;
               end
-              else if(meta.inst_type == JAL) begin
-                  wr_training_data <= Training_data{   pc           : meta.pc, 
-                                                       target       : aluout.effective_addr, 
-                                                       state        : 3
-                                                     `ifdef compressed
-                                                       ,edgecase    : !meta.compressed &&
-                                                                      meta.pc[1]==1
-                                                     `endif
-                                                     `ifdef gshare
-                                                        ,mispredict : aluout.redirect
-                                                    `endif };
+              else if(meta.inst_type == JAL || meta.inst_type == JALR) begin
+                td.state = 3;
+                wr_training_data <= td;
               end
               `ifdef ras
                 if( (meta.inst_type == JALR || meta.inst_type == JAL) && 
