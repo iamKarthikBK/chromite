@@ -122,17 +122,21 @@ package globals;
     Bit#(`vaddr)  va;
   } PredictionResponse deriving(Bits, Eq, FShow);
 
+  typedef enum {Branch, JAL, Call, Ret} ControlInsn deriving(Bits, Eq, FShow);
+
   typedef struct {
       Bit#(`vaddr)  pc;
       Bit#(`vaddr)  target;
       Bit#(2)       state;
     `ifdef gshare
       Bool          mispredict;
+      ControlInsn   ci;
     `endif
     `ifdef compressed
       Bool          edgecase;
     `endif
   } Training_data deriving (Bits, Eq, FShow);
+
 
   typedef struct {
     Bit#(`vaddr) pc;
