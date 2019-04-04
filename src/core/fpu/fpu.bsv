@@ -639,15 +639,15 @@ module mkfpu(Ifc_fpu);
           $display("TRAP from fpu:fflags %b",ff_result.first.fflags);
           commit_type=TRAP;
         end
-      if (ff_result.first.fflags[0]==1)
+      if (ff_result.first.fflags[4]==1)
         cause =18;//Invalid
-      else if (ff_result.first.fflags[1]==1)
+      else if (ff_result.first.fflags[3]==1)
         cause=19;//Divide_by_zero_float
       else if (ff_result.first.fflags[2]==1)
         cause=20;//Overflow
-      else if (ff_result.first.fflags[3]==1)
+      else if (ff_result.first.fflags[1]==1)
         cause=21;//Underflow
-      else if (ff_result.first.fflags[4]==1)
+      else if (ff_result.first.fflags[0]==1)
         cause=22;//Inexact
     end
 	  `endif
