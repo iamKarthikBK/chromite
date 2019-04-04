@@ -120,12 +120,6 @@ package stage2;
     // this is an input method used for operand forwarding from the commit - stage (stage5)
     method Action fwd_from_wb(CommitData commit);
 
-  `ifdef ras
-    // this is an output method which the current stage uses to train the RAS unit in the BTB when a
-    // return instruction is detected.
-    method RASTraining train_ras;
-  `endif
-
   `ifdef debug
     // interface to interact with debugger
     method ActionValue#(Bit#(XLEN)) debug_access_gprs(AbstractRegOp cmd);
@@ -156,11 +150,6 @@ package stage2;
   `ifdef rtldump
     // fifo interface used to transmit the trace of the instruction for rtl.dump generation
     TX#(Bit#(32)) txinst <- mkTX;
-  `endif
-
-  `ifdef ras
-    // wire to train the RAS
-    Wire#(RASTraining) wr_train_ras <- mkWire();
   `endif
    
     Wire#(CSRtoDecode) wr_csrs <- mkWire();
@@ -242,11 +231,11 @@ package stage2;
       let func_cause = decoded.meta.funct;
       let instrType = decoded.meta.inst_type;
       let word32 = decode_word32(inst,wr_csrs.csr_misa[2]);
-    `ifdef ras
-      if(instrType == JALR && (decoded.op_addr.rs1addr == 'b00001 || decoded.op_addr.rs1addr == 'b00101))
-        wr_train_ras <= RASTraining{pc : pc `ifdef compressed ,edgecase : !decoded.compressed 
-                                                                      && pc[1]==1 `endif } ;
-    `endif
+//    `ifdef ras
+//      if(instrType == JALR && (decoded.op_addr.rs1addr == 'b00001 || decoded.op_addr.rs1addr == 'b00101))
+//        wr_train_ras <= RASTraining{pc : pc `ifdef compressed ,edgecase : !decoded.compressed 
+//                                                                      && pc[1]==1 `endif } ;
+//    `endif
 
     `ifdef spfpu
       RFType rf1type = `ifdef spfpu decoded.op_type.rs1type == FloatingRF ? FRF : `endif IRF;
@@ -382,10 +371,6 @@ package stage2;
     method Action fwd_from_wb(CommitData commit);
       registerfile.fwd_from_wb(commit);
     endmethod
-
-  `ifdef ras
-    method train_ras = wr_train_ras;
-  `endif
 
   `ifdef debug
     method debug_access_gprs = registerfile.debug_access_gprs;

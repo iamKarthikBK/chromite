@@ -116,7 +116,7 @@ package cclass;
     (*preempts="core_req_to_dmem, ptwalk_request_to_dcache"*)
   `endif
 `ifdef ras
-  (*conflict_free="connect_instruction_req,connect_ras_training"*)
+  (*conflict_free="connect_instruction_req,connect_bpu_training"*)
 `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
     String core = "";
@@ -183,9 +183,6 @@ package cclass;
       bpu.train_bpu(riscv.train_bpu);
     endrule
     `ifdef ras
-      rule connect_ras_training;
-        bpu.train_ras(riscv.train_ras);
-      endrule
       rule connect_ras_push;
         bpu.ras_push(riscv.ras_push);
       endrule
