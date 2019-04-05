@@ -535,6 +535,8 @@ package stage3;
       `endif
         // else you need to simply drop the execution since epochs have changed.
       end
+      if(!execute)
+        `logLevel( stage3, 0, $format("STAGE3: Stall"))
     endrule
 
   `ifdef multicycle
@@ -545,7 +547,7 @@ package stage3;
     // Description : This rule is fired when an multicycle instruction is execute whose output takes
     // atleast 2 cycles to be generated.
     `ifdef simulate
-      rule count_stalls(rg_stall);
+      rule count_stalls(!rule_condition);
         `logLevel( stage3, 0, $format("STAGE3: Stalled for MulDiv/FPU"))
       endrule
     `endif
