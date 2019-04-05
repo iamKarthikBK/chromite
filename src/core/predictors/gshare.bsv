@@ -60,7 +60,7 @@ package gshare;
   endinterface
 
   `define btbdepth    256
-  `define bhtdepth    256
+  `define bhtdepth    512
   `define histlen     8
   `define extrahist   3
   `define countlen    2
@@ -81,7 +81,7 @@ package gshare;
   } RASEntry deriving(Bits, Eq, FShow);
 
   function Bit#(TLog#(`bhtdepth)) hash (Bit#(TAdd#(`extrahist, `histlen)) history, Bit#(`vaddr) pc);
-    return truncate(pc >> `ignore) ^ truncate(pc >> (`ignore + `histlen)) ^ truncate(history);
+    return truncate(pc >> `ignore) ^ truncate(pc >> (`ignore + 9)) ^ truncateLSB(history);
   endfunction
 
   (*synthesize*)
@@ -137,6 +137,8 @@ package gshare;
       `logLevel( gshare, 0, $format("GSHARE: btb_info:", fshow(btb_info), 
                                     " btb_index:%d bht_state:%d bht_index:%d", 
                                     btb_index, bht_state, hash(rg_ghr[0], request.pc)))
+      `logLevel( gshare, 0, $format("GSHARE: GHR:%b Inflt:%d Hash:%d", 
+                                         rg_ghr[0], rg_inflight[0], hash(rg_ghr[0], request.pc)))
 
       if(btb_info.valid && btb_info.tag == btb_tag)begin
         `logLevel( gshare, 0, $format("GSHARE: Hit in BTB. Tag:%h Index:%d State:%d Target:%h CI:", 
@@ -145,9 +147,8 @@ package gshare;
           prediction = 3;
         if(btb_info.ci == Branch) begin
           prediction = bht_state;
-          rg_ghr[0] <= {truncate(rg_ghr[0]), bht_state[1]};
+          rg_ghr[0] <= {bht_state[1], truncateLSB(rg_ghr[0])};
           rg_inflight[0] <= rg_inflight[0] + 1;
-          `logLevel( gshare, 0, $format("GSHARE: GHR:%b Inflt:%d", rg_ghr[0], rg_inflight[0]))
         end
       end
       if(ras_info.valid && ras_info.tag == ras_tag) begin
@@ -191,15 +192,18 @@ package gshare;
       else begin
         `logLevel( gshare, 0, $format("GSHARE: Training BTB. Index:%d Tag:%h", btb_index, btb_tag))
         btb.upd(btb_index, BTBEntry{valid: True, tag: btb_tag, target: td.target, ci: td.ci});
+        if(td.mispredict && rg_inflight[1]!=0)begin
+          rg_inflight[1] <= 0;
+          let x = rg_ghr[1] << (rg_inflight[1]-1);
+          x[`extrahist + `histlen -1] = ~x[`extrahist + `histlen -1];
+          rg_ghr[1] <= x;
+//          rg_ghr[1] <= rg_ghr[1] << rg_inflight[1];
+        end
         if(td.ci == Branch && rg_inflight[1] != 0)begin 
-          `logLevel( gshare, 0, $format("GSHARE: Updating GHR:%h Inflt:%d", rg_ghr[1],
-                                                                            rg_inflight[1]))
-          bht.upd(hash(rg_ghr[1] >> rg_inflight[1], td.pc), td.state);
-          if(td.mispredict)begin
-            rg_inflight[1] <= 0;
-            rg_ghr[1] <= rg_ghr[1] >> rg_inflight[1];
-          end
-          else
+          `logLevel( gshare, 0, $format("GSHARE: Updating GHR:%b Inflt:%d Hash:%d", rg_ghr[1],
+                                      rg_inflight[1], hash(rg_ghr[1] << rg_inflight[1], td.pc)))
+          bht.upd(hash(rg_ghr[1] << rg_inflight[1], td.pc), td.state);
+          if(!td.mispredict)
             rg_inflight[1] <= rg_inflight[1] - 1;
         end
       end
