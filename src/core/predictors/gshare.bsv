@@ -217,12 +217,5 @@ package gshare;
     endmethod
 
   endmodule
-  
-//  (*synthesize*)
-//  module mkbpu_inst(Ifc_bpu); 
-//    let ifc();
-//    mkbpu _temp(ifc);
-//    return (ifc);
-//  endmodule
 endpackage
 
