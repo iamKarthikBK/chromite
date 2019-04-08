@@ -192,19 +192,18 @@ package gshare;
       else begin
         `logLevel( gshare, 0, $format("GSHARE: Training BTB. Index:%d Tag:%h", btb_index, btb_tag))
         btb.upd(btb_index, BTBEntry{valid: True, tag: btb_tag, target: td.target, ci: td.ci});
-        if(td.mispredict && rg_inflight[1]!=0)begin
-          rg_inflight[1] <= 0;
-          let x = rg_ghr[1] >> (rg_inflight[1]-1);
-          x[0] = ~x[0];
-
-          rg_ghr[1] <= x;
-        end
         if(td.ci == Branch && rg_inflight[1] != 0)begin 
           `logLevel( gshare, 0, $format("GSHARE: Updating GHR:%b Inflt:%d Hash:%d", rg_ghr[1],
                                       rg_inflight[1], hash(rg_ghr[1] >> rg_inflight[1], td.pc)))
           bht.upd(hash(rg_ghr[1] >> rg_inflight[1], td.pc), td.state);
           if(!td.mispredict)
             rg_inflight[1] <= rg_inflight[1] - 1;
+          else begin
+            rg_inflight[1] <= 0;
+            let x = rg_ghr[1] >> (rg_inflight[1]-1);
+            x[0] = ~x[0];
+            rg_ghr[1] <= x;
+          end
         end
       end
     endmethod
