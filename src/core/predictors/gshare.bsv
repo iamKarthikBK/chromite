@@ -81,7 +81,7 @@ package gshare;
   } RASEntry deriving(Bits, Eq, FShow);
 
   function Bit#(TLog#(`bhtdepth)) hash (Bit#(TAdd#(`extrahist, `histlen)) history, Bit#(`vaddr) pc);
-    return truncate(pc >> `ignore) ^ truncate(pc >> (`ignore + 9)) ^ truncateLSB(history);
+    return truncate(pc >> `ignore) ^ truncate(history);
   endfunction
 
   (*synthesize*)
@@ -147,7 +147,7 @@ package gshare;
           prediction = 3;
         if(btb_info.ci == Branch) begin
           prediction = bht_state;
-          rg_ghr[0] <= {bht_state[1], truncateLSB(rg_ghr[0])};
+          rg_ghr[0] <= {truncate(rg_ghr[0]), bht_state[1]};
           rg_inflight[0] <= rg_inflight[0] + 1;
         end
       end
@@ -194,15 +194,15 @@ package gshare;
         btb.upd(btb_index, BTBEntry{valid: True, tag: btb_tag, target: td.target, ci: td.ci});
         if(td.mispredict && rg_inflight[1]!=0)begin
           rg_inflight[1] <= 0;
-          let x = rg_ghr[1] << (rg_inflight[1]-1);
-          x[`extrahist + `histlen -1] = ~x[`extrahist + `histlen -1];
+          let x = rg_ghr[1] >> (rg_inflight[1]-1);
+          x[0] = ~x[0];
+
           rg_ghr[1] <= x;
-//          rg_ghr[1] <= rg_ghr[1] << rg_inflight[1];
         end
         if(td.ci == Branch && rg_inflight[1] != 0)begin 
           `logLevel( gshare, 0, $format("GSHARE: Updating GHR:%b Inflt:%d Hash:%d", rg_ghr[1],
-                                      rg_inflight[1], hash(rg_ghr[1] << rg_inflight[1], td.pc)))
-          bht.upd(hash(rg_ghr[1] << rg_inflight[1], td.pc), td.state);
+                                      rg_inflight[1], hash(rg_ghr[1] >> rg_inflight[1], td.pc)))
+          bht.upd(hash(rg_ghr[1] >> rg_inflight[1], td.pc), td.state);
           if(!td.mispredict)
             rg_inflight[1] <= rg_inflight[1] - 1;
         end
