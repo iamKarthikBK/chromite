@@ -42,6 +42,7 @@ package gshare;
   import globals :: *;
   import stack :: *;
   `include "Logger.bsv"
+  import mem_config::*; // for bram 1rw instances.
 
   interface Ifc_bpu;
     // method to receive the new pc for which prediction is to be looked up.
@@ -53,13 +54,18 @@ package gshare;
     // method to training the BTB and BHT tables
 		method Action train_bpu (Training_data td);
 
+    // method to send the next-pc to stage0
     method PredictionToStage0 predicted_pc;
+
+    // method to push the return address on a Call instruction
     method Action ras_push(Bit#(`vaddr) pc);
+
+    // method to enable/disable bpu at run-time
     method Action bpu_enable(Bool e);
   endinterface
 
-  `define countlen    2
-  `define ignore      2
+  `define countlen    2   // the size of the 2-bit counter
+  `define ignore      2   // number of bits of the pc to be ignored
   
   typedef struct{
     Bit#(`vaddr)  target;
@@ -73,6 +79,7 @@ package gshare;
     Bool valid;
   } RASEntry deriving(Bits, Eq, FShow);
 
+  // function to calculate the hash address to access the branch-history-table.
   function Bit#(TLog#(`bhtdepth)) hash (Bit#(TAdd#(`extrahist, `histlen)) history, Bit#(`vaddr) pc);
     return truncate(pc >> `ignore) ^ truncate(history);
   endfunction
@@ -81,25 +88,50 @@ package gshare;
   (*conflict_free="train_bpu, ras_push"*)
   module mkbpu(Ifc_bpu);
 
-    String gshare="";
+    String gshare="";     // for Logger
+
+    // holds the pc-tag, target, valid bit and instruction type
     RegFile#(Bit#(TLog#(`btbdepth)), BTBEntry)        btb     <- mkRegFileFull();
+
+    // holds the 2-bit state counter bits
     RegFile#(Bit#(TLog#(`bhtdepth)), Bit#(`countlen)) bht     <- mkRegFileFull();
+
+    // holds the tags and valid bits of the pc of the ret instructions
     RegFile#(Bit#(TLog#(`rastagdepth)), RASEntry)     ras <- mkRegFileFull();
-    Reg#(Bit#(TAdd#(`extrahist, `histlen))) rg_ghr[2] <- mkCReg(2, 0);
-    Reg#(Bit#(TLog#(`extrahist))) rg_inflight[2] <- mkCReg(2, 0);
+
+    // the stack to hold the return addresses
     Ifc_stack#(`vaddr, `rasdepth) ras_stack <- mkstack;
 
+    // the branch history register
+    Reg#(Bit#(TAdd#(`extrahist, `histlen))) rg_ghr[2] <- mkCReg(2, 0);
+
+    // indicates the total number of speculated branch predictions in the pipe
+    Reg#(Bit#(TLog#(`extrahist))) rg_inflight[2] <- mkCReg(2, 0);
+
+    // wire indicating if the bpu is enabled/disabled
     Wire#(Bool) wr_bpu_enable <- mkWire();
 
+    // register to indicate if the bpu needs to be flushed/initialized to reset state.
     Reg#(Bool) rg_init <- mkReg(True);
     Reg#(Bit#(TLog#(TMax#(`bhtdepth,TMax#(`btbdepth, `rasdepth))))) rg_init_count <- mkReg(0);
     
+    // fifo to hold the incoming request from stage0
     FIFOF#(PredictionRequest)  ff_pred_request      <- mkSizedFIFOF(2);
+
+    // fifo holding the response to be sent to stage1
     FIFOF#(PredictionResponse) ff_prediction_resp   <- mkBypassFIFOF();
+
+    // register indicating the next pc to the stage0
     Reg#(PredictionToStage0)   rg_prediction_pc[2]  <- mkCReg(2, PredictionToStage0{prediction : 0,
                             target_pc : ?,  epochs: 0 `ifdef compressed ,edgecase: False `endif });
 
 
+    // RuleName: initialize
+    // Implicit Conditions: None
+    // Explicit Conditions: rg_init == True;
+    // Descriptions: This rule will fire on reset and whenever a fence.i instruction is execute by
+    // the core. This rule simply invalidates all the entries in the btb, bht and empties the
+    // ras-stack.
     rule initialize(rg_init);
       btb.upd(truncate(rg_init_count), BTBEntry{valid: False, ci: Branch, target: ?, tag: ?});
       bht.upd(truncate(rg_init_count), 1);
@@ -113,6 +145,21 @@ package gshare;
       `logLevel( gshare, 0, $format("GSHARE : Init stage. Count:%d",rg_init_count))
     endrule
 
+    // RuleName: perform_prediction
+    // Implicit Conditions: ff_pred_request.notEmpty && ff_prediction_resp.notFull
+    // Explicit Conditions: rg_init == false;
+    // Description: This rule looks up the BTB for the pc that has been presented by
+    // stage0. The BTB is simply accessed using the lower-order bits of the pc. A hit in the btb
+    // only occurs if the btb entry is valid and the tags match with that of the requested pc. RAS
+    // table is also looked up in the similar fashion to identify if a requested PC is a RET
+    // instruction. Both the BTB and RAS cannot be a hit, since they are trained
+    // mutually-exclusively. If the BTB is a hit and the CI type == Branch then the bht is accessed
+    // to fetch the 2-bit state of the counter. The bht is accessed by hashing the lower order bits
+    // of the pc with the global history register. The 2-bit counter indicates if the branch is
+    // predicted taken or not-taken.
+    // If the BTB is a hit and CI == JAL or CI == Call, then the prediction is forced taken.
+    // If prediction result from BTB or RAS is taken then the target address is either available
+    // fromt the respective BTB entry of the RAS stack.
     rule perform_prediction(!rg_init);
       let request = ff_pred_request.first();
       ff_pred_request.deq;
@@ -164,6 +211,11 @@ package gshare;
       ff_prediction_resp.enq(resp);
     endrule
 
+    // MethodName: prediction_req
+    // Implicit Conditions: ff_pred_request.notFull
+    // Explicit Conditions: rg_init == False;
+    // Description: This method captures the request from stage0 and latches the address into the
+    // BTB and ras table.
 		method Action prediction_req(PredictionRequest req)if(!rg_init);
       `logLevel( gshare, 1, $format("GSHARE: Prediction request:", fshow(req)))
       if(req.fence && wr_bpu_enable)
@@ -172,6 +224,19 @@ package gshare;
         ff_pred_request.enq(req);
     endmethod
 
+    // MethodName: train_bpu
+    // Implicit Conditions: None.
+    // Explicit Conditions: rg_init == False
+    // Description: This method is fired when a control instruction is resolved in the execute
+    // stage. This method will updated the ghr in case of a branch instruction being resolved.
+    // Incase of JAL, Call, only the btb is updated.
+    // Incase of Ret instructions, the ras-table is updated and the ras-stack is poped.
+    // -- If a branch-misprediction occurred, the history in the ghr is corrected by flipping the
+    // respective bits and rg_inflight is reset to 0. 
+    // -- If the branch prediction was correct then the rg_inflight counter is simply decremented
+    // by 1
+    // -- If a miprediction occurred because of a non-branch instruction then the ghr is not touched
+    // but the rg_inflight counter is reset to 0.
     method Action train_bpu(Training_data td)if(!rg_init);
       Bit#(TLog#(`btbdepth)) btb_index = truncate(td.pc >> `ignore);
       Bit#(TLog#(`rastagdepth)) ras_index = truncate(td.pc >> `ignore);
@@ -206,15 +271,17 @@ package gshare;
     endmethod
 
 		interface prediction_response = toGet(ff_prediction_resp);
+
     method predicted_pc = rg_prediction_pc[1];
+
     method Action ras_push(Bit#(`vaddr) pc)if(!rg_init);
       `logLevel( gshare, 2, $format("GSHARE : Pushing to RAS:%h ",pc))
       ras_stack.push(pc);
     endmethod
+
     method Action bpu_enable(Bool e);
       wr_bpu_enable <= e;
     endmethod
-
   endmodule
 endpackage
 
