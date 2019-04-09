@@ -28,7 +28,7 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package bpu;
+package gshare;
   import Vector::*;
   import FIFOF::*;
   import DReg::*;
@@ -65,7 +65,11 @@ package bpu;
   endinterface
 
   `define countlen    2   // the size of the 2-bit counter
-  `define ignore      2   // number of bits of the pc to be ignored
+`ifdef compressed
+  `define ignore      1   // number of bits of the pc to be ignored
+`else
+  `define ignore      2
+`endif
   
   typedef struct{
     Bit#(`vaddr)  target;
@@ -73,6 +77,16 @@ package bpu;
     Bool valid;
     ControlInsn   ci;
   } BTBEntry deriving(Bits, Eq, FShow);
+
+`ifdef compressed
+  typedef struct{
+    Bit#(`vaddr)  target;
+    Bit#(TSub#(TSub#(`vaddr, TLog#(`btbdepth)), `ignore)) tag;
+    Bool valid;
+    ControlInsn   ci;
+    Bool edgecase ;
+  } BTBEntryC deriving(Bits, Eq, FShow);
+`endif
 
   typedef struct {
     Bit#(TSub#(TSub#(`vaddr, TLog#(`rastagdepth)), `ignore)) tag;
@@ -275,6 +289,8 @@ package bpu;
               rg_ghr[1] <= x;
             end
           end
+          else if(td.mispredict)
+            rg_inflight[1] <= 0;
         end
       end
     endmethod
