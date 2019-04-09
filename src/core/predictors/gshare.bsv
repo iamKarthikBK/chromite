@@ -54,18 +54,11 @@ package gshare;
 		method Action train_bpu (Training_data td);
 
     method PredictionToStage0 predicted_pc;
-  `ifdef ras
     method Action ras_push(Bit#(`vaddr) pc);
-  `endif
+    method Action bpu_enable(Bool e);
   endinterface
 
-  `define btbdepth    256
-  `define bhtdepth    512
-  `define histlen     8
-  `define extrahist   3
   `define countlen    2
-  `define rasdepth    8
-  `define rastagdepth 64
   `define ignore      2
   
   typedef struct{
@@ -95,6 +88,8 @@ package gshare;
     Reg#(Bit#(TAdd#(`extrahist, `histlen))) rg_ghr[2] <- mkCReg(2, 0);
     Reg#(Bit#(TLog#(`extrahist))) rg_inflight[2] <- mkCReg(2, 0);
     Ifc_stack#(`vaddr, `rasdepth) ras_stack <- mkstack;
+
+    Wire#(Bool) wr_bpu_enable <- mkWire();
 
     Reg#(Bool) rg_init <- mkReg(True);
     Reg#(Bit#(TLog#(TMax#(`bhtdepth,TMax#(`btbdepth, `rasdepth))))) rg_init_count <- mkReg(0);
@@ -127,20 +122,20 @@ package gshare;
 
       let btb_info = btb.sub(btb_index);
       let ras_info = ras.sub(ras_index);
-      Bit#(`countlen) bht_state = bht.sub(hash(rg_ghr[0], request.pc));
+      let bht_index = hash(rg_ghr[0], request.pc);
+      Bit#(`countlen) bht_state = bht.sub(bht_index);
       Bit#(TSub#(TSub#(`vaddr, TLog#(`btbdepth)), `ignore)) btb_tag = truncateLSB(request.pc);
       Bit#(TSub#(TSub#(`vaddr, TLog#(`rastagdepth)), `ignore)) ras_tag = truncateLSB(request.pc);
 
       Bit#(`countlen) prediction = 1;
       Bit#(`vaddr) target = btb_info.target;
 
-      `logLevel( gshare, 0, $format("GSHARE: btb_info:", fshow(btb_info), 
+      `logLevel( gshare, 2, $format("GSHARE: btb_info:", fshow(btb_info), 
                                     " btb_index:%d bht_state:%d bht_index:%d", 
-                                    btb_index, bht_state, hash(rg_ghr[0], request.pc)))
-      `logLevel( gshare, 0, $format("GSHARE: GHR:%b Inflt:%d Hash:%d", 
-                                         rg_ghr[0], rg_inflight[0], hash(rg_ghr[0], request.pc)))
+                                    btb_index, bht_state, bht_index))
+      `logLevel( gshare, 3, $format("GSHARE: GHR:%b Inflt:%d", rg_ghr[0], rg_inflight[0]))
 
-      if(btb_info.valid && btb_info.tag == btb_tag)begin
+      if(btb_info.valid && btb_info.tag == btb_tag && wr_bpu_enable)begin
         `logLevel( gshare, 0, $format("GSHARE: Hit in BTB. Tag:%h Index:%d State:%d Target:%h CI:", 
                                         btb_tag, btb_index, bht_state, target, fshow(btb_info.ci)))
         if(btb_info.ci == Call || btb_info.ci == JAL)
@@ -151,7 +146,7 @@ package gshare;
           rg_inflight[0] <= rg_inflight[0] + 1;
         end
       end
-      if(ras_info.valid && ras_info.tag == ras_tag) begin
+      if(ras_info.valid && ras_info.tag == ras_tag && wr_bpu_enable) begin
         target = ras_stack.top;
         prediction = 3;
         `logLevel( gshare, 0, $format("GSHARE: Tag hit in RAS. Tag:%h, Index:%d. Target:%h", 
@@ -165,13 +160,13 @@ package gshare;
       
       let resp = PredictionResponse{ va       : request.pc,
                                      prediction : prediction} ;
-      `logLevel( gshare, 0, $format("GSHARE: Response to Stage0:",fshow(resp)))
+      `logLevel( gshare, 1, $format("GSHARE: Response to Stage0:",fshow(resp)))
       ff_prediction_resp.enq(resp);
     endrule
 
 		method Action prediction_req(PredictionRequest req)if(!rg_init);
-      `logLevel( gshare, 0, $format("GSHARE: Prediction request:", fshow(req)))
-      if(req.fence)
+      `logLevel( gshare, 1, $format("GSHARE: Prediction request:", fshow(req)))
+      if(req.fence && wr_bpu_enable)
         rg_init <= True;
       else
         ff_pred_request.enq(req);
@@ -182,27 +177,29 @@ package gshare;
       Bit#(TLog#(`rastagdepth)) ras_index = truncate(td.pc >> `ignore);
       Bit#(TSub#(TSub#(`vaddr, TLog#(`btbdepth)), `ignore)) btb_tag = truncateLSB(td.pc);
       Bit#(TSub#(TSub#(`vaddr, TLog#(`rastagdepth)), `ignore)) ras_tag = truncateLSB(td.pc);
-
-      `logLevel( gshare, 0, $format("GSHARE: Training:",fshow(td)))
-      if(td.ci == Ret) begin
-        `logLevel( gshare, 0, $format("GSHARE: Training RAS. Index:%d Tag:%h", ras_index, ras_tag))
-        ras.upd(ras_index, RASEntry{valid: True, tag: ras_tag});
-        ras_stack.pop;
-      end
-      else begin
-        `logLevel( gshare, 0, $format("GSHARE: Training BTB. Index:%d Tag:%h", btb_index, btb_tag))
-        btb.upd(btb_index, BTBEntry{valid: True, tag: btb_tag, target: td.target, ci: td.ci});
-        if(td.ci == Branch && rg_inflight[1] != 0)begin 
-          `logLevel( gshare, 0, $format("GSHARE: Updating GHR:%b Inflt:%d Hash:%d", rg_ghr[1],
-                                      rg_inflight[1], hash(rg_ghr[1] >> rg_inflight[1], td.pc)))
-          bht.upd(hash(rg_ghr[1] >> rg_inflight[1], td.pc), td.state);
-          if(!td.mispredict)
-            rg_inflight[1] <= rg_inflight[1] - 1;
-          else begin
-            rg_inflight[1] <= 0;
-            let x = rg_ghr[1] >> (rg_inflight[1]-1);
-            x[0] = ~x[0];
-            rg_ghr[1] <= x;
+      if(wr_bpu_enable) begin
+        `logLevel( gshare, 0, $format("GSHARE: Training:",fshow(td)))
+        if(td.ci == Ret) begin
+          `logLevel( gshare, 0, $format("GSHARE: Training RAS. Index:%d Tag:%h", ras_index, ras_tag))
+          ras.upd(ras_index, RASEntry{valid: True, tag: ras_tag});
+          ras_stack.pop;
+        end
+        else begin
+          `logLevel( gshare, 2, $format("GSHARE: Training BTB. Index:%d Tag:%h", btb_index, btb_tag))
+          btb.upd(btb_index, BTBEntry{valid: True, tag: btb_tag, target: td.target, ci: td.ci});
+          let bht_index = hash(rg_ghr[1] >> rg_inflight[1], td.pc);
+          if(td.ci == Branch && rg_inflight[1] != 0)begin 
+            `logLevel( gshare, 3, $format("GSHARE: Updating GHR:%b Inflt:%d Hash:%d", rg_ghr[1],
+                                        rg_inflight[1], bht_index))
+            bht.upd(bht_index, td.state);
+            if(!td.mispredict)
+              rg_inflight[1] <= rg_inflight[1] - 1;
+            else begin
+              rg_inflight[1] <= 0;
+              let x = rg_ghr[1] >> (rg_inflight[1]-1);
+              x[0] = ~x[0];
+              rg_ghr[1] <= x;
+            end
           end
         end
       end
@@ -211,8 +208,11 @@ package gshare;
 		interface prediction_response = toGet(ff_prediction_resp);
     method predicted_pc = rg_prediction_pc[1];
     method Action ras_push(Bit#(`vaddr) pc)if(!rg_init);
-      `logLevel( gshare, 0, $format("GSHARE : Pushing to RAS:%h ",pc))
+      `logLevel( gshare, 2, $format("GSHARE : Pushing to RAS:%h ",pc))
       ras_stack.push(pc);
+    endmethod
+    method Action bpu_enable(Bool e);
+      wr_bpu_enable <= e;
     endmethod
 
   endmodule
