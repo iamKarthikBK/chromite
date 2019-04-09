@@ -186,6 +186,8 @@ package cclass;
       bpu.ras_push(riscv.ras_push);
     endrule
     rule connect_bpu_enable;
+      bpu.bpu_enable(unpack(riscv.mv_cacheenable[2]));
+    endrule
   `endif
 
   `ifdef supervisor

@@ -64,9 +64,7 @@ package csr;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
-  `ifdef cache_control
-    method Bit#(2) mv_cacheenable;
-  `endif
+    method Bit#(3) mv_cacheenable;
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
   `ifdef pmp
@@ -152,9 +150,7 @@ package csr;
     `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i) = csrfile.set_external_interrupt(ex_i);
     method csr_misa_c = csrfile.csr_misa_c;
-  `ifdef cache_control
     method mv_cacheenable = csrfile.mv_cacheenable;
-  `endif
     method curr_priv = csrfile.curr_priv;
     method csr_mstatus = csrfile.csr_mstatus;
   `ifdef pmp

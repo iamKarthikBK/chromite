@@ -75,9 +75,7 @@ package stage5;
     (*always_enabled*)
     method Action store_is_cached(Bool c);
   `endif
-  `ifdef cache_control
-    method Bit#(2) mv_cacheenable;
-  `endif
+    method Bit#(3) mv_cacheenable;
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
   `ifdef pmp
@@ -419,9 +417,7 @@ package stage5;
       wr_store_is_cached<=c;
     endmethod
   `endif
-  `ifdef cache_control
     method mv_cacheenable = csr.mv_cacheenable;
-  `endif
     method curr_priv = csr.curr_priv;
     method csr_mstatus= csr.csr_mstatus;
   `ifdef pmp

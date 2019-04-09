@@ -53,9 +53,7 @@ package csrfile;
   `ifdef spfpu
     method Action update_fflags(Bit#(5) flags);
   `endif
-  `ifdef cache_control
-    method Bit#(2) mv_cacheenable;
-  `endif
+    method Bit#(3) mv_cacheenable;
     method Bit#(1) csr_misa_c;
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
@@ -414,10 +412,20 @@ package csrfile;
     // 0 - bit is cache enable for instruction cache
     // 1 - bit is cache enable for data cache
     // Address : 'h800
-    Bit#(1) lv_denable = fromInteger(valueOf(`dcachereset ));
-    Bit#(1) lv_ienable = fromInteger(valueOf(`icachereset ));
-    Reg#(Bit#(2)) rg_cachecontrol <- mkReg({lv_denable, lv_ienable}); 
+    Reg#(Bit#(1)) rg_denable <- mkReg(fromInteger(valueOf(`dcachereset)));
+    Reg#(Bit#(1)) rg_ienable <- mkReg(fromInteger(valueOf(`icachereset)));
+  `else
+    Reg#(Bit#(1)) rg_denable = readOnly(0);
+    Reg#(Bit#(1)) rg_ienable = readOnly(0);
   `endif
+    
+  `ifdef branch_speculation
+    Reg#(Bit#(1)) rg_bpuenable <- mkReg(fromInteger(valueOf(`bpureset)));
+  `else
+    Reg#(Bit#(1)) rg_bpuenable = readOnlyReg(0);
+  `endif
+
+    Reg#(Bit#(3)) rg_cachecontrol = concatReg3(rg_bpuenable, rg_denable, rg_ienable); 
 	  //////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// Debug Module CSRs /////////////////////////////////////////
   `ifdef debug
@@ -619,9 +627,7 @@ package csrfile;
         if (addr == `FFLAGS ) data = zeroExtend(fflags);
         if (addr == `FRM ) data = zeroExtend(frm);
         if (addr == `FCSR ) data = zeroExtend({frm, fflags});
-      `ifdef cache_control
         if (addr == `CACHECNTRL ) data = zeroExtend(rg_cachecontrol);
-      `endif
       `ifdef debug
         if(addr == `DCSR) data = zeroExtend(rg_csr_dcsr);
         if(addr == `DPC ) data = signExtend({rg_csr_dpc,1'd0});
@@ -887,10 +893,8 @@ package csrfile;
           end
         `endif
         /////////////////////////////// Non standard User CSRs  ////////////////////
-      `ifdef cache_control
         `CACHECNTRL:
           rg_cachecontrol <= truncate(word);
-      `endif
       `ifdef debug
           `DCSR:  rg_csr_dcsr <=  truncate(word);
           `DPC:   rg_csr_dpc  <=  truncate(word>>1);
@@ -1170,9 +1174,7 @@ package csrfile;
                 hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
       `endif
     endmethod
-  `ifdef cache_control
     method mv_cacheenable = rg_cachecontrol;
-  `endif
   `ifdef pmp
     method pmp_cfg = readVReg(v_pmp_cfg);
     method pmp_addr = readVReg(v_pmp_addr);
