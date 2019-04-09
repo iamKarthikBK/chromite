@@ -146,10 +146,8 @@ package stage3;
   `ifdef branch_speculation
     // This method sends out the training information to the BTB for conditional branches.
     method Training_data train_bpu;
-    `ifdef ras
-      // This method sends out the return - address to be pushed on top of the stack.
-      method Bit#(`vaddr) ras_push;
-    `endif
+    // This method sends out the return - address to be pushed on top of the stack.
+    method Bit#(`vaddr) ras_push;
   `endif
   endinterface
 
@@ -178,10 +176,8 @@ package stage3;
   `ifdef branch_speculation
     // Wire to send the training for the BTB on conditional branches.
 	  Wire#(Training_data) wr_training_data <- mkWire();
-    `ifdef ras
-      // Wire to send the return - address on the stack.
-      Wire#(Bit#(`vaddr)) wr_push_ras <- mkWire();
-    `endif
+    // Wire to send the return - address on the stack.
+    Wire#(Bit#(`vaddr)) wr_push_ras <- mkWire();
   `endif
   
     TX#(Stage4Common)   tx_common <- mkTX;
@@ -417,12 +413,10 @@ package stage3;
                 td.state = 3;
                 wr_training_data <= td;
               end
-              `ifdef ras
-                if( (meta.inst_type == JALR || meta.inst_type == JAL) && 
-                    (opmeta.op_addr.rd == 'b00001 || opmeta.op_addr.rd == 'b00101) &&
-                    aluout.cmtype != TRAP)
-                  wr_push_ras <= truncate(aluout.aluresult);
-              `endif
+              if( (meta.inst_type == JALR || meta.inst_type == JAL) && 
+                  (opmeta.op_addr.rd == 'b00001 || opmeta.op_addr.rd == 'b00101) &&
+                  aluout.cmtype != TRAP)
+                wr_push_ras <= truncate(aluout.aluresult);
             `endif
 
               rg_eEpoch         <= pack(aluout.redirect && aluout.cmtype != TRAP)^rg_eEpoch;
@@ -705,9 +699,7 @@ package stage3;
     // Explicit Conditions : None
     // Description : method to train the branch predictor BTB
     method train_bpu = wr_training_data;
-    `ifdef ras
-      method ras_push = wr_push_ras;
-    `endif
+    method ras_push = wr_push_ras;
   `endif
   endmodule
 endpackage

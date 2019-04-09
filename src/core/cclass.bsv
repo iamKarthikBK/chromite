@@ -115,7 +115,7 @@ package cclass;
     `endif
     (*preempts="core_req_to_dmem, ptwalk_request_to_dcache"*)
   `endif
-`ifdef ras
+`ifdef branch_speculation
   (*conflict_free="connect_instruction_req,connect_bpu_training"*)
 `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
@@ -182,11 +182,10 @@ package cclass;
     rule connect_bpu_training;
       bpu.train_bpu(riscv.train_bpu);
     endrule
-    `ifdef ras
-      rule connect_ras_push;
-        bpu.ras_push(riscv.ras_push);
-      endrule
-    `endif
+    rule connect_ras_push;
+      bpu.ras_push(riscv.ras_push);
+    endrule
+    rule connect_bpu_enable;
   `endif
 
   `ifdef supervisor

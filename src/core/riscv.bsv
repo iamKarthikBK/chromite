@@ -53,9 +53,7 @@ package riscv;
     interface Put#(PredictionResponse) prediction_response;
     method Action predicted_pc(PredictionToStage0 pred);
     method Training_data train_bpu;
-    `ifdef ras
-      method Bit#(`vaddr) ras_push;
-    `endif
+    method Bit#(`vaddr) ras_push;
   `endif
     interface Put#(FetchResponse#(32, `iesize)) inst_response;
     interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
@@ -414,9 +412,7 @@ package riscv;
     interface prediction_response = stage1.prediction_response;
     method predicted_pc = stage0.predicted_pc;
     method train_bpu = stage3.train_bpu;
-    `ifdef ras
-      method ras_push = stage3.ras_push;
-    `endif
+    method ras_push = stage3.ras_push;
   `endif
     interface inst_response = stage1.inst_response;
     interface memory_request = stage3.memory_request;

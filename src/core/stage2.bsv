@@ -231,12 +231,6 @@ package stage2;
       let func_cause = decoded.meta.funct;
       let instrType = decoded.meta.inst_type;
       let word32 = decode_word32(inst,wr_csrs.csr_misa[2]);
-//    `ifdef ras
-//      if(instrType == JALR && (decoded.op_addr.rs1addr == 'b00001 || decoded.op_addr.rs1addr == 'b00101))
-//        wr_train_ras <= RASTraining{pc : pc `ifdef compressed ,edgecase : !decoded.compressed 
-//                                                                      && pc[1]==1 `endif } ;
-//    `endif
-
     `ifdef spfpu
       RFType rf1type = `ifdef spfpu decoded.op_type.rs1type == FloatingRF ? FRF : `endif IRF;
       RFType rf2type = `ifdef spfpu decoded.op_type.rs2type == FloatingRF ? FRF : `endif IRF;
