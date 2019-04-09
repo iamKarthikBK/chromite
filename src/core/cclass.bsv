@@ -58,11 +58,7 @@ package cclass;
   `endif
 `endif
 `ifdef branch_speculation
-  `ifdef gshare
-    import gshare :: * ;
-  `else
-    import bimodal :: * ;
-  `endif
+  import bpu :: * ;
 `endif
   `include "common_params.bsv"
   `include "Logger.bsv"
