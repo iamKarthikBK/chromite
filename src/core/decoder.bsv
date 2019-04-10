@@ -67,9 +67,11 @@ package decoder;
                 `endif
               endcase
             `endif
-            `ifdef cache_control
-              'b10: valid=(addr[7:0]==0);
-            `endif
+            
+             'b10: begin
+                      `ifdef cache_control valid =(addr[7:0]==0);`endif
+                      `ifdef ARITH_EXCEP valid = (addr[7:0]==8'h10);`endif
+                   end
             endcase
       // supervisor level CSRS
     `ifdef supervisor

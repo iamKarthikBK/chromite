@@ -433,7 +433,7 @@ package csrfile;
   `ifdef ARITH_EXCEP
    //   enabling this bit enables traps for arithmetic exceptions
    //   Address :'h810
-   Reg#(Bit#(1)) rg_arith_excep <-mkReg(1); 
+   Reg#(Bit#(1)) rg_arith_excep <-mkReg(0); 
     
   `endif
 	  //////////////////////////////////////////////////////////////////////////////////////////
@@ -907,6 +907,10 @@ package csrfile;
         /////////////////////////////// Non standard User CSRs  ////////////////////
         `CACHECNTRL:
           rg_cachecontrol <= truncate(word);
+       `ifdef ARITH_EXCEP
+         `ARITH_EXCEP_EN:
+         rg_arith_excep <= truncate(word);
+      `endif
       `ifdef debug
           `DCSR:  rg_csr_dcsr <=  truncate(word);
           `DPC:   rg_csr_dpc  <=  truncate(word>>1);
