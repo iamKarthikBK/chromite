@@ -222,6 +222,7 @@ package common_types;
   `endif
   `ifdef branch_speculation
     Bit#(2) prediction;
+    Bool    btbhit;
   `endif
   }PIPE1 deriving (Bits, Eq, FShow);
   
@@ -244,6 +245,7 @@ package common_types;
   `endif
   `ifdef branch_speculation
     Bit#(2) prediction;
+    Bool    btbhit;
   `endif
   } Stage3Meta deriving(Bits, Eq, FShow);
 

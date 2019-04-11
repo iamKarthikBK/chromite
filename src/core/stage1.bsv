@@ -102,6 +102,7 @@ package stage1;
     Reg#(Bit#(16)) rg_instruction <- mkReg(0);
   `ifdef branch_speculation
       Reg#(Bit#(2)) rg_prediction <- mkReg(0);
+      Reg#(Bool) rg_btbhit <- mkReg(False);
     `ifdef compressed
       Reg#(Bit#(`vaddr)) rg_pc <- mkReg(0);
     `endif
@@ -179,10 +180,12 @@ package stage1;
           `logLevel( stage1, 1, $format("STAGE1: Prediction: ", fshow(ff_prediction_resp.first)))
         `ifdef compressed
           Bit#(2) prediction = pred.prediction0;
+          Bool    btbhit     = pred.hit0;
           `logLevel( stage1, 1, $format("STAGE1: rg_pred:%b rg_pc:%h rg_instr:%h", 
                                          rg_prediction, rg_pc, rg_instruction))
         `else
           Bit#(2) prediction = pred.prediction;
+          Bool  btbhit = pred.hit;
         `endif
       `endif
 
@@ -209,6 +212,7 @@ package stage1;
         else if(rg_action == CheckPrev)begin
         `ifdef compressed
           prediction=rg_prediction;
+          btbhit   = rg_btbhit;
         `endif
           if(rg_instruction[1:0]==2'b11)begin
             final_instruction={imem_resp.instr[15:0],rg_instruction};
@@ -216,6 +220,7 @@ package stage1;
           `ifdef branch_speculation
             `ifdef compressed
               rg_prediction <= pred.prediction1;
+              rg_btbhit <= pred.hit1;
             `endif
           `endif
             deq_response;
@@ -254,6 +259,7 @@ package stage1;
             rg_receiving_upper<=True;
         `ifdef branch_speculation
             rg_prediction<= pred.prediction1;
+            rg_btbhit <= pred.hit1;
           `ifdef compressed
             rg_pc<= pred.va;
           `endif
@@ -265,6 +271,7 @@ package stage1;
           `ifdef compressed
             pred.va[1]=1;
             prediction=pred.prediction1;
+            btbhit = pred.hit1;
           `endif
           end
         end
@@ -276,6 +283,7 @@ package stage1;
             final_instruction=imem_resp.instr;
           `ifdef compressed
             prediction=pred.prediction0;
+            btbhit = pred.hit0;
           `endif
           end
           else if(wr_csr_misa_c==1) begin
@@ -286,7 +294,9 @@ package stage1;
           `ifdef compressed
             rg_action<=pred.prediction0<2?CheckPrev:None;
             prediction=pred.prediction0;
+            btbhit = pred.hit0;
             rg_prediction<= pred.prediction1;
+            rg_btbhit <= pred.hit1;
             rg_pc<= pred.va;
           `else
             rg_action<=CheckPrev;
@@ -301,6 +311,7 @@ package stage1;
                       trap: imem_resp.trap
                     `ifdef branch_speculation
                       ,prediction:prediction
+                      ,btbhit    : btbhit
                     `endif
                     `ifdef compressed
                       ,upper_err:rg_receiving_upper && imem_resp.trap

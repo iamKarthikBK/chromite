@@ -296,6 +296,7 @@ package stage3;
       Bit#(4) fn      = truncateLSB(meta.funct);
     `ifdef branch_speculation
       Bit#(2) prediction = meta.prediction;
+      Bool    btbhit     = meta.btbhit;
     `endif
     `ifdef rtldump
       let instruction = rxinst.u.first;
@@ -379,6 +380,7 @@ package stage3;
                               `ifdef gshare
                                  ,mispredict : aluout.redirect
                                  ,ci         : ?
+                                 ,btbhit     : btbhit
                               `endif };
           if((meta.inst_type == JAL || meta.inst_type == JALR) && opmeta.op_addr.rd[0]==1)
             td.ci = Call;
@@ -542,6 +544,7 @@ package stage3;
     // atleast 2 cycles to be generated.
     `ifdef simulate
       rule count_stalls(!rule_condition);
+        if(!wr_cache_avail)
         `logLevel( stage3, 0, $format("STAGE3: Stalled for MulDiv/FPU"))
       endrule
     `endif

@@ -114,10 +114,13 @@ package globals;
   typedef struct{
   `ifdef compressed
     Bit#(2)       prediction0;
+    Bool          hit0;
     Bit#(2)       prediction1;
+    Bool          hit1;
     Bool          discard;
   `else
     Bit#(2)       prediction;
+    Bool          hit
   `endif
     Bit#(`vaddr)  va;
   } PredictionResponse deriving(Bits, Eq, FShow);
@@ -131,6 +134,7 @@ package globals;
     `ifdef gshare
       Bool          mispredict;
       ControlInsn   ci;
+      Bool          btbhit;
     `endif
     `ifdef compressed
       Bool          edgecase;
