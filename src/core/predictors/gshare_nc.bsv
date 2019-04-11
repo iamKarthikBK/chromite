@@ -28,7 +28,7 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package gshare;
+package gshare_nc;
   import Vector::*;
   import FIFOF::*;
   import DReg::*;
@@ -65,11 +65,7 @@ package gshare;
   endinterface
 
   `define countlen    2   // the size of the 2-bit counter
-`ifdef compressed
-  `define ignore      1   // number of bits of the pc to be ignored
-`else
   `define ignore      2
-`endif
   
   typedef struct{
     Bit#(`vaddr)  target;
@@ -77,16 +73,6 @@ package gshare;
     Bool valid;
     ControlInsn   ci;
   } BTBEntry deriving(Bits, Eq, FShow);
-
-`ifdef compressed
-  typedef struct{
-    Bit#(`vaddr)  target;
-    Bit#(TSub#(TSub#(`vaddr, TLog#(`btbdepth)), `ignore)) tag;
-    Bool valid;
-    ControlInsn   ci;
-    Bool edgecase ;
-  } BTBEntryC deriving(Bits, Eq, FShow);
-`endif
 
   typedef struct {
     Bit#(TSub#(TSub#(`vaddr, TLog#(`rastagdepth)), `ignore)) tag;
@@ -137,7 +123,7 @@ package gshare;
 
     // register indicating the next pc to the stage0
     Reg#(PredictionToStage0)   rg_prediction_pc[2]  <- mkCReg(2, PredictionToStage0{prediction : 0,
-                            target_pc : ?,  epochs: 0 `ifdef compressed ,edgecase: False `endif });
+                            target_pc : ?,  epochs: 0 });
 
 
     // RuleName: initialize
@@ -193,6 +179,7 @@ package gshare;
       Bit#(TSub#(TSub#(`vaddr, TLog#(`rastagdepth)), `ignore)) ras_tag = truncateLSB(request.pc);
 
       Bit#(`countlen) prediction = 1;
+      Bool btbhit = False;
       Bit#(`vaddr) target = btb_info.target;
 
       `logLevel( bpu, 2, $format("GSHARE: btb_info:", fshow(btb_info), 
@@ -206,6 +193,7 @@ package gshare;
         if(btb_info.ci == Call || btb_info.ci == JAL)
           prediction = 3;
         if(btb_info.ci == Branch) begin
+          btbhit = True;
           prediction = bht_state;
           rg_ghr[0] <= {truncate(rg_ghr[0]), bht_state[1]};
           rg_inflight[0] <= rg_inflight[0] + 1;
@@ -224,7 +212,8 @@ package gshare;
                                                };
       
       let resp = PredictionResponse{ va       : request.pc,
-                                     prediction : prediction} ;
+                                     prediction : prediction,
+                                     hit : btbhit} ;
       `logLevel( bpu, 1, $format("GSHARE: Response to Stage0:",fshow(resp)))
       ff_prediction_resp.enq(resp);
     endrule
@@ -276,7 +265,7 @@ package gshare;
           btb.write(1, btb_index, pack(BTBEntry{valid: True, tag: btb_tag, 
                                                 target: td.target, ci: td.ci}));
           let bht_index = hash(rg_ghr[1] >> rg_inflight[1], td.pc);
-          if(td.ci == Branch && rg_inflight[1] != 0)begin 
+          if(td.ci == Branch && td.btbhit)begin 
             `logLevel( bpu, 3, $format("GSHARE: Updating GHR:%b Inflt:%d Hash:%d", rg_ghr[1],
                                         rg_inflight[1], bht_index))
             bht.upd(bht_index, td.state);
@@ -289,8 +278,10 @@ package gshare;
               rg_ghr[1] <= x;
             end
           end
-          else if(td.mispredict)
+          else if(td.mispredict) begin
             rg_inflight[1] <= 0;
+            rg_ghr[1] <= rg_ghr[1] >> rg_inflight[1];
+          end
         end
       end
     endmethod
