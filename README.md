@@ -27,6 +27,7 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
       - [Execute the RTL](#execute-the-rtl)
       - [Connect to OpenOCD](#connect-to-openocd)
       - [Connect to GDB](#connect-to-gdb)
+  * [Benchmarking the Core](./benchmarking.md)
   * [Linux on Shakti](#linux-on-shakti)
       - [Generate RTL](#generate-rtl-1)
       - [Generate Linux Image](#generate-linux-image)
@@ -94,7 +95,7 @@ This an overview of the c-class core. More detail documents commenting about the
 * Early out multiplier and a restoring divider.
 * Supervisor mode - sv32/sv39.
 * Boots riscv-linux kernel, FreeRTOS, Zephyr.
-* Performance: **TBD**
+* Performance: 1.72 DMIPs/MHz
 
 ## Configuring the Core
 
