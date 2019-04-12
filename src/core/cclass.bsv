@@ -58,11 +58,7 @@ package cclass;
   `endif
 `endif
 `ifdef branch_speculation
-  `ifdef compressed
-    import gshare_c_fa :: * ;
-  `else
-    import gshare_nc :: *;
-  `endif
+  import bpu :: *;
 `endif
   `include "common_params.bsv"
   `include "Logger.bsv"
@@ -124,7 +120,7 @@ package cclass;
     let paddr = valueOf(`paddr);
     Ifc_riscv riscv <- mkriscv();
   `ifdef branch_speculation
-    Ifc_bpu bpu <- mkbpu();
+    let bpu <- mkbpu();
   `endif
   `ifdef supervisor
   `ifdef RV64

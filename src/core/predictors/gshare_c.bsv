@@ -26,13 +26,71 @@ Author: Neel Gala
 Email id: neelgala@gmail.com
 Details:
 
+This module implements a gshare branch predictor with compressed support and a 
+direct-mapped BTB. The BTB is split into 2 banks. During prediction, this module will present stage1 with 2-predictions: one for pc and
+another for pc+2. A global history register (ghr) is used to keep track of the conditional branches.
+The same BTB is used for holding tags of conditional and unconditional branches. A
+branch-history-table is maintained which indicates the prediction of the conditional branch which
+was a hit in the BTB. Each entry in the BHT maintains a 2-bit saturating counter.
+A return address stack (RAS) is also maintained.
+
+Working Princicple
+
+Prediction Phase: 
+
+  The pc-gen stage (Stage0) presents with a 4-byte aligned pc. 
+  To perform prediction, the index of the pc for both the btb banks is extracted and latched in the first
+  cycle. The next cycle reads the response from both the btb banks. Bank0 contains the information
+  for all control instructions present at 4-byte aligned addresses and bank1 contains the
+  information for all control instructions present on a 2-byte (and not a 4-byte) aligned address.
+  Simultaneously, the bht is accessed for pc using a hash between the ghr and the lower order bits
+  of the pc. A hit is confirmed only when the btb entry is valid and the btb tag field matches the 
+  respective pc values. Once a hit is confirmed, the ci field of the btb entry indicates whether 
+  the instruction is a Branch, JAL, Call or Ret instruction. If the entry is a Branch instruction
+  then the prediction value is taken from the branch history table and the ghr is speculatively
+  updated with the prediction as well. Also, in case of branch instruction the in-flight counter is
+  incremented by 1. However, in case of Ret, Call or JAL instruction the prediction is set to 3.
+
+  In case of a Ret instruction being a hit, the target address is taken from the top of the RAS. In
+  case of the other instructions (Branch, Call and JAL) the target address is taken from the target
+  field of the btb entry.
+  
+  The above algorithm is repeated for pc+2. Here, the updated ghr is the output of the previous
+  step. 
+
+  Finally, the stage0 is informed of the next possible pc. The prediction of pc are then sent to 
+  the stage1 along with the information if the prediction was for a branch and if so was it a hit 
+  in the btb or not
+
+Training/Update Phase:
+
+  This phase occurs each time a control instruction get evaluated in the execute stage (stage3).
+  When a Call instruction gets evaluated the return address is pushed in to RAS and in case of Ret
+  instruction the ras is poped. Only one can occur at a time and hence no conflicts are expected.
+
+  During the training phase, the btb entry is directly updated with the information provided by the
+  execute stage. A previous valid entry in the same location will be over-written on a conflict.
+  Bank0 or bank1 is selected based on the value of pc[1].
+
+  In case of conditional Branch instruction which was a btb hit in the prediction phase, we check if
+  there was a misprediction or not. If the prediction was correct, then the inflight-counter is
+  is simply decremented by 1. If the a misprediction occurred then the inflight-counter is set to
+  0 and the ghr is corrected by flipping the respective speculated bit.
+
+Disable bpu at runtime: The branch prediction can be disabled at runtime by reseting the respective
+bit in the csr register
+
+BTB implementation:
+The BTB is implemented as 2 banked bram/sram structures. Each BRAM is a 1r+1w configuration 
+(1 read and 1 write port).
+
 ideal configs for max performance (dmips: 1.70)
   `define bhtdepth 128
   `define histlen   7
   `define btbdepth 512
 --------------------------------------------------------------------------------------------------
 */
-package gshare;
+package gshare_c;
   import Vector::*;
   import FIFOF::*;
   import DReg::*;
@@ -47,26 +105,6 @@ package gshare;
   import stack :: *;
   `include "Logger.bsv"
   import mem_config::*; // for bram 1rw instances.
-
-  interface Ifc_bpu;
-    // method to receive the new pc for which prediction is to be looked up.
-		method Action prediction_req(PredictionRequest req);
-
-    // method to respond to stage0 with prediction state and new target address on hit
-		interface Get#(PredictionResponse) prediction_response; 
-
-    // method to training the BTB and BHT tables
-		method Action train_bpu (Training_data td);
-
-    // method to send the next-pc to stage0
-    method PredictionToStage0 predicted_pc;
-
-    // method to push the return address on a Call instruction
-    method Action ras_push(Bit#(`vaddr) pc);
-
-    // method to enable/disable bpu at run-time
-    method Action bpu_enable(Bool e);
-  endinterface
 
   `define countlen    2   // the size of the 2-bit counter
   `define ignore      1   // number of bits of the pc to be ignored
@@ -102,9 +140,8 @@ package gshare;
                                    ^ truncate(history);
   endfunction
 
-  (*synthesize*)
   (*conflict_free="train_bpu, ras_push"*)
-  module mkbpu(Ifc_bpu);
+  module mkgshare_c(Ifc_bpu);
 
     String bpu="";     // for Logger
 

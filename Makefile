@@ -93,7 +93,12 @@ ifeq ($(PMP), enable)
 	override define_macros += -D pmp=True
 endif
 ifneq ($(PREDICTOR), none)
-	override define_macros += -D branch_speculation=True -D $(PREDICTOR)=True
+	override define_macros += -D branch_speculation=True 
+  ifneq (,$(findstring C,$(ISA)))
+		override define_macros += -D $(PREDICTOR)_c=True
+  else
+		override define_macros += -D $(PREDICTOR)_nc=True
+  endif
 endif
 ifeq ($(DEBUG), enable)
 	override define_macros += -D debug=True

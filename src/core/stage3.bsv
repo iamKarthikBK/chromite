@@ -377,11 +377,10 @@ package stage3;
                               `ifdef compressed
                                  ,edgecase : !meta.compressed && meta.pc[1] == 1
                               `endif
-                              `ifdef gshare
                                  ,mispredict : aluout.redirect
                                  ,ci         : ?
                                  ,btbhit     : btbhit
-                              `endif };
+                              };
           if((meta.inst_type == JAL || meta.inst_type == JALR) && opmeta.op_addr.rd[0]==1)
             td.ci = Call;
           else if(meta.inst_type == JALR && opmeta.op_addr.rs1addr == 'b00001) // TODO add x5 check

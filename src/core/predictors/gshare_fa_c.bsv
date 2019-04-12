@@ -25,29 +25,65 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Author: Neel Gala
 Email id: neelgala@gmail.com
 Details:
+
 This module implements a gshare branch predictor with compressed support and a 
-fully-associative BTB. Since compressed is supported, stage0 will always present a pc which is
-4-byte aligned. 
+fully-associative BTB. During prediction, this module will present stage1 with 2-predictions: one for pc and
+another for pc+2. A global history register (ghr) is used to keep track of the conditional branches.
+The same BTB is used for holding tags of conditional and unconditional branches. A
+branch-history-table is maintained which indicates the prediction of the conditional branch which
+was a hit in the BTB. Each entry in the BHT maintains a 2-bit saturating counter.
+A return address stack (RAS) is also maintained.
 
-Prediction: 
-  The module in this file will respond to the next stage with 2 valid predictions.
-  During prediction the BTB is looked up twice - for pc and pc+2 and their respective predictions are
-  sent to the next stage. When a hit is detected for a look-up and the instruction type is Ret, Call
-  or JAL then the prediction value is set to 3 (always-taken). In case of a branch instruction the
-  prediction value is forwarded from the branch-history-table (bht). 
-  
-  During prediction the branch-history table is accessed once for pc and once more for pc+2. To
-  access the bht, first a hash is performed between the history register and lower order bits of the 
-  pc0. Depending on the bht_state and hit in btb the a temporary variable holds the update history.
-  This updated history is then used for hashing with lower-order bits of pc1 to access the 
-  respective state-count for pc+2.
+Working Princicple
 
-Training:
-  During training, the btb is updated. If there is a match then the same entry is updated, else a
-  new entry in a round-robin fashion is allotted.
-  The history register is updated only if the training pc was a btb hit during prediction. If there
-  was a misprediction (irrespective of instruction type) then rg_inflight_counter is reset and
-  history register is fixed.
+Prediction Phase: 
+
+  The pc-gen stage (Stage0) presents with a 4-byte aligned pc. Prediction needs to be performed for 
+  pc and pc+2. We perform 2 predictions because the cache responds with 32-bits which could hold 
+  upto 2 16-bit instructions both of which could be control instructions (branch, jal, jalr, etc). 
+  Since the latency of the predictor is the same as that of the cache, the predictor also needs to 
+  respond with 2 predictions to the next stage (Stage1).
+
+  To perform prediction first a fully associative look-up is performed on the BTB for pc. 
+  Simultaneously, the bht is accessed for pc using a hash between the ghr and the lower order bits
+  of the pc. A hit is confirmed only when the btb entry is valid and the btb tag field matches the 
+  respective pc values. Once a hit is confirmed, the ci field of the btb entry indicates whether 
+  the instruction is a Branch, JAL, Call or Ret instruction. If the entry is a Branch instruction
+  then the prediction value is taken from the branch history table and the ghr is speculatively
+  updated with the prediction as well. Also, in case of branch instruction the in-flight counter is
+  incremented by 1. However, in case of Ret, Call or JAL instruction the prediction is set to 3.
+
+  In case of a Ret instruction being a hit, the target address is taken from the top of the RAS. In
+  case of the other instructions (Branch, Call and JAL) the target address is taken from the target
+  field of the btb entry.
+
+  The above algorithm is repeated for pc+2. Here, the updated ghr is the output of the previous
+  step. 
+
+  Finally, the predictions of pc and pc+2 are analysed and stage0 is informed of the next possible
+  pc. The predictinos of pc and pc+2 are then sent to the stage1 along with the information if the
+  prediction was for a branch and if so was it a hit in the btb or not
+
+
+Training/Update Phase:
+
+  This phase occurs each time a control instruction get evaluated in the execute stage (stage3).
+  When a Call instruction get evaluated the return address is pushed in to RAS and in case of Ret
+  instruction the ras is poped. Only one can occur at a time and hence no conflicts are expected.
+
+  During the training, first the btb if looked-up if the pc already holds a valid entry in the btb.
+  If so, update the fields in the same entry, else allocate a new entry in a round-robin fashion.
+
+  In case of conditional Branch instruction which was a btb hit in the prediction phase, we check if
+  there was a misprediction or not. If the prediction was correct, then the inflight-counter is
+  is simply decremented by 1. If the a misprediction occurred then the inflight-counter is set to
+  0 and the ghr is corrected by flipping the respective speculated bit.
+
+Disable bpu at runtime: The branch prediction can be disabled at runtime by reseting the respective
+bit in the csr register
+
+BTB implementation:
+The BTB is implemented as a single fully-associative array of btbdepth size.
 
 For running non-compressed code best-config: (dmips=1.72)
   `define bhtdepth 256
@@ -61,7 +97,7 @@ For running compressed code best-config: (dmips: 1.70)
   `define btbdepth  32
 --------------------------------------------------------------------------------------------------
 */
-package gshare_c_fa;
+package gshare_fa_c;
   // -- package imports -- // 
   import FIFOF::*;
   import SpecialFIFOs::*;
@@ -79,26 +115,6 @@ package gshare_c_fa;
   `define countlen    2   // the size of the 2-bit counter
   `define ignore      1   // number of bits of the pc to be ignored
 
-  interface Ifc_bpu;
-    // method to receive the new pc for which prediction is to be looked up.
-		method Action prediction_req(PredictionRequest req);
-
-    // method to respond to stage0 with prediction state and new target address on hit
-		interface Get#(PredictionResponse) prediction_response; 
-
-    // method to training the BTB and BHT tables
-		method Action train_bpu (Training_data td);
-
-    // method to send the next-pc to stage0
-    method PredictionToStage0 predicted_pc;
-
-    // method to push the return address on a Call instruction
-    method Action ras_push(Bit#(`vaddr) pc);
-
-    // method to enable/disable bpu at run-time
-    method Action bpu_enable(Bool e);
-  endinterface
-
   typedef struct{
     Bit#(`vaddr)  target;
     Bit#(`vaddr) tag;
@@ -113,9 +129,8 @@ package gshare_c_fa;
                                    ^ truncate(history);
   endfunction
 
-  (*synthesize*)
   (*conflict_free="train_bpu, ras_push"*)
-  module mkbpu(Ifc_bpu);
+  module mkgshare_fa_c(Ifc_bpu);
 
     String bpu="";     // for Logger
 
@@ -153,12 +168,6 @@ package gshare_c_fa;
     Reg#(PredictionToStage0)   rg_prediction_pc[2]  <- mkCReg(2, PredictionToStage0{prediction : 0,
                             target_pc : ?,  epochs: 0 ,edgecase: False });
 
-  `ifdef simulate
-    rule display_stuff;
-      `logLevel( bpu, 0, $format("GSHARE: rg_inflight:%d",rg_inflight[1]))
-    endrule
-  `endif
-
     // RuleName: initialize
     // Implicit Conditions: None
     // Explicit Conditions: rg_init == True;
@@ -179,7 +188,7 @@ package gshare_c_fa;
     // Implicit Conditions: ff_pred_request.notEmpty && ff_prediction_resp.notFull
     // Explicit Conditions: rg_init == false;
     // Description: This rule looks up the BTB for the pc that has been presented by
-    // stage0. The BTB is simply accessed using the lower-order bits of the pc. A hit in the btb
+    // stage0. A fully associative look-up on the pc is performed. A hit in the btb
     // only occurs if the btb entry is valid and the tags match with that of the requested pc. RAS
     // table is also looked up in the similar fashion to identify if a requested PC is a RET
     // instruction. Both the BTB and RAS cannot be a hit, since they are trained
