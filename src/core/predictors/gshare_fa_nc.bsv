@@ -210,6 +210,9 @@ package gshare_fa_nc;
 
       Bit#(TLog#(`btbdepth)) hitindex0 = truncate(pack(countZerosLSB(match0)));
 
+      `logLevel( bpu, 0, $format("GSHARE: GHR:%b bht_index:%d bht_state:%d", 
+                                          rg_ghr[0], bht_index0, bht_state0))
+
       // check if pc0 is a match and update prediction and other variables accordingly.
       if(|match0 == 1) begin
         if(btb[hitindex0].ci == Ret)
@@ -292,8 +295,10 @@ package gshare_fa_nc;
         end
         else begin // update the existing entry
           for(Integer i=0; i < `btbdepth ; i=i+1) begin
-            if(hit[i] == 1)
+            if(hit[i] == 1) begin
               btb[i] <= BTBEntry{valid: True, tag: td.pc, target: td.target, ci: td.ci};
+              `logLevel( bpu, 0, $format("GSHARE: Updating Entry[%d]:", i))
+            end
           end
         end
 
