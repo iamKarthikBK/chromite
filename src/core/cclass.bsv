@@ -121,6 +121,8 @@ package cclass;
     Ifc_riscv riscv <- mkriscv();
   `ifdef branch_speculation
     let bpu <- mkbpu();
+  `else
+    FIFOF#(NextPC) ff_next_pc <- mkSizedFIFOF(2);
   `endif
   `ifdef supervisor
   `ifdef RV64
@@ -163,15 +165,21 @@ package cclass;
     rule connect_instruction_req;
       let req <- riscv.inst_request;
       imem.core_req.put(req.icache_req);
+    `ifdef branch_speculation
       if( `ifdef supervisor !req.icache_req.sfence `endif )
         bpu.prediction_req(PredictionRequest{pc       : req.icache_req.address,
                                              fence    : req.icache_req.fence,
                                              epochs   : req.icache_req.epochs
                           `ifdef compressed ,discard  : req.discard `endif });
+    `else
+      if( !req.icache_req.sfence && !req.icache_req.fence)
+        ff_next_pc.enq(NextPC{va:req.icache_req.address
+                    `ifdef compressed ,discard: req.discard `endif });
+    `endif
     endrule
 
   `ifdef branch_speculation
-    mkConnection(riscv.prediction_response, bpu.prediction_response);
+    mkConnection(riscv.next_pc, bpu.next_pc);
     rule connect_prediction;
       riscv.predicted_pc(bpu.predicted_pc);
     endrule
@@ -184,6 +192,8 @@ package cclass;
     rule connect_bpu_enable;
       bpu.bpu_enable(unpack(riscv.mv_cacheenable[2]));
     endrule
+  `else
+    mkConnection(riscv.next_pc, toGet(ff_next_pc));
   `endif
 
   `ifdef supervisor
