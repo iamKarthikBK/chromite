@@ -191,6 +191,7 @@ package stage1;
 
         // capture the response from the cache
         let imem_resp=ff_memory_response.first;
+        Bool trap = False;
 
         // local variable to hold the instruction to be enqueued
         Bit#(32) final_instruction=?;
@@ -217,6 +218,7 @@ package stage1;
           if(rg_instruction[1:0]==2'b11)begin
             final_instruction={imem_resp.instr[15:0],rg_instruction};
             rg_instruction<=truncateLSB(imem_resp.instr);
+            trap = imem_resp.trap;
           `ifdef branch_speculation
             `ifdef compressed
               rg_prediction <= pred.prediction1;
@@ -253,6 +255,7 @@ package stage1;
         else if(pred.discard && wr_csr_misa_c==1)begin
           deq_response;
           if(imem_resp.instr[17:16]==2'b11)begin
+            trap = imem_resp.trap;
             rg_instruction<=imem_resp.instr[31:16];
             rg_action<=CheckPrev;
             enque_instruction=False;
@@ -268,6 +271,7 @@ package stage1;
           else begin
             compressed=True;
             final_instruction=zeroExtend(imem_resp.instr[31:16]);
+            trap = imem_resp.trap;
           `ifdef compressed
             pred.va[1]=1;
             prediction=pred.prediction1;
@@ -281,6 +285,7 @@ package stage1;
           deq_response;
           if(imem_resp.instr[1:0]=='b11)begin
             final_instruction=imem_resp.instr;
+            trap = imem_resp.trap;
           `ifdef compressed
             prediction=pred.prediction0;
             btbhit = pred.hit0;
@@ -289,6 +294,7 @@ package stage1;
           else if(wr_csr_misa_c==1) begin
             compressed=True;
             final_instruction=zeroExtend(imem_resp.instr[15:0]);
+            trap = imem_resp.trap;
             rg_instruction<=truncateLSB(imem_resp.instr);
         `ifdef branch_speculation
           `ifdef compressed
@@ -308,7 +314,7 @@ package stage1;
 				let pipedata=PIPE1{program_counter:pred.va,
                       instruction:final_instruction,
                       epochs:{rg_eEpoch,rg_wEpoch},
-                      trap: imem_resp.trap
+                      trap: trap
                     `ifdef branch_speculation
                       ,prediction:prediction
                       ,btbhit    : btbhit
