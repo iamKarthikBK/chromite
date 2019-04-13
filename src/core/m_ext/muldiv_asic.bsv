@@ -357,7 +357,8 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 			ff_muldiv_result.deq;
       let default_out = ff_muldiv_result.first();
       return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(default_out), 
-                     effective_addr:?, cause:?, redirect : False, branch_taken: ?, redirect_pc: ?};
+                     effective_addr:?, cause:?, redirect : False
+                     `ifdef branch_speculation , branch_taken: ?, redirect_pc: ? `endif };
 		endmethod
 		method Action flush;
 			rg_count[0] <= 8;
