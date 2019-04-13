@@ -46,7 +46,7 @@ package globals;
   // entire fetch packet request to Imem
   typedef struct{
     ICache_request#(addr, esize) icache_req;
-  `ifdef branch_speculation
+  `ifdef compressed
     Bool discard;
   `endif
   } FetchRequest#(numeric type addr, numeric type esize) deriving (Bits, Eq, FShow);
@@ -112,18 +112,22 @@ package globals;
   } PredictionRequest deriving(Bits, Eq, FShow);
 
   typedef struct{
+`ifdef branch_speculation
   `ifdef compressed
     Bit#(2)       prediction0;
     Bool          hit0;
     Bit#(2)       prediction1;
     Bool          hit1;
-    Bool          discard;
   `else
     Bit#(2)       prediction;
     Bool          hit;
   `endif
+`endif
+  `ifdef compressed
+    Bool          discard;
+  `endif
     Bit#(`vaddr)  va;
-  } PredictionResponse deriving(Bits, Eq, FShow);
+  } NextPC deriving(Bits, Eq, FShow);
 
   typedef enum {Branch, JAL, Call, Ret} ControlInsn deriving(Bits, Eq, FShow);
 
@@ -152,7 +156,7 @@ package globals;
 		method Action prediction_req(PredictionRequest req);
 
     // method to respond to stage0 with prediction state and new target address on hit
-		interface Get#(PredictionResponse) prediction_response; 
+		interface Get#(NextPC) next_pc; 
 
     // method to training the BTB and BHT tables
 		method Action train_bpu (Training_data td);
