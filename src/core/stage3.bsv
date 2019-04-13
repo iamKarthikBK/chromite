@@ -371,6 +371,7 @@ package stage3;
                          meta.memaccess, `ifdef RV64 meta.word32, `elsif dpfpu meta.word32, `endif 
                          wr_misa_c, truncate(meta.pc) `ifdef branch_speculation,
                          fromMaybe(?,wr_next_pc) `ifdef compressed ,meta.compressed `endif `endif ); 
+        `ifdef branch_speculation
           let td = Training_data{pc : meta.pc,
                                  target : aluout.effective_addr,
                                  state  : ?
@@ -389,6 +390,7 @@ package stage3;
             td.ci = JAL;
           else
             td.ci = Branch;
+        `endif
 
           if(aluout.done)begin
             if(execute) begin
@@ -421,12 +423,18 @@ package stage3;
             `endif
 
               rg_eEpoch         <= pack(aluout.redirect && aluout.cmtype != TRAP)^rg_eEpoch;
+            `ifdef branch_speculation
               wr_redirect_pc    <= aluout.redirect_pc;
+            `else
+              wr_redirect_pc <= aluout.effective_addr;
+            `endif
               wr_flush_from_exe <= aluout.redirect && aluout.cmtype != TRAP;
+            `ifdef branch_speculation
               if(aluout.redirect && aluout.cmtype != TRAP)
                 `logLevel( stage3, 0, $format("STAGE3: Misprediction. Inst: ",fshow(meta.inst_type),
                                               " PC:%h Target:%h NextPC:%h", meta.pc, 
                                               aluout.redirect_pc, fromMaybe(?,wr_next_pc)))
+            `endif
             `ifdef dpfpu
               Bit#(1) nanboxing = pack(aluout.cmtype == MEMORY 
                                        && funct3[1 : 0] == 2 
