@@ -49,8 +49,8 @@ package riscv;
   interface Ifc_riscv;
     
  	  method ActionValue#(FetchRequest#(`vaddr, `iesize)) inst_request;
+    interface Put#(NextPC) next_pc;
   `ifdef branch_speculation
-    interface Put#(PredictionResponse) prediction_response;
     method Action predicted_pc(PredictionToStage0 pred);
     method Training_data train_bpu;
     method Bit#(`vaddr) ras_push;
@@ -197,11 +197,9 @@ package riscv;
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
     let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor, sfence `endif }=stage5.flush;
 
-  `ifdef branch_speculation
     rule send_next_pc;
       stage3.next_pc(pipe1.first.program_counter);
     endrule
-  `endif
 
     rule update_wEpoch(flush_from_wb);
       rg_wEpoch<=~rg_wEpoch;
@@ -406,8 +404,8 @@ package riscv;
     ///////////////////////////////////////////
 
     interface inst_request = stage0.inst_request;
+    interface next_pc = stage1.next_pc;
   `ifdef branch_speculation
-    interface prediction_response = stage1.prediction_response;
     method predicted_pc = stage0.predicted_pc;
     method train_bpu = stage3.train_bpu;
     method ras_push = stage3.ras_push;
