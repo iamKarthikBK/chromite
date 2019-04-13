@@ -266,16 +266,15 @@ package stage1;
     `endif
       else if(rg_action == None)begin
         // No updates to va required
+        trap = imem_resp.trap;
         deq_response;
         if(imem_resp.instr[1 : 0] == 'b11)begin
           final_instruction = imem_resp.instr;
-          trap = imem_resp.trap;
         end
       `ifdef compressed
         else if(wr_csr_misa_c == 1) begin
           compressed = True;
           final_instruction = zeroExtend(imem_resp.instr[15 : 0]);
-          trap = imem_resp.trap;
           lv_prev.instruction = truncateLSB(imem_resp.instr);
           lv_prev.pc = pred.va;
         `ifdef bpu
@@ -285,8 +284,8 @@ package stage1;
         `else
           rg_action <= CheckPrev;
         `endif
-      `endif
         end
+      `endif
       end
       rg_prev <= lv_prev;
       Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c == 1) ? 2:4;
