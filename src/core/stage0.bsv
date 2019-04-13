@@ -139,8 +139,10 @@ package stage0;
           `logLevel( stage0, 0, $format("STAGE0: Redirection from BPU"))
         end
 
-        discard = (fetch_pc[1] == 1);
     `endif
+      `ifdef compressed
+        discard = (fetch_pc[1] == 1);
+      `endif
         fetch_pc[1] = 0;
 
         rg_pc<=fetch_pc+4;
@@ -151,8 +153,9 @@ package stage0;
       end
 
       rg_flush <= False;
-
+    `ifdef branch_speculation
       `logLevel( stage0, 1, $format("STAGE0: Prediction from BPU: ",fshow(wr_prediction), " Flush:%b",rg_flush))
+    `endif
       `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b rg_pc:%h fence:%b sfence:%b \
 epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
 
@@ -164,7 +167,7 @@ epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
                                                       `ifdef icache
                                                        ,fence  :   rg_fence
                                                       `endif }
-                          `ifdef branch_speculation
+                          `ifdef compressed
                             ,discard : discard
                           `endif
                           };
