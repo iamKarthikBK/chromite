@@ -85,9 +85,17 @@ The BTB is implemented as 2 banked bram/sram structures. Each BRAM is a 1r+1w co
 (1 read and 1 write port).
 
 ideal configs for max performance (dmips: 1.70)
-  `define bhtdepth 128
-  `define histlen   7
   `define btbdepth 512
+  `define histlen 7
+  `define rasdepth 8
+  `define rastagdepth 128
+  `define bhtdepth 128
+when running non-compressed dhrystone (dmips: 1.70)
+  `define btbdepth 512
+  `define histlen 8
+  `define rasdepth 8
+  `define rastagdepth 128
+  `define bhtdepth 64
 --------------------------------------------------------------------------------------------------
 */
 package gshare_c;
