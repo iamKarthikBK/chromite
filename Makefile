@@ -92,14 +92,13 @@ endif
 ifeq ($(PMP), enable)
 	override define_macros += -D pmp=True
 endif
-ifeq ($(BPU), enable)
-	override define_macros += -D bpu=True
-endif
-ifeq ($(RAS), enable)
-	override define_macros += -D ras=True
-endif
-ifeq ($(BPU), enable)
-	override define_macros += -D branch_speculation=True
+ifneq ($(PREDICTOR), none)
+	override define_macros += -D branch_speculation=True 
+  ifneq (,$(findstring C,$(ISA)))
+		override define_macros += -D $(PREDICTOR)_c=True
+  else
+		override define_macros += -D $(PREDICTOR)_nc=True
+  endif
 endif
 ifeq ($(DEBUG), enable)
 	override define_macros += -D debug=True
@@ -138,8 +137,9 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
 								 -D dsbsize=$(DSBSIZE) -D ibuswidth=$(IBUSWIDTH) \
 								 -D PIPE$(PIPE)=True -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
 								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) \
-								 -D btbsize=$(BTBSIZE) -D rassets=$(RASSETS) -D rassize=$(RASSIZE) \
-                 -D causesize=$(CAUSESIZE)
+								 -D btbdepth=$(BTBDEPTH) -D bhtdepth=$(BHTDEPTH) -D histlen=$(HISTLEN) \
+								 -D extrahist=$(EXTRAHIST) -D rasdepth=$(RASDEPTH) -D rastagdepth=$(RASTAGDEPTH) \
+								 -D bpureset=$(BPURESET) -D causesize=$(CAUSESIZE) -D $(PREDICTOR)=True
 		
 
 CORE:=./src/core/:./src/core/fpu/:./src/caches_mmu/src/:./src/core/predictors/

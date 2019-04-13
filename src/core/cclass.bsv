@@ -58,7 +58,7 @@ package cclass;
   `endif
 `endif
 `ifdef branch_speculation
-  import bimodal :: * ;
+  import bpu :: *;
 `endif
   `include "common_params.bsv"
   `include "Logger.bsv"
@@ -111,8 +111,8 @@ package cclass;
     `endif
     (*preempts="core_req_to_dmem, ptwalk_request_to_dcache"*)
   `endif
-`ifdef ras
-  (*conflict_free="connect_instruction_req,connect_ras_training"*)
+`ifdef branch_speculation
+  (*conflict_free="connect_instruction_req,connect_bpu_training"*)
 `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
     String core = "";
@@ -120,7 +120,7 @@ package cclass;
     let paddr = valueOf(`paddr);
     Ifc_riscv riscv <- mkriscv();
   `ifdef branch_speculation
-    Ifc_bimodal bpu <- mkbimodal();
+    let bpu <- mkbpu();
   `endif
   `ifdef supervisor
   `ifdef RV64
@@ -178,14 +178,12 @@ package cclass;
     rule connect_bpu_training;
       bpu.train_bpu(riscv.train_bpu);
     endrule
-    `ifdef ras
-      rule connect_ras_training;
-        bpu.train_ras(riscv.train_ras);
-      endrule
-      rule connect_ras_push;
-        bpu.ras_push(riscv.ras_push);
-      endrule
-    `endif
+    rule connect_ras_push;
+      bpu.ras_push(riscv.ras_push);
+    endrule
+    rule connect_bpu_enable;
+      bpu.bpu_enable(unpack(riscv.mv_cacheenable[2]));
+    endrule
   `endif
 
   `ifdef supervisor

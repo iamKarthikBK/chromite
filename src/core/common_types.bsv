@@ -69,11 +69,6 @@ package common_types;
                 `ifdef atomic,      Atomic = 2 `endif 
                 `ifdef supervisor,  SFence = 5 `endif } Access_type deriving (Bits, Eq, FShow);
 
-  `ifdef bpu                                                                     
-  	typedef enum {CheckNPC, CheckRPC, None} Flush_type deriving (Bits, Eq, FShow);
-  `else
-  	typedef enum {CheckRPC, None} Flush_type deriving (Bits, Eq, FShow);
-  `endif
   typedef enum {Regular, None} Flush_type2 deriving (Bits, Eq, FShow);
 	typedef enum {`ifdef spfpu FloatingRF = 2, `endif IntegerRF = 0, PC = 1} Op1type deriving(Bits, Eq, FShow);
 	typedef enum {`ifdef spfpu FloatingRF = 4, `endif IntegerRF = 0, Immediate = 1, Constant4 = 2, Constant2 = 3} 
@@ -227,6 +222,7 @@ package common_types;
   `endif
   `ifdef branch_speculation
     Bit#(2) prediction;
+    Bool    btbhit;
   `endif
   }PIPE1 deriving (Bits, Eq, FShow);
   
@@ -249,6 +245,7 @@ package common_types;
   `endif
   `ifdef branch_speculation
     Bit#(2) prediction;
+    Bool    btbhit;
   `endif
   } Stage3Meta deriving(Bits, Eq, FShow);
 

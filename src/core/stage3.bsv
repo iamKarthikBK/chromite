@@ -146,10 +146,8 @@ package stage3;
   `ifdef branch_speculation
     // This method sends out the training information to the BTB for conditional branches.
     method Training_data train_bpu;
-    `ifdef ras
-      // This method sends out the return - address to be pushed on top of the stack.
-      method Bit#(`vaddr) ras_push;
-    `endif
+    // This method sends out the return - address to be pushed on top of the stack.
+    method Bit#(`vaddr) ras_push;
   `endif
   endinterface
 
@@ -178,10 +176,8 @@ package stage3;
   `ifdef branch_speculation
     // Wire to send the training for the BTB on conditional branches.
 	  Wire#(Training_data) wr_training_data <- mkWire();
-    `ifdef ras
-      // Wire to send the return - address on the stack.
-      Wire#(Bit#(`vaddr)) wr_push_ras <- mkWire();
-    `endif
+    // Wire to send the return - address on the stack.
+    Wire#(Bit#(`vaddr)) wr_push_ras <- mkWire();
   `endif
   
     TX#(Stage4Common)   tx_common <- mkTX;
@@ -227,7 +223,7 @@ package stage3;
     Reg#(Maybe#(Bit#(`vaddr))) rg_loadreserved_addr <- mkReg(tagged Invalid);
   `endif
     // wire holding the PC value of the next instruction fetched into the pipe
-    Wire#(Bit#(`vaddr)) wr_next_pc <- mkWire();
+    Wire#(Maybe#(Bit#(`vaddr))) wr_next_pc <- mkDWire(tagged Invalid);
 
     // This variable holds the current epoch values of the pipe
     let curr_epochs = {rg_eEpoch, rg_wEpoch};
@@ -300,6 +296,7 @@ package stage3;
       Bit#(4) fn      = truncateLSB(meta.funct);
     `ifdef branch_speculation
       Bit#(2) prediction = meta.prediction;
+      Bool    btbhit     = meta.btbhit;
     `endif
     `ifdef rtldump
       let instruction = rxinst.u.first;
@@ -357,6 +354,9 @@ package stage3;
                               `ifdef atomic     || meta.memaccess == Atomic `endif 
                               `ifdef supervisor || meta.memaccess == SFence `endif ) )
         execute = False; 
+      if((meta.inst_type == BRANCH || meta.inst_type == JALR || meta.inst_type == JAL) &&&
+          wr_next_pc matches tagged Invalid)
+        execute = False;
 
       if(!execute_instruction)begin
         `logLevel( stage3, 0, $format("STAGE3: Dropping Instructions"))
@@ -367,10 +367,29 @@ package stage3;
       // redirection has been checked.
       else if(meta.inst_type != TRAP && execute)begin
         if ( rs1avail && rs2avail `ifdef spfpu && rs3avail `endif ) begin
-            let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
+          let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
                          meta.memaccess, `ifdef RV64 meta.word32, `elsif dpfpu meta.word32, `endif 
-                         wr_misa_c, truncate(meta.pc) `ifdef branch_speculation, wr_next_pc 
-                         `ifdef compressed ,meta.compressed `endif `endif ); 
+                         wr_misa_c, truncate(meta.pc) `ifdef branch_speculation,
+                         fromMaybe(?,wr_next_pc) `ifdef compressed ,meta.compressed `endif `endif ); 
+          let td = Training_data{pc : meta.pc,
+                                 target : aluout.effective_addr,
+                                 state  : ?
+                              `ifdef compressed
+                                 ,edgecase : !meta.compressed && meta.pc[1] == 1
+                              `endif
+                                 ,mispredict : aluout.redirect
+                                 ,ci         : ?
+                                 ,btbhit     : btbhit
+                              };
+          if((meta.inst_type == JAL || meta.inst_type == JALR) && opmeta.op_addr.rd[0]==1)
+            td.ci = Call;
+          else if(meta.inst_type == JALR && opmeta.op_addr.rs1addr == 'b00001) // TODO add x5 check
+            td.ci = Ret;
+          else if(meta.inst_type == JAL || meta.inst_type == JALR)
+            td.ci = JAL;
+          else
+            td.ci = Branch;
+
           if(aluout.done)begin
             if(execute) begin
               deq_rx;
@@ -381,52 +400,24 @@ package stage3;
                 if(aluout.branch_taken)begin
                   if(prediction < 3)begin
                     prediction = prediction + 1;
-                    wr_training_data <= Training_data{ pc           : meta.pc, 
-                                                       target       : aluout.effective_addr, 
-                                                       state        : prediction
-                                                     `ifdef compressed
-                                                       ,edgecase    : !meta.compressed &&
-                                                                      meta.pc[1]==1
-                                                     `endif
-                                                     `ifdef gshare
-                                                        ,mispredict : aluout.redirect
-                                                    `endif };
                   end
                 end
                 else begin
                   if(prediction > 0) begin
                     prediction = prediction - 1;
-                    wr_training_data <= Training_data{ pc           : meta.pc, 
-                                                       target       : aluout.effective_addr, 
-                                                       state        : prediction
-                                                     `ifdef compressed
-                                                       ,edgecase    : !meta.compressed &&
-                                                                      meta.pc[1]==1
-                                                     `endif
-                                                     `ifdef gshare
-                                                        ,mispredict : aluout.redirect
-                                                    `endif };
                   end
                 end
+                td.state = prediction;
+                wr_training_data <= td;
               end
-              else if(meta.inst_type == JAL) begin
-                  wr_training_data <= Training_data{   pc           : meta.pc, 
-                                                       target       : aluout.effective_addr, 
-                                                       state        : 3
-                                                     `ifdef compressed
-                                                       ,edgecase    : !meta.compressed &&
-                                                                      meta.pc[1]==1
-                                                     `endif
-                                                     `ifdef gshare
-                                                        ,mispredict : aluout.redirect
-                                                    `endif };
+              else if(meta.inst_type == JAL || meta.inst_type == JALR) begin
+                td.state = 3;
+                wr_training_data <= td;
               end
-              `ifdef ras
-                if( (meta.inst_type == JALR || meta.inst_type == JAL) && 
-                    (opmeta.op_addr.rd == 'b00001 || opmeta.op_addr.rd == 'b00101) &&
-                    aluout.cmtype != TRAP)
-                  wr_push_ras <= truncate(aluout.aluresult);
-              `endif
+              if( (meta.inst_type == JALR || meta.inst_type == JAL) && 
+                  (opmeta.op_addr.rd == 'b00001 || opmeta.op_addr.rd == 'b00101) &&
+                  aluout.cmtype != TRAP)
+                wr_push_ras <= truncate(aluout.aluresult);
             `endif
 
               rg_eEpoch         <= pack(aluout.redirect && aluout.cmtype != TRAP)^rg_eEpoch;
@@ -434,7 +425,8 @@ package stage3;
               wr_flush_from_exe <= aluout.redirect && aluout.cmtype != TRAP;
               if(aluout.redirect && aluout.cmtype != TRAP)
                 `logLevel( stage3, 0, $format("STAGE3: Misprediction. Inst: ",fshow(meta.inst_type),
-                                              " PC:%h Target:%h", meta.pc, aluout.redirect_pc))
+                                              " PC:%h Target:%h NextPC:%h", meta.pc, 
+                                              aluout.redirect_pc, fromMaybe(?,wr_next_pc)))
             `ifdef dpfpu
               Bit#(1) nanboxing = pack(aluout.cmtype == MEMORY 
                                        && funct3[1 : 0] == 2 
@@ -538,6 +530,8 @@ package stage3;
       `endif
         // else you need to simply drop the execution since epochs have changed.
       end
+      if(!execute)
+        `logLevel( stage3, 0, $format("STAGE3: Stall"))
     endrule
 
   `ifdef multicycle
@@ -548,7 +542,8 @@ package stage3;
     // Description : This rule is fired when an multicycle instruction is execute whose output takes
     // atleast 2 cycles to be generated.
     `ifdef simulate
-      rule count_stalls(rg_stall);
+      rule count_stalls(!rule_condition);
+        if(!wr_cache_avail)
         `logLevel( stage3, 0, $format("STAGE3: Stalled for MulDiv/FPU"))
       endrule
     `endif
@@ -697,7 +692,7 @@ package stage3;
     // Explicit Conditions : None
     // Description : captures the next_pc in the pipe
     method Action next_pc (Bit#(`vaddr) npc);
-      wr_next_pc <= npc;
+      wr_next_pc <= tagged Valid npc;
     endmethod
   `ifdef branch_speculation
     
@@ -706,9 +701,7 @@ package stage3;
     // Explicit Conditions : None
     // Description : method to train the branch predictor BTB
     method train_bpu = wr_training_data;
-    `ifdef ras
-      method ras_push = wr_push_ras;
-    `endif
+    method ras_push = wr_push_ras;
   `endif
   endmodule
 endpackage

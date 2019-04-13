@@ -29,7 +29,7 @@ Details:
 --------------------------------------------------------------------------------------------------
 */
 package globals;
-
+  import GetPut::*;
   // ---------------------- Types for IMem and Core interaction ------------------------------- //
   // structure defining the request packet for the instruction cache.
   typedef struct{
@@ -114,25 +114,31 @@ package globals;
   typedef struct{
   `ifdef compressed
     Bit#(2)       prediction0;
+    Bool          hit0;
     Bit#(2)       prediction1;
+    Bool          hit1;
     Bool          discard;
   `else
     Bit#(2)       prediction;
+    Bool          hit;
   `endif
     Bit#(`vaddr)  va;
   } PredictionResponse deriving(Bits, Eq, FShow);
+
+  typedef enum {Branch, JAL, Call, Ret} ControlInsn deriving(Bits, Eq, FShow);
 
   typedef struct {
       Bit#(`vaddr)  pc;
       Bit#(`vaddr)  target;
       Bit#(2)       state;
-    `ifdef gshare
       Bool          mispredict;
-    `endif
+      ControlInsn   ci;
+      Bool          btbhit;
     `ifdef compressed
       Bool          edgecase;
     `endif
   } Training_data deriving (Bits, Eq, FShow);
+
 
   typedef struct {
     Bit#(`vaddr) pc;
@@ -140,6 +146,26 @@ package globals;
     Bool          edgecase;
   `endif
   } RASTraining deriving (Bits, Eq, FShow);
+
+  interface Ifc_bpu;
+    // method to receive the new pc for which prediction is to be looked up.
+		method Action prediction_req(PredictionRequest req);
+
+    // method to respond to stage0 with prediction state and new target address on hit
+		interface Get#(PredictionResponse) prediction_response; 
+
+    // method to training the BTB and BHT tables
+		method Action train_bpu (Training_data td);
+
+    // method to send the next-pc to stage0
+    method PredictionToStage0 predicted_pc;
+
+    // method to push the return address on a Call instruction
+    method Action ras_push(Bit#(`vaddr) pc);
+
+    // method to enable/disable bpu at run-time
+    method Action bpu_enable(Bool e);
+  endinterface
 
 endpackage
 

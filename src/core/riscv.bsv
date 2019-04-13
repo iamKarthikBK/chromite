@@ -53,10 +53,7 @@ package riscv;
     interface Put#(PredictionResponse) prediction_response;
     method Action predicted_pc(PredictionToStage0 pred);
     method Training_data train_bpu;
-    `ifdef ras
-      method RASTraining train_ras;
-      method Bit#(`vaddr) ras_push;
-    `endif
+    method Bit#(`vaddr) ras_push;
   `endif
     interface Put#(FetchResponse#(32, `iesize)) inst_response;
     interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
@@ -82,9 +79,7 @@ package riscv;
     interface Get#(DumpType) dump;
   `endif
     method Bit#(XLEN) csr_mstatus;
-  `ifdef cache_control
-    method Bit#(2) mv_cacheenable;
-  `endif
+    method Bit#(3) mv_cacheenable;
     method Bit#(2) curr_priv;
 	`ifdef supervisor
 		method Bit#(XLEN) csr_satp;
@@ -415,10 +410,7 @@ package riscv;
     interface prediction_response = stage1.prediction_response;
     method predicted_pc = stage0.predicted_pc;
     method train_bpu = stage3.train_bpu;
-    `ifdef ras
-      method train_ras = stage2.train_ras;
-      method ras_push = stage3.ras_push;
-    `endif
+    method ras_push = stage3.ras_push;
   `endif
     interface inst_response = stage1.inst_response;
     interface memory_request = stage3.memory_request;
@@ -450,9 +442,7 @@ package riscv;
   `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i) = stage5.set_external_interrupt(ex_i);
     method csr_mstatus = stage5.csr_mstatus;
-  `ifdef cache_control
     method mv_cacheenable = stage5.mv_cacheenable;
-  `endif
     method curr_priv = stage5.curr_priv;
 		`ifdef supervisor
 			method csr_satp = stage5.csr_satp;
