@@ -27,6 +27,7 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
       - [Execute the RTL](#execute-the-rtl)
       - [Connect to OpenOCD](#connect-to-openocd)
       - [Connect to GDB](#connect-to-gdb)
+  * [Benchmarking the Core](./benchmarking.md)
   * [Linux on Shakti](#linux-on-shakti)
       - [Generate RTL](#generate-rtl-1)
       - [Generate Linux Image](#generate-linux-image)
@@ -94,7 +95,7 @@ This an overview of the c-class core. More detail documents commenting about the
 * Early out multiplier and a restoring divider.
 * Supervisor mode - sv32/sv39.
 * Boots riscv-linux kernel, FreeRTOS, Zephyr.
-* Performance: **TBD**
+* Performance: 1.72 DMIPs/MHz
 
 ## Configuring the Core
 
@@ -127,15 +128,18 @@ The `soc_config.inc` in the root directory is used to configure the core. Follow
 * __SYNTHTOP__: top module for FPGA synthesis
 * __RESETPC__: Values in integer format indicating the reset program counter value.
 * __PADDR__: Bit-wdith of the phyiscal address.
-* __BPU__: Valid options:
-    * `enable`: will enable a 2-state branch predictor. This will enable the pc-gen stage0 module. This is where the pc is generated and manipulated. The BTB is trained only for conditional branches and direct jumps (which are not returns).
-    * `disable`: will disable the pc-gen stage and stage0 will no longer exist. PC generation happens in stage1 module.
-* __BTBSIZE__: Integer number defining the number of entries in the BTB
-* __RAS__: Valid options:
-    * `enable`: Only valid if BPU is enabled. Will enable Return-Address-Stack structure in stage0. Currently this cannot exist independently of the BTB.
-    * `disable`: This will not instantiate any return-address stack.
-* __RASSIZE__: Integer number defining the entries in the Return-Address-Stack.
-* __RASSETS__: Integer number defining the number of sets in the ras_tag data structure. 
+* __PREDICTOR__: Valid options:
+    * `none`: will disable the pc-gen stage and stage0 will no longer exist. PC generation happens in stage1 module.
+    * `gshare`: will instantiate a gshare predictor using direct-mapped BTB.
+    * `gshare_fa`: will instantiate a gshare predictor using a full-associative BTB.
+    * `bimodal`: will instantiate a bimodal branch predictor using direct-mapped BTB. 
+* __BPURESET__: Can be either 0 or 1. A value of 0 indicates that the branch predictor is disabled at reset. A value of 1 indicates that the branch predictor will be enabled immediately after reset. The predictor can later be enabled/disabled by writing into the respective csr bit.
+* __BTBDEPTH__: Integer number defining the number of entries in the BTB
+* __BHTDEPTH__: Valid of gshare only. Accepts a number indicating the number of entries in the branch history table. 
+* __HISTLEN__: Valid only for gshare. Accepts a number indicating the number of bits in the global history register.
+* __EXTRAHIST__: Valid only for gshare. Accepts a number indicating the number of extra speculative bits in the GHR. For c-class 3 gives the best performance.
+* __RASDEPTH__: Number of entries in the Return-Address-Stack.
+* __RASTAGDEPTH__: The direct mapped gshare maintains a separate table for ras entries. This field indicates the size of that table.
 * __COVERAGE__: This is used by verilator to generate specific coverage metrics during simulation. Valid otions:
     * `none`: disable all coverage
     * `all`: enable all coverage metrics supported in verilator
