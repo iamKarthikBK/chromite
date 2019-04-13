@@ -50,7 +50,7 @@ package riscv;
     
  	  method ActionValue#(FetchRequest#(`vaddr, `iesize)) inst_request;
     interface Put#(NextPC) next_pc;
-  `ifdef branch_speculation
+  `ifdef bpu
     method Action predicted_pc(PredictionToStage0 pred);
     method Training_data train_bpu;
     method Bit#(`vaddr) ras_push;
@@ -405,7 +405,7 @@ package riscv;
 
     interface inst_request = stage0.inst_request;
     interface next_pc = stage1.next_pc;
-  `ifdef branch_speculation
+  `ifdef bpu
     method predicted_pc = stage0.predicted_pc;
     method train_bpu = stage3.train_bpu;
     method ras_push = stage3.ras_push;

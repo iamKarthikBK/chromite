@@ -216,7 +216,7 @@ package stage2;
     `ifdef compressed
       let upper_err = rx.u.first.upper_err;
     `endif
-    `ifdef branch_speculation
+    `ifdef bpu
       let prediction = rx.u.first.prediction;
       let btbhit = rx.u.first.btbhit;
     `endif
@@ -299,7 +299,7 @@ package stage2;
                                     `ifdef RV64               , word32:     word32     
                                     `elsif dpfpu              , word32:     word32 `endif
                                     `ifdef compressed         , compressed : decoded.compressed `endif 
-                                    `ifdef branch_speculation , prediction : prediction 
+                                    `ifdef bpu , prediction : prediction 
                                                               , btbhit     : btbhit `endif };
 
         let stage3opmeta = Stage3OpMeta{ op_addr : decoded.op_addr, op_type : decoded.op_type};

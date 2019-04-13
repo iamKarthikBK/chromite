@@ -62,7 +62,7 @@ package stage0;
     // method to receive new pc value on any flush
     method Action flush( Stage0Flush f);
 
-  `ifdef branch_speculation
+  `ifdef bpu
     // method to receive the latest prediction done by BPU
     method Action predicted_pc(PredictionToStage0 pred);
   `endif
@@ -85,7 +85,7 @@ package stage0;
     Reg#(Bool) rg_fence  <- mkReg(False);
     Reg#(Bool) rg_flush  <- mkReg(False);
 
-`ifdef branch_speculation
+`ifdef bpu
     Wire#(PredictionToStage0) wr_prediction <- mkWire();
   `ifdef compressed
     Reg#(Tuple2#(Bool, Bit#(`vaddr))) rg_delayed_redirect <- mkReg(tuple2(False,?));
@@ -120,7 +120,7 @@ package stage0;
 
       if(!rg_fence && !rg_sfence) begin
 
-    `ifdef branch_speculation
+    `ifdef bpu
         let pred = wr_prediction;
       `ifdef compressed
         if(tpl_1(rg_delayed_redirect))begin
@@ -153,7 +153,7 @@ package stage0;
       end
 
       rg_flush <= False;
-    `ifdef branch_speculation
+    `ifdef bpu
       `logLevel( stage0, 1, $format("STAGE0: Prediction from BPU: ",fshow(wr_prediction), " Flush:%b",rg_flush))
     `endif
       `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b rg_pc:%h fence:%b sfence:%b \
@@ -186,7 +186,7 @@ epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
       rg_sfence<=f.sfence;
     `endif
       rg_flush<=True;
-  `ifdef branch_speculation
+  `ifdef bpu
     `ifdef compressed
       rg_delayed_redirect<=tuple2(False,?);
     `endif
@@ -194,7 +194,7 @@ epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
       `logLevel( stage0,0, $format("STAGE0: Received Flush: ",fshow(f)))
     endmethod
 
-  `ifdef branch_speculation
+  `ifdef bpu
     // MethodName: predicted_pc
     // Implicit Conditions: None
     // Explicit Conditions: None

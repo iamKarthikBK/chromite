@@ -419,7 +419,7 @@ package csrfile;
     Reg#(Bit#(1)) rg_ienable = readOnly(0);
   `endif
     
-  `ifdef branch_speculation
+  `ifdef bpu
     Reg#(Bit#(1)) rg_bpuenable <- mkReg(fromInteger(valueOf(`bpureset)));
   `else
     Reg#(Bit#(1)) rg_bpuenable = readOnlyReg(0);

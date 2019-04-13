@@ -158,7 +158,7 @@ package muldiv_asic;
 		Reg#(Bit#(2)) rg_funct3 <- mkReg(0);
     
     let output_unavail = ALU_OUT{done : False, cmtype : ?, aluresult : ?, effective_addr : ?,
-               cause : ?, redirect : False `ifdef branch_speculation, branch_taken : ?, 
+               cause : ?, redirect : False `ifdef bpu, branch_taken : ?, 
                redirect_pc : ? `endif };
 
 
@@ -345,7 +345,7 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
         let product = single_mult( in1, in2, funct3 `ifdef RV64 ,word_flag `endif );
         return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
                        effective_addr : ?, cause : ?, redirect : False 
-                       `ifdef branch_speculation, branch_taken : ?, 
+                       `ifdef bpu, branch_taken : ?, 
                        redirect_pc : ? `endif };
       end
       else begin
@@ -358,7 +358,7 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
       let default_out = ff_muldiv_result.first();
       return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(default_out), 
                      effective_addr:?, cause:?, redirect : False
-                     `ifdef branch_speculation , branch_taken: ?, redirect_pc: ? `endif };
+                     `ifdef bpu , branch_taken: ?, redirect_pc: ? `endif };
 		endmethod
 		method Action flush;
 			rg_count[0] <= 8;

@@ -146,7 +146,7 @@ package common_types;
     Bit#(`vaddr) effective_addr;
     Bit#(`causesize) cause;
     Bool redirect;
-  `ifdef branch_speculation
+  `ifdef bpu
     Bool branch_taken;
     Bit#(`vaddr) redirect_pc;
   `endif
@@ -202,7 +202,7 @@ package common_types;
 
   typedef struct{
     Bit#(`vaddr ) pc;
-  `ifdef branch_speculation
+  `ifdef bpu
     Bit#(2) prediction;
   `endif
     Bit#(2) epoch;
@@ -220,7 +220,7 @@ package common_types;
   `ifdef compressed
     Bool upper_err;
   `endif
-  `ifdef branch_speculation
+  `ifdef bpu
     Bit#(2) prediction;
     Bool    btbhit;
   `endif
@@ -243,7 +243,7 @@ package common_types;
   `ifdef compressed
     Bool compressed;
   `endif
-  `ifdef branch_speculation
+  `ifdef bpu
     Bit#(2) prediction;
     Bool    btbhit;
   `endif

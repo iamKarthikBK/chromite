@@ -112,7 +112,7 @@ package globals;
   } PredictionRequest deriving(Bits, Eq, FShow);
 
   typedef struct{
-`ifdef branch_speculation
+`ifdef bpu
   `ifdef compressed
     Bit#(2)       prediction0;
     Bool          hit0;

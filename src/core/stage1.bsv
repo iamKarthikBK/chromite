@@ -52,7 +52,7 @@ package stage1;
   typedef struct{
     Bit#(`vaddr) pc;
     Bit#(16) instruction;
-  `ifdef branch_speculation
+  `ifdef bpu
     Bit#(2) prediction;
     Bool    btbhit;
   `endif
@@ -173,7 +173,7 @@ package stage1;
     rule process_instruction;
       let pred = ff_next_pc.first;
       `logLevel( stage1, 1, $format("STAGE1 : Prediction: ", fshow(ff_next_pc.first)))
-  `ifdef branch_speculation
+  `ifdef bpu
     `ifdef compressed
       Bit#(2) prediction = pred.prediction0;
       Bool    btbhit     = pred.hit0;
@@ -206,7 +206,7 @@ package stage1;
       end
     `ifdef compressed
       else if(rg_action == CheckPrev)begin
-      `ifdef branch_speculation
+      `ifdef bpu
         prediction = rg_prev.prediction;
         btbhit     = rg_prev.btbhit;
       `endif
@@ -221,7 +221,7 @@ package stage1;
           lv_prev.pc = pred.va;
           pred.va = rg_prev.pc | zeroExtend(2'b10);
 
-        `ifdef branch_speculation
+        `ifdef bpu
           lv_prev.prediction = pred.prediction1;
           lv_prev.btbhit     = pred.hit1;
           if(rg_prev.prediction > 1)
@@ -247,7 +247,7 @@ package stage1;
 
           lv_prev.instruction = imem_resp.instr[31 : 16];
           lv_prev.pc = pred.va;
-        `ifdef branch_speculation
+        `ifdef bpu
           lv_prev.prediction = pred.prediction1;
           lv_prev.btbhit     = pred.hit1;
         `endif
@@ -257,7 +257,7 @@ package stage1;
           final_instruction = zeroExtend(imem_resp.instr[31 : 16]);
           trap = imem_resp.trap;
           pred.va[1] = 1;
-        `ifdef branch_speculation
+        `ifdef bpu
           prediction  = pred.prediction1;
           btbhit      = pred.hit1;
         `endif
@@ -278,7 +278,7 @@ package stage1;
           trap = imem_resp.trap;
           lv_prev.instruction = truncateLSB(imem_resp.instr);
           lv_prev.pc = pred.va;
-        `ifdef branch_speculation
+        `ifdef bpu
           rg_action <= pred.prediction0 < 2 ? CheckPrev : None;
           lv_prev.prediction = pred.prediction1;
           lv_prev.btbhit = pred.hit1;
@@ -294,7 +294,7 @@ package stage1;
                     instruction : final_instruction,
                     epochs:{rg_eEpoch, rg_wEpoch},
                     trap : trap
-                  `ifdef branch_speculation
+                  `ifdef bpu
                     ,prediction : prediction
                     ,btbhit    : btbhit
                   `endif

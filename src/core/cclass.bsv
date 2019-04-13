@@ -57,7 +57,7 @@ package cclass;
     import ptwalk_rv32::*;
   `endif
 `endif
-`ifdef branch_speculation
+`ifdef bpu
   import bpu :: *;
 `endif
   `include "common_params.bsv"
@@ -111,7 +111,7 @@ package cclass;
     `endif
     (*preempts="core_req_to_dmem, ptwalk_request_to_dcache"*)
   `endif
-`ifdef branch_speculation
+`ifdef bpu
   (*conflict_free="connect_instruction_req,connect_bpu_training"*)
 `endif
   module mkcclass_axi4(Ifc_cclass_axi4);
@@ -119,7 +119,7 @@ package cclass;
     let vaddr = valueOf(`vaddr);
     let paddr = valueOf(`paddr);
     Ifc_riscv riscv <- mkriscv();
-  `ifdef branch_speculation
+  `ifdef bpu
     let bpu <- mkbpu();
   `else
     FIFOF#(NextPC) ff_next_pc <- mkSizedFIFOF(2);
@@ -165,7 +165,7 @@ package cclass;
     rule connect_instruction_req;
       let req <- riscv.inst_request;
       imem.core_req.put(req.icache_req);
-    `ifdef branch_speculation
+    `ifdef bpu
       if( `ifdef supervisor !req.icache_req.sfence `endif )
         bpu.prediction_req(PredictionRequest{pc       : req.icache_req.address,
                                              fence    : req.icache_req.fence,
@@ -178,7 +178,7 @@ package cclass;
     `endif
     endrule
 
-  `ifdef branch_speculation
+  `ifdef bpu
     mkConnection(riscv.next_pc, bpu.next_pc);
     rule connect_prediction;
       riscv.predicted_pc(bpu.predicted_pc);

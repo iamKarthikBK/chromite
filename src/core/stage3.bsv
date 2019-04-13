@@ -143,7 +143,7 @@ package stage3;
     // the decode stage.
     method Action next_pc (Bit#(`vaddr) npc);
 
-  `ifdef branch_speculation
+  `ifdef bpu
     // This method sends out the training information to the BTB for conditional branches.
     method Training_data train_bpu;
     // This method sends out the return - address to be pushed on top of the stack.
@@ -173,7 +173,7 @@ package stage3;
     RX#(Bit#(32)) rxinst <- mkRX;
   `endif
 
-  `ifdef branch_speculation
+  `ifdef bpu
     // Wire to send the training for the BTB on conditional branches.
 	  Wire#(Training_data) wr_training_data <- mkWire();
     // Wire to send the return - address on the stack.
@@ -294,7 +294,7 @@ package stage3;
       let meta    = rx_meta.u.first;
       Bit#(3) funct3  = truncate(meta.funct);
       Bit#(4) fn      = truncateLSB(meta.funct);
-    `ifdef branch_speculation
+    `ifdef bpu
       Bit#(2) prediction = meta.prediction;
       Bool    btbhit     = meta.btbhit;
     `endif
@@ -369,9 +369,9 @@ package stage3;
         if ( rs1avail && rs2avail `ifdef spfpu && rs3avail `endif ) begin
           let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
                          meta.memaccess, `ifdef RV64 meta.word32, `elsif dpfpu meta.word32, `endif 
-                         wr_misa_c, truncate(meta.pc) `ifdef branch_speculation,
+                         wr_misa_c, truncate(meta.pc) `ifdef bpu,
                          fromMaybe(?,wr_next_pc) `ifdef compressed ,meta.compressed `endif `endif ); 
-        `ifdef branch_speculation
+        `ifdef bpu
           let td = Training_data{pc : meta.pc,
                                  target : aluout.effective_addr,
                                  state  : ?
@@ -397,7 +397,7 @@ package stage3;
               deq_rx;
 
             // sending training updates to predictors
-            `ifdef branch_speculation
+            `ifdef bpu
               if(meta.inst_type == BRANCH && aluout.cmtype != TRAP)begin
                 if(aluout.branch_taken)begin
                   if(prediction < 3)begin
@@ -423,13 +423,13 @@ package stage3;
             `endif
 
               rg_eEpoch         <= pack(aluout.redirect && aluout.cmtype != TRAP)^rg_eEpoch;
-            `ifdef branch_speculation
+            `ifdef bpu
               wr_redirect_pc    <= aluout.redirect_pc;
             `else
               wr_redirect_pc <= aluout.effective_addr;
             `endif
               wr_flush_from_exe <= aluout.redirect && aluout.cmtype != TRAP;
-            `ifdef branch_speculation
+            `ifdef bpu
               if(aluout.redirect && aluout.cmtype != TRAP)
                 `logLevel( stage3, 0, $format("STAGE3: Misprediction. Inst: ",fshow(meta.inst_type),
                                               " PC:%h Target:%h NextPC:%h", meta.pc, 
@@ -702,7 +702,7 @@ package stage3;
     method Action next_pc (Bit#(`vaddr) npc);
       wr_next_pc <= tagged Valid npc;
     endmethod
-  `ifdef branch_speculation
+  `ifdef bpu
     
     // MethodName : train_bpu
     // Implicit Conditions : None
