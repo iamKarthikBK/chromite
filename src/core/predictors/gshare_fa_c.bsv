@@ -162,7 +162,7 @@ package gshare_fa_c;
     FIFOF#(PredictionRequest)  ff_pred_request      <- mkSizedFIFOF(2);
 
     // fifo holding the response to be sent to stage1
-    FIFOF#(PredictionResponse) ff_prediction_resp   <- mkBypassFIFOF();
+    FIFOF#(NextPC) ff_next_pc   <- mkBypassFIFOF();
 
     // register indicating the next pc to the stage0
     Reg#(PredictionToStage0)   rg_prediction_pc[2]  <- mkCReg(2, PredictionToStage0{prediction : 0,
@@ -185,7 +185,7 @@ package gshare_fa_c;
     endrule
 
     // RuleName: perform_prediction
-    // Implicit Conditions: ff_pred_request.notEmpty && ff_prediction_resp.notFull
+    // Implicit Conditions: ff_pred_request.notEmpty && ff_next_pc.notFull
     // Explicit Conditions: rg_init == false;
     // Description: This rule looks up the BTB for the pc that has been presented by
     // stage0. A fully associative look-up on the pc is performed. A hit in the btb
@@ -297,7 +297,7 @@ package gshare_fa_c;
                                                   ,edgecase   :  edgecase
                                                };
       
-      let resp = PredictionResponse{ va       : request.pc
+      let resp = NextPC{ va       : request.pc
                                      ,prediction0 : prediction0
                                      ,hit0        : hit0
                                      ,prediction1 : prediction1
@@ -305,7 +305,7 @@ package gshare_fa_c;
                                      ,discard     : request.discard
                                    } ;
       `logLevel( bpu, 1, $format("GSHARE: Response to Stage1:",fshow(resp)))
-      ff_prediction_resp.enq(resp);
+      ff_next_pc.enq(resp);
     endrule
 
     // MethodName: prediction_req
@@ -384,7 +384,7 @@ package gshare_fa_c;
       end
     endmethod
 
-		interface prediction_response = toGet(ff_prediction_resp);
+		interface next_pc = toGet(ff_next_pc);
 
     method predicted_pc = rg_prediction_pc[1];
 
