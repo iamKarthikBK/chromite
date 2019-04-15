@@ -203,7 +203,9 @@ package stage5;
             `endif
               rx.u.deq;
           end
-          else if(!rg_store_initiated)begin
+          else 
+        `endif
+          if(!rg_store_initiated)begin
             wr_initiate_store <= tuple2(unpack(rg_epoch),True);
             rg_store_initiated<=True;
             `logLevel( stage5, 0, $format("STAGE5: Initiating Store request"))
@@ -253,57 +255,6 @@ package stage5;
           else begin
             `logLevel( stage5, 0, $format("STAGE5: Waiting for Store response"))
           end
-          
-        `else
-          if(!rg_store_initiated)begin // if store has not started yet.
-            `logLevel( stage5, 0, $format("STAGE5: Initiating Store request"))
-            rg_store_initiated<=True;
-            wr_initiate_store<=tuple2(True,False);
-          end
-          else if(wr_store_response matches tagged Valid .resp)begin
-            `logLevel( stage5, 0, $format("STAGE5: Store response Received: ",fshow(resp)))
-            let {err, badaddr} = resp;
-            if(err==0)begin
-              wr_increment_minstret<=True;
-            `ifdef spfpu
-              wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
-            `else
-              `ifdef atomic
-                wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
-              `else
-                wr_commit <= tagged Valid (tuple2(0, 0));
-              `endif
-            `endif
-            `ifdef rtldump
-              `ifdef atomic
-                Bit#(ELEN) data=s.commitvalue;
-                if(s.rd==0)
-                  data=0;
-                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, s.rd, data, IRF));
-              `else
-                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, 0, 0, IRF));
-              `endif
-              rxinst.u.deq;
-            `endif
-              rx.u.deq;
-            end
-            else begin
-              Bit#(6) trapcause='1;
-              trapcause=`Store_access_fault;
-              let newpc <- csr.take_trap(trapcause, s.pc, badaddr);
-              fl=True;
-              jump_address=newpc;
-              rx.u.deq;
-            `ifdef rtldump
-              rxinst.u.deq;
-            `endif
-            end
-            rg_store_initiated<=False;
-          end
-          else begin
-            `logLevel( stage5, 0, $format("STAGE5: Waiting for Store response"))
-          end
-        `endif
         end
         else if(commit matches tagged SYSTEM .sys)begin
           let {drain, newpc, dest}<-csr.system_instruction(sys.csraddr, sys.rs1, sys.func3, sys.lpc);
