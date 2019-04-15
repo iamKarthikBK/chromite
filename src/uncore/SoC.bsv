@@ -130,8 +130,6 @@ package SoC;
 
 `ifdef CORE_AXI4
   (*synthesize*)
-//  (*conflict_free="connect_ishalted,connect_halt_request"*)
-//  (*conflict_free="connect_ishalted,connect_resume_req"*)
   module mkSoC#(Clock tck_clk, Reset trst)(Ifc_SoC);
     let curr_clk<-exposeCurrentClock;
     let curr_reset<-exposeCurrentReset;
