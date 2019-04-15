@@ -205,11 +205,9 @@ package stage3;
     // Wire holding the new pc to be redirected to due to branches / jumps
     Reg#(Bit#(`vaddr)) wr_redirect_pc <- mkDWire(0);
 
-  `ifdef dcache
     Wire#(DMem_request#(`vaddr, ELEN, 1)) wr_memory_request <- mkWire;
+  `ifdef dcache
     Wire#(Bool) wr_cache_avail <- mkWire;
-  `else 
-		FIFOF#(DMem_request#(`vaddr, ELEN, 1)) ff_memory_request <- mkBypassFIFOF;
   `endif
 
     // wire holding the compressed bit of the misa csr
@@ -248,7 +246,6 @@ package stage3;
         let req = DMem_request{address      : address,
                                epochs       : epochs,
                                size         : funct3
-                          `ifdef dcache
                                ,fence       : memaccess == FenceI || memaccess == Fence
                                ,access      : truncate(pack(memaccess))
                                ,writedata   : data
@@ -259,13 +256,8 @@ package stage3;
                                ,sfence      : memaccess == SFence
                                ,ptwalk_req  : False
                                ,ptwalk_trap : False
-                            `endif
-                          `endif } ;
-      `ifdef dcache
+                            `endif } ;
         wr_memory_request <= req;
-      `else
-        ff_memory_request.enq(req);
-      `endif
     endaction;
     // ---------------------- End local function definitions ------------------//
     Bool rule_condition = True `ifdef dcache && wr_cache_avail `endif 
@@ -344,7 +336,6 @@ package stage3;
       Bit#(`vaddr)  arg3 = (meta.inst_type == JALR || meta.inst_type == MEMORY) ? truncate(rs1) : meta.pc;
       Bit#(TMax#(`vaddr,FLEN))  arg4 = rs3_imm;
       // ---------------------------------------------------------------------------------------- //
-
 
       // TODO instead of just store - buffer for loads will need to check if pipe is empty
       // TODO add more comments here
@@ -462,9 +453,7 @@ package stage3;
             `logLevel( stage3, 0, $format("STAGE3: Result: ",fshow(aluout)))
 
             // --------------- In case of Memory operation send request to Dmem ----------------//
-              if(aluout.cmtype == MEMORY `ifndef dcache && (meta.memaccess == Load 
-                                            `ifdef atomic  || meta.memaccess == Atomic `endif )
-                                          `endif  )
+              if(aluout.cmtype == MEMORY)
                 send_memory_request(aluout.effective_addr, meta.epochs[0], funct3, 
                                     meta.memaccess, fn, rs2);
             // ---------------------------------------------------------------------------------- //
@@ -477,11 +466,6 @@ package stage3;
             // -------------------------- Derive types for Next stage --------------------------- //
               let s4memory = Stage4Memory{  address     : aluout.effective_addr,
                                             memaccess   : meta.memaccess
-                                        `ifndef dcache
-                                            ,data        : rs2
-                                            ,atomic_op   : {funct3[0], fn}
-                                            ,size        : funct3
-                                        `endif
                                         `ifdef dpfpu
                                             ,nanboxing   : nanboxing
                                         `endif } ;
@@ -551,7 +535,9 @@ package stage3;
     // atleast 2 cycles to be generated.
     `ifdef simulate
       rule count_stalls(!rule_condition);
+      `ifdef dcache
         if(!wr_cache_avail)
+      `endif
         `logLevel( stage3, 0, $format("STAGE3: Stalled for MulDiv/FPU"))
       endrule
     `endif
@@ -635,12 +621,7 @@ package stage3;
     // Description : interface to send memory requests.
     interface memory_request = interface Get
       method ActionValue#(DMem_request#(`vaddr, ELEN, 1)) get;
-      `ifdef dcache
         return wr_memory_request;
-      `else 
-				ff_memory_request.deq;
-				return ff_memory_request.first;
-      `endif
       endmethod
     endinterface;
 
