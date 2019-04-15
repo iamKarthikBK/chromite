@@ -14,7 +14,6 @@
 `else
   `define Err_slave_num 5
 `endif
-`endif
 // master numbers on fabric
 // slave numbers of fabric
 
