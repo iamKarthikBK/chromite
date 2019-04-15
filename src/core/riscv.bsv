@@ -57,19 +57,15 @@ package riscv;
   `endif
     interface Put#(FetchResponse#(32, `iesize)) inst_response;
     interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
-  `ifdef dcache
     interface Put#(DMem_core_response#(ELEN, 1)) memory_response;
-    (*always_enabled*)
-    method Action storebuffer_empty(Bool e);
     method Tuple2#(Bool, Bool) initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1), Bit#(`vaddr))) r);
+    (*always_enabled*)
+    method Action storebuffer_empty(Bool e);
+  `ifdef dcache
     method Action store_is_cached(Bool c);
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
-  `else
-    interface Put#(MemoryReadResp#(1)) memory_read_response;
-		interface Get#(MemoryWriteReq#(`vaddr, 1,ELEN)) memory_write_request;
-    interface Put#(MemoryWriteResp) memory_write_response;
   `endif 
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);
@@ -240,17 +236,6 @@ package riscv;
       stage3.update_wEpoch();
       stage4.update_wEpoch();
     endrule
-  `ifndef dcache
-    rule connect_store_request;
-      stage4.start_store(stage5.initiate_store);
-    endrule
-    rule connect_store_response;
-      stage5.write_resp(stage4.store_response);
-    endrule
-    rule connect_storebuffer_status;
-      stage3.storebuffer_empty(stage4.storebuffer_empty);
-    endrule
-  `endif
 
     rule fwding_from_exe1;
       let s4common = pipe3common.first;
@@ -418,7 +403,6 @@ package riscv;
     `ifdef rtldump
       interface dump = stage5.dump;
     `endif
-  `ifdef dcache
     interface memory_response = stage4.memory_response;
     method Action storebuffer_empty(Bool e);
       stage3.storebuffer_empty(e);
@@ -427,16 +411,13 @@ package riscv;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1), Bit#(`vaddr))) r);
       stage5.write_resp(r);
     endmethod
+  `ifdef dcache
     method Action store_is_cached(Bool c);
       stage5.store_is_cached(c);
     endmethod
     method Action cache_is_available(Bool avail);
       stage3.cache_is_available(avail);
     endmethod
-  `else
-    interface memory_read_response = stage4.memory_read_response;
-		interface memory_write_request = stage4.memory_write_request;
-    interface memory_write_response = stage4.memory_write_response;
   `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i) = stage5.set_external_interrupt(ex_i);
     method csr_mstatus = stage5.csr_mstatus;
