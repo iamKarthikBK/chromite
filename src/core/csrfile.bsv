@@ -415,8 +415,8 @@ package csrfile;
     Reg#(Bit#(1)) rg_denable <- mkReg(fromInteger(valueOf(`dcachereset)));
     Reg#(Bit#(1)) rg_ienable <- mkReg(fromInteger(valueOf(`icachereset)));
   `else
-    Reg#(Bit#(1)) rg_denable = readOnly(0);
-    Reg#(Bit#(1)) rg_ienable = readOnly(0);
+    Reg#(Bit#(1)) rg_denable = readOnlyReg(0);
+    Reg#(Bit#(1)) rg_ienable = readOnlyReg(0);
   `endif
     
   `ifdef bpu
