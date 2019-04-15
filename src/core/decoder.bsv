@@ -993,7 +993,7 @@ package decoder;
   endfunction
   
   function ActionValue#(DecodeOut) decoder_func(Bit#(32) inst, Bool trap, 
-                `ifdef supervisor Bit#(`causesize) cause, `endif CSRtoDecode csrs, Bool curr_rerun, 
+                Bit#(`causesize) cause, CSRtoDecode csrs, Bool curr_rerun, 
                 Bool rerun_fencei `ifdef supervisor ,Bool rerun_sfence `endif 
                 `ifdef debug , DebugStatus debug, Bool step_done `endif ) =  actionvalue
       DecodeOut result_decode = decoder_func_32(inst, csrs);
@@ -1026,12 +1026,10 @@ package decoder;
         func_cause={1'b0,icause};
         x_inst_type=TRAP;
       end
-    `ifdef supervisor
       else if(trap) begin
         x_inst_type=TRAP;
         func_cause = {1'b0,cause} ;
       end
-    `endif
 
       if(x_inst_type == TRAP)begin
         x_rs2addr=0;
