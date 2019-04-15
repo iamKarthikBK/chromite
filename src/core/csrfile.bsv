@@ -1091,7 +1091,7 @@ package csrfile;
           end
       `else
         begin
-            Bit#(`vaddr) redirect = {rg_csr_dtvec,1'd0};
+            Bit#(`vaddr) redirect ;
           `ifdef debug
             if(cause >= {1'b1,`HaltEbreak} && cause <= {1'b1, `HaltReset} ) begin
               `logLevel( csr, 3, $format("CSRFILE: Taking Halt interrupt. DCause:%d", cause[2:0]))
@@ -1100,6 +1100,7 @@ package csrfile;
               rg_core_halted <= 1;
               rg_dcsr_prv <= pack(rg_prv);
               rg_prv <= Machine;
+              redirect = {rg_csr_dtvec, 1'd0};
             end
             else 
             if( cause == {1'b1,`Resume_int} ) begin
