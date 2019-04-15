@@ -45,9 +45,7 @@ package cclass;
   import cache_types :: *;
   import Assert ::*;
   import imem::*;
-`ifdef dcache
   import dmem::*;
-`endif
 `ifdef supervisor
   `ifdef RV64
     import ptwalk_rv64::*;
@@ -131,10 +129,12 @@ package cclass;
   `ifdef icache
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
   `endif
+  `ifdef dcache
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
-`ifdef cache_control
+  `endif
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) io_xactor <- mkAXI4_Master_Xactor;
     Wire#(AXI4_Rd_Data#(ELEN, USERSPACE)) wr_io_read_response <- mkWire();
+`ifdef cache_control
   `ifdef dcache
     Reg#(Bit#(8)) rg_burst_count <- mkReg(0);
     Reg#(Bit#(TLog#(TMul#(TMul#(`dwords, 8),`dblocks)))) rg_shift_amount <- mkReg(`dwords * 8 );
@@ -150,12 +150,10 @@ package cclass;
     Reg#(Maybe#(Bit#(DXLEN))) rg_abst_response <- mkReg(tagged Invalid); // registered container for responses
   `endif
 
-  `ifdef cache_control
 	  rule handle_nc_resp;
 	    let fab_resp <- pop_o (io_xactor.o_rd_data);
       wr_io_read_response <= fab_resp;
     endrule
-  `endif
 	  Ifc_imem imem <- mkimem;
 	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
 
@@ -243,13 +241,13 @@ package cclass;
       `logLevel( core, 1, $format("CORE : IMEM IO Response ", fshow(wr_io_read_response)))
 	  endrule
 
-  `ifdef dcache
     let dmem <- mkdmem;
     rule core_req_to_dmem;
       let req <- riscv.memory_request.get;
       dmem.core_req.put(req);
     endrule
 	  mkConnection(dmem.core_resp, riscv.memory_response); // dmem integration
+`ifdef dcache
   `ifdef supervisor
     rule dtlb_csr_info;
       dmem.satp_from_csr.put(riscv.csr_satp);
@@ -358,7 +356,7 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
 	  	dmem.write_mem_resp.put(bus_error);
       `logLevel( core, 1, $format("CORE : DMEM Write Line Response ", fshow(response)))
     endrule
-	  
+`endif
     rule handle_dmem_nc_request;
 	  	let req <- dmem.nc_read_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr : truncate(req.address), 
@@ -407,71 +405,8 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
 	  	riscv.write_resp(tagged Valid tuple2(pack(bus_error),?));
       `logLevel( core, 1, $format("CORE : IO Memory Write Response ", fshow(response)))
     endrule
-
-  `else
-    rule handle_memory_read_request;
-      let {addr, epoch, access}<- riscv.memory_read_request.get;
-      if(vaddr>paddr)begin
-        Bit#(TSub#(`vaddr,`paddr)) upperbits = addr[vaddr - 1:paddr];
-        if(upperbits != 0)
-          addr = 0;
-      end
-      ff_rd_epochs.enq(tuple2(access, epoch));
-      AXI4_Rd_Addr#(`paddr, 0) read_request = AXI4_Rd_Addr {araddr : truncate(addr), aruser : 0, arlen : 0, 
-        arsize : zeroExtend(access[1 : 0]), arburst : 'b01, arid : `Mem_master_num 
-        ,arprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
-      `logLevel( core, 1, $format("CORE : Memory Read Request ", fshow(read_request)))
-   	  memory_xactor.i_rd_addr.enq(read_request);	
-    endrule
-
-    rule handle_memory_read_response;
-			let response <- pop_o (memory_xactor.o_rd_data);	
-      let {access, epoch}=ff_rd_epochs.first();
-      ff_rd_epochs.deq;
-      Bit#(2) size = truncate(access);
-      Bit#(1) sign = truncateLSB(access);
-			let bus_error = !(response.rresp == AXI4_OKAY);
-      let rdata = response.rdata;
-  		riscv.memory_read_response.put(tuple4(rdata, bus_error, `Load_access_fault, epoch));
-      `logLevel( core, 1, $format("CORE : Memory Read Response ", fshow(response)))
-    endrule
-
-    rule handle_memory_write_request;
-      let {address, data, size}<- riscv.memory_write_request.get; 
-      if(vaddr>paddr)begin
-        Bit#(TSub#(`vaddr,`paddr)) upperbits = address[vaddr - 1:paddr];
-        if(upperbits != 0)
-          address = 0;
-      end
-      if(size == 0)
-        data = duplicate(data[7 : 0]);
-      else if(size == 1)
-        data = duplicate(data[15 : 0]);
-      else if(size == 2)
-        data = duplicate(data[31 : 0]);
-  	  Bit#(TDiv#(ELEN, 8)) write_strobe = size == 0?'b1 : size == 1?'b11 : size == 2?'hf : '1;
-      Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(address);
-  	  if(size != 3)// 8 - bit write;
-  	  	write_strobe = write_strobe<<byte_offset;
-		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(address), awuser : 0, awlen : 0, 
-          awsize : zeroExtend(size), awburst : 'b01, awid : `Mem_master_num
-          ,awprot:{1'b1, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
-  	  let w  = AXI4_Wr_Data {wdata : data, wstrb : write_strobe, wlast : True, wid : `Mem_master_num};
-      `logLevel( core, 1, $format("CORE : Memory write Request ", fshow(aw)))
-      `logLevel( core, 1, $format("CORE : Memory write Request ", fshow(w)))
-	    memory_xactor.i_wr_addr.enq(aw);
-		  memory_xactor.i_wr_data.enq(w);
-    endrule
-
-    rule handle_memory_write_response;
-      let response <- pop_o(memory_xactor.o_wr_resp);
-	  	let bus_error = pack(!(response.bresp == AXI4_OKAY));
-	  	riscv.memory_write_response.put(bus_error);
-      `logLevel( core, 1, $format("CORE : Memory Write Response ", fshow(response)))
-    endrule
-  `endif
-
-  `ifdef supervisor
+  
+`ifdef supervisor
     rule csrs_to_ptwalk;
       ptwalk.satp_from_csr.put(riscv.csr_satp);
       ptwalk.curr_priv.put(curr_priv);
@@ -503,7 +438,7 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
       rg_ptw_state <= None;
     endrule
   `endif
-    
+ `ifdef dcache   
     rule dtlb_req_to_ptwalk(rg_ptw_state == None);
       let req <- dmem.req_to_ptw.get();
       ptwalk.from_tlb.put(req);
@@ -522,8 +457,8 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
     endrule
     mkConnection(dmem.ptw_resp, ptwalk.response_frm_cache);
     mkConnection(dmem.hold_req, ptwalk.hold_req);
-    
   `endif
+`endif
 
     interface sb_clint_msip = interface Put
   	  method Action put(Bit#(1) intrpt);
