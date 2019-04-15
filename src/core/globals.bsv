@@ -30,12 +30,13 @@ Details:
 */
 package globals;
   import GetPut::*;
+  `include "common_params.bsv"
   // ---------------------- Types for IMem and Core interaction ------------------------------- //
   // structure defining the request packet for the instruction cache.
   typedef struct{
       Bit#(addr)  address;
       Bit#(esize) epochs;
-    `ifdef icache
+    `ifdef ifence
       Bool        fence;
     `endif
     `ifdef supervisor

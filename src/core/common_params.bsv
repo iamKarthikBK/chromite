@@ -72,6 +72,12 @@
 `ifdef dcache
   `define cache_control
 `endif
+`ifdef icache
+  `define ifence
+`endif
+`ifdef bpu
+  `define ifence
+`endif
 /////////////////////////////////////////////////////////////////////////
 ////////////////////// opcode definitions of ISA ////////////////////////
 `define AUIPC_op			    'b00101

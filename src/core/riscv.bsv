@@ -213,7 +213,7 @@ package riscv;
 
     rule flush_stage0(flush_from_exe||flush_from_wb);
         stage0.flush(Stage0Flush{ pc : flush_from_wb ? flushpc_from_wb : flushpc_from_exe
-                                `ifdef icache 
+                                `ifdef ifence
                                   ,fence : flush_from_wb ? fenceI : False
                                 `endif
                                 `ifdef supervisor 

@@ -51,7 +51,7 @@ package common_types;
 
   typedef struct{
     Bit#(`vaddr) pc;
-  `ifdef icache
+  `ifdef ifence
     Bool  fence;
   `endif
   `ifdef supervisor

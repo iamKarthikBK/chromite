@@ -164,7 +164,7 @@ epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
                                                       `ifdef supervisor
                                                         ,sfence :  rg_sfence
                                                       `endif
-                                                      `ifdef icache
+                                                      `ifdef ifence
                                                        ,fence  :   rg_fence
                                                       `endif }
                           `ifdef compressed
@@ -179,7 +179,7 @@ epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
     // Description: This method receives the flush for redirection of PC from EXE or WB stage.
     method Action flush( Stage0Flush f);
       rg_pc<=f.pc;
-    `ifdef icache
+    `ifdef ifence
       rg_fence<=f.fence;
     `endif
     `ifdef supervisor
