@@ -210,9 +210,7 @@ package stage2;
 	    let inst = rx.u.first.instruction;
 	    let epochs = rx.u.first.epochs;
       let trap = rx.u.first.trap;
-    `ifdef supervisor
       let trapcause = rx.u.first.cause;
-    `endif
     `ifdef compressed
       let upper_err = rx.u.first.upper_err;
     `endif
@@ -224,7 +222,7 @@ package stage2;
 
       `logLevel( stage2, 0, $format("STAGE2: csrs:",fshow(wr_csrs)))
 
-      let decoded <- decoder_func(inst,trap, `ifdef supervisor trapcause, `endif wr_csrs, 
+      let decoded <- decoder_func(inst,trap, trapcause, wr_csrs, 
                                   rg_rerun, rg_fencei_rerun 
                                   `ifdef supervisor ,rg_sfence_rerun `endif 
                                   `ifdef debug ,wr_debug_info, rg_step_done `endif );

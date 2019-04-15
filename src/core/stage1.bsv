@@ -300,9 +300,7 @@ package stage1;
                   `ifdef compressed
                     ,upper_err : rg_receiving_upper && imem_resp.trap
                   `endif
-                  `ifdef supervisor
-                    ,cause : imem_resp.cause
-                  `endif }; 
+                    ,cause : imem_resp.cause }; 
       `logLevel( stage1, 0,$format("STAGE1 : PC:%h: ",pred.va, fshow(ff_memory_response.first)))
     `ifdef compressed
       `logLevel( stage1, 1,$format("STAGE1 : rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c, pred.discard))
