@@ -166,7 +166,7 @@ package cclass;
       let req <- riscv.inst_request;
       imem.core_req.put(req.icache_req);
     `ifdef bpu
-      if( `ifdef supervisor !req.icache_req.sfence `endif )
+      `ifdef supervisor if( !req.icache_req.sfence) `endif 
         bpu.prediction_req(PredictionRequest{pc       : req.icache_req.address,
                                              fence    : req.icache_req.fence,
                                              epochs   : req.icache_req.epochs
