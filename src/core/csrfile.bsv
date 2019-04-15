@@ -923,7 +923,9 @@ package csrfile;
         csr_sie : csr_sie,
       `endif
       `ifdef usertraps
-        csr_sideleg : rg_sideleg,
+        `ifdef supervisor
+          csr_sideleg : rg_sideleg,
+        `endif
         csr_uie : csr_uie,
         csr_uip : csr_uip,
       `endif

@@ -170,7 +170,9 @@ package common_types;
   `ifdef usertraps
     Bit#(12) csr_uip;
     Bit#(12) csr_uie;
+  `ifdef supervisor
     Bit#(12) csr_sideleg;
+  `endif
   `endif
     Bit#(26) csr_misa;
     Bit#(XLEN) csr_mstatus;
@@ -214,9 +216,7 @@ package common_types;
   	Bit#(32) instruction;
   	Bit#(`iesize) epochs;
     Bool trap ;
-  `ifdef supervisor
-    Bit#(6) cause;
-  `endif
+    Bit#(`causesize) cause;
   `ifdef compressed
     Bool upper_err;
   `endif
