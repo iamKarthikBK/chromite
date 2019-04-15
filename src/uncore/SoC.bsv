@@ -61,6 +61,13 @@ package SoC;
   import riscvDebug013::*;                                                                        
   import debug_halt_loop::*;
 `endif
+
+  typedef 0 Sign_master_num;
+  typedef (TAdd#(Sign_master_num, `ifdef dcache 1 `else 0 `endif )) Mem_master_num;
+  typedef (TAdd#(Mem_master_num, `ifdef icache 1 `else 0 `endif )) Fetch_master_num;
+  typedef (TAdd#(Fetch_master_num, 1)) IO_master_num;
+  typedef (TAdd#(IO_master_num, `ifdef debug 1 `else 0 `endif )) Debug_master_num;
+  typedef (TAdd#(Debug_master_num, 1)) Num_Masters;
  
  `ifdef CORE_TLU
     function Tuple2 #(Bool, Bit#(TLog#(`Num_Slaves))) fn_slave_map (A_Opcode_lite cmd, 
@@ -135,7 +142,7 @@ package SoC;
     let curr_reset<-exposeCurrentReset;
     Ifc_cclass_axi4 cclass <- mkcclass_axi4();
     Ifc_Tbsign_dump signature<- mkTbsign_dump();
-    AXI4_Fabric_IFC #(`Num_Masters, `Num_Slaves, `paddr, ELEN, USERSPACE) 
+    AXI4_Fabric_IFC #(Num_Masters, `Num_Slaves, `paddr, ELEN, USERSPACE) 
                                                     fabric <- mkAXI4_Fabric(fn_slave_map);
  		Ifc_bram_axi4#(`paddr, ELEN, USERSPACE, `Addr_space) main_memory <- mkbram_axi4(`MemoryBase, 
                                                 "code.mem.MSB", "code.mem.LSB", "MainMEM");
@@ -204,14 +211,16 @@ package SoC;
       
     // ------------------------------------------------------------------------------------------//
   `ifdef debug
-    mkConnection (debug_module.debug_master,fabric.v_from_masters[`Debug_master_num]);
+    mkConnection (debug_module.debug_master,fabric.v_from_masters[Debug_master_num]);
   `endif
-   	mkConnection(cclass.master_d,	fabric.v_from_masters[`Mem_master_num]);
-   	mkConnection(cclass.master_i, fabric.v_from_masters[`Fetch_master_num]);
+   	mkConnection(cclass.master_d,	fabric.v_from_masters[valueOf(Mem_master_num)]);
+  `ifdef icache
+   	mkConnection(cclass.master_i, fabric.v_from_masters[valueOf(Fetch_master_num)]);
+  `endif
   `ifdef cache_control
-   	mkConnection(cclass.master_io, fabric.v_from_masters[`IO_master_num]);
+   	mkConnection(cclass.master_io, fabric.v_from_masters[valueOf(IO_master_num)]);
   `endif
-   	mkConnection(signature.master, fabric.v_from_masters[`Sign_master_num ]);
+   	mkConnection(signature.master, fabric.v_from_masters[valueOf(Sign_master_num) ]);
 
   	mkConnection(fabric.v_to_slaves[`Memory_slave_num ],main_memory.slave);
 		mkConnection (fabric.v_to_slaves [`BootRom_slave_num ],bootrom.slave);
