@@ -44,9 +44,7 @@ package cclass;
   import globals::*;
   import cache_types :: *;
   import Assert ::*;
-`ifdef icache
   import imem::*;
-`endif
 `ifdef dcache
   import dmem::*;
 `endif
@@ -83,7 +81,9 @@ package cclass;
     typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
   interface Ifc_cclass_axi4;
 		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_d;
+  `ifdef icache
 		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_i;
+  `endif
   `ifdef cache_control
     interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_io;
   `endif
@@ -100,11 +100,7 @@ package cclass;
   endinterface : Ifc_cclass_axi4
 
   (*synthesize*)
-  `ifdef dcache
-    `ifdef icache
-      (*preempts="handle_dmem_nc_request, handle_imem_nc_request"*)
-    `endif
-  `endif
+  (*preempts="handle_dmem_nc_request, handle_imem_nc_request"*)
   `ifdef supervisor
     `ifdef icache
       (*preempts="dtlb_req_to_ptwalk, itlb_req_to_ptwalk"*)
@@ -132,7 +128,9 @@ package cclass;
   `endif
     Reg#(PTWState) rg_ptw_state <- mkReg(None);
   `endif
+  `ifdef icache
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
+  `endif
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
 `ifdef cache_control
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) io_xactor <- mkAXI4_Master_Xactor;
@@ -158,7 +156,6 @@ package cclass;
       wr_io_read_response <= fab_resp;
     endrule
   `endif
-  `ifdef icache
 	  Ifc_imem imem <- mkimem;
 	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
 
@@ -172,7 +169,8 @@ package cclass;
                                              epochs   : req.icache_req.epochs
                           `ifdef compressed ,discard  : req.discard `endif });
     `else
-      if( !req.icache_req.sfence && !req.icache_req.fence)
+      if( True `ifdef supervisor && !req.icache_req.sfence `endif 
+          `ifdef ifence && !req.icache_req.fence `endif )
         ff_next_pc.enq(NextPC{va:req.icache_req.address
                     `ifdef compressed ,discard: req.discard `endif });
     `endif
@@ -202,6 +200,7 @@ package cclass;
       imem.curr_priv.put(curr_priv);
     endrule
   `endif
+  `ifdef icache
     rule drive_constants;
 		  imem.cache_enable(unpack(riscv.mv_cacheenable[0]));
     endrule
@@ -223,7 +222,7 @@ package cclass;
                                                  err    : bus_error});
 	  	`logLevel( core, 1, $format("CORE : IMEM Line Response ", fshow(fab_resp)))
 	  endrule
-	  
+	`endif
     rule handle_imem_nc_request;
 	  	let request <- imem.nc_read_req.get;
 	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr : truncate(request.address), 
@@ -243,34 +242,6 @@ package cclass;
                                                 err   : bus_error});
       `logLevel( core, 1, $format("CORE : IMEM IO Response ", fshow(wr_io_read_response)))
 	  endrule
-
-  `else  // if icache is disabled at compile time
-  
-    rule handle_fetch_request ;
-	    let request <- riscv.inst_request;
-      if(vaddr>paddr) begin
-        Bit#(TSub#(`vaddr,`paddr)) upperbits = request.icache_req.address[vaddr - 1:paddr];
-       if(upperbits != 0)
-          request.icache_req.address = 0;
-      end
-			AXI4_Rd_Addr#(`paddr, 0) read_request = AXI4_Rd_Addr {
-            araddr : truncate(request.icache_req.address), aruser: ?, arlen : 0, arsize : 2, 
-            arburst : 'b01, arid : `Fetch_master_num, arprot:{1'b1, 1'b0, curr_priv[1]}}; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
-			fetch_xactor.i_rd_addr.enq(read_request);	
-      ff_epoch.enq(request.icache_req.epochs);   	
-      `logLevel( core, 1, $format("CORE : Fetch Request ", fshow(read_request)))
-    endrule
-    rule handle_fetch_response;
-			let response <- pop_o (fetch_xactor.o_rd_data);	
-			Bool bus_error = !(response.rresp == AXI4_OKAY);
-      riscv.inst_response.put(FetchResponse{instr : truncate(response.rdata), 
-                                            trap  : bus_error, 
-                                            cause : `Inst_access_fault, 
-                                            epochs: ff_epoch.first});
-      ff_epoch.deq;
-      `logLevel( core, 1, $format("CORE : Fetch Response ", fshow(response)))
-    endrule
-  `endif
 
   `ifdef dcache
     let dmem <- mkdmem;
@@ -574,7 +545,9 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
         riscv.set_external_interrupt(intrpt);
       endmethod
     endinterface;
+  `ifdef icache
 		interface master_i = fetch_xactor.axi_side;
+  `endif
 		interface master_d = memory_xactor.axi_side;
   `ifdef cache_control
     interface master_io = io_xactor.axi_side;
