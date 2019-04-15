@@ -66,7 +66,6 @@ package globals;
     Bit#(addr)    address;
     Bit#(esize)   epochs;
     Bit#(3)       size;
-`ifdef dcache
     Bool          fence;
     Bit#(2)       access;
     Bit#(data)    writedata;
@@ -78,7 +77,6 @@ package globals;
     Bool          ptwalk_req;
     Bool          ptwalk_trap;
   `endif
-`endif
   } DMem_request#(numeric type addr, 
                   numeric type data, 
                   numeric type esize ) deriving(Bits, Eq, FShow);
