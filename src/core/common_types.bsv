@@ -278,11 +278,6 @@ package common_types;
   typedef struct{
     Bit#(`vaddr)  address;
     Access_type   memaccess;
-  `ifndef dcache
-    Bit#(ELEN)    data;
-    Bit#(5)       atomic_op;
-    Bit#(3)       size;
-  `endif
   `ifdef dpfpu
     Bit#(1)       nanboxing;
   `endif
