@@ -412,17 +412,20 @@ package csrfile;
     `endif
 	  //////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////// None Standard User RW CSRs /////////////////////////////////
-  `ifdef cache_control
-    // 0 - bit is cache enable for instruction cache
-    // 1 - bit is cache enable for data cache
     // Address : 'h800
-    Reg#(Bit#(1)) rg_denable <- mkReg(fromInteger(valueOf(`dcachereset)));
+  `ifdef icache
+    // 0 - bit is cache enable for instruction cache
     Reg#(Bit#(1)) rg_ienable <- mkReg(fromInteger(valueOf(`icachereset)));
   `else
-    Reg#(Bit#(1)) rg_denable = readOnlyReg(0);
     Reg#(Bit#(1)) rg_ienable = readOnlyReg(0);
   `endif
-    
+
+  `ifdef dcache
+    // 1 - bit is cache enable for data cache
+    Reg#(Bit#(1)) rg_denable <- mkReg(fromInteger(valueOf(`dcachereset)));
+  `else
+    Reg#(Bit#(1)) rg_denable = readOnlyReg(0);
+  `endif
   `ifdef bpu
     // 2 - bit is branch predictor enable
     Reg#(Bit#(1)) rg_bpuenable <- mkReg(fromInteger(valueOf(`bpureset)));
@@ -437,7 +440,7 @@ package csrfile;
     Reg#(Bit#(1)) rg_arith_excep = readOnlyReg(0);
   `endif
 
-    Reg#(Bit#(3)) rg_customcontrol = concatReg4(rg_arith_excep,rg_bpuenable, rg_denable, rg_ienable); 
+    Reg#(Bit#(4)) rg_customcontrol = concatReg4(rg_arith_excep, rg_bpuenable, rg_denable, rg_ienable); 
 	  //////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// Debug Module CSRs /////////////////////////////////////////
   `ifdef debug
@@ -1195,7 +1198,7 @@ package csrfile;
                 hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
       `endif
     endmethod
-    method mv_cacheenable = rg_customcontrol;
+    method mv_cacheenable = truncate(rg_customcontrol);
   `ifdef arith_trap
     method Bit#(1) arith_excep = rg_customcontrol[3];
   `endif
