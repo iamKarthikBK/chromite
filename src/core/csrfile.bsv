@@ -55,7 +55,7 @@ package csrfile;
   `endif
     method Bit#(3) mv_cacheenable;
   //returns arithmetic exception enabled/disabled
-  `ifdef ARITH_EXCEP
+  `ifdef arith_trap
     method Bit#(1) arith_excep;
   `endif
     method Bit#(1) csr_misa_c;
@@ -424,18 +424,20 @@ package csrfile;
   `endif
     
   `ifdef bpu
+    // 2 - bit is branch predictor enable
     Reg#(Bit#(1)) rg_bpuenable <- mkReg(fromInteger(valueOf(`bpureset)));
   `else
     Reg#(Bit#(1)) rg_bpuenable = readOnlyReg(0);
   `endif
 
-    Reg#(Bit#(3)) rg_cachecontrol = concatReg3(rg_bpuenable, rg_denable, rg_ienable); 
-  `ifdef ARITH_EXCEP
-   //   enabling this bit enables traps for arithmetic exceptions
-   //   Address :'h810
-   Reg#(Bit#(1)) rg_arith_excep <-mkReg(0); 
-    
+  `ifdef arith_trap
+    // 3 - bit if to enable traps on arithmetic ops
+    Reg#(Bit#(1)) rg_arith_excep <-mkReg(0); 
+  `else
+    Reg#(Bit#(1)) rg_arith_excep = readOnlyReg(0);
   `endif
+
+    Reg#(Bit#(3)) rg_customcontrol = concatReg4(rg_arith_excep,rg_bpuenable, rg_denable, rg_ienable); 
 	  //////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// Debug Module CSRs /////////////////////////////////////////
   `ifdef debug
@@ -636,8 +638,8 @@ package csrfile;
         if (addr == `FFLAGS ) data = zeroExtend(fflags);
         if (addr == `FRM ) data = zeroExtend(frm);
         if (addr == `FCSR ) data = zeroExtend({frm, fflags});
-        if (addr == `CACHECNTRL ) data = zeroExtend(rg_cachecontrol);
-      `ifdef ARITH_EXCEP
+        if (addr == `CUSTOMCNTRL ) data = zeroExtend(rg_customcontrol);
+      `ifdef arith_trap
         if (addr == `ARITH_EXCEP_EN)data = zeroExtend(rg_arith_excep);
       `endif
       `ifdef debug
@@ -905,12 +907,8 @@ package csrfile;
           end
         `endif
         /////////////////////////////// Non standard User CSRs  ////////////////////
-        `CACHECNTRL:
-          rg_cachecontrol <= truncate(word);
-       `ifdef ARITH_EXCEP
-         `ARITH_EXCEP_EN:
-         rg_arith_excep <= truncate(word);
-      `endif
+        `CUSTOMCNTRL:
+          rg_customcontrol <= truncate(word);
       `ifdef debug
           `DCSR:  rg_csr_dcsr <=  truncate(word);
           `DPC:   rg_csr_dpc  <=  truncate(word>>1);
@@ -1193,9 +1191,9 @@ package csrfile;
                 hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
       `endif
     endmethod
-    method mv_cacheenable = rg_cachecontrol;
-  `ifdef ARITH_EXCEP
-    method Bit#(1) arith_excep = rg_arith_excep;
+    method mv_cacheenable = rg_customcontrol;
+  `ifdef arith_trap
+    method Bit#(1) arith_excep = rg_customcontrol[3];
   `endif
   `ifdef pmp
     method pmp_cfg = readVReg(v_pmp_cfg);
