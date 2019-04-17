@@ -63,9 +63,9 @@ package SoC;
 `endif
 
   typedef 0 Sign_master_num;
-  typedef (TAdd#(Sign_master_num, `ifdef dcache 1 `else 0 `endif )) Mem_master_num;
-  typedef (TAdd#(Mem_master_num, `ifdef icache 1 `else 0 `endif )) Fetch_master_num;
-  typedef (TAdd#(Fetch_master_num, 1)) IO_master_num;
+  typedef (TAdd#(Sign_master_num, 1)) Mem_master_num;
+  typedef (TAdd#(Mem_master_num, 1)) Fetch_master_num;
+  typedef (TAdd#(Fetch_master_num, `ifdef cache_control 1 `else 0 `endif )) IO_master_num;
   typedef (TAdd#(IO_master_num, `ifdef debug 1 `else 0 `endif )) Debug_master_num;
   typedef (TAdd#(Debug_master_num, 1)) Num_Masters;
  
@@ -214,9 +214,7 @@ package SoC;
     mkConnection (debug_module.debug_master,fabric.v_from_masters[Debug_master_num]);
   `endif
    	mkConnection(cclass.master_d,	fabric.v_from_masters[valueOf(Mem_master_num)]);
-  `ifdef icache
    	mkConnection(cclass.master_i, fabric.v_from_masters[valueOf(Fetch_master_num)]);
-  `endif
   `ifdef cache_control
    	mkConnection(cclass.master_io, fabric.v_from_masters[valueOf(IO_master_num)]);
   `endif

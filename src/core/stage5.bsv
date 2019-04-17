@@ -71,10 +71,8 @@ package stage5;
     method Bit#(1) csr_misa_c;
     method Tuple2#(Bool,Bool) initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
-  `ifdef dcache
     (*always_enabled*)
     method Action store_is_cached(Bool c);
-  `endif
     method Bit#(3) mv_cacheenable;
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
@@ -129,8 +127,8 @@ package stage5;
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
     Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr)))) wr_store_response <- mkDWire(tagged Invalid);
-  `ifdef dcache
     Wire#(Bool) wr_store_is_cached <- mkDWire(False);
+  `ifdef dcache
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
   `else
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDReg(tuple2(False,False));
@@ -359,11 +357,9 @@ package stage5;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
       wr_store_response<=r;
     endmethod
-  `ifdef dcache
     method Action store_is_cached(Bool c);
       wr_store_is_cached<=c;
     endmethod
-  `endif
     method mv_cacheenable = csr.mv_cacheenable;
     method curr_priv = csr.curr_priv;
     method csr_mstatus= csr.csr_mstatus;

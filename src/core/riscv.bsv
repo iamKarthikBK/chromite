@@ -62,11 +62,9 @@ package riscv;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1), Bit#(`vaddr))) r);
     (*always_enabled*)
     method Action storebuffer_empty(Bool e);
-  `ifdef dcache
     method Action store_is_cached(Bool c);
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
-  `endif 
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);
     method Action clint_mtime(Bit#(64) c_mtime);
@@ -411,14 +409,12 @@ package riscv;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1), Bit#(`vaddr))) r);
       stage5.write_resp(r);
     endmethod
-  `ifdef dcache
     method Action store_is_cached(Bool c);
       stage5.store_is_cached(c);
     endmethod
     method Action cache_is_available(Bool avail);
       stage3.cache_is_available(avail);
     endmethod
-  `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i) = stage5.set_external_interrupt(ex_i);
     method csr_mstatus = stage5.csr_mstatus;
     method mv_cacheenable = stage5.mv_cacheenable;

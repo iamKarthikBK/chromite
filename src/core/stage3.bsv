@@ -110,10 +110,8 @@ package stage3;
 
     // interface to send memory requests to the dmem subsystem
     interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
-  `ifdef dcache
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
-  `endif
 
     // method to receive the current status of the misa_c bit
     method Action csr_misa_c (Bit#(1) m);
@@ -206,9 +204,7 @@ package stage3;
     Reg#(Bit#(`vaddr)) wr_redirect_pc <- mkDWire(0);
 
     Wire#(DMem_request#(`vaddr, ELEN, 1)) wr_memory_request <- mkWire;
-  `ifdef dcache
     Wire#(Bool) wr_cache_avail <- mkWire;
-  `endif
 
     // wire holding the compressed bit of the misa csr
     Wire#(Bit#(1)) wr_misa_c <- mkWire();
@@ -260,7 +256,7 @@ package stage3;
         wr_memory_request <= req;
     endaction;
     // ---------------------- End local function definitions ------------------//
-    Bool rule_condition = True `ifdef dcache && wr_cache_avail `endif 
+    Bool rule_condition = wr_cache_avail
                                `ifdef multicycle && !rg_stall  `endif ;
 
     // RuleName : execute_operation
@@ -535,10 +531,8 @@ package stage3;
     // atleast 2 cycles to be generated.
     `ifdef simulate
       rule count_stalls(!rule_condition);
-      `ifdef dcache
         if(!wr_cache_avail)
-      `endif
-        `logLevel( stage3, 0, $format("STAGE3: Stalled for MulDiv/FPU"))
+          `logLevel( stage3, 0, $format("STAGE3: Stalled for MulDiv/FPU"))
       endrule
     `endif
     rule capture_stalled_output(rg_stall);
@@ -605,7 +599,6 @@ package stage3;
     // Thhis is method is fired when a branch / jump redicrection is detected from this stage.
     method flush_from_exe = tuple2(wr_flush_from_exe, wr_redirect_pc);
 
-  `ifdef dcache
     // MethodName : cache_is_available
     // Implicit Conditions : None
     // Explicit Conditions : None
@@ -613,7 +606,6 @@ package stage3;
     method Action cache_is_available(Bool avail);
       wr_cache_avail <= avail;
     endmethod
-  `endif
 
     // MethodName : memory_request
     // Implicit Conditions : None
