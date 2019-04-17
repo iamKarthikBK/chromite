@@ -136,7 +136,7 @@
 `define Load_pagefault        13
 `define Store_pagefault       15
 `define Int_divide_by_zero    17
-`define FP_Invalid            18
+`define FP_invalid            18
 `define FP_divide_by_zero     19
 `define FP_overflow           20
 `define FP_underflow          21
