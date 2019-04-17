@@ -51,7 +51,7 @@ package csr;
 	  method ActionValue#(Tuple3#(Bool, Bit#(`vaddr), Bit#(XLEN))) system_instruction(
             Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
     method CSRtoDecode csrs_to_decode;
-    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(6) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
+    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(`causesize) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(64) c_mtime);
@@ -65,6 +65,10 @@ package csr;
 	  method Action set_external_interrupt(Bit#(1) ex_i);
     method Bit#(1) csr_misa_c;
     method Bit#(3) mv_cacheenable;
+  `ifdef arith_trap
+   //This method returns value of csr_reg which enables or disables arithmetic exceptions
+    method Bit#(1) arith_excep;
+  `endif
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
   `ifdef pmp
@@ -124,7 +128,7 @@ package csr;
 	  	return tuple3(flush, jump_add, destination_value);
 	  endmethod
 	
-    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(6) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
+    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(`causesize) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
       let jump_address <- csrfile.upd_on_trap(type_cause, pc, badaddr); 
 		  return jump_address;
   	endmethod
@@ -151,6 +155,10 @@ package csr;
 	  method Action set_external_interrupt(Bit#(1) ex_i) = csrfile.set_external_interrupt(ex_i);
     method csr_misa_c = csrfile.csr_misa_c;
     method mv_cacheenable = csrfile.mv_cacheenable;
+ 
+  `ifdef arith_trap
+    method arith_excep = csrfile.arith_excep;
+  `endif
     method curr_priv = csrfile.curr_priv;
     method csr_mstatus = csrfile.csr_mstatus;
   `ifdef pmp

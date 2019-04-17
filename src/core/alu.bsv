@@ -135,7 +135,7 @@ package alu;
       effective_address[0] = 0;
 
     // ------------------------- Exception detection ------------------------------------------- //
-    Bit#(6) cause=`Load_addr_misaligned;
+    Bit#(`causesize) cause=`Load_addr_misaligned;
     Bool exception = False;
 	  if( (inst_type == JALR || inst_type == JAL || (inst_type == BRANCH && compare_out == 1))
         &&  effective_address[1] != 0 && misa_c == 0 ) begin
@@ -202,6 +202,11 @@ package alu;
     // method to send the output from the muldiv or fpu when outputs are ready
 		method ActionValue#(ALU_OUT) delayed_output;
   `endif
+
+  //Read csr_reg to check if arith_exception is enabled
+   `ifdef arith_trap
+      method Action rd_arith_excep_en(Bit#(1) arith_en);
+   `endif
   endinterface : Ifc_alu
 
   `ifdef multicycle
@@ -237,6 +242,8 @@ package alu;
       Reg#(WaitState) rg_wait <- mkReg(None);
       Wire#(ALU_OUT) wr_delayed_output <- mkWire();
     `endif
+
+
       // ---------------------------------------------------------------------------------------- //
     
       // ------------------------------------------ rules --------------------------------------- //
@@ -248,10 +255,10 @@ package alu;
       rule capture_delayed_fpuoutput(rg_wait == WaitFPU);
         let fpu_result <- fpu.get_result;
         wr_delayed_output<=  ALU_OUT{done           : True,  
-                                     cmtype         : REGULAR,   
+                                     cmtype         : fpu_result.commit_type,   
                                      aluresult      : fpu_result.final_result,  
                                      effective_addr : zeroExtend(fpu_result.fflags), 
-                                     cause          : ?, 
+                                     cause          : fpu_result.cause,
                                      redirect       : False
                                   `ifdef bpu
                                      ,branch_taken  : False
@@ -272,7 +279,6 @@ package alu;
         rg_wait <= None;
       endrule
     `endif
-      // ---------------------------------------------------------------------------------------- //
 
     // MethodName : inputs
     // Explicit Conditions : None 
@@ -327,5 +333,19 @@ package alu;
       return wr_delayed_output;
     endmethod
   `endif
+
+
+ `ifdef arith_trap
+    method  Action rd_arith_excep_en(Bit#(1) arith_en);
+    `ifdef muldiv
+      muldiv.rd_arith_excep_en(arith_en);
+    `endif
+    `ifdef spfpu
+      fpu.rd_arith_excep_en(arith_en);
+    `endif
+    endmethod
+ `endif
+
+
   endmodule
 endpackage : alu

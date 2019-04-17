@@ -83,5 +83,5 @@
 `define DTVEC     'h7C0 // Debug trap vector
 `define DENABLE   'h7C1 // Debug enable register
 ////////////////////////// Non-Standard User RW CSRS ///////////////////////////////
-`define CACHECNTRL 'h800 // cache control register
+`define CUSTOMCNTRL 'h800 // custom control register
 

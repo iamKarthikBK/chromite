@@ -27,6 +27,9 @@ package muldiv_asic_32bit;
 	interface Ifc_muldiv;
 		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
     funct3 );
+   `ifdef arith_trap
+      method Action rd_arith_excep_en(Bit#(1) arith_en);
+   `endif
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 		method Action flush;
 	endinterface
@@ -118,6 +121,10 @@ package muldiv_asic_32bit;
 		//Only DIV
 		Reg#(Bit#(6)) rg_state_counter[2]<-mkCReg(2,0);										// to count the number of iterations
 		Reg#(Bit#(2)) rg_funct3 <-mkReg(0);
+
+    `ifdef arith_trap
+    Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
+    `endif
 
 		rule unroll_multiplication(rg_is_mul && rg_count[1]!=4 && `MULSTAGES!=0);
 
@@ -268,8 +275,15 @@ package muldiv_asic_32bit;
 		endrule
 
 		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
-    funct3 );
-      if(`MULSTAGES==0 && funct3[2]==0) begin
+    funct3);
+     `ifdef arith_trap
+     let is_mul = ~funct3[2];
+     if(is_mul==0)
+      if(in2==0 && wr_arith_en ==1'b1)
+      return ALU_OUT{done:True, cmtype :REGULAR,aluresult :'b1,effective_addr:?,cause:17,redirect:False};//DIV_BY_ZER0 trap
+     else
+    `endif
+     if(`MULSTAGES==0 && funct3[2]==0) begin
         let product = single_mult(in1, in2, funct3 `ifdef RV64 , word_flag `endif );
         return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
                        effective_addr : ?, cause : ?, redirect : False 
@@ -294,6 +308,12 @@ package muldiv_asic_32bit;
 			rg_count[0]<=4;
 			rg_state_counter[0]<= 0;
 		endmethod
+
+
+   `ifdef arith_trap
+      method  Action rd_arith_excep_en(Bit#(1) arith_en);
+      wr_arith_en<=arith_en;
+      endmethod
 	endmodule
 
 endpackage

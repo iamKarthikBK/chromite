@@ -374,4 +374,11 @@ package common_types;
 		Bit#(5) fflags; 					// indicates if any exception is generated.
 	}Floating_output#(numeric type width) deriving(Bits, Eq);				// data structure of the output FIFO.
 
+  typedef struct{
+    PreCommit_type commit_type;
+		Bit#(width) final_result;					// the final result for the operation
+		Bit#(5) fflags; 			
+    Bit#(`causesize) cause ; // indicates if any exception is generated.
+	}Float_result#(numeric type width) deriving(Bits, Eq);				// data structure of the output FIFO.
+
 endpackage

@@ -112,6 +112,9 @@ package stage3;
     interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
+   `ifdef arith_trap
+      method Action rd_arith_excep_en(Bit#(1) arith_en);
+   `endif
 
     // method to receive the current status of the misa_c bit
     method Action csr_misa_c (Bit#(1) m);
@@ -197,6 +200,11 @@ package stage3;
 		Reg#(Bit#(1)) rg_eEpoch <- mkReg(0);
 		Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
 
+    //Enable/disable arith_excep at run time
+    `ifdef arith_trap
+    Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
+    `endif
+
     // Wire sending redirection indication to the previous stages.
     Reg#(Bool) wr_flush_from_exe <- mkDWire(False);
 
@@ -275,6 +283,13 @@ package stage3;
     // and the execute stage is stalled untill the operation is over.
     // An instruction tagged as a TRAP in the previous stage will simply bypass the execute
     // stage.
+    
+    `ifdef arith_trap
+    rule get_arith_en; 
+      alu.rd_arith_excep_en(wr_arith_en);
+    endrule
+    `endif
+
     rule execute_operation ( rule_condition );
     //---------------------- capturing the inputs from the previous stage. -------------------- //
       let rf_ops  = rx_op.u.first;
@@ -551,10 +566,17 @@ package stage3;
                                   ,rdtype : opmeta.op_type.rdtype
                                 `endif } ;
 
-      Stage4Type s4type = tagged Regular (Stage4Regular { rdvalue   : aluout.aluresult
+      let s4trap = Stage4Trap {cause   : aluout.cause,
+                               badaddr : aluout.effective_addr};
+      
+      let s4regular = Stage4Regular  {rdvalue   : aluout.aluresult
                                 `ifdef spfpu
                                       ,fflags    : truncate(aluout.effective_addr)
-                                `endif } );
+                                `endif };
+      Stage4Type s4type = case(aluout.cmtype) matches 
+                                    REGULAR       : tagged Regular s4regular;
+                                    TRAP          : tagged Trap s4trap;
+                          endcase;
       if(execute_instruction)begin
       `ifdef rtldump
         txinst.u.enq(tuple2(meta.pc, rxinst.u.first));
@@ -675,8 +697,12 @@ package stage3;
     method Action next_pc (Bit#(`vaddr) npc);
       wr_next_pc <= tagged Valid npc;
     endmethod
+   `ifdef arith_trap
+      method  Action rd_arith_excep_en(Bit#(1) arith_en);
+      wr_arith_en<=arith_en;
+      endmethod
+   `endif
   `ifdef bpu
-    
     // MethodName : train_bpu
     // Implicit Conditions : None
     // Explicit Conditions : None

@@ -43,7 +43,7 @@ package csrfile;
     method ActionValue#(Bit#(XLEN)) read_csr (Bit#(12) addr);
     method Action write_csr(Bit#(12) addr,  Bit#(XLEN) word, Bit#(2) lpc);
     method ActionValue#(Bit#(`vaddr)) upd_on_ret `ifdef non_m_traps (Privilege_mode prv) `endif ;
-    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(6) cause, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
+    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(`causesize) cause, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
     method Action incr_minstret;
   // ------------------------ csrs to other pipeline stages ---------------------------------//
     method CSRtoDecode csrs_to_decode;
@@ -54,6 +54,10 @@ package csrfile;
     method Action update_fflags(Bit#(5) flags);
   `endif
     method Bit#(3) mv_cacheenable;
+  //returns arithmetic exception enabled/disabled
+  `ifdef arith_trap
+    method Bit#(1) arith_excep;
+  `endif
     method Bit#(1) csr_misa_c;
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
@@ -314,7 +318,7 @@ package csrfile;
 	  Reg#(Bit#(XLEN)) rg_mscratch <- mkReg(0);
     
     Reg#(Bit#(1)) rg_minterrupt <- mkReg(0);
-	  Reg#(Bit#(5)) rg_mcause   <- mkReg(0);
+	  Reg#(Bit#(TSub#(`causesize,1))) rg_mcause   <- mkReg(0);
     
 	  Reg#(Bit#(3)) rg_mcounteren <- mkReg(0);
 	  Reg#(Bit#(64)) rg_clint_mtime <- mkReg(0);
@@ -332,7 +336,7 @@ package csrfile;
 
       // SCAUSE register
       Reg#(Bit#(1)) sinterrupt <- mkReg(0);
-	    Reg#(Bit#(5)) scause   <- mkReg(0);
+	    Reg#(Bit#(TSub#(`causesize,1))) scause   <- mkReg(0);
 
       // STVAL
 	    Reg#(Bit#(`vaddr)) stval  		<- mkReg(0);
@@ -368,7 +372,7 @@ package csrfile;
   	  Reg#(Bit#(TSub#(`vaddr, 1))) rg_uepc  		<- mkReg(0);
 	    Reg#(Bit#(XLEN))rg_utval  		<- mkReg(0);
       Reg#(Bit#(1)) rg_uinterrupt <- mkReg(0);
-  	  Reg#(Bit#(5)) rg_ucause   <- mkReg(0);
+  	  Reg#(Bit#(TSub#(`causesize,1))) rg_ucause   <- mkReg(0);
 	    Reg#(Bit#(2)) rg_umode <- mkReg(0); //0 if pc to base or 1 if pc to base + 4xcause
   	  Reg#(Bit#(TSub#(`vaddr, 2))) rg_utvec <- mkReg(0);
     `endif
@@ -408,24 +412,35 @@ package csrfile;
     `endif
 	  //////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////// None Standard User RW CSRs /////////////////////////////////
-  `ifdef cache_control
-    // 0 - bit is cache enable for instruction cache
-    // 1 - bit is cache enable for data cache
     // Address : 'h800
-    Reg#(Bit#(1)) rg_denable <- mkReg(fromInteger(valueOf(`dcachereset)));
+  `ifdef icache
+    // 0 - bit is cache enable for instruction cache
     Reg#(Bit#(1)) rg_ienable <- mkReg(fromInteger(valueOf(`icachereset)));
   `else
-    Reg#(Bit#(1)) rg_denable = readOnlyReg(0);
     Reg#(Bit#(1)) rg_ienable = readOnlyReg(0);
   `endif
-    
+
+  `ifdef dcache
+    // 1 - bit is cache enable for data cache
+    Reg#(Bit#(1)) rg_denable <- mkReg(fromInteger(valueOf(`dcachereset)));
+  `else
+    Reg#(Bit#(1)) rg_denable = readOnlyReg(0);
+  `endif
   `ifdef bpu
+    // 2 - bit is branch predictor enable
     Reg#(Bit#(1)) rg_bpuenable <- mkReg(fromInteger(valueOf(`bpureset)));
   `else
     Reg#(Bit#(1)) rg_bpuenable = readOnlyReg(0);
   `endif
 
-    Reg#(Bit#(3)) rg_cachecontrol = concatReg3(rg_bpuenable, rg_denable, rg_ienable); 
+  `ifdef arith_trap
+    // 3 - bit if to enable traps on arithmetic ops
+    Reg#(Bit#(1)) rg_arith_excep <-mkReg(0); 
+  `else
+    Reg#(Bit#(1)) rg_arith_excep = readOnlyReg(0);
+  `endif
+
+    Reg#(Bit#(4)) rg_customcontrol = concatReg4(rg_arith_excep, rg_bpuenable, rg_denable, rg_ienable); 
 	  //////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// Debug Module CSRs /////////////////////////////////////////
   `ifdef debug
@@ -443,9 +458,8 @@ package csrfile;
     Reg#(Bit#(1)) rg_dcsr_step      <- mkReg(0);                              // DCSR b2
     Reg#(Bit#(2)) rg_dcsr_prv       <- mkReg(3);                              // DCSR b1-0
     Reg#(Bit#(32)) rg_csr_dcsr =  concatReg15(rg_dcsr_xdebugver,readOnlyReg(12'd0),rg_dcsr_ebreakm,
-      readOnlyReg(1'd0),rg_dcsr_ebreaks,rg_dcsr_ebreaku,rg_dcsr_stepie,rg_dcsr_stopcount,
-      rg_dcsr_stoptime,readOnlyReg(rg_dcsr_cause),readOnlyReg(1'd0),rg_dcsr_mprven,readOnlyReg(rg_dcsr_nmip),
-      rg_dcsr_step,rg_dcsr_prv);
+    readOnlyReg(1'd0),rg_dcsr_ebreaks,rg_dcsr_ebreaku,rg_dcsr_stepie,rg_dcsr_stopcount,
+    rg_dcsr_stoptime,readOnlyReg(rg_dcsr_cause),readOnlyReg(1'd0),rg_dcsr_mprven,  readOnlyReg(rg_dcsr_nmip),rg_dcsr_step,rg_dcsr_prv);
 
     // DPC - debug spec
 	  Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dpc  		<- mkReg(0);
@@ -627,7 +641,10 @@ package csrfile;
         if (addr == `FFLAGS ) data = zeroExtend(fflags);
         if (addr == `FRM ) data = zeroExtend(frm);
         if (addr == `FCSR ) data = zeroExtend({frm, fflags});
-        if (addr == `CACHECNTRL ) data = zeroExtend(rg_cachecontrol);
+        if (addr == `CUSTOMCNTRL ) data = zeroExtend(rg_customcontrol);
+      `ifdef arith_trap
+        if (addr == `ARITH_EXCEP_EN)data = zeroExtend(rg_arith_excep);
+      `endif
       `ifdef debug
         if(addr == `DCSR) data = zeroExtend(rg_csr_dcsr);
         if(addr == `DPC ) data = signExtend({rg_csr_dpc,1'd0});
@@ -893,8 +910,8 @@ package csrfile;
           end
         `endif
         /////////////////////////////// Non standard User CSRs  ////////////////////
-        `CACHECNTRL:
-          rg_cachecontrol <= truncate(word);
+        `CUSTOMCNTRL:
+          rg_customcontrol <= truncate(word);
       `ifdef debug
           `DCSR:  rg_csr_dcsr <=  truncate(word);
           `DPC:   rg_csr_dpc  <=  truncate(word>>1);
@@ -980,8 +997,10 @@ package csrfile;
         return {lv_mepc, 1'b0};
       end
     endmethod
-    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(6) c, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
-      Bit#(6) cause = c;
+    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(`causesize) c, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
+      Bit#(`causesize) cause = c;
+      Bit#(TSub#(`causesize,1)) code = truncate(cause);
+      Bit#(1) trap_type = truncateLSB(cause);
 
       `ifdef non_m_traps
           Privilege_mode prv = Machine;
@@ -991,12 +1010,16 @@ package csrfile;
             Bit#(16) sedeleg = {rg_sedeleg_u1, 1'd0, rg_sedeleg_m2, 3'd0, rg_sedeleg_l9};
           `endif
         `endif
-          Bool delegateM = (((rg_mideleg >> cause[4 : 0]) & 1 & duplicate(cause[5])) == 1) ||  
-                                      (((medeleg >> cause[4 : 0]) & 1 & duplicate(~cause[5])) == 1);
+          Bool delegateM = (((rg_mideleg >> code) & 
+                                1 & duplicate(trap_type)) == 1) ||  
+                           (((medeleg >> code) & 
+                                1 & duplicate(~trap_type)) == 1);
           `ifdef supervisor
             `ifdef usertraps
-              Bool delegateS = (((rg_sideleg >> cause[4 : 0]) & 1 & duplicate(cause[5])) == 1) ||  
-                                        (((sedeleg >> cause[4 : 0]) & 1 & duplicate(~cause[5])) == 1);
+              Bool delegateS = (((rg_sideleg >> code) & 
+                                    1 & duplicate(trap_type)) == 1) ||  
+                               (((sedeleg >> code) & 
+                                    1 & duplicate(~trap_type)) == 1);
             `endif
             if(delegateM && (pack(rg_prv) <= pack(Supervisor)) && (misa_s == 1))
               prv = Supervisor;
@@ -1023,14 +1046,14 @@ package csrfile;
           if(prv == Supervisor) begin
             stval <= signExtend(tval);
 			      sepc <= truncateLSB(pc);
-			      scause <= cause[4 : 0];
-            sinterrupt <= cause[5];
+			      scause <= code;
+            sinterrupt <= trap_type;
 			      sie <= 0;
 			      spie <= sie;
             spp <= pack(rg_prv)[0];
 			      rg_prv <= Supervisor;
-            if(rg_smode == 1 && cause[5] == 1)
-              return ({(rg_stvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+            if(rg_smode == 1 && trap_type == 1)
+              return ({(rg_stvec + zeroExtend(code)), 2'b0}); // pc jumps to base + (4 * cause)
             else
               return {rg_stvec, 2'b0}; // pc jumps to base
           end else
@@ -1039,13 +1062,13 @@ package csrfile;
           if(prv == User) begin
             rg_utval <= signExtend(tval);
 			      rg_uepc <= truncateLSB(pc);
-			      rg_ucause <= cause[4 : 0];
-            rg_uinterrupt <= cause[5];
+			      rg_ucause <= code;
+            rg_uinterrupt <= trap_type;
 			      rg_uie <= 0;
 			      rg_upie <= rg_uie;
 			      rg_prv <= User;
-            if(rg_umode == 1 && cause[5] == 1)
-              return ({(rg_utvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+            if(rg_umode == 1 && trap_type == 1)
+              return ({(rg_utvec + zeroExtend(code)), 2'b0}); // pc jumps to base + (4 * cause)
             else
               return {rg_utvec, 2'b0}; // pc jumps to base
           end else
@@ -1076,14 +1099,14 @@ package csrfile;
             begin
               rg_mtval <= signExtend(tval);
 			        rg_mepc <= truncateLSB(pc);
-			        rg_mcause <= cause[4 : 0];
-              rg_minterrupt <= cause[5];
+			        rg_mcause <= code;
+              rg_minterrupt <= trap_type;
 			        rg_mie <= 0;
 			        rg_mpp <= pack(rg_prv);
 			        rg_mpie <= rg_mie;
 			        rg_prv <= Machine;
-              if(rg_mode == 1 && cause[5] == 1)
-                redirect = ({(rg_mtvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+              if(rg_mode == 1 && trap_type == 1)
+                redirect = ({(rg_mtvec + zeroExtend(code)), 2'b0}); // pc jumps to base + (4 * cause)
               else
                 redirect =  {rg_mtvec, 2'b0}; // pc jumps to base
             end
@@ -1113,14 +1136,14 @@ package csrfile;
             begin
               rg_mtval <= signExtend(tval);
 			        rg_mepc <= truncateLSB(pc);
-			        rg_mcause <= cause[4 : 0];
-              rg_minterrupt <= cause[5];
+			        rg_mcause <= code;
+              rg_minterrupt <= trap_type;
 			        rg_mie <= 0;
 			        rg_mpp <= pack(rg_prv);
 			        rg_mpie <= rg_mie;
 			        rg_prv <= Machine;
-              if(rg_mode == 1 && cause[5] == 1)
-                redirect = ({(rg_mtvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+              if(rg_mode == 1 && trap_type == 1)
+                redirect = ({(rg_mtvec + zeroExtend(code)), 2'b0}); // pc jumps to base + (4 * cause)
               else
                 redirect =  {rg_mtvec, 2'b0}; // pc jumps to base
             end
@@ -1177,7 +1200,10 @@ package csrfile;
                 hpie, spie, rg_upie, rg_mie, hie, sie, rg_uie};
       `endif
     endmethod
-    method mv_cacheenable = rg_cachecontrol;
+    method mv_cacheenable = truncate(rg_customcontrol);
+  `ifdef arith_trap
+    method Bit#(1) arith_excep = rg_customcontrol[3];
+  `endif
   `ifdef pmp
     method pmp_cfg = readVReg(v_pmp_cfg);
     method pmp_addr = readVReg(v_pmp_addr);

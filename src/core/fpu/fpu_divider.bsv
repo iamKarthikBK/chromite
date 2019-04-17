@@ -459,6 +459,7 @@ module mkfpu_divider(Ifc_fpu_divider#(fpinp,fpman,fpexp))
 	  else if(lv_op2_is_zero==1) begin            				//op 1 is neither NaN nor infinity, and op2 is zero
       lv_inf=1;                          						//result is infinity
      	lv_dz=1;                                				//setting the divide by zero flag
+      $display("Divide_by_zero");
     end
     else if(lv_op2_is_infinity == 1 || lv_op1_is_zero == 1)   	//{op1 and op2 are not NaN} (and) {op1 is zero and op2 is not zero (or) op2 is infinity and op1 is not infinity}
       lv_zero=1;                                  				//result is zero

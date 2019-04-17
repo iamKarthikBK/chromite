@@ -100,6 +100,9 @@ ifneq ($(PREDICTOR), none)
 		override define_macros += -D $(PREDICTOR)_nc=True
   endif
 endif
+ifeq ($(ARITH_TRAP), enable)
+	override define_macros += -D arith_trap=True
+endif
 ifeq ($(DEBUG), enable)
 	override define_macros += -D debug=True
 endif
