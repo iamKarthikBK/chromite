@@ -205,7 +205,7 @@ package stage1;
         `logLevel( stage1, 1,$format("STAGE1 : Dropping Instruction"))
       end
     `ifdef compressed
-      else if(rg_action == CheckPrev)begin
+      else if(rg_action == CheckPrev && rg_prev.epochs == curr_epoch)begin
       `ifdef bpu
         prediction = rg_prev.prediction;
         btbhit     = rg_prev.btbhit;
@@ -253,6 +253,7 @@ package stage1;
         `endif
         end
         else begin
+          rg_action <= None;
           compressed = True;
           final_instruction = zeroExtend(imem_resp.instr[31 : 16]);
           trap = imem_resp.trap;
@@ -264,12 +265,13 @@ package stage1;
         end
       end
     `endif
-      else if(rg_action == None)begin
+      else begin
         // No updates to va required
         trap = imem_resp.trap;
         deq_response;
         if(imem_resp.instr[1 : 0] == 'b11)begin
           final_instruction = imem_resp.instr;
+          rg_action <= None;
         end
       `ifdef compressed
         else if(wr_csr_misa_c == 1) begin
@@ -287,6 +289,7 @@ package stage1;
         end
       `endif
       end
+      lv_prev.epochs = curr_epoch;
       rg_prev <= lv_prev;
       Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c == 1) ? 2:4;
 			let pipedata = PIPE1{program_counter : pred.va,
