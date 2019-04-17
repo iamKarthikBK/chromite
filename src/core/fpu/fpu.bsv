@@ -630,27 +630,25 @@ module mkfpu(Ifc_fpu);
 		ff_result.deq;
 
     //Generating TRAPS for FPU exception flags is optional.....This can be configured by setting   /csr_reg arith_excep...enabling bit generates traps for all FPU flags with cause values as written below//  
-    `ifdef arith_trap
-    if(wr_arith_en==1'b1)
-    begin
-      if(ff_result.first.fflags!=0)
-        begin
+  `ifdef arith_trap
+    if(wr_arith_en==1'b1) begin
+      if(ff_result.first.fflags!=0) begin
           if(verbosity > 0)
-          $display("TRAP from fpu:fflags %b",ff_result.first.fflags);
+            $display("TRAP from fpu:fflags %b",ff_result.first.fflags);
           commit_type=TRAP;
-        end
+      end
       if (ff_result.first.fflags[4]==1)
-        cause =18;//Invalid
+        cause =`FP_invalid; //Invalid
       else if (ff_result.first.fflags[3]==1)
-        cause=19;//Divide_by_zero_float
+        cause=`FP_divide_by_zero; //Divide_by_zero_float
       else if (ff_result.first.fflags[2]==1)
-        cause=20;//Overflow
+        cause=`FP_overflow; //Overflow
       else if (ff_result.first.fflags[1]==1)
-        cause=21;//Underflow
+        cause=`FP_underflow; //Underflow
       else if (ff_result.first.fflags[0]==1)
-        cause=22;//Inexact
+        cause=`FP_inexact; //Inexact
     end
-	  `endif
+	`endif
 
      return Float_result{commit_type:commit_type,final_result:ff_result.first.final_result,fflags:ff_result.first.fflags,cause:cause};
 	endmethod
