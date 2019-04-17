@@ -112,7 +112,7 @@ package stage3;
     interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
-   `ifdef ARITH_EXCEP
+   `ifdef arith_trap
       method Action rd_arith_excep_en(Bit#(1) arith_en);
    `endif
 
@@ -201,7 +201,7 @@ package stage3;
 		Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
 
     //Enable/disable arith_excep at run time
-    `ifdef ARITH_EXCEP
+    `ifdef arith_trap
     Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
     `endif
 
@@ -284,7 +284,7 @@ package stage3;
     // An instruction tagged as a TRAP in the previous stage will simply bypass the execute
     // stage.
     
-    `ifdef ARITH_EXCEP
+    `ifdef arith_trap
     rule get_arith_en; 
       alu.rd_arith_excep_en(wr_arith_en);
     endrule
@@ -697,7 +697,7 @@ package stage3;
     method Action next_pc (Bit#(`vaddr) npc);
       wr_next_pc <= tagged Valid npc;
     endmethod
-   `ifdef ARITH_EXCEP
+   `ifdef arith_trap
       method  Action rd_arith_excep_en(Bit#(1) arith_en);
       wr_arith_en<=arith_en;
       endmethod

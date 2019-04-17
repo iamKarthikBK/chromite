@@ -41,7 +41,7 @@ interface Ifc_fpu;							//interface to module mk_fpu
                        Bit#(7) funct7,      Bit#(3) funct3, 
                        Bit#(2) imm, Bool issp
                       );
- `ifdef ARITH_EXCEP
+ `ifdef arith_trap
       method Action rd_arith_excep_en(Bit#(1) arith_en);
  `endif
 	method ActionValue#(Float_result#(ELEN)) get_result;
@@ -69,7 +69,7 @@ module mkfpu(Ifc_fpu);
   FIFO# (Input_Packet) ff_input   <- mkFIFO1;
 	Wire#(Bool) wr_flush<-mkDWire(False);
  
- `ifdef ARITH_EXCEP
+ `ifdef arith_trap
   Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
  `endif
 
@@ -630,7 +630,7 @@ module mkfpu(Ifc_fpu);
 		ff_result.deq;
 
     //Generating TRAPS for FPU exception flags is optional.....This can be configured by setting   /csr_reg arith_excep...enabling bit generates traps for all FPU flags with cause values as written below//  
-    `ifdef ARITH_EXCEP
+    `ifdef arith_trap
     if(wr_arith_en==1'b1)
     begin
       if(ff_result.first.fflags!=0)
@@ -667,7 +667,7 @@ module mkfpu(Ifc_fpu);
 	endmethod
 
 
-  `ifdef ARITH_EXCEP
+  `ifdef arith_trap
       method  Action rd_arith_excep_en(Bit#(1) arith_en);
       wr_arith_en<=arith_en;
       endmethod

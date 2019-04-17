@@ -30,7 +30,7 @@ package muldiv_asic;
 		method ActionValue#(ALU_OUT) delayed_output;//returning the result
 		method Action flush;
 
-   `ifdef ARITH_EXCEP
+   `ifdef arith_trap
       method Action rd_arith_excep_en(Bit#(1) arith_en);
    `endif
 
@@ -164,7 +164,7 @@ package muldiv_asic;
 		Reg#(Bit#(2)) rg_funct3 <- mkReg(0);
 
 
-    `ifdef ARITH_EXCEP
+    `ifdef arith_trap
     Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
     `endif
     
@@ -352,7 +352,7 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 
 		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) in1, Bit#(XLEN) in2, Bit#(3)
                                             funct3 `ifdef RV64, Bool word_flag `endif );
-`ifdef ARITH_EXCEP
+`ifdef arith_trap
      let is_mul = ~funct3[2];
      if(is_mul==0)
       if(in2==0 && wr_arith_en==1'b1)
@@ -384,7 +384,7 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 		endmethod
 	endmodule
 
-   `ifdef ARITH_EXCEP
+   `ifdef arith_trap
       method  Action rd_arith_excep_en(Bit#(1) arith_en);
       wr_arith_en<=arith_en;
       endmethod

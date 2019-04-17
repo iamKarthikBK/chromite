@@ -62,7 +62,7 @@ package stage5;
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(64) c_mtime);
     //This method returns value of csr_reg which enables/disables arith_exceptions
-    `ifdef ARITH_EXCEP
+    `ifdef arith_trap
       method Bit#(1) arith_excep;
    `endif
     `ifdef rtldump
@@ -381,7 +381,7 @@ package stage5;
     method core_debugenable = csr.core_debugenable;
   `endif
     
-    `ifdef ARITH_EXCEP
+    `ifdef arith_trap
       method arith_excep = csr.arith_excep;
    `endif
 

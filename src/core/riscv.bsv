@@ -195,7 +195,7 @@ package riscv;
       stage3.next_pc(pipe1.first.program_counter);
     endrule
    //stage 3 reading value of csr arith_excep register//
-   `ifdef ARITH_EXCEP
+   `ifdef arith_trap
     rule arith_exception_en;
     stage3.rd_arith_excep_en(stage5.arith_excep);
     endrule
