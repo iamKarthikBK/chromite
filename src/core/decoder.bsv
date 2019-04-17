@@ -510,9 +510,10 @@ package decoder;
     if(quad==Q2 && funct3=='b100 && inst[12]==1 && inst[11:2]==0)begin
       inst_type=TRAP;
       trapcause = `ifdef debug ( (ebreakm && csrs.prv == Machine) ||
-                                                     (ebreaks && csrs.prv == Supervisor) ||
-                                                     (ebreaku && csrs.prv == User))?{1'b1,`HaltEbreak} :
-                                                  `endif `Breakpoint ;
+                                 (ebreaks && csrs.prv == Supervisor) ||
+                                 (ebreaku && csrs.prv == User))?
+                             begin trapcause = `HaltEbreak; trapcause[`causesize-1]=1 end : `endif
+                            `Breakpoint ;
     end
     else if(inst==0 || (quad==Q0 && funct3=='b100) || 
           (quad==Q1 && inst[15:10]=='b100111 && inst[6]==1)) begin
@@ -532,7 +533,7 @@ package decoder;
     
     Bit#(7) temp1 = {fn,f3};
     if(inst_type==TRAP)
-      temp1={1'b0,trapcause};
+      temp1=trapcause;
   
  `ifdef spfpu
     Bit#(5) rs3=0;
@@ -832,8 +833,9 @@ package decoder;
                  else if(inst[31:7]=='h2000) trapcause = `ifdef debug 
                                                    ( (ebreakm && csrs.prv == Machine) ||
                                                      (ebreaks && csrs.prv == Supervisor) ||
-                                                     (ebreaku && csrs.prv == User))? {1'b1,`HaltEbreak} :
-                                                  `endif `Breakpoint ;
+                                                     (ebreaku && csrs.prv == User))? begin
+                                             trapcause = `HaltEbreak; trapcause[`causesize-1]=1 end :
+                                            `endif `Breakpoint ;
                  else if(inst[31:20]=='h002 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[13]==1) inst_type=SYSTEM_INSTR;
               `ifdef supervisor
                  else if(inst[31:20]=='h102 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[18]==1 &&
@@ -852,7 +854,7 @@ package decoder;
       endcase
     endcase
   endcase
-  if(inst[1:0]!='b11)begin
+  if(inst[1:0]!='b11 && inst_type != TRAP)begin
     inst_type=TRAP;
     trapcause=`Illegal_inst;
   end
@@ -907,7 +909,7 @@ package decoder;
   `endif
     Bit#(7) temp1 = {fn,funct3};
     if(inst_type==TRAP)
-      temp1={1'b0,trapcause};
+      temp1=zeroExtend(trapcause);
 
     Bool rerun = mem_access==Fence || mem_access==FenceI || inst_type==SYSTEM_INSTR 
                 `ifdef supervisor || mem_access==SFence `endif ;
