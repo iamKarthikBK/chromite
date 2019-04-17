@@ -100,14 +100,8 @@ ifneq ($(PREDICTOR), none)
 		override define_macros += -D $(PREDICTOR)_nc=True
   endif
 endif
-ifeq ($(ARITH_EXCEP), enable)
-	override define_macros += -D ARITH_EXCEP=True
-endif
-ifeq ($(RAS), enable)
-	override define_macros += -D ras=True
-endif
-ifeq ($(BPU), enable)
-	override define_macros += -D branch_speculation=True
+ifeq ($(ARITH_TRAP), enable)
+	override define_macros += -D arith_trap=True
 endif
 ifeq ($(DEBUG), enable)
 	override define_macros += -D debug=True
