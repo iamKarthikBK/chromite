@@ -994,8 +994,8 @@ package csrfile;
         return {lv_mepc, 1'b0};
       end
     endmethod
-    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(6) c, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
-      Bit#(6) cause = c;
+    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(`causesize) c, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
+      Bit#(`causesize) cause = c;
 
       `ifdef non_m_traps
           Privilege_mode prv = Machine;
@@ -1005,12 +1005,16 @@ package csrfile;
             Bit#(16) sedeleg = {rg_sedeleg_u1, 1'd0, rg_sedeleg_m2, 3'd0, rg_sedeleg_l9};
           `endif
         `endif
-          Bool delegateM = (((rg_mideleg >> cause[4 : 0]) & 1 & duplicate(cause[5])) == 1) ||  
-                                      (((medeleg >> cause[4 : 0]) & 1 & duplicate(~cause[5])) == 1);
+          Bool delegateM = (((rg_mideleg >> cause[`causesize - 2 : 0]) & 
+                                1 & duplicate(cause[`causesize-1])) == 1) ||  
+                           (((medeleg >> cause[`causesize - 2 : 0]) & 
+                                1 & duplicate(~cause[`causesize-1])) == 1);
           `ifdef supervisor
             `ifdef usertraps
-              Bool delegateS = (((rg_sideleg >> cause[4 : 0]) & 1 & duplicate(cause[5])) == 1) ||  
-                                        (((sedeleg >> cause[4 : 0]) & 1 & duplicate(~cause[5])) == 1);
+              Bool delegateS = (((rg_sideleg >> cause[`causesize - 2 : 0]) & 
+                                    1 & duplicate(cause[`causesize])) == 1) ||  
+                               (((sedeleg >> cause[`causesize - 2 : 0]) & 
+                                    1 & duplicate(~cause[`causesize - 1])) == 1);
             `endif
             if(delegateM && (pack(rg_prv) <= pack(Supervisor)) && (misa_s == 1))
               prv = Supervisor;

@@ -625,7 +625,7 @@ module mkfpu(Ifc_fpu);
     endmethod
  
 	method ActionValue#(Float_result#(ELEN)) get_result;
-    Bit#(6) cause =0;
+    Bit#(`causesize) cause =0;
     PreCommit_type commit_type = REGULAR;
 		ff_result.deq;
 

@@ -51,7 +51,7 @@ package csr;
 	  method ActionValue#(Tuple3#(Bool, Bit#(`vaddr), Bit#(XLEN))) system_instruction(
             Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
     method CSRtoDecode csrs_to_decode;
-    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(6) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
+    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(`causesize) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
 		method Action clint_mtime(Bit#(64) c_mtime);
@@ -128,7 +128,7 @@ package csr;
 	  	return tuple3(flush, jump_add, destination_value);
 	  endmethod
 	
-    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(6) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
+    method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(`causesize) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
       let jump_address <- csrfile.upd_on_trap(type_cause, pc, badaddr); 
 		  return jump_address;
   	endmethod
