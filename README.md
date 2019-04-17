@@ -23,7 +23,7 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
       - [Simulation Outputs](#simulation-outputs)
   * [Connecting to GDB](#connecting-to-gdb)
       - [Generate RTL](#generate-rtl)
-      - [Execute the RTL](#execute-the-rtl)
+      - [Simulate the RTL](#simulate-the-rtl)
       - [Connect to OpenOCD](#connect-to-openocd)
       - [Connect to GDB](#connect-to-gdb)
   * [Benchmarking the Core](./benchmarking.md)
@@ -272,33 +272,36 @@ Perform the following steps to connect to the core executable with a gdb termina
 #### Generate RTL
 In the default soc_config.inc set DEBUG and OPENOCD to `enable`
 ```
-....
-DEBUG=enable
-OPENOCD=enable
-....
-
+cd c-class
+make gdb DEBUG=enable OPENOCD=enable
 ```
 
-Then type `make gdb`. The BSV-to-verilog generation and the verilator linking both with take significant time. Please be patient.
+The BSV-to-verilog generation and the verilator linking both with take significant time. Please be patient.
 
 This will create the executable `out` in the bin folder.
 
-#### Execute the RTL
-In your current terminal go to the bin folder and type `./out > /dev/null`
+#### Simulate the RTL
+In a new terminal do the following:
+```
+cd c-class/bin/
+./out > /dev/null
+```
 
 #### Connect to OpenOCD
-Open a new terminal and go to the `gdb_setup` folder and type the following:
+Open a new terminal and type the following:
 ```
+cd c-class/gdb_setup/
 openocd -f shakti_ocd.cfg
 ```
 
 #### Connect to GDB
-Open yet another terminal and go to the `gdb_setup` folder and type the following:
+Open yet another terminal and type the following:
 ```
+cd c-class/gdb_setup
 riscv64-unknown-elf-gdb -x gdb.script
 ```
 
-In this window you can now perform gdb commands like : `set $pc, i r, etc`:w
+In this window you can now perform gdb commands like : `set $pc, i r, etc`
 
 
 ## Linux on Shakti 
