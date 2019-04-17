@@ -114,11 +114,13 @@ package decoder;
                         'h0, 'h1, 'h2, 'h3, 'h4: valid=True;
                       endcase
                     // Maching Protection and Translation
+                `ifdef pmp
                   'hA:case(addr[3:0])
                         'h0, 'h2 `ifdef RV32 ,'h1,'h3 `endif : valid=True;
                       endcase
                     // PMP ADDR registers
                   'hB: if((`PMPSIZE!=0 ) && addr[3:0]<=fromInteger(valueOf(TSub#(`PMPSIZE,1) ))) valid=True;
+                `endif
                   endcase
               // Machine Counter/Timers
             'b10: `ifdef RV32 if(addr[6:5]==0 `else if(addr[7:5]==0 `endif && addr[3:0]!=1) valid=True;
