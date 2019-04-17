@@ -51,7 +51,7 @@ package common_types;
 
   typedef struct{
     Bit#(`vaddr) pc;
-  `ifdef icache
+  `ifdef ifence
     Bool  fence;
   `endif
   `ifdef supervisor
@@ -146,7 +146,7 @@ package common_types;
     Bit#(`vaddr) effective_addr;
     Bit#(`causesize) cause;
     Bool redirect;
-  `ifdef branch_speculation
+  `ifdef bpu
     Bool branch_taken;
     Bit#(`vaddr) redirect_pc;
   `endif
@@ -170,7 +170,9 @@ package common_types;
   `ifdef usertraps
     Bit#(12) csr_uip;
     Bit#(12) csr_uie;
+  `ifdef supervisor
     Bit#(12) csr_sideleg;
+  `endif
   `endif
     Bit#(26) csr_misa;
     Bit#(XLEN) csr_mstatus;
@@ -202,7 +204,7 @@ package common_types;
 
   typedef struct{
     Bit#(`vaddr ) pc;
-  `ifdef branch_speculation
+  `ifdef bpu
     Bit#(2) prediction;
   `endif
     Bit#(2) epoch;
@@ -214,13 +216,11 @@ package common_types;
   	Bit#(32) instruction;
   	Bit#(`iesize) epochs;
     Bool trap ;
-  `ifdef supervisor
-    Bit#(6) cause;
-  `endif
+    Bit#(`causesize) cause;
   `ifdef compressed
     Bool upper_err;
   `endif
-  `ifdef branch_speculation
+  `ifdef bpu
     Bit#(2) prediction;
     Bool    btbhit;
   `endif
@@ -243,7 +243,7 @@ package common_types;
   `ifdef compressed
     Bool compressed;
   `endif
-  `ifdef branch_speculation
+  `ifdef bpu
     Bit#(2) prediction;
     Bool    btbhit;
   `endif
@@ -278,11 +278,6 @@ package common_types;
   typedef struct{
     Bit#(`vaddr)  address;
     Access_type   memaccess;
-  `ifndef dcache
-    Bit#(ELEN)    data;
-    Bit#(5)       atomic_op;
-    Bit#(3)       size;
-  `endif
   `ifdef dpfpu
     Bit#(1)       nanboxing;
   `endif

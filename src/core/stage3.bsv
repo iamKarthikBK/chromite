@@ -110,10 +110,8 @@ package stage3;
 
     // interface to send memory requests to the dmem subsystem
     interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
-  `ifdef dcache
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
-  `endif
 
     // method to receive the current status of the misa_c bit
     method Action csr_misa_c (Bit#(1) m);
@@ -143,7 +141,7 @@ package stage3;
     // the decode stage.
     method Action next_pc (Bit#(`vaddr) npc);
 
-  `ifdef branch_speculation
+  `ifdef bpu
     // This method sends out the training information to the BTB for conditional branches.
     method Training_data train_bpu;
     // This method sends out the return - address to be pushed on top of the stack.
@@ -173,7 +171,7 @@ package stage3;
     RX#(Bit#(32)) rxinst <- mkRX;
   `endif
 
-  `ifdef branch_speculation
+  `ifdef bpu
     // Wire to send the training for the BTB on conditional branches.
 	  Wire#(Training_data) wr_training_data <- mkWire();
     // Wire to send the return - address on the stack.
@@ -205,12 +203,8 @@ package stage3;
     // Wire holding the new pc to be redirected to due to branches / jumps
     Reg#(Bit#(`vaddr)) wr_redirect_pc <- mkDWire(0);
 
-  `ifdef dcache
     Wire#(DMem_request#(`vaddr, ELEN, 1)) wr_memory_request <- mkWire;
     Wire#(Bool) wr_cache_avail <- mkWire;
-  `else 
-		FIFOF#(DMem_request#(`vaddr, ELEN, 1)) ff_memory_request <- mkBypassFIFOF;
-  `endif
 
     // wire holding the compressed bit of the misa csr
     Wire#(Bit#(1)) wr_misa_c <- mkWire();
@@ -248,7 +242,6 @@ package stage3;
         let req = DMem_request{address      : address,
                                epochs       : epochs,
                                size         : funct3
-                          `ifdef dcache
                                ,fence       : memaccess == FenceI || memaccess == Fence
                                ,access      : truncate(pack(memaccess))
                                ,writedata   : data
@@ -259,16 +252,11 @@ package stage3;
                                ,sfence      : memaccess == SFence
                                ,ptwalk_req  : False
                                ,ptwalk_trap : False
-                            `endif
-                          `endif } ;
-      `ifdef dcache
+                            `endif } ;
         wr_memory_request <= req;
-      `else
-        ff_memory_request.enq(req);
-      `endif
     endaction;
     // ---------------------- End local function definitions ------------------//
-    Bool rule_condition = True `ifdef dcache && wr_cache_avail `endif 
+    Bool rule_condition = wr_cache_avail
                                `ifdef multicycle && !rg_stall  `endif ;
 
     // RuleName : execute_operation
@@ -294,7 +282,7 @@ package stage3;
       let meta    = rx_meta.u.first;
       Bit#(3) funct3  = truncate(meta.funct);
       Bit#(4) fn      = truncateLSB(meta.funct);
-    `ifdef branch_speculation
+    `ifdef bpu
       Bit#(2) prediction = meta.prediction;
       Bool    btbhit     = meta.btbhit;
     `endif
@@ -345,7 +333,6 @@ package stage3;
       Bit#(TMax#(`vaddr,FLEN))  arg4 = rs3_imm;
       // ---------------------------------------------------------------------------------------- //
 
-
       // TODO instead of just store - buffer for loads will need to check if pipe is empty
       // TODO add more comments here
       Bool execute = True;
@@ -369,8 +356,9 @@ package stage3;
         if ( rs1avail && rs2avail `ifdef spfpu && rs3avail `endif ) begin
           let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
                          meta.memaccess, `ifdef RV64 meta.word32, `elsif dpfpu meta.word32, `endif 
-                         wr_misa_c, truncate(meta.pc) `ifdef branch_speculation,
+                         wr_misa_c, truncate(meta.pc) `ifdef bpu,
                          fromMaybe(?,wr_next_pc) `ifdef compressed ,meta.compressed `endif `endif ); 
+        `ifdef bpu
           let td = Training_data{pc : meta.pc,
                                  target : aluout.effective_addr,
                                  state  : ?
@@ -389,13 +377,14 @@ package stage3;
             td.ci = JAL;
           else
             td.ci = Branch;
+        `endif
 
           if(aluout.done)begin
             if(execute) begin
               deq_rx;
 
             // sending training updates to predictors
-            `ifdef branch_speculation
+            `ifdef bpu
               if(meta.inst_type == BRANCH && aluout.cmtype != TRAP)begin
                 if(aluout.branch_taken)begin
                   if(prediction < 3)begin
@@ -421,12 +410,18 @@ package stage3;
             `endif
 
               rg_eEpoch         <= pack(aluout.redirect && aluout.cmtype != TRAP)^rg_eEpoch;
+            `ifdef bpu
               wr_redirect_pc    <= aluout.redirect_pc;
+            `else
+              wr_redirect_pc <= aluout.effective_addr;
+            `endif
               wr_flush_from_exe <= aluout.redirect && aluout.cmtype != TRAP;
+            `ifdef bpu
               if(aluout.redirect && aluout.cmtype != TRAP)
                 `logLevel( stage3, 0, $format("STAGE3: Misprediction. Inst: ",fshow(meta.inst_type),
                                               " PC:%h Target:%h NextPC:%h", meta.pc, 
                                               aluout.redirect_pc, fromMaybe(?,wr_next_pc)))
+            `endif
             `ifdef dpfpu
               Bit#(1) nanboxing = pack(aluout.cmtype == MEMORY 
                                        && funct3[1 : 0] == 2 
@@ -454,9 +449,7 @@ package stage3;
             `logLevel( stage3, 0, $format("STAGE3: Result: ",fshow(aluout)))
 
             // --------------- In case of Memory operation send request to Dmem ----------------//
-              if(aluout.cmtype == MEMORY `ifndef dcache && (meta.memaccess == Load 
-                                            `ifdef atomic  || meta.memaccess == Atomic `endif )
-                                          `endif  )
+              if(aluout.cmtype == MEMORY)
                 send_memory_request(aluout.effective_addr, meta.epochs[0], funct3, 
                                     meta.memaccess, fn, rs2);
             // ---------------------------------------------------------------------------------- //
@@ -469,11 +462,6 @@ package stage3;
             // -------------------------- Derive types for Next stage --------------------------- //
               let s4memory = Stage4Memory{  address     : aluout.effective_addr,
                                             memaccess   : meta.memaccess
-                                        `ifndef dcache
-                                            ,data        : rs2
-                                            ,atomic_op   : {funct3[0], fn}
-                                            ,size        : funct3
-                                        `endif
                                         `ifdef dpfpu
                                             ,nanboxing   : nanboxing
                                         `endif } ;
@@ -544,7 +532,7 @@ package stage3;
     `ifdef simulate
       rule count_stalls(!rule_condition);
         if(!wr_cache_avail)
-        `logLevel( stage3, 0, $format("STAGE3: Stalled for MulDiv/FPU"))
+          `logLevel( stage3, 0, $format("STAGE3: Stalled for MulDiv/FPU"))
       endrule
     `endif
     rule capture_stalled_output(rg_stall);
@@ -611,7 +599,6 @@ package stage3;
     // Thhis is method is fired when a branch / jump redicrection is detected from this stage.
     method flush_from_exe = tuple2(wr_flush_from_exe, wr_redirect_pc);
 
-  `ifdef dcache
     // MethodName : cache_is_available
     // Implicit Conditions : None
     // Explicit Conditions : None
@@ -619,7 +606,6 @@ package stage3;
     method Action cache_is_available(Bool avail);
       wr_cache_avail <= avail;
     endmethod
-  `endif
 
     // MethodName : memory_request
     // Implicit Conditions : None
@@ -627,12 +613,7 @@ package stage3;
     // Description : interface to send memory requests.
     interface memory_request = interface Get
       method ActionValue#(DMem_request#(`vaddr, ELEN, 1)) get;
-      `ifdef dcache
         return wr_memory_request;
-      `else 
-				ff_memory_request.deq;
-				return ff_memory_request.first;
-      `endif
       endmethod
     endinterface;
 
@@ -694,7 +675,7 @@ package stage3;
     method Action next_pc (Bit#(`vaddr) npc);
       wr_next_pc <= tagged Valid npc;
     endmethod
-  `ifdef branch_speculation
+  `ifdef bpu
     
     // MethodName : train_bpu
     // Implicit Conditions : None

@@ -15,7 +15,6 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
   * [Block Diagram](#block-diagram)
   * [FEATURES of C-CLASS](#features-of-c-class)
   * [Configuring the Core](#configuring-the-core)
-      - [Current ILLEGAL Configs](#current-illegal-configs)
   * [Compiling the Core/SoC](#compiling-the-core-soc)
   * [Simulation](#simulation)
       - [Simulation Requirements](#simulation-requirements)
@@ -157,7 +156,7 @@ The `soc_config.inc` in the root directory is used to configure the core. Follow
     * `disable`: Will disable dynamic assertions where-ever found.
 * __ICACHE__: Valid options:
     * `enable`: Will enable creating a single instance of the instruction-cache
-    * `disable`: No instruction cache will be instantiated.
+    * `disable`: No instruction cache will be instantiated. But instead a simple state-maching to handle requests will be used.
 * __ISETS__: An integer value indicating the number of sets in the I-cache
 * __IWORDS__: An integer value indicating the number of bytes in a word for the I-cache. For any core-config this should be typically be set to 4.
 * __IBLOCKS__: An integer value indicating the number of the words in a block. Please note to prevent aliasing the caches the following should hold: `ISETS`x`IWORDS`x`IBLOCK`<=4096.
@@ -170,7 +169,7 @@ The `soc_config.inc` in the root directory is used to configure the core. Follow
 * __IBUSWIDTH__: This field will define the bus-width on which I-cache will be a master on for line-requests. This should be set to MAX(XLEN,FLEN). Valid values are 32 and 64.
 * __DCACHE__: Valid options:
     * `enable`: Will enable creating a single instance of the data-cache
-    * `disable`: No data cache will be instantiated.
+    * `disable`: No data cache will be instantiated. But instead a simple state-maching to handle requests will be used and maintain a store-buffer will be used..
 * __DSETS__: An integer value indicating the number of sets in the D-cache
 * __DWORDS__: An integer value indicating the number of bytes in a word for the D-cache. For a 64-bit core this should be set to 8 and for a 32-bit core this should be set to 4.
 * __DBLOCKS__: An integer value indicating the number of the words in a block. Please note, in order to prevent aliasing in the caches the following should hold: `DSETS`x`DWORDS`x`DBLOCK`<=4096. `DBLOCKs` should not be less than 8. See issue#70 for more details on this constraint.
@@ -189,11 +188,6 @@ The `soc_config.inc` in the root directory is used to configure the core. Follow
     * `disable`: Will disable physical memory protection scheme as mentioned in the spec.
 * __PMPSIZE__: An integer `<=16` indicating the number of PMP registers to be implemented.
 * __ASIDWIDTH__: An integer `<=16` for RV64 and `<=9` for RV32 indicating the size of the ASID when supervisor is enabled. 
-
-#### Current ILLEGAL Configs
-Following are the list of configs which are illegal and could either not generate RTL or fail verification tests completely.
-
-1. Caches cannot be disabled with supervisor on. We feel it just doesn't make sense to support supervisor mode without caches and thus will never be supported for this core.
 
 
 ## Compiling the Core/SoC

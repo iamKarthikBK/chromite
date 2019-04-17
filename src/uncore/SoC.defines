@@ -1,16 +1,3 @@
-`ifdef CORE_TLU
-  `define Num_Masters 2 
-  `define Num_Slaves 3
-  `define Memory_slave_num 0
-  `define Memory_wr_slave_num 1
-  `define BootRom_slave_num 2
-`else
-`ifdef debug
-  `define Num_Masters 5 
-`else
-  `define Num_Masters 4
-`endif
-
 `ifdef debug
   `define Num_Slaves 7
 `else
@@ -27,16 +14,7 @@
 `else
   `define Err_slave_num 5
 `endif
-`endif
 // master numbers on fabric
-`define Mem_master_num 0
-`define Fetch_master_num 1
-`define IO_master_num 2
-`define Sign_master_num 3
-`ifdef debug
-  `define Debug_master_num 4
-`endif
-
 // slave numbers of fabric
 
 

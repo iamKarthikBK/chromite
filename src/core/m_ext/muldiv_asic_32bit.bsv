@@ -95,7 +95,7 @@ package muldiv_asic_32bit;
 	module mkmuldiv(Ifc_muldiv);
 
     let output_unavail = ALU_OUT{done : False, cmtype : ?, aluresult : ?, effective_addr : ?,
-               cause : ?, redirect : False `ifdef branch_speculation, branch_taken : ?, 
+               cause : ?, redirect : False `ifdef bpu, branch_taken : ?, 
                redirect_pc : ? `endif };
 
     let xlen = valueOf(XLEN);
@@ -273,7 +273,7 @@ package muldiv_asic_32bit;
         let product = single_mult(in1, in2, funct3 `ifdef RV64 , word_flag `endif );
         return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
                        effective_addr : ?, cause : ?, redirect : False 
-                       `ifdef branch_speculation, branch_taken : ?, 
+                       `ifdef bpu, branch_taken : ?, 
                        redirect_pc : ? `endif };
       end
       else begin
@@ -287,7 +287,7 @@ package muldiv_asic_32bit;
       // zero extend is required when XLEN<ELEN
       return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(default_out), 
                        effective_addr : ?, cause : ?, redirect : False 
-                       `ifdef branch_speculation, branch_taken : ?, 
+                       `ifdef bpu, branch_taken : ?, 
                        redirect_pc : ? `endif };
 		endmethod
 		method Action flush;

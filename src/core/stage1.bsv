@@ -52,7 +52,7 @@ package stage1;
   typedef struct{
     Bit#(`vaddr) pc;
     Bit#(16) instruction;
-  `ifdef branch_speculation
+  `ifdef bpu
     Bit#(2) prediction;
     Bool    btbhit;
   `endif
@@ -64,10 +64,8 @@ package stage1;
     // instruction response from the memory subsytem or the memory bus
     interface Put#(FetchResponse#(32, `iesize)) inst_response;
 
-  `ifdef branch_speculation
    // this interface receives the prediction response from the branch prediction unit 
-    interface Put#(PredictionResponse) prediction_response;
-  `endif
+    interface Put#(NextPC) next_pc;
 
     // instruction along with other results to be sent to the next stage
     interface TXe#(PIPE1) tx_to_stage2;
@@ -113,10 +111,8 @@ package stage1;
     // This FIFO receives the response from the memory subsytem (a.k.a cache)
     FIFOF#(FetchResponse#(32, `iesize)) ff_memory_response <- mkBypassFIFOF();
 
-  `ifdef branch_speculation
     // This FIFO receives the response from the branch prediction unit (bpu or ras)
-    FIFOF#(PredictionResponse) ff_prediction_resp <- mkBypassFIFOF();
-  `endif
+    FIFOF#(NextPC) ff_next_pc<- mkBypassFIFOF();
 
     // FIFO to interface with the next pipeline stage
 		TX#(PIPE1) tx <- mkTX;
@@ -132,9 +128,7 @@ package stage1;
     // this function will deque the response from i - mem fifo and the branch prediction fifo
     function Action deq_response = action
       ff_memory_response.deq; 
-    `ifdef branch_speculation 
-      ff_prediction_resp.deq; 
-    `endif
+      ff_next_pc.deq; 
     endaction;
     // ---------------------- End local function definitions ------------------//
 
@@ -177,147 +171,144 @@ package stage1;
     // rg_instruction. rg_Action in this case will remain CheckPrev so that the upper bits of this
     // repsonse are probed in the next cycle.
     rule process_instruction;
-          let pred = ff_prediction_resp.first;
-          `logLevel( stage1, 1, $format("STAGE1 : Prediction: ", fshow(ff_prediction_resp.first)))
-      `ifdef branch_speculation
-        `ifdef compressed
-          Bit#(2) prediction = pred.prediction0;
-          Bool    btbhit     = pred.hit0;
-        `else
-          Bit#(2) prediction = pred.prediction;
-          Bool  btbhit = pred.hit;
-        `endif
+      let pred = ff_next_pc.first;
+      `logLevel( stage1, 1, $format("STAGE1 : Prediction: ", fshow(ff_next_pc.first)))
+  `ifdef bpu
+    `ifdef compressed
+      Bit#(2) prediction = pred.prediction0;
+      Bool    btbhit     = pred.hit0;
+    `else
+      Bit#(2) prediction = pred.prediction;
+      Bool  btbhit = pred.hit;
+    `endif
+  `endif
+
+      // capture the response from the cache
+      let imem_resp = ff_memory_response.first;
+      Bool trap = False;
+
+      // local variable to hold the instruction to be enqueued
+      Bit#(32) final_instruction=?;
+
+      // local variable to indicate if the instruction being analysed is compressed or not
+      Bool compressed = False;
+
+      // local variable indicating if the current instruction under analysis should be enqueued to
+      // the next stage or dropped.
+      Bool enque_instruction = True;
+      PrevMeta lv_prev = rg_prev;
+      // if epochs do not match then drop the instruction
+      if(curr_epoch != imem_resp.epochs)begin
+        deq_response;
+        rg_action <= None;
+        enque_instruction = False;
+        `logLevel( stage1, 1,$format("STAGE1 : Dropping Instruction"))
+      end
+    `ifdef compressed
+      else if(rg_action == CheckPrev)begin
+      `ifdef bpu
+        prediction = rg_prev.prediction;
+        btbhit     = rg_prev.btbhit;
       `endif
-
-        // capture the response from the cache
-        let imem_resp = ff_memory_response.first;
-        Bool trap = False;
-
-        // local variable to hold the instruction to be enqueued
-        Bit#(32) final_instruction=?;
-
-        // local variable to indicate if the instruction being analysed is compressed or not
-        Bool compressed = False;
-
-        // local variable indicating if the current instruction under analysis should be enqueued to
-        // the next stage or dropped.
-        Bool enque_instruction = True;
-        PrevMeta lv_prev = rg_prev;
-        // if epochs do not match then drop the instruction
-        if(curr_epoch != imem_resp.epochs)begin
+        if(rg_prev.instruction[1 : 0] == 2'b11)begin
+          final_instruction={imem_resp.instr[15 : 0], rg_prev.instruction};
+          trap = imem_resp.trap;
           deq_response;
-          rg_action <= None;
-          enque_instruction = False;
-          `logLevel( stage1, 1,$format("STAGE1 : Dropping Instruction"))
-        end
-      `ifdef compressed
-        else if(rg_action == CheckPrev)begin
-          prediction = rg_prev.prediction;
-          btbhit     = rg_prev.btbhit;
-          if(rg_prev.instruction[1 : 0] == 2'b11)begin
-            final_instruction={imem_resp.instr[15 : 0], rg_prev.instruction};
-            trap = imem_resp.trap;
-            deq_response;
 
-            lv_prev.instruction = truncateLSB(imem_resp.instr);
-            if(rg_receiving_upper)
-              rg_receiving_upper <= False;
-            lv_prev.pc = pred.va;
-            pred.va = rg_prev.pc | zeroExtend(2'b10);
+          lv_prev.instruction = truncateLSB(imem_resp.instr);
+          if(rg_receiving_upper)
+            rg_receiving_upper <= False;
+          lv_prev.pc = pred.va;
+          pred.va = rg_prev.pc | zeroExtend(2'b10);
 
-          `ifdef branch_speculation
-            lv_prev.prediction = pred.prediction1;
-            lv_prev.btbhit     = pred.hit1;
-            if(rg_prev.prediction > 1)
-              rg_action <= None;
-          `endif
-          end
-          else begin
-            compressed = True;
-            final_instruction = zeroExtend(rg_prev.instruction);
+        `ifdef bpu
+          lv_prev.prediction = pred.prediction1;
+          lv_prev.btbhit     = pred.hit1;
+          if(rg_prev.prediction > 1)
             rg_action <= None;
-            pred.va = rg_prev.pc;
-            pred.va[1] = 1;
-          end
+        `endif
         end
-        // discard the lower - 16bits of the imem - response.
-        else if(pred.discard && wr_csr_misa_c == 1)begin
-          deq_response;
-          if(imem_resp.instr[17 : 16] == 2'b11)begin
-            trap = imem_resp.trap;
-            rg_action <= CheckPrev;
-            enque_instruction = False;
-            rg_receiving_upper <= True;
+        else begin
+          compressed = True;
+          final_instruction = zeroExtend(rg_prev.instruction);
+          rg_action <= None;
+          pred.va = rg_prev.pc;
+          pred.va[1] = 1;
+        end
+      end
+      // discard the lower - 16bits of the imem - response.
+      else if(pred.discard && wr_csr_misa_c == 1)begin
+        deq_response;
+        if(imem_resp.instr[17 : 16] == 2'b11)begin
+          trap = imem_resp.trap;
+          rg_action <= CheckPrev;
+          enque_instruction = False;
+          rg_receiving_upper <= True;
 
-            lv_prev.instruction = imem_resp.instr[31 : 16];
-            lv_prev.pc = pred.va;
-          `ifdef branch_speculation
-            lv_prev.prediction = pred.prediction1;
-            lv_prev.btbhit     = pred.hit1;
-          `endif
-          end
-          else begin
-            compressed = True;
-            final_instruction = zeroExtend(imem_resp.instr[31 : 16]);
-            trap = imem_resp.trap;
-            pred.va[1] = 1;
-          `ifdef branch_speculation
-            prediction  = pred.prediction1;
-            btbhit      = pred.hit1;
-          `endif
-          end
-        end
-      `endif
-        else if(rg_action == None)begin
-          // No updates to va required
-          deq_response;
-          if(imem_resp.instr[1 : 0] == 'b11)begin
-            final_instruction = imem_resp.instr;
-            trap = imem_resp.trap;
-          end
-        `ifdef compressed
-          else if(wr_csr_misa_c == 1) begin
-            compressed = True;
-            final_instruction = zeroExtend(imem_resp.instr[15 : 0]);
-            trap = imem_resp.trap;
-            lv_prev.instruction = truncateLSB(imem_resp.instr);
-            lv_prev.pc = pred.va;
-          `ifdef branch_speculation
-            rg_action <= pred.prediction0 < 2 ? CheckPrev : None;
-            lv_prev.prediction = pred.prediction1;
-            lv_prev.btbhit = pred.hit1;
-          `else
-            rg_action <= CheckPrev;
-          `endif
+          lv_prev.instruction = imem_resp.instr[31 : 16];
+          lv_prev.pc = pred.va;
+        `ifdef bpu
+          lv_prev.prediction = pred.prediction1;
+          lv_prev.btbhit     = pred.hit1;
         `endif
-          end
         end
-        rg_prev <= lv_prev;
-        Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c == 1) ? 2:4;
-				let pipedata = PIPE1{program_counter : pred.va,
-                      instruction : final_instruction,
-                      epochs:{rg_eEpoch, rg_wEpoch},
-                      trap : trap
-                    `ifdef branch_speculation
-                      ,prediction : prediction
-                      ,btbhit    : btbhit
-                    `endif
-                    `ifdef compressed
-                      ,upper_err : rg_receiving_upper && imem_resp.trap
-                    `endif
-                    `ifdef supervisor
-                      ,cause : imem_resp.cause
-                    `endif }; 
-        `logLevel( stage1, 0,$format("STAGE1 : PC:%h: ",pred.va, fshow(ff_memory_response.first)))
+        else begin
+          compressed = True;
+          final_instruction = zeroExtend(imem_resp.instr[31 : 16]);
+          trap = imem_resp.trap;
+          pred.va[1] = 1;
+        `ifdef bpu
+          prediction  = pred.prediction1;
+          btbhit      = pred.hit1;
+        `endif
+        end
+      end
+    `endif
+      else if(rg_action == None)begin
+        // No updates to va required
+        trap = imem_resp.trap;
+        deq_response;
+        if(imem_resp.instr[1 : 0] == 'b11)begin
+          final_instruction = imem_resp.instr;
+        end
       `ifdef compressed
-        `ifdef branch_speculation
-          `logLevel( stage1, 1,$format("STAGE1 : rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c, pred.discard))
+        else if(wr_csr_misa_c == 1) begin
+          compressed = True;
+          final_instruction = zeroExtend(imem_resp.instr[15 : 0]);
+          lv_prev.instruction = truncateLSB(imem_resp.instr);
+          lv_prev.pc = pred.va;
+        `ifdef bpu
+          rg_action <= pred.prediction0 < 2 ? CheckPrev : None;
+          lv_prev.prediction = pred.prediction1;
+          lv_prev.btbhit = pred.hit1;
+        `else
+          rg_action <= CheckPrev;
         `endif
-      `endif
-        if(enque_instruction) begin
-          tx.u.enq(pipedata);
-          `logLevel( stage1, 0,$format("STAGE1 : Enquing: ",fshow(pipedata)))
         end
+      `endif
+      end
+      rg_prev <= lv_prev;
+      Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c == 1) ? 2:4;
+			let pipedata = PIPE1{program_counter : pred.va,
+                    instruction : final_instruction,
+                    epochs:{rg_eEpoch, rg_wEpoch},
+                    trap : trap
+                  `ifdef bpu
+                    ,prediction : prediction
+                    ,btbhit    : btbhit
+                  `endif
+                  `ifdef compressed
+                    ,upper_err : rg_receiving_upper && imem_resp.trap
+                  `endif
+                    ,cause : imem_resp.cause }; 
+      `logLevel( stage1, 0,$format("STAGE1 : PC:%h: ",pred.va, fshow(ff_memory_response.first)))
+    `ifdef compressed
+      `logLevel( stage1, 1,$format("STAGE1 : rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c, pred.discard))
+    `endif
+      if(enque_instruction) begin
+        tx.u.enq(pipedata);
+        `logLevel( stage1, 0,$format("STAGE1 : Enquing: ",fshow(pipedata)))
+      end
     endrule
 
     // MethodName : inst_response_put
@@ -340,22 +331,20 @@ package stage1;
 			endmethod
     endinterface;
   
-  `ifdef branch_speculation
-    // MethodName : prediction_response_put
+    // MethodName : next_pc_put
     // Explicit Conditions : None
-    // Implicit Conditions : ff_prediction_resp.notFull
+    // Implicit Conditions : ff_next_pc.notFull
     // Description : This interface will capture the prediction response from the BTB module. If
     // compressed is supported the, BTB will provide 2 predictions for each of the 2byte addresses
     // that have been fetched from the I - mem. If compressed is not supported then a single
     // prediction is only provided for the entire 32 - bit instruction has been received from the
     // I - cache.
-    interface prediction_response = interface Put
-      method Action put(PredictionResponse p);
+    interface next_pc = interface Put
+      method Action put(NextPC p);
         `logLevel( stage1, 3, $format("STAGE1 : Recevied Prediction: ",fshow(p)))
-        ff_prediction_resp.enq(p);
+        ff_next_pc.enq(p);
       endmethod
     endinterface;
-  `endif
    
     // MethodName : tx_to_stage2
     // Explicit Conditions : None

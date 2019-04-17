@@ -138,7 +138,7 @@ package bimodal_c;
     Wire#(Bool) wr_bpu_enable <- mkWire();
 
     FIFOF#(PredictionRequest)  ff_pred_request      <- mkSizedFIFOF(2);
-    FIFOF#(PredictionResponse) ff_prediction_resp   <- mkBypassFIFOF();
+    FIFOF#(NextPC) ff_next_pc   <- mkBypassFIFOF();
     Reg#(PredictionToStage0)   rg_prediction_pc[2]  <- mkCReg(2, PredictionToStage0{prediction : 0,
                             target_pc : ?,  epochs: 0 ,edgecase: False });
     
@@ -225,7 +225,7 @@ package bimodal_c;
         prediction = prediction1;
         target_address = target1;
       end
-      let resp = PredictionResponse{ va       : request.pc
+      let resp = NextPC{ va       : request.pc
                                      ,discard     : request.discard
                                      ,prediction0 : prediction0
                                      ,prediction1 : prediction1 };
@@ -234,7 +234,7 @@ package bimodal_c;
                                                   target_pc  : target_address,
                                                   epochs     : request.epochs
                                                   ,edgecase   :  edgecase };
-      ff_prediction_resp.enq(resp);
+      ff_next_pc.enq(resp);
     endrule
 
     // MethodName : prediction_req
@@ -265,14 +265,14 @@ package bimodal_c;
       end
 		endmethod
 
-    // MethodName : prediction_resp
+    // MethodName : next_pc
     // Explicit Conditions : None
     // Implicit Conditions : None
     // Description : This rule read the response from the rams, check if the next PC is either PC + 4
     // or redirected to a new target address. The redirect address is directly taken from the ram.
     // If there is not hit in the BTB the prediction value of 0 is sent indicating that the next PC
     // is PC + 4 which needs to happen outside this module
-		interface prediction_response = toGet(ff_prediction_resp);
+		interface next_pc = toGet(ff_next_pc);
 
     // MethodName : training
     // Explicit Conditions : rg_init == False

@@ -49,28 +49,22 @@ package riscv;
   interface Ifc_riscv;
     
  	  method ActionValue#(FetchRequest#(`vaddr, `iesize)) inst_request;
-  `ifdef branch_speculation
-    interface Put#(PredictionResponse) prediction_response;
+    interface Put#(NextPC) next_pc;
+  `ifdef bpu
     method Action predicted_pc(PredictionToStage0 pred);
     method Training_data train_bpu;
     method Bit#(`vaddr) ras_push;
   `endif
     interface Put#(FetchResponse#(32, `iesize)) inst_response;
     interface Get#(DMem_request#(`vaddr, ELEN, 1)) memory_request;
-  `ifdef dcache
     interface Put#(DMem_core_response#(ELEN, 1)) memory_response;
-    (*always_enabled*)
-    method Action storebuffer_empty(Bool e);
     method Tuple2#(Bool, Bool) initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1), Bit#(`vaddr))) r);
+    (*always_enabled*)
+    method Action storebuffer_empty(Bool e);
     method Action store_is_cached(Bool c);
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
-  `else
-    interface Put#(MemoryReadResp#(1)) memory_read_response;
-		interface Get#(MemoryWriteReq#(`vaddr, 1,ELEN)) memory_write_request;
-    interface Put#(MemoryWriteResp) memory_write_response;
-  `endif 
     method Action clint_msip(Bit#(1) intrpt);
     method Action clint_mtip(Bit#(1) intrpt);
     method Action clint_mtime(Bit#(64) c_mtime);
@@ -197,11 +191,9 @@ package riscv;
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
     let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor, sfence `endif }=stage5.flush;
 
-  `ifdef branch_speculation
     rule send_next_pc;
       stage3.next_pc(pipe1.first.program_counter);
     endrule
-  `endif
 
     rule update_wEpoch(flush_from_wb);
       rg_wEpoch<=~rg_wEpoch;
@@ -215,7 +207,7 @@ package riscv;
 
     rule flush_stage0(flush_from_exe||flush_from_wb);
         stage0.flush(Stage0Flush{ pc : flush_from_wb ? flushpc_from_wb : flushpc_from_exe
-                                `ifdef icache 
+                                `ifdef ifence
                                   ,fence : flush_from_wb ? fenceI : False
                                 `endif
                                 `ifdef supervisor 
@@ -242,17 +234,6 @@ package riscv;
       stage3.update_wEpoch();
       stage4.update_wEpoch();
     endrule
-  `ifndef dcache
-    rule connect_store_request;
-      stage4.start_store(stage5.initiate_store);
-    endrule
-    rule connect_store_response;
-      stage5.write_resp(stage4.store_response);
-    endrule
-    rule connect_storebuffer_status;
-      stage3.storebuffer_empty(stage4.storebuffer_empty);
-    endrule
-  `endif
 
     rule fwding_from_exe1;
       let s4common = pipe3common.first;
@@ -406,8 +387,8 @@ package riscv;
     ///////////////////////////////////////////
 
     interface inst_request = stage0.inst_request;
-  `ifdef branch_speculation
-    interface prediction_response = stage1.prediction_response;
+    interface next_pc = stage1.next_pc;
+  `ifdef bpu
     method predicted_pc = stage0.predicted_pc;
     method train_bpu = stage3.train_bpu;
     method ras_push = stage3.ras_push;
@@ -420,7 +401,6 @@ package riscv;
     `ifdef rtldump
       interface dump = stage5.dump;
     `endif
-  `ifdef dcache
     interface memory_response = stage4.memory_response;
     method Action storebuffer_empty(Bool e);
       stage3.storebuffer_empty(e);
@@ -435,11 +415,6 @@ package riscv;
     method Action cache_is_available(Bool avail);
       stage3.cache_is_available(avail);
     endmethod
-  `else
-    interface memory_read_response = stage4.memory_read_response;
-		interface memory_write_request = stage4.memory_write_request;
-    interface memory_write_response = stage4.memory_write_response;
-  `endif
 	  method Action set_external_interrupt(Bit#(1) ex_i) = stage5.set_external_interrupt(ex_i);
     method csr_mstatus = stage5.csr_mstatus;
     method mv_cacheenable = stage5.mv_cacheenable;

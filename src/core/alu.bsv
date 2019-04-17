@@ -66,7 +66,7 @@ package alu;
                            Bit#(`vaddr) imm_value, Instruction_type inst_type, Funct3 funct3, 
                            Access_type memaccess `ifdef RV64 , Bool word32 `endif 
                            ,Bit#(1) misa_c, Bit#(2) lpc 
-                           `ifdef branch_speculation , Bit#(`vaddr) nextpc
+                           `ifdef bpu , Bit#(`vaddr) nextpc
                               `ifdef compressed ,Bool comp `endif 
                            `endif );
 
@@ -123,7 +123,7 @@ package alu;
     `endif
     // ---------------------------------------------------------------------------------------- //
 
-  `ifdef branch_speculation
+  `ifdef bpu
 		Bool taken=(final_output[0] == 1);
   `endif
     
@@ -154,7 +154,7 @@ package alu;
     // --------------------------- Check for redirection -------------------------------------- //
     Bool flush = False;
 
-  `ifndef branch_speculation
+  `ifndef bpu
     if((inst_type == BRANCH && final_output[0] == 1) || inst_type == JALR || inst_type == JAL )
 	  	flush = True;
   `else
@@ -184,7 +184,7 @@ package alu;
                    effective_addr : effective_address, 
                    cause          : cause, 
                    redirect       : flush
-                `ifdef branch_speculation
+                `ifdef bpu
                    ,branch_taken  : taken
                    ,redirect_pc   : compare_nextpc
                 `endif };
@@ -196,7 +196,7 @@ package alu;
 	  method ActionValue#(ALU_OUT) inputs (Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, 
          Bit#(`vaddr) op3, Bit#(TMax#(`vaddr,FLEN)) imm_value, Instruction_type inst_type, Funct3 funct3, 
          Access_type memaccess `ifdef RV64 , Bool word32 `elsif dpfpu , Bool word32 `endif ,
-         Bit#(1) misa_c, Bit#(2) lpc  `ifdef branch_speculation , Bit#(`vaddr) nextpc 
+         Bit#(1) misa_c, Bit#(2) lpc  `ifdef bpu , Bit#(`vaddr) nextpc 
          `ifdef compressed ,Bool comp `endif `endif );
   `ifdef multicycle
     // method to send the output from the muldiv or fpu when outputs are ready
@@ -221,7 +221,7 @@ package alu;
 
       let output_unavail = ALU_OUT{done : False, cmtype : ?, aluresult : ?, effective_addr : ?,
                                  cause : ?, redirect : ?
-                              `ifdef branch_speculation
+                              `ifdef bpu
                                  ,branch_taken : ?, redirect_pc : ? `endif };
 
     // instantiate mul - div module if M extension enabled.
@@ -253,7 +253,7 @@ package alu;
                                      effective_addr : zeroExtend(fpu_result.fflags), 
                                      cause          : ?, 
                                      redirect       : False
-                                  `ifdef branch_speculation
+                                  `ifdef bpu
                                      ,branch_taken  : False
                                      ,redirect_pc   : ?
                                   `endif };
@@ -283,7 +283,7 @@ package alu;
 	  method ActionValue#(ALU_OUT) inputs (Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, 
          Bit#(`vaddr) op3, Bit#(TMax#(`vaddr,FLEN)) imm_value, Instruction_type inst_type, Funct3 funct3, 
          Access_type memaccess `ifdef RV64 , Bool word32 `elsif dpfpu , Bool word32 `endif ,
-         Bit#(1) misa_c, Bit#(2) lpc  `ifdef branch_speculation , Bit#(`vaddr) nextpc 
+         Bit#(1) misa_c, Bit#(2) lpc  `ifdef bpu , Bit#(`vaddr) nextpc 
          `ifdef compressed ,Bool comp `endif `endif );
       
       // send inputs to the muldiv unit and send a stall signal to the execute stage.
@@ -314,7 +314,7 @@ package alu;
         // send inputs to the alu function and return the output of the same function
           return fn_alu(fn, truncate(op1), truncate(op2), truncate(op3), truncate(imm_value), 
                         inst_type, funct3, memaccess, `ifdef RV64 word32, `endif misa_c, lpc 
-                     `ifdef branch_speculation , nextpc `ifdef compressed ,comp `endif `endif );
+                     `ifdef bpu , nextpc `ifdef compressed ,comp `endif `endif );
     endmethod
 
   `ifdef multicycle

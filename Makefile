@@ -93,7 +93,7 @@ ifeq ($(PMP), enable)
 	override define_macros += -D pmp=True
 endif
 ifneq ($(PREDICTOR), none)
-	override define_macros += -D branch_speculation=True 
+	override define_macros += -D bpu=True 
   ifneq (,$(findstring C,$(ISA)))
 		override define_macros += -D $(PREDICTOR)_c=True
   else
@@ -128,7 +128,7 @@ ifneq (0,$(VERBOSITY))
 endif
 
 override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
-								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS) -D $(MAINMEM)=True \
+								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS)\
 								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
 								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL) -D icachereset=$(IRESET) -D iesize=$(IESIZE) \
 								 -D idbanks=$(IDBANKS) -D itbanks=$(ITBANKS) -D ddbanks=$(DDBANKS) -D dtbanks=$(DTBANKS) \

@@ -71,10 +71,8 @@ package stage5;
     method Bit#(1) csr_misa_c;
     method Tuple2#(Bool,Bool) initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
-  `ifdef dcache
     (*always_enabled*)
     method Action store_is_cached(Bool c);
-  `endif
     method Bit#(3) mv_cacheenable;
     method Bit#(2) curr_priv;
     method Bit#(XLEN) csr_mstatus;
@@ -129,8 +127,8 @@ package stage5;
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
     Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr)))) wr_store_response <- mkDWire(tagged Invalid);
-  `ifdef dcache
     Wire#(Bool) wr_store_is_cached <- mkDWire(False);
+  `ifdef dcache
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDWire(tuple2(False,False));
   `else
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDReg(tuple2(False,False));
@@ -203,7 +201,9 @@ package stage5;
             `endif
               rx.u.deq;
           end
-          else if(!rg_store_initiated)begin
+          else 
+        `endif
+          if(!rg_store_initiated)begin
             wr_initiate_store <= tuple2(unpack(rg_epoch),True);
             rg_store_initiated<=True;
             `logLevel( stage5, 0, $format("STAGE5: Initiating Store request"))
@@ -253,57 +253,6 @@ package stage5;
           else begin
             `logLevel( stage5, 0, $format("STAGE5: Waiting for Store response"))
           end
-          
-        `else
-          if(!rg_store_initiated)begin // if store has not started yet.
-            `logLevel( stage5, 0, $format("STAGE5: Initiating Store request"))
-            rg_store_initiated<=True;
-            wr_initiate_store<=tuple2(True,False);
-          end
-          else if(wr_store_response matches tagged Valid .resp)begin
-            `logLevel( stage5, 0, $format("STAGE5: Store response Received: ",fshow(resp)))
-            let {err, badaddr} = resp;
-            if(err==0)begin
-              wr_increment_minstret<=True;
-            `ifdef spfpu
-              wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
-            `else
-              `ifdef atomic
-                wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
-              `else
-                wr_commit <= tagged Valid (tuple2(0, 0));
-              `endif
-            `endif
-            `ifdef rtldump
-              `ifdef atomic
-                Bit#(ELEN) data=s.commitvalue;
-                if(s.rd==0)
-                  data=0;
-                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, s.rd, data, IRF));
-              `else
-                dump_ff.enq(tuple6(prv, signExtend(s.pc), inst, 0, 0, IRF));
-              `endif
-              rxinst.u.deq;
-            `endif
-              rx.u.deq;
-            end
-            else begin
-              Bit#(6) trapcause='1;
-              trapcause=`Store_access_fault;
-              let newpc <- csr.take_trap(trapcause, s.pc, badaddr);
-              fl=True;
-              jump_address=newpc;
-              rx.u.deq;
-            `ifdef rtldump
-              rxinst.u.deq;
-            `endif
-            end
-            rg_store_initiated<=False;
-          end
-          else begin
-            `logLevel( stage5, 0, $format("STAGE5: Waiting for Store response"))
-          end
-        `endif
         end
         else if(commit matches tagged SYSTEM .sys)begin
           let {drain, newpc, dest}<-csr.system_instruction(sys.csraddr, sys.rs1, sys.func3, sys.lpc);
@@ -360,11 +309,7 @@ package stage5;
       else begin
           `logLevel( stage5, 0, $format("WBMEM: Dropping instruction"))
           if(commit matches tagged STORE .s)
-          `ifdef dcache
             wr_initiate_store<=tuple2(unpack(rg_epoch),True);
-          `else
-            wr_initiate_store<=tuple2(False,True);
-          `endif
         // TODO if the instruction is a Store we need to deque that entry from the store buffer.
         rx.u.deq;
       `ifdef rtldump
@@ -412,11 +357,9 @@ package stage5;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
       wr_store_response<=r;
     endmethod
-  `ifdef dcache
     method Action store_is_cached(Bool c);
       wr_store_is_cached<=c;
     endmethod
-  `endif
     method mv_cacheenable = csr.mv_cacheenable;
     method curr_priv = csr.curr_priv;
     method csr_mstatus= csr.csr_mstatus;

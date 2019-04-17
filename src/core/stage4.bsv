@@ -39,10 +39,6 @@ package stage4;
   import TxRx::*;
   import GetPut::*;
   import BUtils::*;
-  `ifndef dcache
-    `define BUFFSIZE 2
-    import storebuffer::*;
-  `endif
 
   import common_types::*;
   import globals::*;
@@ -201,7 +197,6 @@ package stage4;
     interface rx_inst = rxinst.e;
     interface tx_inst = txinst.e;
   `endif
-  `ifdef dcache
     interface  memory_response= interface Put
       method Action put (DMem_core_response#(ELEN,1) response)if(ff_memory_response.notFull);
         ff_memory_response.enq(response);

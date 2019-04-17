@@ -62,7 +62,7 @@ package stage0;
     // method to receive new pc value on any flush
     method Action flush( Stage0Flush f);
 
-  `ifdef branch_speculation
+  `ifdef bpu
     // method to receive the latest prediction done by BPU
     method Action predicted_pc(PredictionToStage0 pred);
   `endif
@@ -85,7 +85,7 @@ package stage0;
     Reg#(Bool) rg_fence  <- mkReg(False);
     Reg#(Bool) rg_flush  <- mkReg(False);
 
-`ifdef branch_speculation
+`ifdef bpu
     Wire#(PredictionToStage0) wr_prediction <- mkWire();
   `ifdef compressed
     Reg#(Tuple2#(Bool, Bit#(`vaddr))) rg_delayed_redirect <- mkReg(tuple2(False,?));
@@ -120,7 +120,7 @@ package stage0;
 
       if(!rg_fence && !rg_sfence) begin
 
-    `ifdef branch_speculation
+    `ifdef bpu
         let pred = wr_prediction;
       `ifdef compressed
         if(tpl_1(rg_delayed_redirect))begin
@@ -139,8 +139,10 @@ package stage0;
           `logLevel( stage0, 0, $format("STAGE0: Redirection from BPU"))
         end
 
-        discard = (fetch_pc[1] == 1);
     `endif
+      `ifdef compressed
+        discard = (fetch_pc[1] == 1);
+      `endif
         fetch_pc[1] = 0;
 
         rg_pc<=fetch_pc+4;
@@ -151,8 +153,9 @@ package stage0;
       end
 
       rg_flush <= False;
-
+    `ifdef bpu
       `logLevel( stage0, 1, $format("STAGE0: Prediction from BPU: ",fshow(wr_prediction), " Flush:%b",rg_flush))
+    `endif
       `logLevel( stage0,0,$format("STAGE0: Sending PC:%h discard:%b rg_pc:%h fence:%b sfence:%b \
 epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
 
@@ -161,10 +164,10 @@ epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
                                                       `ifdef supervisor
                                                         ,sfence :  rg_sfence
                                                       `endif
-                                                      `ifdef icache
+                                                      `ifdef ifence
                                                        ,fence  :   rg_fence
                                                       `endif }
-                          `ifdef branch_speculation
+                          `ifdef compressed
                             ,discard : discard
                           `endif
                           };
@@ -176,14 +179,14 @@ epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
     // Description: This method receives the flush for redirection of PC from EXE or WB stage.
     method Action flush( Stage0Flush f);
       rg_pc<=f.pc;
-    `ifdef icache
+    `ifdef ifence
       rg_fence<=f.fence;
     `endif
     `ifdef supervisor
       rg_sfence<=f.sfence;
     `endif
       rg_flush<=True;
-  `ifdef branch_speculation
+  `ifdef bpu
     `ifdef compressed
       rg_delayed_redirect<=tuple2(False,?);
     `endif
@@ -191,7 +194,7 @@ epoch:%d", fetch_pc, discard, rg_pc, rg_fence, rg_sfence, curr_epoch))
       `logLevel( stage0,0, $format("STAGE0: Received Flush: ",fshow(f)))
     endmethod
 
-  `ifdef branch_speculation
+  `ifdef bpu
     // MethodName: predicted_pc
     // Implicit Conditions: None
     // Explicit Conditions: None
