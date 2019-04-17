@@ -211,7 +211,7 @@ package SoC;
       
     // ------------------------------------------------------------------------------------------//
   `ifdef debug
-    mkConnection (debug_module.debug_master,fabric.v_from_masters[Debug_master_num]);
+    mkConnection (debug_module.debug_master,fabric.v_from_masters[valueOf(Debug_master_num)]);
   `endif
    	mkConnection(cclass.master_d,	fabric.v_from_masters[valueOf(Mem_master_num)]);
    	mkConnection(cclass.master_i, fabric.v_from_masters[valueOf(Fetch_master_num)]);
