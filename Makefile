@@ -106,6 +106,12 @@ endif
 ifeq ($(OPENOCD), enable)
 	override define_macros += -D openocd=True
 endif
+# Generate ifence if icache or bpu is enabled
+ifeq ($(ICACHE), enable)
+	override define_macros += -D ifence=True
+else ifneq ($(PREDICTOR), none)
+	override define_macros += -D ifence=True
+endif
 
 
 
