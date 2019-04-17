@@ -196,42 +196,42 @@ package decoder;
       `ifdef usertraps  |  (u_enabled?zeroExtend(u_interrupts):0) `endif ;
 		// format pendingInterrupt value to return
     Bool taketrap=unpack(|pending_interrupts) `ifdef debug ||  step_done `endif ;
-    Bit#(5) cause=0;
+    Bit#(TSub#(`causesize, 1)) int_cause=0;
   `ifdef debug
     if(step_done && !debug.core_is_halted) begin
-      cause = `HaltStep;
+      int_cause = `HaltStep;
     end
     else if(pending_interrupts[12] == 1)
-      cause = `HaltDebugger;
+      int_cause = `HaltDebugger;
     else if(pending_interrupts[13] == 1)
-      cause = `Resume_int;
+      int_cause = `Resume_int;
     else
   `endif
     if(pending_interrupts[11]==1)
-      cause=`Machine_external_int;
+      int_cause=`Machine_external_int;
     else if(pending_interrupts[3]==1)
-      cause=`Machine_soft_int;
+      int_cause=`Machine_soft_int;
     else if(pending_interrupts[7]==1)
-      cause=`Machine_timer_int;
+      int_cause=`Machine_timer_int;
   `ifdef supervisor
     else if(pending_interrupts[9]==1)
-      cause=`Supervisor_external_int;
+      int_cause=`Supervisor_external_int;
     else if(pending_interrupts[1]==1)
-      cause=`Supervisor_soft_int;
+      int_cause=`Supervisor_soft_int;
     else if(pending_interrupts[5]==1)
-      cause=`Supervisor_timer_int;
+      int_cause=`Supervisor_timer_int;
   `endif
   `ifdef user
     else if(pending_interrupts[8]==1)
-      cause=`User_external_int;
+      int_cause=`User_external_int;
     else if(pending_interrupts[0]==1)
-      cause=`User_soft_int;
+      int_cause=`User_soft_int;
     else if(pending_interrupts[4]==1)
-      cause=`User_timer_int;
+      int_cause=`User_timer_int;
   `endif
 
 
-		return tuple3({1'b1,cause}, taketrap, resume_wfi);
+		return tuple3({1'b1,int_cause}, taketrap, resume_wfi);
 	endfunction
   
   (*noinline*)
@@ -506,7 +506,7 @@ package decoder;
     Bit#(32) immediate_value=signExtend(imm_value);
     Bit#(3) f3=gen_funct3(inst);
 
-    Bit#(6) trapcause=`Illegal_inst;
+    Bit#(`causesize) trapcause=`Illegal_inst;
     if(quad==Q2 && funct3=='b100 && inst[12]==1 && inst[11:2]==0)begin
       inst_type=TRAP;
       trapcause = `ifdef debug ( (ebreakm && csrs.prv == Machine) ||
@@ -735,7 +735,7 @@ package decoder;
 	      rs2type=FloatingRF; 
     `endif
 // ------------------------------------------------------------------------------------------- //
-  Bit#(6) trapcause=`Illegal_inst;
+  Bit#(`causesize) trapcause=`Illegal_inst;
   Bool validload = `ifdef RV32 funct3!=3 && funct3!=7 `else funct3!=7 `endif ;
   Bool validFload = fs!=0 && ((csrs.csr_misa[5]==1 &&  funct3==2) `ifdef dpfpu || (csrs.csr_misa[3]==1 && funct3==3) `endif ) ;
 `ifdef RV32
@@ -1025,12 +1025,12 @@ package decoder;
         result_decode.meta.rerun=False;
       end
       else if(takeinterrupt)begin
-        func_cause={1'b0,icause};
+        func_cause=zeroExtend(icause);
         x_inst_type=TRAP;
       end
       else if(trap) begin
         x_inst_type=TRAP;
-        func_cause = {1'b0,cause} ;
+        func_cause = zeroExtend(cause) ;
       end
 
       if(x_inst_type == TRAP)begin
