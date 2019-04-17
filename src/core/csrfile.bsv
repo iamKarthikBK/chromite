@@ -43,7 +43,7 @@ package csrfile;
     method ActionValue#(Bit#(XLEN)) read_csr (Bit#(12) addr);
     method Action write_csr(Bit#(12) addr,  Bit#(XLEN) word, Bit#(2) lpc);
     method ActionValue#(Bit#(`vaddr)) upd_on_ret `ifdef non_m_traps (Privilege_mode prv) `endif ;
-    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(6) cause, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
+    method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(`causesize) cause, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
     method Action incr_minstret;
   // ------------------------ csrs to other pipeline stages ---------------------------------//
     method CSRtoDecode csrs_to_decode;
@@ -318,7 +318,7 @@ package csrfile;
 	  Reg#(Bit#(XLEN)) rg_mscratch <- mkReg(0);
     
     Reg#(Bit#(1)) rg_minterrupt <- mkReg(0);
-	  Reg#(Bit#(5)) rg_mcause   <- mkReg(0);
+	  Reg#(Bit#(TSub#(`causesize,1))) rg_mcause   <- mkReg(0);
     
 	  Reg#(Bit#(3)) rg_mcounteren <- mkReg(0);
 	  Reg#(Bit#(64)) rg_clint_mtime <- mkReg(0);
@@ -336,7 +336,7 @@ package csrfile;
 
       // SCAUSE register
       Reg#(Bit#(1)) sinterrupt <- mkReg(0);
-	    Reg#(Bit#(5)) scause   <- mkReg(0);
+	    Reg#(Bit#(TSub#(`causesize,1))) scause   <- mkReg(0);
 
       // STVAL
 	    Reg#(Bit#(`vaddr)) stval  		<- mkReg(0);
@@ -372,7 +372,7 @@ package csrfile;
   	  Reg#(Bit#(TSub#(`vaddr, 1))) rg_uepc  		<- mkReg(0);
 	    Reg#(Bit#(XLEN))rg_utval  		<- mkReg(0);
       Reg#(Bit#(1)) rg_uinterrupt <- mkReg(0);
-  	  Reg#(Bit#(5)) rg_ucause   <- mkReg(0);
+  	  Reg#(Bit#(TSub#(`causesize,1))) rg_ucause   <- mkReg(0);
 	    Reg#(Bit#(2)) rg_umode <- mkReg(0); //0 if pc to base or 1 if pc to base + 4xcause
   	  Reg#(Bit#(TSub#(`vaddr, 2))) rg_utvec <- mkReg(0);
     `endif
@@ -999,6 +999,8 @@ package csrfile;
     endmethod
     method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(`causesize) c, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
       Bit#(`causesize) cause = c;
+      Bit#(TSub#(`causesize,1)) code = truncate(cause);
+      Bit#(1) trap_type = truncateLSB(cause);
 
       `ifdef non_m_traps
           Privilege_mode prv = Machine;
@@ -1008,16 +1010,16 @@ package csrfile;
             Bit#(16) sedeleg = {rg_sedeleg_u1, 1'd0, rg_sedeleg_m2, 3'd0, rg_sedeleg_l9};
           `endif
         `endif
-          Bool delegateM = (((rg_mideleg >> cause[`causesize - 2 : 0]) & 
-                                1 & duplicate(cause[`causesize-1])) == 1) ||  
-                           (((medeleg >> cause[`causesize - 2 : 0]) & 
-                                1 & duplicate(~cause[`causesize-1])) == 1);
+          Bool delegateM = (((rg_mideleg >> code) & 
+                                1 & duplicate(trap_type)) == 1) ||  
+                           (((medeleg >> code) & 
+                                1 & duplicate(~trap_type)) == 1);
           `ifdef supervisor
             `ifdef usertraps
-              Bool delegateS = (((rg_sideleg >> cause[`causesize - 2 : 0]) & 
-                                    1 & duplicate(cause[`causesize])) == 1) ||  
-                               (((sedeleg >> cause[`causesize - 2 : 0]) & 
-                                    1 & duplicate(~cause[`causesize - 1])) == 1);
+              Bool delegateS = (((rg_sideleg >> code) & 
+                                    1 & duplicate(trap_type)) == 1) ||  
+                               (((sedeleg >> code) & 
+                                    1 & duplicate(~trap_type)) == 1);
             `endif
             if(delegateM && (pack(rg_prv) <= pack(Supervisor)) && (misa_s == 1))
               prv = Supervisor;
@@ -1044,14 +1046,14 @@ package csrfile;
           if(prv == Supervisor) begin
             stval <= signExtend(tval);
 			      sepc <= truncateLSB(pc);
-			      scause <= cause[4 : 0];
-            sinterrupt <= cause[5];
+			      scause <= code;
+            sinterrupt <= trap_type;
 			      sie <= 0;
 			      spie <= sie;
             spp <= pack(rg_prv)[0];
 			      rg_prv <= Supervisor;
-            if(rg_smode == 1 && cause[5] == 1)
-              return ({(rg_stvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+            if(rg_smode == 1 && trap_type == 1)
+              return ({(rg_stvec + zeroExtend(code)), 2'b0}); // pc jumps to base + (4 * cause)
             else
               return {rg_stvec, 2'b0}; // pc jumps to base
           end else
@@ -1060,13 +1062,13 @@ package csrfile;
           if(prv == User) begin
             rg_utval <= signExtend(tval);
 			      rg_uepc <= truncateLSB(pc);
-			      rg_ucause <= cause[4 : 0];
-            rg_uinterrupt <= cause[5];
+			      rg_ucause <= code;
+            rg_uinterrupt <= trap_type;
 			      rg_uie <= 0;
 			      rg_upie <= rg_uie;
 			      rg_prv <= User;
-            if(rg_umode == 1 && cause[5] == 1)
-              return ({(rg_utvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+            if(rg_umode == 1 && trap_type == 1)
+              return ({(rg_utvec + zeroExtend(code)), 2'b0}); // pc jumps to base + (4 * cause)
             else
               return {rg_utvec, 2'b0}; // pc jumps to base
           end else
@@ -1097,14 +1099,14 @@ package csrfile;
             begin
               rg_mtval <= signExtend(tval);
 			        rg_mepc <= truncateLSB(pc);
-			        rg_mcause <= cause[4 : 0];
-              rg_minterrupt <= cause[5];
+			        rg_mcause <= code;
+              rg_minterrupt <= trap_type;
 			        rg_mie <= 0;
 			        rg_mpp <= pack(rg_prv);
 			        rg_mpie <= rg_mie;
 			        rg_prv <= Machine;
-              if(rg_mode == 1 && cause[5] == 1)
-                redirect = ({(rg_mtvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+              if(rg_mode == 1 && trap_type == 1)
+                redirect = ({(rg_mtvec + zeroExtend(code)), 2'b0}); // pc jumps to base + (4 * cause)
               else
                 redirect =  {rg_mtvec, 2'b0}; // pc jumps to base
             end
@@ -1134,14 +1136,14 @@ package csrfile;
             begin
               rg_mtval <= signExtend(tval);
 			        rg_mepc <= truncateLSB(pc);
-			        rg_mcause <= cause[4 : 0];
-              rg_minterrupt <= cause[5];
+			        rg_mcause <= code;
+              rg_minterrupt <= trap_type;
 			        rg_mie <= 0;
 			        rg_mpp <= pack(rg_prv);
 			        rg_mpie <= rg_mie;
 			        rg_prv <= Machine;
-              if(rg_mode == 1 && cause[5] == 1)
-                redirect = ({(rg_mtvec + zeroExtend(cause[4 : 0])), 2'b0}); // pc jumps to base + (4 * cause)
+              if(rg_mode == 1 && trap_type == 1)
+                redirect = ({(rg_mtvec + zeroExtend(code)), 2'b0}); // pc jumps to base + (4 * cause)
               else
                 redirect =  {rg_mtvec, 2'b0}; // pc jumps to base
             end

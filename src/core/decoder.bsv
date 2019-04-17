@@ -150,7 +150,7 @@ package decoder;
 	endfunction
  
   (*noinline*)
-	function Tuple3#(Bit#(6), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(XLEN) mstatus,
+	function Tuple3#(Bit#(`causesize), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(XLEN) mstatus,
         Bit#(14) mip, Bit#(12) mie `ifdef non_m_traps , Bit#(12) mideleg `endif
       `ifdef supervisor
         ,Bit#(12) sip, Bit#(12) sie `ifdef usertraps , Bit#(12) sideleg `endif
@@ -533,7 +533,7 @@ package decoder;
     
     Bit#(7) temp1 = {fn,f3};
     if(inst_type==TRAP)
-      temp1=trapcause;
+      temp1=zeroExtend(trapcause);
   
  `ifdef spfpu
     Bit#(5) rs3=0;
@@ -1014,7 +1014,7 @@ package decoder;
         `ifdef debug
           ,debug, step_done
         `endif );
-      let func_cause=result_decode.meta.funct;
+      Bit#(7) func_cause=result_decode.meta.funct;
       Instruction_type x_inst_type = result_decode.meta.inst_type;
       Op1type x_rs1type = result_decode.op_type.rs1type;
       Op2type x_rs2type = result_decode.op_type.rs2type;
