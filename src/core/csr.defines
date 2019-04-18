@@ -82,6 +82,15 @@
 `define DSCRATCH  'h7b2 // Debug Scratch
 `define DTVEC     'h7C0 // Debug trap vector
 `define DENABLE   'h7C1 // Debug enable register
+////////////////////////////////////////////////////////////////////////////////////
+`define TSELECT   'h7a0
+`define TDATA1    'h7a1
+`define TDATA2    'h7a2
+`define TDATA3    'h7a3
+`define TINFO     'h7a4
+`define TCONTROL  'h7a5
+`define TMCONTEXT 'h7a8
+`define TSCONTEXT 'h7aa
 ////////////////////////// Non-Standard User RW CSRS ///////////////////////////////
 `define CUSTOMCNTRL 'h800 // custom control register
 
