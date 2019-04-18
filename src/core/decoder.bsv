@@ -509,11 +509,15 @@ package decoder;
     Bit#(`causesize) trapcause=`Illegal_inst;
     if(quad==Q2 && funct3=='b100 && inst[12]==1 && inst[11:2]==0)begin
       inst_type=TRAP;
-      trapcause = `ifdef debug ( (ebreakm && csrs.prv == Machine) ||
-                                 (ebreaks && csrs.prv == Supervisor) ||
-                                 (ebreaku && csrs.prv == User))?
-                             begin trapcause = `HaltEbreak; trapcause[`causesize-1]=1 end : `endif
-                            `Breakpoint ;
+      `ifdef debug 
+        if ((ebreakm && csrs.prv == Machine) || (ebreaks && csrs.prv == Supervisor) ||
+            (ebreaku && csrs.prv == User))begin
+          trapcause = `HaltEbreak; 
+          trapcause[`causesize-1]=1; 
+        end
+        else
+      `endif
+        trapcause = `Breakpoint ;
     end
     else if(inst==0 || (quad==Q0 && funct3=='b100) || 
           (quad==Q1 && inst[15:10]=='b100111 && inst[6]==1)) begin
@@ -827,15 +831,20 @@ package decoder;
       'b001: if(funct3==0) inst_type=JALR; // JALR
       'b011: inst_type=JAL; // jal
       'b100: case(funct3)
-          'b000: if(inst[31:7]==0) trapcause=(csrs.csr_misa[20]==1 && csrs.prv==User)?`Ecall_from_user: 
+          'b000:  if(inst[31:7]==0) trapcause=(csrs.csr_misa[20]==1 && csrs.prv==User)?`Ecall_from_user: 
                                              (csrs.csr_misa[18]==1 && csrs.prv==Supervisor)?`Ecall_from_supervisor: 
                                               `Ecall_from_machine;
-                 else if(inst[31:7]=='h2000) trapcause = `ifdef debug 
-                                                   ( (ebreakm && csrs.prv == Machine) ||
-                                                     (ebreaks && csrs.prv == Supervisor) ||
-                                                     (ebreaku && csrs.prv == User))? begin
-                                             trapcause = `HaltEbreak; trapcause[`causesize-1]=1 end :
-                                            `endif `Breakpoint ;
+                  else if(inst[31:7]=='h2000) begin
+                  `ifdef debug
+                    if( (ebreakm && csrs.prv == Machine) || (ebreaks && csrs.prv == Supervisor) ||
+                        (ebreaku && csrs.prv == User)) begin
+                      trapcause = `HaltEbreak;
+                      trapcause[`causesize - 1] = 1;
+                    end
+                    else
+                  `endif
+                    trapcause = `Breakpoint;
+                 end
                  else if(inst[31:20]=='h002 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[13]==1) inst_type=SYSTEM_INSTR;
               `ifdef supervisor
                  else if(inst[31:20]=='h102 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[18]==1 &&
