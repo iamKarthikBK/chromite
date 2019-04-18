@@ -72,3 +72,6 @@ PIPE=2
 PMP=disable
 PMPSIZE=0
 ASIDWIDTH=9
+
+# Trigger Setup
+TRIGGERS=1

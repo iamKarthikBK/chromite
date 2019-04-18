@@ -116,6 +116,10 @@ else ifneq ($(PREDICTOR), none)
 	override define_macros += -D ifence=True
 endif
 
+ifneq ($(TRIGGERS), 0)
+	override define_macros += -D triggers=True -D trigger_num=$(TRIGGERS)
+endif
+
 
 
 ifeq ($(COVERAGE), none)
