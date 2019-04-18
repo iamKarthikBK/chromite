@@ -629,6 +629,36 @@ package csrfile;
       Vector#(`trigger_num, Reg#(Bit#(XLEN))) v_trig_tdata3  <- replicateM(mkReg(0));
       Vector#(`trigger_num, Reg#(TriggerData)) v_trig_tdata1 <- replicateM(mkReg(tagged NONE));
 
+      Vector#(`trigger_num, Reg#(Bit#(XLEN))) v_tinfo <- replicateM(mkReg({'d0,6'b111100}));
+
+      `ifdef RV32
+        Reg#(Bit#(6)) rg_machine_context <- mkReg(0);
+        `ifdef supervisor
+        Reg#(Bit#(16)) rg_supervisor_context <- mkReg(0);
+        `endif
+      `else
+        Reg#(Bit#(13)) rg_machine_context <- mkReg(0);
+        `ifdef supervisor
+        Reg#(Bit#(34)) rg_supervisor_context <- mkReg(0);
+        `endif
+      `endif
+      Reg#(Bit#(XLEN)) csr_machine_context = concatReg2(readOnlyReg(0), rg_machine_context);
+      Reg#(Bit#(XLEN)) csr_supervisor_context = concatReg2(readOnlyReg(0), rg_supervisor_context);
+
+      Reg#(Bit#(2)) rg_sselect <- mkReg(0);
+      Reg#(Bit#(1)) rg_mselect <- mkReg(0);
+      `ifdef RV32
+        Reg#(Bit#(6)) rg_mvalue <- mkReg(0);
+        `ifdef supervisor
+        Reg#(Bit#(16)) rg_svalue <- mkReg(0);
+      `else
+        Reg#(Bit#(13)) rg_mvalue <- mkReg(0);
+        `ifdef supervisor
+        Reg#(Bit#(34)) rg_svalue <- mkReg(0);
+        `endif
+      `endif
+      Reg#(Bit#(XLEN)) csr_textra = concatReg4(rg_mvalue, rg_mselect, readOnlyReg(0)
+                     `ifdef supervisor ,rg_svalue, rg_sselect `else readOnlyReg(0) `endif );
     `endif
 	  ////////////////////////////////////////////////////////////////////////////////////////////
     let csr_mip= { `ifdef debug rg_resume_int&rg_core_halted, rg_halt_int&~rg_core_halted, `endif 
@@ -802,6 +832,11 @@ package csrfile;
         if(addr == `TDATA1) data = read_trigger_data(v_trig_tdata1[trigger_index]);
         if(addr == `TDATA2) data = v_trig_tdata2[trigger_index];
         if(addr == `TDATA3) data = v_trig_tdata3[trigger_index];
+        if(addr == `TINFO) data = v_tinfo[trigger_index];
+        if(addr == `TMCONTEXT) data = csr_machine_context;
+      `ifdef supervisor
+        if(addr == `TSCONTEXT) data = csr_supervisor_context;
+      `endif
       `endif
         `logLevel( csr, 0, $format("CSRFILE : Read Operation : Addr:%h Data:%h",addr,data))
         return data;
@@ -1076,6 +1111,10 @@ package csrfile;
                   `ifdef debug ,(rg_csr_denable==1 && (rg_core_halted || rg_dcsr_step)) `endif ) ;
           `TDATA2: v_trig_tdata2[trigger_index] <= word;
           `TDATA3: v_trig_tdata3[trigger_index] <= word;
+          `TMCONTEXT: csr_machine_context <= word;
+        `ifdef supervisor
+          `TSCONTEXT: csr_supervisor_context <= word;
+        `endif
         `endif
         default : noAction;
       endcase
