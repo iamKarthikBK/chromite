@@ -185,7 +185,7 @@ package stage1;
         `ifdef debug
           if(trap && mc.action_ == 1)begin
             cause = `HaltTrigger;
-            cause[`causesize - 1] = 1
+            cause[`causesize - 1] = 1;
           end
         `endif
           chain = unpack(mc.chain);
