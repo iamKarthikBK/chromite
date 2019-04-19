@@ -678,7 +678,7 @@ package csrfile;
 
       Vector#(`trigger_num, Bool) v_trigger_enable ;
       for(Integer i=0; i<`trigger_num; i=i+1)begin
-        if(`mcontext > 0 || `scontext > 0) begin
+        if(`mcontext > 0 `ifdef supervisor || `scontext > 0 `endif ) begin
           if( (v_trig_tdata3[i].mselect == 1 && rg_prv == Machine && 
                 v_trig_tdata3[i].mvalue == rg_machine_context) `ifdef supervisor ||
               (v_trig_tdata3[i].sselect == 1 && rg_prv == Supervisor &&
