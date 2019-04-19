@@ -84,10 +84,12 @@ package csrfile;
       Bool debug_mode = False;
     `endif
 
+    Bit#(4) match_info = (w[19]==0 && (w[10:7] == 0 || w[10:7] == 2 || w[10:7] == 3))? w[10:7]:0;
+
     case (type_info[4:1])
       'd2:begin
         return tagged MCONTROL MControl{load: w[0], store: w[1], execute: w[2], machine: w[6], 
-                                 matched: w[10:7], chain: w[11], action_: w[15:12],
+                                 matched: match_info, chain: w[11], action_: w[15:12],
                                  sizelo: w[17:16], select: w[19], sizehi: w[22:21],
                                  dmode: debug_mode?type_info[0]:? 
                                  `ifdef user ,user:w[3] `endif
