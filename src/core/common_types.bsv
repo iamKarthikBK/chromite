@@ -380,5 +380,73 @@ package common_types;
 		Bit#(5) fflags; 			
     Bit#(`causesize) cause ; // indicates if any exception is generated.
 	}Float_result#(numeric type width) deriving(Bits, Eq);				// data structure of the output FIFO.
+// ------------------------------------------------------------- //
+
+`ifdef triggers
+  typedef struct{
+    Bit#(1) load;
+    Bit#(1) store;
+    Bit#(1) execute;
+  `ifdef user
+    Bit#(1) user;
+  `endif
+  `ifdef supervisor
+    Bit#(1) supervisor;
+  `endif
+    Bit#(1) machine;
+    Bit#(4) matched;
+    Bit#(1) chain;
+    Bit#(4) action_;
+    Bit#(2) sizelo;
+    Bit#(1) select;
+    Bit#(2) sizehi;
+    Bit#(1) dmode;
+  } MControl deriving(Bits, Eq, FShow);
+
+  typedef struct {
+    Bit#(6) action_;
+  `ifdef user
+    Bit#(1) user;
+  `endif
+  `ifdef supervisor
+    Bit#(1) supervisor;
+  `endif
+    Bit#(1) machine;
+    Bit#(14) count;
+    Bit#(1) dmode;
+  } ICount deriving(Bits, Eq, FShow);
+
+  typedef struct{
+    Bit#(6) action_;
+  `ifdef user
+    Bit#(1) user;
+  `endif
+  `ifdef supervisor
+    Bit#(1) supervisor;
+  `endif
+    Bit#(1) machine;
+    Bit#(1) dmode;
+  } ITrigger deriving(Bits, Eq, FShow);
+
+  typedef struct{
+    Bit#(6) action_;
+  `ifdef user
+    Bit#(1) user;
+  `endif
+  `ifdef supervisor
+    Bit#(1) supervisor;
+  `endif
+    Bit#(1) machine;
+    Bit#(1) dmode;
+  } ETrigger deriving(Bits, Eq, FShow);
+
+  typedef union tagged {
+    MControl MCONTROL;
+    ICount   ICOUNT;
+    ITrigger ITRIGGER;
+    ETrigger ETRIGGER;
+    void NONE;
+  } TriggerData deriving(Bits, Eq, FShow);
+`endif
 
 endpackage
