@@ -447,6 +447,12 @@ package common_types;
     ETrigger ETRIGGER;
     void NONE;
   } TriggerData deriving(Bits, Eq, FShow);
+    
+  typedef struct{
+      Bool trap;
+      Bit#(`causesize) cause;
+    } TriggerStatus deriving(Bits, Eq, FShow);
+
 `endif
 
 endpackage
