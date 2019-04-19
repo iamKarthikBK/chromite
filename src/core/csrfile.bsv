@@ -828,9 +828,6 @@ package csrfile;
         if (addr == `FRM ) data = zeroExtend(frm);
         if (addr == `FCSR ) data = zeroExtend({frm, fflags});
         if (addr == `CUSTOMCNTRL ) data = zeroExtend(rg_customcontrol);
-      `ifdef arith_trap
-        if (addr == `ARITH_EXCEP_EN)data = zeroExtend(rg_arith_excep);
-      `endif
       `ifdef debug
         if(addr == `DCSR) data = zeroExtend(rg_csr_dcsr);
         if(addr == `DPC ) data = signExtend({rg_csr_dpc,1'd0});
