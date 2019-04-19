@@ -95,12 +95,12 @@ package csrfile;
                                  `ifdef user ,user:w[3] `endif
                                  `ifdef supervisor ,supervisor: w[4] `endif };
       end
-      'd3:begin
-        return tagged ICOUNT ICount{dmode: debug_mode?type_info[0]:?, machine: w[9], action_: w[5:0],
-                                    count:w[23:10]
-                                    `ifdef user ,user:w[6] `endif
-                                   `ifdef supervisor ,supervisor: w[7] `endif };
-      end
+//      'd3:begin
+//        return tagged ICOUNT ICount{dmode: debug_mode?type_info[0]:?, machine: w[9], action_: w[5:0],
+//                                    count:w[23:10]
+//                                    `ifdef user ,user:w[6] `endif
+//                                   `ifdef supervisor ,supervisor: w[7] `endif };
+//      end
       'd4:begin
         return tagged ITRIGGER ITrigger{dmode: debug_mode?type_info[0]:?, machine: w[9], action_: w[5:0]
                                     `ifdef user ,user:w[6] `endif
@@ -122,11 +122,11 @@ package csrfile;
               `ifdef supervisor mc.supervisor `else 1'b0 `endif , 
               `ifdef user mc.user `else 1'b0 `endif , mc.execute, mc.store, mc.load};
     end
-    else if(t matches tagged ICOUNT .ic) begin
-      return {4'd3, ic.dmode, 'd0, 1'b0, ic.count, ic.machine, 1'b0,
-              `ifdef supervisor ic.supervisor `else 1'b0 `endif , 
-              `ifdef user ic.user `else 1'b0 `endif , ic.action_};
-    end
+//    else if(t matches tagged ICOUNT .ic) begin
+//      return {4'd3, ic.dmode, 'd0, 1'b0, ic.count, ic.machine, 1'b0,
+//              `ifdef supervisor ic.supervisor `else 1'b0 `endif , 
+//              `ifdef user ic.user `else 1'b0 `endif , ic.action_};
+//    end
     else if(t matches tagged ITRIGGER .it)begin
       return {4'd4, it.dmode, 1'd0, 'd0, it.machine, 1'b0,
               `ifdef supervisor it.supervisor `else 1'b0 `endif , 
@@ -1076,7 +1076,7 @@ package csrfile;
         `ifdef triggers
           `TSELECT: csr_tselect <= word;
           `TDATA1: v_trig_tdata1[trigger_index] <= write_trigger_data(word 
-                  `ifdef debug ,(rg_csr_denable==1 && (rg_core_halted || rg_dcsr_step)) `endif ) ;
+                  `ifdef debug ,(rg_csr_denable==1 && rg_core_halted == 1 ) `endif ) ;
           `TDATA2: v_trig_tdata2[trigger_index] <= word;
           `TDATA3: v_trig_tdata3[trigger_index] <= write_trigger_extra(word);
           `TMCONTEXT: csr_machine_context <= word;
