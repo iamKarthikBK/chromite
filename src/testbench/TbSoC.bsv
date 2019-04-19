@@ -134,16 +134,18 @@ package TbSoC;
       endrule
     `endif
 
-    `ifdef openocd
-      Wire#(Bit#(1)) wr_tdo <-mkWire();
-      Wire#(Bit#(1)) wr_tck <-mkWire();
+    `ifdef debug
       Wire#(Bit#(1)) wr_tdi <-mkWire();
       Wire#(Bit#(1)) wr_tms <-mkWire();
-      Wire#(Bit#(1)) wr_trst <-mkWire();
       rule connect_jtag_io;
         soc.wire_tdi(wr_tdi);
         soc.wire_tms(wr_tms);
       endrule
+    `endif
+    `ifdef openocd
+      Wire#(Bit#(1)) wr_tdo <-mkWire();
+      Wire#(Bit#(1)) wr_tck <-mkWire();
+      Wire#(Bit#(1)) wr_trst <-mkWire();
       rule rl_wr_tdo;
         wr_tdo <= soc.wire_tdo();
       endrule
