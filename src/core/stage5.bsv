@@ -174,7 +174,7 @@ package stage5;
       end
 
       for(Integer i=0; i<`trigger_num; i=i+1)begin
-        if(trigger_enable[i] && ((!trap && !chain) || (chain && trap)) )begin
+        if(trigger_enable[i] && !trap )begin
           if(trigger_data1[i] matches tagged ETRIGGER .et &&& exception)begin
             if( ((et.machine ==1 && csr.curr_priv==3)
             `ifdef user || (et.user == 1 && csr.curr_priv == 0) `endif
