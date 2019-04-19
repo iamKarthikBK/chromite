@@ -37,6 +37,7 @@ package stage1;
   import FIFO::*;
   import GetPut::*;
   import Assert::*;
+  import Vector :: *;
 
   // -- project imports --//
 	import TxRx	::*;            // for interstage buffer connection
@@ -78,6 +79,13 @@ package stage1;
 
     // csrs from the csrfile.
     method Action csr_misa_c (Bit#(1) c);
+
+  `ifdef triggers
+    method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
+    method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
+    method Action trigger_enable(Vector#(`trigger_num, Bool) t);
+    method Action curr_priv (Privilege_mode p);
+  `endif
 
 	endinterface
 

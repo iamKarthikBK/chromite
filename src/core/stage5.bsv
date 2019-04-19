@@ -93,6 +93,11 @@ package stage5;
     method Bit#(1) step_ie;
     method Bit#(1) core_debugenable;
   `endif
+  `ifdef triggers
+    method Vector#(`trigger_num, TriggerData) trigger_data1;
+    method Vector#(`trigger_num, Bit#(XLEN)) trigger_data2;
+    method Vector#(`trigger_num, Bool) trigger_enable;
+  `endif
   endinterface
 
   (*synthesize*)
@@ -384,6 +389,11 @@ package stage5;
     `ifdef arith_trap
       method arith_excep = csr.arith_excep;
    `endif
+  `ifdef triggers
+    method trigger_data1 = csr.trigger_data1;
+    method trigger_data2 = csr.trigger_data2;
+    method trigger_enable = csr.trigger_enable;
+  `endif
 
   endmodule
 endpackage

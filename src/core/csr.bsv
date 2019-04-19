@@ -85,6 +85,11 @@ package csr;
     method Bit#(1) step_ie;
     method Bit#(1) core_debugenable;
   `endif
+  `ifdef triggers
+    method Vector#(`trigger_num, TriggerData) trigger_data1;
+    method Vector#(`trigger_num, Bit#(XLEN)) trigger_data2;
+    method Vector#(`trigger_num, Bool) trigger_enable;
+  `endif
   endinterface : Ifc_csr
 
 
@@ -182,6 +187,11 @@ package csr;
     method step_is_set = csrfile.step_is_set;
     method step_ie = csrfile.step_ie;
     method core_debugenable = csrfile.core_debugenable;
+  `endif
+  `ifdef triggers
+    method trigger_data1 = csrfile.trigger_data1;
+    method trigger_data2 = csrfile.trigger_data2;
+    method trigger_enable = csrfile.trigger_enable;
   `endif
   endmodule
 endpackage
