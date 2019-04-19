@@ -75,6 +75,7 @@ package stage3;
   import SpecialFIFOs::*;
   import DReg::*;
 	import TxRx:: *;
+  import Vector :: *;
 
   // -- project imports --//
   import alu::*;                // implements the ALU function
@@ -149,6 +150,13 @@ package stage3;
     method Training_data train_bpu;
     // This method sends out the return - address to be pushed on top of the stack.
     method Bit#(`vaddr) ras_push;
+  `endif
+  
+  `ifdef triggers
+    method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
+    method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
+    method Action trigger_enable(Vector#(`trigger_num, Bool) t);
+    method Action curr_priv (Privilege_mode p);
   `endif
   endinterface
 
@@ -229,6 +237,13 @@ package stage3;
 
     // This variable holds the current epoch values of the pipe
     let curr_epochs = {rg_eEpoch, rg_wEpoch};
+  
+  `ifdef triggers
+    Wire#(Privilege_mode) wr_curr_priv <- mkWire();
+    Vector#(`trigger_num, Wire#(TriggerData)) v_trigger_data1 <- replicateM(mkWire());
+    Vector#(`trigger_num, Wire#(Bit#(XLEN))) v_trigger_data2 <- replicateM(mkWire());
+    Vector#(`trigger_num, Wire#(Bool)) v_trigger_enable <- replicateM(mkWire());
+  `endif
 
     // ---------------------- End Instatiations --------------------------//
 
@@ -371,8 +386,15 @@ package stage3;
         if ( rs1avail && rs2avail `ifdef spfpu && rs3avail `endif ) begin
           let aluout <- alu.inputs(fn, arg1, arg2, arg3, arg4, meta.inst_type, funct3, 
                          meta.memaccess, `ifdef RV64 meta.word32, `elsif dpfpu meta.word32, `endif 
-                         wr_misa_c, truncate(meta.pc) `ifdef bpu,
-                         fromMaybe(?,wr_next_pc) `ifdef compressed ,meta.compressed `endif `endif ); 
+                         wr_misa_c, truncate(meta.pc) 
+                        `ifdef triggers
+                          ,readVReg(v_trigger_data1), readVReg(v_trigger_data2)
+                          ,readVReg(v_trigger_enable), wr_curr_priv
+                        `endif
+                        `ifdef bpu 
+                          , fromMaybe(?,wr_next_pc) 
+                            `ifdef compressed ,meta.compressed `endif 
+                        `endif ); 
         `ifdef bpu
           let td = Training_data{pc : meta.pc,
                                  target : aluout.effective_addr,
@@ -709,6 +731,23 @@ package stage3;
     // Description : method to train the branch predictor BTB
     method train_bpu = wr_training_data;
     method ras_push = wr_push_ras;
+  `endif
+  `ifdef triggers
+    method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_data1[i] <= t[i];
+    endmethod
+    method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_data2[i] <= t[i];
+    endmethod
+    method Action trigger_enable(Vector#(`trigger_num, Bool) t);
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_enable[i] <= t[i];
+    endmethod
+    method Action curr_priv (Privilege_mode p);
+      wr_curr_priv <= p;
+    endmethod
   `endif
   endmodule
 endpackage

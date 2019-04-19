@@ -198,6 +198,12 @@ package riscv;
       stage1.trigger_enable(stage5.trigger_enable);
       stage1.curr_priv(unpack(stage5.curr_priv));
     endrule
+    rule send_triggers_to_stage3;
+      stage3.trigger_data1(stage5.trigger_data1);
+      stage3.trigger_data2(stage5.trigger_data2);
+      stage3.trigger_enable(stage5.trigger_enable);
+      stage3.curr_priv(unpack(stage5.curr_priv));
+    endrule
   `endif
 
     rule send_next_pc;
