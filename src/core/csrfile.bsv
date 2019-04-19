@@ -40,73 +40,110 @@ package csrfile;
   import Vector::*;
   import ConfigReg::*;
 
-  `ifdef triggers
-    typedef struct{
-      Bit#(1) load;
-      Bit#(1) store;
-      Bit#(1) execute;
-    `ifdef user
-      Bit#(1) user;
-    `endif
-    `ifdef supervisor
-      Bit#(1) supervisor;
-    `endif
-      Bit#(1) machine;
-      Bit#(4) matched;
-      Bit#(1) chain;
-      Bit#(4) action_;
-      Bit#(2) sizelo;
-      Bit#(1) select;
-      Bit#(2) sizehi;
-      Bit#(1) dmode;
-    } MControl deriving(Bits, Eq, FShow);
+`ifdef triggers
+  typedef struct{
+    Bit#(1) load;
+    Bit#(1) store;
+    Bit#(1) execute;
+  `ifdef user
+    Bit#(1) user;
+  `endif
+  `ifdef supervisor
+    Bit#(1) supervisor;
+  `endif
+    Bit#(1) machine;
+    Bit#(4) matched;
+    Bit#(1) chain;
+    Bit#(4) action_;
+    Bit#(2) sizelo;
+    Bit#(1) select;
+    Bit#(2) sizehi;
+    Bit#(1) dmode;
+  } MControl deriving(Bits, Eq, FShow);
 
-    typedef struct {
-      Bit#(6) action_;
-    `ifdef user
-      Bit#(1) user;
-    `endif
-    `ifdef supervisor
-      Bit#(1) supervisor;
-    `endif
-      Bit#(1) machine;
-      Bit#(14) count;
-      Bit#(1) dmode;
-    } ICount deriving(Bits, Eq, FShow);
+  typedef struct {
+    Bit#(6) action_;
+  `ifdef user
+    Bit#(1) user;
+  `endif
+  `ifdef supervisor
+    Bit#(1) supervisor;
+  `endif
+    Bit#(1) machine;
+    Bit#(14) count;
+    Bit#(1) dmode;
+  } ICount deriving(Bits, Eq, FShow);
 
-    typedef struct{
-      Bit#(6) action_;
-    `ifdef user
-      Bit#(1) user;
-    `endif
-    `ifdef supervisor
-      Bit#(1) supervisor;
-    `endif
-      Bit#(1) machine;
-      Bit#(1) dmode;
-    } ITrigger deriving(Bits, Eq, FShow);
+  typedef struct{
+    Bit#(6) action_;
+  `ifdef user
+    Bit#(1) user;
+  `endif
+  `ifdef supervisor
+    Bit#(1) supervisor;
+  `endif
+    Bit#(1) machine;
+    Bit#(1) dmode;
+  } ITrigger deriving(Bits, Eq, FShow);
 
-    typedef struct{
-      Bit#(6) action_;
-    `ifdef user
-      Bit#(1) user;
-    `endif
-    `ifdef supervisor
-      Bit#(1) supervisor;
-    `endif
-      Bit#(1) machine;
-      Bit#(1) dmode;
-    } ETrigger deriving(Bits, Eq, FShow);
+  typedef struct{
+    Bit#(6) action_;
+  `ifdef user
+    Bit#(1) user;
+  `endif
+  `ifdef supervisor
+    Bit#(1) supervisor;
+  `endif
+    Bit#(1) machine;
+    Bit#(1) dmode;
+  } ETrigger deriving(Bits, Eq, FShow);
 
-    typedef union tagged {
-      MControl MCONTROL;
-      ICount   ICOUNT;
-      ITrigger ITRIGGER;
-      ETrigger ETRIGGER;
-      void NONE;
-    } TriggerData deriving(Bits, Eq, FShow);
+  typedef union tagged {
+    MControl MCONTROL;
+    ICount   ICOUNT;
+    ITrigger ITRIGGER;
+    ETrigger ETRIGGER;
+    void NONE;
+  } TriggerData deriving(Bits, Eq, FShow);
 
-    function TriggerData write_trigger_data(Bit#(XLEN) w `ifdef debug , Bool debug_mode `endif );
+  typedef struct{
+    Bit#(`mcontext) mvalue;
+    Bit#(1) mselect;
+  `ifdef supervisor
+    Bit#(`scontext) svalue;
+    Bit#(2) sselect;
+  `endif
+  } TriggerExtra deriving(Eq, FShow, Bits);
+
+  function TriggerExtra write_trigger_extra(Bit#(XLEN) w);
+  `ifdef RV64
+    return TriggerExtra {mvalue: truncate(w[63:51]), mselect: w[50]
+                      `ifdef supervisor
+                         ,svalue: truncate(w[35:2]),sselect: w[1:0]
+                      `endif };
+  `else
+    return TriggerExtra {mvalue: truncate(w[31:26]), mselect: w[25]
+                      `ifdef supervisor
+                         ,svalue: truncate(w[17:2]) ,sselect: w[1:0]
+                      `endif };
+  `endif
+  endfunction
+    
+  function Bit#(XLEN) read_trigger_extra(TriggerExtra t);
+  `ifdef RV64
+    Bit#(13) mvalue = zeroExtend(t.mvalue);
+    Bit#(34) svalue = `ifdef supervisor zeroExtend(t.svalue) `else 0 `endif ;
+    Bit#(2)  sselect = `ifdef supervisor t.sselect `else 0 `endif ;
+    return {mvalue, t.mselect, 14'd0, svalue, sselect};
+  `else
+    Bit#(6) mvalue = zeroExtend(t.mvalue);
+    Bit#(16) svalue = `ifdef supervisor zeroExtend(t.svalue) `else 0 `endif ;
+    Bit#(2)  sselect = `ifdef supervisor t.sselect `else 0 `endif ;
+    return {mvalue, t.mselect, 7'd0, svalue, sselect};
+  `endif
+  endfunction
+
+  function TriggerData write_trigger_data(Bit#(XLEN) w `ifdef debug , Bool debug_mode `endif );
     Bit#(5) type_info = truncateLSB(w);
     `ifndef debug 
       Bool debug_mode = False;
@@ -166,7 +203,7 @@ package csrfile;
     else
       return 0;
   endfunction
-  `endif
+`endif
 
   interface Ifc_csrfile;
     method ActionValue#(Bit#(XLEN)) read_csr (Bit#(12) addr);
@@ -211,6 +248,7 @@ package csrfile;
   `ifdef triggers
     method Vector#(`trigger_num, TriggerData) trigger_data1;
     method Vector#(`trigger_num, Bit#(XLEN)) trigger_data2;
+    method Vector#(`trigger_num, Bool) trigger_enable;
   `endif
   endinterface
 
@@ -626,39 +664,32 @@ package csrfile;
       Reg#(Bit#(XLEN)) csr_tselect = concatReg2(readOnlyReg(0), trigger_index);
 
       Vector#(`trigger_num, Reg#(Bit#(XLEN))) v_trig_tdata2 <- replicateM(mkReg(0));
-      Vector#(`trigger_num, Reg#(Bit#(XLEN))) v_trig_tdata3  <- replicateM(mkReg(0));
+      Vector#(`trigger_num, Reg#(TriggerExtra)) v_trig_tdata3  <- replicateM(mkReg(unpack(0)));
       Vector#(`trigger_num, Reg#(TriggerData)) v_trig_tdata1 <- replicateM(mkReg(tagged NONE));
 
       Vector#(`trigger_num, Reg#(Bit#(XLEN))) v_tinfo <- replicateM(mkReg({'d0,6'b111100}));
 
-      `ifdef RV32
-        Reg#(Bit#(6)) rg_machine_context <- mkReg(0);
-        `ifdef supervisor
-        Reg#(Bit#(16)) rg_supervisor_context <- mkReg(0);
-        `endif
-      `else
-        Reg#(Bit#(13)) rg_machine_context <- mkReg(0);
-        `ifdef supervisor
-        Reg#(Bit#(34)) rg_supervisor_context <- mkReg(0);
-        `endif
-      `endif
+      Reg#(Bit#(`mcontext)) rg_machine_context <- mkReg(0);
       Reg#(Bit#(XLEN)) csr_machine_context = concatReg2(readOnlyReg(0), rg_machine_context);
+    `ifdef supervisor
+      Reg#(Bit#(`scontext)) rg_supervisor_context <- mkReg(0);
       Reg#(Bit#(XLEN)) csr_supervisor_context = concatReg2(readOnlyReg(0), rg_supervisor_context);
+    `endif
 
-      Reg#(Bit#(2)) rg_sselect <- mkReg(0);
-      Reg#(Bit#(1)) rg_mselect <- mkReg(0);
-      `ifdef RV32
-        Reg#(Bit#(6)) rg_mvalue <- mkReg(0);
-        `ifdef supervisor
-        Reg#(Bit#(16)) rg_svalue <- mkReg(0);
-      `else
-        Reg#(Bit#(13)) rg_mvalue <- mkReg(0);
-        `ifdef supervisor
-        Reg#(Bit#(34)) rg_svalue <- mkReg(0);
-        `endif
-      `endif
-      Reg#(Bit#(XLEN)) csr_textra = concatReg4(rg_mvalue, rg_mselect, readOnlyReg(0)
-                     `ifdef supervisor ,rg_svalue, rg_sselect `else readOnlyReg(0) `endif );
+      Vector#(`trigger_num, Bool) v_trigger_enable ;
+      for(Integer i=0; i<`trigger_num; i=i+1)begin
+        if(`mcontext > 0 || `scontext > 0) begin
+          if( (v_trig_tdata3[i].mselect == 1 && rg_prv == Machine && 
+                v_trig_tdata3[i].mvalue == rg_machine_context) `ifdef supervisor ||
+              (v_trig_tdata3[i].sselect == 1 && rg_prv == Supervisor &&
+                v_trig_tdata3[i].svalue == rg_supervisor_context) `endif )
+            v_trigger_enable[i] = True;
+          else
+            v_trigger_enable[i] = False;
+        end
+        else
+          v_trigger_enable[i] = True;
+      end
     `endif
 	  ////////////////////////////////////////////////////////////////////////////////////////////
     let csr_mip= { `ifdef debug rg_resume_int&rg_core_halted, rg_halt_int&~rg_core_halted, `endif 
@@ -831,7 +862,7 @@ package csrfile;
         if(addr == `TSELECT) data = csr_tselect;
         if(addr == `TDATA1) data = read_trigger_data(v_trig_tdata1[trigger_index]);
         if(addr == `TDATA2) data = v_trig_tdata2[trigger_index];
-        if(addr == `TDATA3) data = v_trig_tdata3[trigger_index];
+        if(addr == `TDATA3) data = read_trigger_extra(v_trig_tdata3[trigger_index]);
         if(addr == `TINFO) data = v_tinfo[trigger_index];
         if(addr == `TMCONTEXT) data = csr_machine_context;
       `ifdef supervisor
@@ -1110,7 +1141,7 @@ package csrfile;
           `TDATA1: v_trig_tdata1[trigger_index] <= write_trigger_data(word 
                   `ifdef debug ,(rg_csr_denable==1 && (rg_core_halted || rg_dcsr_step)) `endif ) ;
           `TDATA2: v_trig_tdata2[trigger_index] <= word;
-          `TDATA3: v_trig_tdata3[trigger_index] <= word;
+          `TDATA3: v_trig_tdata3[trigger_index] <= write_trigger_extra(word);
           `TMCONTEXT: csr_machine_context <= word;
         `ifdef supervisor
           `TSCONTEXT: csr_supervisor_context <= word;
@@ -1420,6 +1451,7 @@ package csrfile;
   `ifdef triggers
     method trigger_data1 = readVReg(v_trig_tdata1);
     method trigger_data2 = readVReg(v_trig_tdata2);
+    method trigger_enable = v_trigger_enable;
   `endif
   endmodule
 endpackage
