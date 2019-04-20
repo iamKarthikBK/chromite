@@ -169,14 +169,20 @@ package stage1;
           if(mc.matched == 0)begin
             if(trigger_compare == compare_value)
               trap = True;
+            else if(chain)
+              trap = False;
           end
           if(mc.matched == 2)begin
             if(compare_value >= trigger_compare)
               trap = True;
+            else if(chain)
+              trap = False;
           end
           if(mc.matched == 3)begin
             if(compare_value < trigger_compare)
               trap = True;
+            else if(chain)
+              trap = False;
           end
 
         `ifdef debug
