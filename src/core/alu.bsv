@@ -79,9 +79,6 @@ package alu;
     for(Integer i=0; i<`trigger_num; i=i+1)begin
       if(tenable[i] &&& ((!trap && !chain) || (chain && trap)) 
                     &&& tdata1[i] matches tagged MCONTROL .mc 
-                    &&& ( (mc.machine == 1 && prv == Machine) 
-                          `ifdef user || (mc.user == 1 && prv == User) `endif
-                          `ifdef supervisor || (mc.supervisor == 1 && prv == Supervisor) `endif )
                     &&& ((mc.load == 1 && memaccess == Load && mc.select == 0) || 
                          (mc.store == 1 && memaccess == Store)) ) begin
         Bit#(XLEN) trigger_compare = tdata2[i];

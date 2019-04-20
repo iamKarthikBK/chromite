@@ -176,10 +176,7 @@ package stage5;
       for(Integer i=0; i<`trigger_num; i=i+1)begin
         if(trigger_enable[i] && !trap )begin
           if(trigger_data1[i] matches tagged ETRIGGER .et &&& exception)begin
-            if( ((et.machine ==1 && csr.curr_priv==3)
-            `ifdef user || (et.user == 1 && csr.curr_priv == 0) `endif
-            `ifdef supervisor || (et.supervisor == 1 && csr.curr_priv == 1) `endif ) &&
-            trigger_data2[i][code] == 1) begin
+            if( trigger_data2[i][code] == 1) begin
               trap = True;
             `ifdef debug
               if(et.action_ == 1)begin
@@ -190,10 +187,7 @@ package stage5;
             end
           end
           else if(trigger_data1[i] matches tagged ITRIGGER .it &&& interrupt)begin
-            if( ((it.machine ==1 && csr.curr_priv==3)
-            `ifdef user || (it.user == 1 && csr.curr_priv == 0) `endif
-            `ifdef supervisor || (it.supervisor == 1 && csr.curr_priv == 1) `endif ) &&
-            trigger_data2[i][code] == 1) begin
+            if( trigger_data2[i][code] == 1) begin
               trap = True;
               if(it.action_ == 1)begin
                 cause = `HaltTrigger;

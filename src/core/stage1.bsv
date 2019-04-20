@@ -159,29 +159,26 @@ package stage1;
         `logLevel( stage1, 3, $format("STAGE1: Trigger[%2d] Data2: ", i, fshow(v_trigger_data2[i])))
         `logLevel( stage1, 3, $format("STAGE1: Trigger[%2d] Enable: ", i, fshow(v_trigger_enable[i])))
         if(v_trigger_enable[i] &&& v_trigger_data1[i] matches tagged MCONTROL .mc &&& 
-                              ((!trap && !chain) || (chain && trap)) )begin
+                              ((!trap && !chain) || (chain && trap)) &&& mc.execute == 1)begin
           Bit#(XLEN) trigger_compare = v_trigger_data2[i];
-          if(mc.execute == 1 && ( (mc.machine == 1 && wr_curr_priv == Machine) 
-          `ifdef user || (mc.user == 1 && wr_curr_priv == User) `endif
-          `ifdef supervisor || (mc.supervisor == 1 && wr_curr_priv == Supervisor) `endif )) begin
-            if(mc.select == 0)
-              compare_value = pc;
-            else
-              compare_value = zeroExtend(instr);
+          if(mc.select == 0)
+            compare_value = pc;
+          else
+            compare_value = zeroExtend(instr);
 
-            if(mc.matched == 0)begin
-              if(trigger_compare == compare_value)
-                trap = True;
-            end
-            if(mc.matched == 2)begin
-              if(compare_value >= trigger_compare)
-                trap = True;
-            end
-            if(mc.matched == 3)begin
-              if(compare_value < trigger_compare)
-                trap = True;
-            end
+          if(mc.matched == 0)begin
+            if(trigger_compare == compare_value)
+              trap = True;
           end
+          if(mc.matched == 2)begin
+            if(compare_value >= trigger_compare)
+              trap = True;
+          end
+          if(mc.matched == 3)begin
+            if(compare_value < trigger_compare)
+              trap = True;
+          end
+
         `ifdef debug
           if(trap && mc.action_ == 1)begin
             cause = `HaltTrigger;

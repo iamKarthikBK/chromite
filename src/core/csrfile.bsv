@@ -117,7 +117,7 @@ package csrfile;
 
   function Bit#(XLEN) read_trigger_data(TriggerData t);
     if(t matches tagged MCONTROL .mc)begin
-      return {4'd2,mc.dmode, 6'd0, 'd0, mc.sizehi, 1'b0, mc.select, 1'b0, mc.sizelo, mc.action_,
+      return {4'd2, mc.dmode, 6'd0, 'd0, mc.sizehi, 1'b0, mc.select, 1'b0, mc.sizelo, mc.action_,
               mc.chain, mc.matched, mc.machine, 1'b0, 
               `ifdef supervisor mc.supervisor `else 1'b0 `endif , 
               `ifdef user mc.user `else 1'b0 `endif , mc.execute, mc.store, mc.load};
@@ -614,19 +614,62 @@ package csrfile;
     `endif
 
       Vector#(`trigger_num, Bool) v_trigger_enable ;
+      Vector#(`trigger_num, Bool) v_context_match ;
       for(Integer i=0; i<`trigger_num; i=i+1)begin
         if(`mcontext > 0 `ifdef supervisor || `scontext > 0 `endif ) begin
           if( (v_trig_tdata3[i].mselect == 1 && rg_prv == Machine && 
                 v_trig_tdata3[i].mvalue == rg_machine_context) `ifdef supervisor ||
               (v_trig_tdata3[i].sselect == 1 && rg_prv == Supervisor &&
                 v_trig_tdata3[i].svalue == rg_supervisor_context) `endif )
-            v_trigger_enable[i] = True;
+            v_context_match[i] = True;
           else
-            v_trigger_enable[i] = False;
+            v_context_match[i] = False;
         end
         else
-          v_trigger_enable[i] = True;
+          v_context_match[i] = True;
       end
+      Vector#(`trigger_num, Bool) v_privilege_match ;
+      for(Integer i=0; i<`trigger_num; i=i+1)begin
+        Bool en = False; 
+        Bit#(1) m=0;
+        Bit#(1) s=0;
+        Bit#(1) u=0;
+        if(v_trig_tdata1[i] matches tagged MCONTROL .mc) begin
+          m = mc.machine; 
+        `ifdef supervisor
+          s = mc.supervisor;
+        `endif
+        `ifdef user
+          u = mc.user;
+        `endif
+        end
+        if(v_trig_tdata1[i] matches tagged ETRIGGER .et) begin
+          m = et.machine; 
+        `ifdef supervisor
+          s = et.supervisor;
+        `endif
+        `ifdef user
+          u = et.user;
+        `endif
+        end
+        if(v_trig_tdata1[i] matches tagged ITRIGGER .it) begin
+          m = it.machine; 
+        `ifdef supervisor
+          s = it.supervisor;
+        `endif
+        `ifdef user
+          u = it.user;
+        `endif
+        end
+        if( (m ==1 && rg_prv == Machine) 
+          `ifdef supervisor || (s == 1 && rg_prv == Supervisor) `endif
+          `ifdef user       || (u == 1 && rg_prv == User) `endif )
+          en = True;
+        v_privilege_match[i] = en;
+      end
+
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_enable[i] = v_context_match[i] && v_privilege_match[i];
     `endif
 	  ////////////////////////////////////////////////////////////////////////////////////////////
     let csr_mip= { `ifdef debug rg_resume_int&rg_core_halted, rg_halt_int&~rg_core_halted, `endif 
