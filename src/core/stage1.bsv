@@ -147,7 +147,7 @@ package stage1;
   `ifdef triggers
 
     function ActionValue#(Tuple2#(Bool, Bit#(`causesize))) check_trigger (Bit#(`vaddr) pc, 
-                                              Bit#(32) instr) = actionvalue
+                           Bit#(32) instr `ifdef compressed , Bool compressed `endif ) = actionvalue
       Bool trap = False;
       Bit#(`causesize) cause = `Breakpoint;
       Bit#(XLEN) compare_value ;
@@ -158,7 +158,9 @@ package stage1;
         `logLevel( stage1, 3, $format("STAGE1: Trigger[%2d] Enable: ", i, fshow(v_trigger_enable[i])))
         if(v_trigger_enable[i] &&& v_trigger_data1[i] matches tagged MCONTROL .mc &&& 
                               ((!trap && !chain) || (chain && trap)) &&& mc.execute == 1)begin
-          Bit#(XLEN) trigger_compare = v_trigger_data2[i];
+          Bit#(XLEN) trigger_compare = `ifdef compressed 
+                     (compressed && mc.size == 2)? zeroExtend(v_trigger_data2[i][15:0]): `endif 
+                                                   v_trigger_data2[i];
           if(mc.select == 0)
             compare_value = pc;
           else
@@ -359,7 +361,8 @@ package stage1;
       Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c == 1) ? 2:4;
       Bit#(`causesize) cause = imem_resp.cause;
     `ifdef triggers
-      let {trig_trap, trig_cause} <- check_trigger(pred.va, final_instruction);
+      let {trig_trap, trig_cause} <- check_trigger(pred.va, final_instruction
+                                        `ifdef compressed ,compressed `endif );
       if(trig_trap)begin
         trap = True;
         cause = trig_cause;
