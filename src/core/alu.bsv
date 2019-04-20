@@ -69,8 +69,7 @@ package alu;
                                                         Vector#(`trigger_num, Bit#(XLEN)) tdata2,
                                                         Vector#(`trigger_num, Bool) tenable, 
                                                         Bit#(`vaddr) address, Bit#(XLEN) data, 
-                                                        Access_type  memaccess, 
-                                                        Privilege_mode prv);
+                                                        Access_type  memaccess, Bit#(2) size );
 
     Bool trap = False;
     Bool chain = False;
@@ -80,7 +79,12 @@ package alu;
       if(tenable[i] &&& ((!trap && !chain) || (chain && trap)) 
                     &&& tdata1[i] matches tagged MCONTROL .mc 
                     &&& ((mc.load == 1 && memaccess == Load && mc.select == 0) || 
-                         (mc.store == 1 && memaccess == Store)) ) begin
+                         (mc.store == 1 && memaccess == Store)) 
+                    &&& ( mc.size ==0 || (mc.size == 1 && size == 0) 
+                        ||(mc.size == 2 && size == 1)
+                        ||(mc.size == 3 && size == 2)
+                      `ifdef RV64 || (mc.size == 5 && size == 3) `endif )
+                    ) begin
         Bit#(XLEN) trigger_compare = tdata2[i];
         if(mc.select == 0)
           compare_value = address;
