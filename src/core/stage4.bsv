@@ -63,7 +63,71 @@ package stage4;
 
     // method to update epochs on redirection from write - back stage
     method Action update_wEpoch;
+  
+  `ifdef triggers
+    method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
+    method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
+    method Action trigger_enable(Vector#(`trigger_num, Bool) t);
+  `endif
   endinterface
+
+`ifdef triggers
+  function Tuple2#(Bool, Bit#(`causesize)) check_for_triggers(
+                                                        Vector#(`trigger_num, TriggerData) tdata1, 
+                                                        Vector#(`trigger_num, Bit#(XLEN)) tdata2,
+                                                        Vector#(`trigger_num, Bool) tenable, 
+                                                        Bit#(`vaddr) address, Bit#(XLEN) data, 
+                                                        Access_type  memaccess, Bit#(2) size );
+
+    Bool trap = False;
+    Bool chain = False;
+    Bit#(`causesize) cause = `Breakpoint;
+    Bit#(XLEN) compare_value ;
+    for(Integer i=0; i<`trigger_num; i=i+1)begin
+      if(tenable[i] &&& ((!trap && !chain) || (chain && trap)) 
+                    &&& tdata1[i] matches tagged MCONTROL .mc 
+                    &&& (mc.load == 1 && memaccess == Load)
+                    &&& ( mc.size ==0 || (mc.size == 1 && size == 0) 
+                        ||(mc.size == 2 && size == 1)
+                        ||(mc.size == 3 && size == 2)
+                      `ifdef RV64 || (mc.size == 5 && size == 3) `endif )
+                    ) begin
+        Bit#(XLEN) trigger_compare = tdata2[i];
+        if(mc.select == 0)
+          compare_value = address;
+        else
+          compare_value = data;
+        if(mc.matched == 0)begin
+          if(trigger_compare == compare_value)
+            trap = True;
+          else if(chain)
+            trap = False;
+        end
+        if(mc.matched == 2)begin
+          if(compare_value >= trigger_compare)
+            trap = True;
+          else if(chain)
+            trap = False;
+        end
+        if(mc.matched == 3)begin
+          if(compare_value < trigger_compare)
+            trap = True;
+          else if(chain)
+            trap = False;
+        end
+      `ifdef debug
+        if(trap && mc.action_ == 1)begin
+          cause = `HaltTrigger;
+          cause[`causesize - 1] = 1;
+        end
+      `endif
+        chain = unpack(mc.chain);
+      end
+    end
+
+    return tuple2(trap, cause);
+  endfunction
+`endif
 
   (*synthesize*)
   module mkstage4(Ifc_stage4);
@@ -86,6 +150,12 @@ package stage4;
 
     // Holds the current epoch of the pipe
     Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
+  
+  `ifdef triggers
+    Vector#(`trigger_num, Wire#(TriggerData)) v_trigger_data1 <- replicateM(mkWire());
+    Vector#(`trigger_num, Wire#(Bit#(XLEN))) v_trigger_data2 <- replicateM(mkWire());
+    Vector#(`trigger_num, Wire#(Bool)) v_trigger_enable <- replicateM(mkWire());
+  `endif
 
     // RuleName: check_instruction
     // Implicit Conditions: all rx fifos are not empty and tx fifos are not full.
@@ -136,12 +206,25 @@ package stage4;
           ff_memory_response.deq;
 
           `logLevel( stage4, 0, $format("STAGE4: Received: ",fshow(response)))
+          Bool trap = response.trap;
+          Bit#(`causesize) cause = response.cause;
+        `ifdef triggers
+          let {trig_trap, trig_cause} = check_for_triggers(readVReg(v_trigger_data1), 
+                                        readVReg(v_trigger_data2), readVReg(v_trigger_enable), 
+                                        s.address, response.word, s.memaccess, s.size);
+          if(!trap && trig_trap)begin
+            trap = True;
+            cause = trig_cause;
+          end
+
+        `endif
+
 
           // Here we need to check if the response from the cache matches the epoch of the 
           // instruction in this stage. If not, then we wait for another response from the cache
           if(s4common.epochs == response.epochs) begin 
-            if(response.trap)
-              pipe4data = tagged TRAP CommitTrap{cause    : response.cause,
+            if(trap)
+              pipe4data = tagged TRAP CommitTrap{cause    : cause,
                                                  pc       : s4common.pc,
                                                  badaddr  : truncate(response.word) };
             else begin
@@ -205,6 +288,20 @@ package stage4;
     method Action update_wEpoch;
       rg_wEpoch<=~rg_wEpoch;
     endmethod
+  `ifdef triggers
+    method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_data1[i] <= t[i];
+    endmethod
+    method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_data2[i] <= t[i];
+    endmethod
+    method Action trigger_enable(Vector#(`trigger_num, Bool) t);
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_enable[i] <= t[i];
+    endmethod
+  `endif
   endmodule
 endpackage
 
