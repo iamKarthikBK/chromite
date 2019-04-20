@@ -156,7 +156,6 @@ package stage3;
     method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
     method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
     method Action trigger_enable(Vector#(`trigger_num, Bool) t);
-    method Action curr_priv (Privilege_mode p);
   `endif
   endinterface
 
@@ -239,7 +238,6 @@ package stage3;
     let curr_epochs = {rg_eEpoch, rg_wEpoch};
   
   `ifdef triggers
-    Wire#(Privilege_mode) wr_curr_priv <- mkWire();
     Vector#(`trigger_num, Wire#(TriggerData)) v_trigger_data1 <- replicateM(mkWire());
     Vector#(`trigger_num, Wire#(Bit#(XLEN))) v_trigger_data2 <- replicateM(mkWire());
     Vector#(`trigger_num, Wire#(Bool)) v_trigger_enable <- replicateM(mkWire());
@@ -389,7 +387,7 @@ package stage3;
                          wr_misa_c, truncate(meta.pc) 
                         `ifdef triggers
                           ,readVReg(v_trigger_data1), readVReg(v_trigger_data2)
-                          ,readVReg(v_trigger_enable), wr_curr_priv
+                          ,readVReg(v_trigger_enable)
                         `endif
                         `ifdef bpu 
                           , fromMaybe(?,wr_next_pc) 
@@ -744,9 +742,6 @@ package stage3;
     method Action trigger_enable(Vector#(`trigger_num, Bool) t);
       for(Integer i=0; i<`trigger_num; i=i+1)
         v_trigger_enable[i] <= t[i];
-    endmethod
-    method Action curr_priv (Privilege_mode p);
-      wr_curr_priv <= p;
     endmethod
   `endif
   endmodule

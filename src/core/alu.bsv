@@ -127,7 +127,6 @@ package alu;
                            ,Vector#(`trigger_num, TriggerData) tdata1
                            ,Vector#(`trigger_num, Bit#(XLEN))  tdata2
                            ,Vector#(`trigger_num, Bool)        tenable
-                           ,Privilege_mode prv
                          `endif
                          `ifdef bpu , Bit#(`vaddr) nextpc
                             `ifdef compressed ,Bool comp `endif 
@@ -235,8 +234,8 @@ package alu;
 
     // ------------------------ check for load/store triggers ---------------------------------//
   `ifdef triggers
-    let {trig_trap, trig_cause} = check_for_triggers(tdata1, tdata2, tenable, 
-                                                      effective_address, op2, memaccess, prv);
+    let {trig_trap, trig_cause} = check_for_triggers(tdata1, tdata2, tenable, effective_address, 
+                                                     op2, memaccess, funct3[1:0]);
     if(inst_type == MEMORY && trig_trap)begin
       exception = True;
       cause = trig_cause;
@@ -274,7 +273,6 @@ package alu;
          ,Vector#(`trigger_num, TriggerData) tdata1
          ,Vector#(`trigger_num, Bit#(XLEN))  tdata2
          ,Vector#(`trigger_num, Bool)        tenable
-         ,Privilege_mode prv
        `endif
        `ifdef bpu 
          , Bit#(`vaddr) nextpc `ifdef compressed ,Bool comp `endif 
@@ -375,7 +373,6 @@ package alu;
          ,Vector#(`trigger_num, TriggerData) tdata1
          ,Vector#(`trigger_num, Bit#(XLEN))  tdata2
          ,Vector#(`trigger_num, Bool)        tenable
-         ,Privilege_mode prv
        `endif
        `ifdef bpu 
          , Bit#(`vaddr) nextpc `ifdef compressed ,Bool comp `endif 
@@ -410,7 +407,7 @@ package alu;
           return fn_alu(fn, truncate(op1), truncate(op2), truncate(op3), truncate(imm_value), 
                         inst_type, funct3, memaccess, `ifdef RV64 word32, `endif misa_c, lpc 
                      `ifdef triggers
-                       ,tdata1 ,tdata2 ,tenable ,prv
+                       ,tdata1 ,tdata2 ,tenable 
                      `endif
                      `ifdef bpu , nextpc `ifdef compressed ,comp `endif `endif );
     endmethod
