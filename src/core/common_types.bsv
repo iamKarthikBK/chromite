@@ -397,9 +397,8 @@ package common_types;
     Bit#(4) matched;
     Bit#(1) chain;
     Bit#(4) action_;
-    Bit#(2) sizelo;
+    Bit#(4) size;
     Bit#(1) select;
-    Bit#(2) sizehi;
     Bit#(1) dmode;
   } MControl deriving(Bits, Eq, FShow);
 

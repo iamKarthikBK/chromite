@@ -90,7 +90,7 @@ package csrfile;
       'd2:begin
         return tagged MCONTROL MControl{load: w[0], store: w[1], execute: w[2], machine: w[6], 
                                  matched: match_info, chain: w[11], action_: w[15:12],
-                                 sizelo: w[17:16], select: w[19], sizehi: w[22:21],
+                                 size: {w[22:21],w[17:16]}, select: w[19], 
                                  dmode: debug_mode?type_info[0]:? 
                                  `ifdef user ,user:w[3] `endif
                                  `ifdef supervisor ,supervisor: w[4] `endif };
@@ -117,7 +117,7 @@ package csrfile;
 
   function Bit#(XLEN) read_trigger_data(TriggerData t);
     if(t matches tagged MCONTROL .mc)begin
-      return {4'd2, mc.dmode, 6'd0, 'd0, mc.sizehi, 1'b0, mc.select, 1'b0, mc.sizelo, mc.action_,
+      return {4'd2, mc.dmode, 6'd0, 'd0, mc.size[3:2], 1'b0, mc.select, 1'b0, mc.size[1:0], mc.action_,
               mc.chain, mc.matched, mc.machine, 1'b0, 
               `ifdef supervisor mc.supervisor `else 1'b0 `endif , 
               `ifdef user mc.user `else 1'b0 `endif , mc.execute, mc.store, mc.load};
