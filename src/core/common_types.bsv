@@ -276,7 +276,10 @@ package common_types;
   } Stage4Common deriving(Bits, Eq, FShow);
 
   typedef struct{
+  `ifdef triggers
     Bit#(`vaddr)  address;
+    Bit#(2)       size;
+  `endif
     Access_type   memaccess;
   `ifdef dpfpu
     Bit#(1)       nanboxing;

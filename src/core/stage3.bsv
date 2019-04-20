@@ -495,8 +495,11 @@ package stage3;
               end
             `endif
             // -------------------------- Derive types for Next stage --------------------------- //
-              let s4memory = Stage4Memory{  address     : aluout.effective_addr,
-                                            memaccess   : meta.memaccess
+              let s4memory = Stage4Memory{  memaccess   : meta.memaccess
+                                        `ifdef triggers
+                                            ,address     : aluout.effective_addr
+                                            ,size        : funct3[1:0]
+                                        `endif
                                         `ifdef dpfpu
                                             ,nanboxing   : nanboxing
                                         `endif } ;
