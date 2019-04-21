@@ -6,7 +6,7 @@ Out of this five are floating point exceptions specified by IEEE 754 floating po
 
 Traps and their cause values are
 
-             ----------------------------------------
+            + ---------------------------------------+
             | Integer divide by zero            | 17 |
             |                                   |    |
             | Floating point Invalid operation  | 18 |
@@ -18,7 +18,7 @@ Traps and their cause values are
             | Floating point Underflow          | 21 |
             |                                   |    |
             | Floating point Inexact            | 22 |
-            ------------------------------------------                                     
+            +----------------------------------------+                                     
 
 Above cause values can be changed by modifying their values in src/core/common_params.bsv.
 
