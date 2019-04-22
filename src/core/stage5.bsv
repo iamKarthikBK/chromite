@@ -34,6 +34,7 @@ package stage5;
   import common_types::*;
   `include "common_params.bsv"
   `include "Logger.bsv"
+  import ConfigReg::*;
 
   import FIFO::*;
   import FIFOF::*;
@@ -93,6 +94,11 @@ package stage5;
     method Bit#(1) step_ie;
     method Bit#(1) core_debugenable;
   `endif
+  `ifdef triggers
+    method Vector#(`trigger_num, TriggerData) trigger_data1;
+    method Vector#(`trigger_num, Bit#(XLEN)) trigger_data2;
+    method Vector#(`trigger_num, Bool) trigger_enable;
+  `endif
   endinterface
 
   (*synthesize*)
@@ -138,6 +144,65 @@ package stage5;
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDReg(tuple2(False,False));
   `endif
 
+  `ifdef triggers
+    Reg#(TriggerStatus) rg_take_trigger <- mkConfigReg(unpack(0));
+    Reg#(Bit#(`vaddr)) rg_flush_pc <- mkReg(0);
+
+    rule check_triggers;
+      let {commit, epoch} = rx.u.first;
+
+      let trigger_data1 = csr.trigger_data1;
+      let trigger_data2 = csr.trigger_data2;
+      let trigger_enable = csr.trigger_enable;
+
+      Bool trap = False;
+      Bit#(`causesize) cause = `Breakpoint;
+      Bool chain = False;
+
+      Bool exception = False;
+      Bool interrupt = False;
+      Bit#(TSub#(`causesize,1)) code=?;
+
+      if(commit matches tagged TRAP .t)begin
+        code = truncate(t.cause);
+        if(code != `Rerun && code != `IcacheFence && code != `SFence && t.cause[`causesize-1] == 0 )begin
+          exception = True;
+        end
+        if( code <= `Machine_external_int  && t.cause[`causesize-1] == 1 )begin
+          interrupt = True;
+        end
+      end
+
+      for(Integer i=0; i<`trigger_num; i=i+1)begin
+        if(trigger_enable[i] && !trap )begin
+          if(trigger_data1[i] matches tagged ETRIGGER .et &&& exception)begin
+            if( trigger_data2[i][code] == 1) begin
+              trap = True;
+            `ifdef debug
+              if(et.action_ == 1)begin
+                cause = `HaltTrigger;
+                cause[`causesize - 1] = 1;
+              end
+            `endif
+            end
+          end
+          else if(trigger_data1[i] matches tagged ITRIGGER .it &&& interrupt)begin
+            if( trigger_data2[i][code] == 1) begin
+              trap = True;
+              if(it.action_ == 1)begin
+                cause = `HaltTrigger;
+                cause[`causesize - 1] = 1;
+              end
+            end
+          end
+        end
+      end
+
+      rg_take_trigger <= TriggerStatus{trap: trap, cause:cause};
+
+    endrule
+  `endif
+
     rule instruction_commit;
       let {commit, epoch}=rx.u.first;
     `ifdef rtldump
@@ -153,6 +218,20 @@ package stage5;
         `logLevel( stage5, 0, $format("STAGE5: PC: %h: inst: %h commit: ",simpc,inst,fshow(commit)))
       `endif
       if(rg_epoch==epoch)begin
+      `ifdef triggers
+        if(rg_take_trigger.trap)begin
+          let newpc <- csr.take_trap(rg_take_trigger.cause, rg_flush_pc, ?);
+          fl=True;
+          jump_address=newpc;
+          rx.u.deq;
+          `ifdef rtldump
+            rxinst.u.deq;
+          `endif
+          `logLevel( stage5, 0, $format("STAGE5: Trigger TRAP:%d NewPC:%h fl:%b", 
+                                                         rg_take_trigger.cause,jump_address,fl))
+        end
+        else
+      `endif
         if(commit matches tagged TRAP .t)begin
           if(t.cause==`Rerun || t.cause==`IcacheFence `ifdef supervisor || t.cause==`SFence `endif )begin
             `logLevel( stage5, 0, $format("STAGE5: Rerun initiated"))
@@ -306,6 +385,9 @@ package stage5;
       `else
         wr_flush<=tuple3(fl, jump_address, fenceI);
       `endif
+      `ifdef triggers
+        rg_flush_pc <= jump_address;
+      `endif
         if(fl)begin
           rg_epoch <= ~rg_epoch;
         end
@@ -384,6 +466,11 @@ package stage5;
     `ifdef arith_trap
       method arith_excep = csr.arith_excep;
    `endif
+  `ifdef triggers
+    method trigger_data1 = csr.trigger_data1;
+    method trigger_data2 = csr.trigger_data2;
+    method trigger_enable = csr.trigger_enable;
+  `endif
 
   endmodule
 endpackage

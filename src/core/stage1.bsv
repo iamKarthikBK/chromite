@@ -37,6 +37,7 @@ package stage1;
   import FIFO::*;
   import GetPut::*;
   import Assert::*;
+  import Vector :: *;
 
   // -- project imports --//
 	import TxRx	::*;            // for interstage buffer connection
@@ -79,6 +80,12 @@ package stage1;
     // csrs from the csrfile.
     method Action csr_misa_c (Bit#(1) c);
 
+  `ifdef triggers
+    method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
+    method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
+    method Action trigger_enable(Vector#(`trigger_num, Bool) t);
+  `endif
+
 	endinterface
 
   (*synthesize*)
@@ -120,6 +127,12 @@ package stage1;
     // This variable holds the current epoch values of the pipe
     let curr_epoch = {rg_eEpoch, rg_wEpoch};
 
+  `ifdef triggers
+    Vector#(`trigger_num, Wire#(TriggerData)) v_trigger_data1 <- replicateM(mkWire());
+    Vector#(`trigger_num, Wire#(Bit#(XLEN))) v_trigger_data2 <- replicateM(mkWire());
+    Vector#(`trigger_num, Wire#(Bool)) v_trigger_enable <- replicateM(mkWire());
+  `endif
+
     // ---------------------- End Instatiations --------------------------//
 
 
@@ -130,6 +143,60 @@ package stage1;
       ff_memory_response.deq; 
       ff_next_pc.deq; 
     endaction;
+
+  `ifdef triggers
+
+    function ActionValue#(Tuple2#(Bool, Bit#(`causesize))) check_trigger (Bit#(`vaddr) pc, 
+                           Bit#(32) instr `ifdef compressed , Bool compressed `endif ) = actionvalue
+      Bool trap = False;
+      Bit#(`causesize) cause = `Breakpoint;
+      Bit#(XLEN) compare_value ;
+      Bool chain = False;
+      for(Integer i=0; i < `trigger_num; i=i+1)begin
+        `logLevel( stage1, 3, $format("STAGE1: Trigger[%2d] Data1: ", i, fshow(v_trigger_data1[i])))
+        `logLevel( stage1, 3, $format("STAGE1: Trigger[%2d] Data2: ", i, fshow(v_trigger_data2[i])))
+        `logLevel( stage1, 3, $format("STAGE1: Trigger[%2d] Enable: ", i, fshow(v_trigger_enable[i])))
+        if(v_trigger_enable[i] &&& v_trigger_data1[i] matches tagged MCONTROL .mc &&& 
+                              ((!trap && !chain) || (chain && trap)) &&& mc.execute == 1)begin
+          Bit#(XLEN) trigger_compare = `ifdef compressed 
+                     (compressed && mc.size == 2)? zeroExtend(v_trigger_data2[i][15:0]): `endif 
+                                                   v_trigger_data2[i];
+          if(mc.select == 0)
+            compare_value = pc;
+          else
+            compare_value = zeroExtend(instr);
+
+          if(mc.matched == 0)begin
+            if(trigger_compare == compare_value)
+              trap = True;
+            else if(chain)
+              trap = False;
+          end
+          if(mc.matched == 2)begin
+            if(compare_value >= trigger_compare)
+              trap = True;
+            else if(chain)
+              trap = False;
+          end
+          if(mc.matched == 3)begin
+            if(compare_value < trigger_compare)
+              trap = True;
+            else if(chain)
+              trap = False;
+          end
+
+        `ifdef debug
+          if(trap && mc.action_ == 1)begin
+            cause = `HaltTrigger;
+            cause[`causesize - 1] = 1;
+          end
+        `endif
+          chain = unpack(mc.chain);
+        end
+      end
+      return tuple2(trap, cause);
+    endactionvalue;
+  `endif
     // ---------------------- End local function definitions ------------------//
 
     // RuleName : process_instruction
@@ -292,6 +359,15 @@ package stage1;
       lv_prev.epochs = curr_epoch;
       rg_prev <= lv_prev;
       Bit#(`vaddr) incr_value = (compressed  && wr_csr_misa_c == 1) ? 2:4;
+      Bit#(`causesize) cause = imem_resp.cause;
+    `ifdef triggers
+      let {trig_trap, trig_cause} <- check_trigger(pred.va, final_instruction
+                                        `ifdef compressed ,compressed `endif );
+      if(trig_trap)begin
+        trap = True;
+        cause = trig_cause;
+      end
+    `endif
 			let pipedata = PIPE1{program_counter : pred.va,
                     instruction : final_instruction,
                     epochs:{rg_eEpoch, rg_wEpoch},
@@ -303,7 +379,7 @@ package stage1;
                   `ifdef compressed
                     ,upper_err : rg_receiving_upper && imem_resp.trap
                   `endif
-                    ,cause : imem_resp.cause }; 
+                    ,cause : cause }; 
       `logLevel( stage1, 0,$format("STAGE1 : PC:%h: ",pred.va, fshow(ff_memory_response.first)))
     `ifdef compressed
       `logLevel( stage1, 1,$format("STAGE1 : rg_action: ",fshow(rg_action)," misa[c]:%b discard:%b", wr_csr_misa_c, pred.discard))
@@ -373,6 +449,20 @@ package stage1;
     method Action csr_misa_c (Bit#(1) c);
       wr_csr_misa_c <= c;
     endmethod
+  `ifdef triggers
+    method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_data1[i] <= t[i];
+    endmethod
+    method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_data2[i] <= t[i];
+    endmethod
+    method Action trigger_enable(Vector#(`trigger_num, Bool) t);
+      for(Integer i=0; i<`trigger_num; i=i+1)
+        v_trigger_enable[i] <= t[i];
+    endmethod
+  `endif
   endmodule
 endpackage
 

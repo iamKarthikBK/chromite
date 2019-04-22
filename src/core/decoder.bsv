@@ -125,10 +125,15 @@ package decoder;
               // Machine Counter/Timers
             'b10: `ifdef RV32 if(addr[6:5]==0 `else if(addr[7:5]==0 `endif && addr[3:0]!=1) valid=True;
            // TODO B01 and 801 should be invalid
-          `ifdef debug
               // DTVEC and DEnable
-            'b01: if( addr[7:0] == 'hC0 || addr[7:0] == 'hC1 ) valid = True;
-          `endif
+            'b01: begin 
+                `ifdef debug 
+                  if( addr[7:0] == 'hC0 || addr[7:0] == 'hC1 ) valid = True; 
+                `endif
+                `ifdef triggers
+                  if( addr[7:4] == 'hA && addr[3:0] < 4) valid = True;
+                `endif
+            end
           endcase
     endcase
     return valid;
@@ -195,8 +200,8 @@ package decoder;
       `ifdef supervisor |  (s_enabled?zeroExtend(s_interrupts):0) `endif 
       `ifdef usertraps  |  (u_enabled?zeroExtend(u_interrupts):0) `endif ;
 		// format pendingInterrupt value to return
-    Bool taketrap=unpack(|pending_interrupts) `ifdef debug ||  step_done `endif ;
-    Bit#(TSub#(`causesize, 1)) int_cause=0;
+    Bool taketrap=unpack(|pending_interrupts) `ifdef debug ||  (step_done && !debug.core_is_halted) `endif ;
+    Bit#(TSub#(`causesize, 1)) int_cause='1;
   `ifdef debug
     if(step_done && !debug.core_is_halted) begin
       int_cause = `HaltStep;

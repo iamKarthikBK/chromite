@@ -37,6 +37,8 @@ the various operations to be executed.
 
 package alu;
 
+  import Vector :: *;
+
   `ifdef muldiv
     `define multicycle True
   `endif
@@ -61,14 +63,78 @@ package alu;
   import common_types::*;
   `include "common_params.bsv"
 
+`ifdef triggers
+  function Tuple2#(Bool, Bit#(`causesize)) check_for_triggers(
+                                                        Vector#(`trigger_num, TriggerData) tdata1, 
+                                                        Vector#(`trigger_num, Bit#(XLEN)) tdata2,
+                                                        Vector#(`trigger_num, Bool) tenable, 
+                                                        Bit#(`vaddr) address, Bit#(XLEN) data, 
+                                                        Access_type  memaccess, Bit#(2) size );
+
+    Bool trap = False;
+    Bool chain = False;
+    Bit#(`causesize) cause = `Breakpoint;
+    Bit#(XLEN) compare_value ;
+    for(Integer i=0; i<`trigger_num; i=i+1)begin
+      if(tenable[i] &&& ((!trap && !chain) || (chain && trap)) 
+                    &&& tdata1[i] matches tagged MCONTROL .mc 
+                    &&& ((mc.load == 1 && memaccess == Load && mc.select == 0) || 
+                         (mc.store == 1 && memaccess == Store)) 
+                    &&& ( mc.size ==0 || (mc.size == 1 && size == 0) 
+                        ||(mc.size == 2 && size == 1)
+                        ||(mc.size == 3 && size == 2)
+                      `ifdef RV64 || (mc.size == 5 && size == 3) `endif )
+                    ) begin
+        Bit#(XLEN) trigger_compare = tdata2[i];
+        if(mc.select == 0)
+          compare_value = address;
+        else
+          compare_value = data;
+        if(mc.matched == 0)begin
+          if(trigger_compare == compare_value)
+            trap = True;
+          else if(chain)
+            trap = False;
+        end
+        if(mc.matched == 2)begin
+          if(compare_value >= trigger_compare)
+            trap = True;
+          else if(chain)
+            trap = False;
+        end
+        if(mc.matched == 3)begin
+          if(compare_value < trigger_compare)
+            trap = True;
+          else if(chain)
+            trap = False;
+        end
+      `ifdef debug
+        if(trap && mc.action_ == 1)begin
+          cause = `HaltTrigger;
+          cause[`causesize - 1] = 1;
+        end
+      `endif
+        chain = unpack(mc.chain);
+      end
+    end
+
+    return tuple2(trap, cause);
+  endfunction
+`endif
+
 	(*noinline*)
 	function ALU_OUT fn_alu (Bit#(4) fn, Bit#(XLEN) op1, Bit#(XLEN) op2, Bit#(`vaddr) op3, 
                            Bit#(`vaddr) imm_value, Instruction_type inst_type, Funct3 funct3, 
                            Access_type memaccess `ifdef RV64 , Bool word32 `endif 
-                           ,Bit#(1) misa_c, Bit#(2) lpc 
-                           `ifdef bpu , Bit#(`vaddr) nextpc
-                              `ifdef compressed ,Bool comp `endif 
-                           `endif );
+                           ,Bit#(1) misa_c, Bit#(2) lpc
+                         `ifdef triggers
+                           ,Vector#(`trigger_num, TriggerData) tdata1
+                           ,Vector#(`trigger_num, Bit#(XLEN))  tdata2
+                           ,Vector#(`trigger_num, Bool)        tenable
+                         `endif
+                         `ifdef bpu , Bit#(`vaddr) nextpc
+                            `ifdef compressed ,Bool comp `endif 
+                         `endif );
 
 	  /* ---------------------------- Perform all the arithmetic -------------------------------- */
 	  // ADD * ADDI * SUB* 
@@ -169,6 +235,16 @@ package alu;
     end
   `endif
     // --------------------------------------------------------------------------------------- //
+
+    // ------------------------ check for load/store triggers ---------------------------------//
+  `ifdef triggers
+    let {trig_trap, trig_cause} = check_for_triggers(tdata1, tdata2, tenable, effective_address, 
+                                                     op2, memaccess, funct3[1:0]);
+    if(inst_type == MEMORY && trig_trap)begin
+      exception = True;
+      cause = trig_cause;
+    end
+  `endif
    
     PreCommit_type committype = REGULAR;
     if(exception)
@@ -196,8 +272,15 @@ package alu;
 	  method ActionValue#(ALU_OUT) inputs (Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, 
          Bit#(`vaddr) op3, Bit#(TMax#(`vaddr,FLEN)) imm_value, Instruction_type inst_type, Funct3 funct3, 
          Access_type memaccess `ifdef RV64 , Bool word32 `elsif dpfpu , Bool word32 `endif ,
-         Bit#(1) misa_c, Bit#(2) lpc  `ifdef bpu , Bit#(`vaddr) nextpc 
-         `ifdef compressed ,Bool comp `endif `endif );
+         Bit#(1) misa_c, Bit#(2) lpc  
+       `ifdef triggers
+         ,Vector#(`trigger_num, TriggerData) tdata1
+         ,Vector#(`trigger_num, Bit#(XLEN))  tdata2
+         ,Vector#(`trigger_num, Bool)        tenable
+       `endif
+       `ifdef bpu 
+         , Bit#(`vaddr) nextpc `ifdef compressed ,Bool comp `endif 
+       `endif );
   `ifdef multicycle
     // method to send the output from the muldiv or fpu when outputs are ready
 		method ActionValue#(ALU_OUT) delayed_output;
@@ -289,8 +372,15 @@ package alu;
 	  method ActionValue#(ALU_OUT) inputs (Bit#(4) fn, Bit#(ELEN) op1, Bit#(ELEN) op2, 
          Bit#(`vaddr) op3, Bit#(TMax#(`vaddr,FLEN)) imm_value, Instruction_type inst_type, Funct3 funct3, 
          Access_type memaccess `ifdef RV64 , Bool word32 `elsif dpfpu , Bool word32 `endif ,
-         Bit#(1) misa_c, Bit#(2) lpc  `ifdef bpu , Bit#(`vaddr) nextpc 
-         `ifdef compressed ,Bool comp `endif `endif );
+         Bit#(1) misa_c, Bit#(2) lpc  
+       `ifdef triggers
+         ,Vector#(`trigger_num, TriggerData) tdata1
+         ,Vector#(`trigger_num, Bit#(XLEN))  tdata2
+         ,Vector#(`trigger_num, Bool)        tenable
+       `endif
+       `ifdef bpu 
+         , Bit#(`vaddr) nextpc `ifdef compressed ,Bool comp `endif 
+       `endif );
       
       // send inputs to the muldiv unit and send a stall signal to the execute stage.
       `ifdef muldiv
@@ -320,6 +410,9 @@ package alu;
         // send inputs to the alu function and return the output of the same function
           return fn_alu(fn, truncate(op1), truncate(op2), truncate(op3), truncate(imm_value), 
                         inst_type, funct3, memaccess, `ifdef RV64 word32, `endif misa_c, lpc 
+                     `ifdef triggers
+                       ,tdata1 ,tdata2 ,tenable 
+                     `endif
                      `ifdef bpu , nextpc `ifdef compressed ,comp `endif `endif );
     endmethod
 

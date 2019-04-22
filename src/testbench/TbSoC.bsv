@@ -38,6 +38,7 @@ package TbSoC;
   import uart::*;
 	import common_types::*;
   `include "common_params.bsv"
+  `include "Logger.bsv"
   import device_common::*;
   import DReg::*;
 
@@ -47,6 +48,8 @@ package TbSoC;
   import "BDPI" function Action send_tdo(Bit #(1) tdo , int client_fd);
 `endif
   module mkTbSoC(Empty);
+
+    String tb = ""; // for logger
 
     let def_clk <- exposeCurrentClock;
     let def_rst <- exposeCurrentReset;
@@ -64,8 +67,8 @@ package TbSoC;
 
     `ifdef simulate
       rule display_eol;
-	      let time_val <- $time; 
-        $display($format("\n[%10d]", time_val));
+	      let timeval <- $time; 
+        `logLevel( tb, 0, $format("\n[%10d]", timeval))
       endrule
     `endif
 
@@ -75,7 +78,7 @@ package TbSoC;
       String dumpFile = "rtl.dump" ;
     	File lfh <- $fopen( dumpFile, "w" ) ;
     	if ( lfh == InvalidFile )begin
-    	  $display("cannot open %s", dumpFile); 
+    	  `logLevel( tb, 0, $format("TB: cannot open %s", dumpFile))
     	  $finish(0);
     	end
     	dump <= lfh ;
@@ -87,7 +90,7 @@ package TbSoC;
       String dumpFile1 = "app_log" ;
     	File lfh1 <- $fopen( dumpFile1, "w" ) ;
     	if (lfh1==InvalidFile )begin
-    	  $display("cannot open %s", dumpFile1); 
+    	  `logLevel( tb, 0, $format("TB: cannot open %s", dumpFile1))
     	  $finish(0);
     	end
       dump1 <= lfh1;
@@ -134,16 +137,18 @@ package TbSoC;
       endrule
     `endif
 
-    `ifdef openocd
-      Wire#(Bit#(1)) wr_tdo <-mkWire();
-      Wire#(Bit#(1)) wr_tck <-mkWire();
+    `ifdef debug
       Wire#(Bit#(1)) wr_tdi <-mkWire();
       Wire#(Bit#(1)) wr_tms <-mkWire();
-      Wire#(Bit#(1)) wr_trst <-mkWire();
       rule connect_jtag_io;
         soc.wire_tdi(wr_tdi);
         soc.wire_tms(wr_tms);
       endrule
+    `endif
+    `ifdef openocd
+      Wire#(Bit#(1)) wr_tdo <-mkWire();
+      Wire#(Bit#(1)) wr_tck <-mkWire();
+      Wire#(Bit#(1)) wr_trst <-mkWire();
       rule rl_wr_tdo;
         wr_tdo <= soc.wire_tdo();
       endrule

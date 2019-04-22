@@ -191,6 +191,20 @@ package riscv;
     let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
     let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor, sfence `endif }=stage5.flush;
 
+  `ifdef triggers
+    rule send_triggers_to_stage1;
+      stage1.trigger_data1(stage5.trigger_data1);
+      stage1.trigger_data2(stage5.trigger_data2);
+      stage1.trigger_enable(stage5.trigger_enable);
+      stage3.trigger_data1(stage5.trigger_data1);
+      stage3.trigger_data2(stage5.trigger_data2);
+      stage3.trigger_enable(stage5.trigger_enable);
+      stage4.trigger_data1(stage5.trigger_data1);
+      stage4.trigger_data2(stage5.trigger_data2);
+      stage4.trigger_enable(stage5.trigger_enable);
+    endrule
+  `endif
+
     rule send_next_pc;
       stage3.next_pc(pipe1.first.program_counter);
     endrule
