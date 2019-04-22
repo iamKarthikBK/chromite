@@ -200,8 +200,8 @@ package decoder;
       `ifdef supervisor |  (s_enabled?zeroExtend(s_interrupts):0) `endif 
       `ifdef usertraps  |  (u_enabled?zeroExtend(u_interrupts):0) `endif ;
 		// format pendingInterrupt value to return
-    Bool taketrap=unpack(|pending_interrupts) `ifdef debug ||  step_done `endif ;
-    Bit#(TSub#(`causesize, 1)) int_cause=0;
+    Bool taketrap=unpack(|pending_interrupts) `ifdef debug ||  (step_done && !debug.core_is_halted) `endif ;
+    Bit#(TSub#(`causesize, 1)) int_cause='1;
   `ifdef debug
     if(step_done && !debug.core_is_halted) begin
       int_cause = `HaltStep;
