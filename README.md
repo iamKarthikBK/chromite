@@ -26,7 +26,7 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
       - [Simulate the RTL](#simulate-the-rtl)
       - [Connect to OpenOCD](#connect-to-openocd)
       - [Connect to GDB](#connect-to-gdb)
-  * [Benchmarking the Core](./benchmarking.md)
+  * [Benchmarking the Core](./docs/benchmarking.md)
   * [Linux on Shakti](#linux-on-shakti)
       - [Generate RTL](#generate-rtl-1)
       - [Generate Linux Image](#generate-linux-image)
