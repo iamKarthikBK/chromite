@@ -400,7 +400,11 @@ package common_types;
     Bit#(4) matched;
     Bit#(1) chain;
     Bit#(4) action_;
+  `ifdef RV64
     Bit#(4) size;
+  `else
+    Bit#(2) size;
+  `endif
     Bit#(1) select;
     Bit#(1) dmode;
   } MControl deriving(Bits, Eq, FShow);
