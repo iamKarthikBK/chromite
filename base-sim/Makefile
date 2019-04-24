@@ -158,7 +158,7 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
 CORE:=../src/core/:../src/core/predictors/
 F_EXT:=../src/core/fpu/
 M_EXT:=../src/core/m_ext/
-FABRIC:=./deps/fabrics/axi4:./deps/fabrics/axi4lite:./deps/fabrics/tilelink_lite
+FABRIC:=./deps/fabrics/axi4:./deps/fabrics/axi4lite
 CACHES:=./deps/caches_mmu/src/
 PERIPHERALS:=./deps/devices/bootrom:./deps/devices/pwm:./deps/devices/uart:./deps/devices/clint:./deps/devices/bram:./deps/devices/riscvDebug013:./deps/devices/jtagdtm/:./deps/devices/err_slave/
 COMMON_BSV:=./deps/common_bsv/
