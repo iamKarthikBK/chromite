@@ -50,9 +50,9 @@ on Bluespec can be found [here](www.bluespec.com).
 #### Clone the repo 
 
 ``` 
-git clone https://gitlab.com/shaktiproject/cores/c-class.git --recursive
-cd c-class
-make patch    # to fix environment variables in the verification directory
+git clone https://gitlab.com/shaktiproject/cores/c-class.git
+cd c-class/base-sim
+./manager.sh
 ```
 #### Install DTC
 We use the DTC 1.4.7 to generate the device tree string in the boot-files. To install DTC follow the below commands:
@@ -66,20 +66,11 @@ sudo make install NO_PYTHON=1 PREFIX=/usr/
 
 ## Directory Structure
     ├── src                     # dir: Source code of the core, uncore and devices
-    │   ├── caches_mmu          # submodule: caches, tlbs, ptwalk
-    │   ├── common_bsv          # submodule: common bsv libraries 
-    │   ├── common_verilog      # dir: common verilog libraries
     │   ├── core                # dir: c-class core
     │   │   ├── fpu             # dir: fpu unit
     │   │   ├── m_ext           # dir: modules for M extension support
-    │   ├── devices             # submodule: devices like uart, dma, qspi, etc
-    │   ├── fabrics             # submodule: axi4, axi4lite, bridges, etc.
-    │   ├── tcl                 # dir: tcl scripts to for FPGA runs
-    │   ├── testbench           # dir: bsv testbench for simulations
-    │   ├── uncore              # dir: sample SoC for minimal simulation
-    │   ├── wrappers            # dir: bsv wrappers for various verilog modules
-    ├── verification            # Contains verification scripts for regression
-    ├── docs		        # Contains more info about the core and the environment.
+    ├── base-sim                # Contains a base SoC and setup to simulate and verify the core. 
+    ├── docs		            # Contains more info about the core and the environment.
    
  
 ## Block Diagram
@@ -90,7 +81,7 @@ This an overview of the c-class core. More detail documents commenting about the
 
 ## Overview of C-CLASS 
 
-* 6-stage 64/32-bit pipelined core.
+* 5-stage 64/32-bit pipelined core.
 * Supports ISA=RV64IMAFDC based on riscv-spec-2.2 and privilege-spec-1.10.
 * Parameterized blocking Instruction and Data cache.
 * Serialized Single and Double Precision Floating Point Units.
@@ -153,7 +144,7 @@ For a 32-bit core use the following:
 
 #### Supporting printf
 
-The SoC for simulation is contains a simple bsv based uart. The putchar function for the same is available [here](https://gitlab.com/shaktiproject/uncore/devices/blob/master/uart/uart_driver.c) . This has to be used in the printf functions. The output of the printf is captured in a separate file `app_log` during simulation.
+The SoC for simulation contains a simple uart. The putchar function for the same is available [here](https://gitlab.com/shaktiproject/uncore/devices/blob/master/uart/uart_driver.c) . This has to be used in the printf functions. The output of the printf is captured in a separate file `app_log` during simulation.
 
 #### Platform Setup
 The core along with a minimal SoC can be simulated on a number of commercial and open-source verilog simulators. The scripts for each of the following platforms can be found in the Makefile.
