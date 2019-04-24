@@ -1,16 +1,16 @@
 
-bsv_build/
+base-sim/deps
 
-verilog/
+base-sim/bsv_build/
 
-obj_dir/
+base-sim/verilog/
 
-bin/
+base-sim/obj_dir/
 
-old_vars
+base-sim/bin/
 
-src/testbench/sim_main\.h
+base-sim/old_vars
 
-fpga/
+base-sim/sim_main\.h
 
-verification/workdir
+base-sim/verification/
