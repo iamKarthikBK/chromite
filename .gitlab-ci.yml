@@ -5,9 +5,10 @@ c-class-rv64-smoke:
         GIT_SUBMODULE_STRATEGY: recursive
     script:
       - source /tools/setup.sh
+      - cd base-sim/
       - make restore
       - make patch
-      - make generate_verilog link_verilator generate_boot_files SYNTH=SIM MUL=asic ISA=RV64IMAFDC MULSTAGES=0 DIVSTAGES=64 VERBOSITY=0
+      - make CONFIG=templates/rv64imafdc.inc 
       - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--filter=rv64 --final'
       - make aapg opts='--config=rv64imafdc* --test_count=10 --parallel=30'
