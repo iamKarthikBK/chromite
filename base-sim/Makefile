@@ -356,9 +356,9 @@ link_verilator_gdb:
 	@mkdir -p bin
 	@echo "#define TOPMODULE V$(TOP_MODULE)_edited" >sim_main.h
 	@echo '#include "V$(TOP_MODULE)_edited.h"' >> sim_main.h
-	@sed  -f src/devices/jtagdtm/sed_script.txt  $(VERILOGDIR)/$(TOP_MODULE).v > tmp1.v
-	@cat  src/devices/jtagdtm/verilator_config.vlt \
-	      src/devices/jtagdtm/vpi_sv.v \
+	@sed  -f deps/devices/jtagdtm/sed_script.txt  $(VERILOGDIR)/$(TOP_MODULE).v > tmp1.v
+	@cat  deps/devices/jtagdtm/verilator_config.vlt \
+	      deps/devices/jtagdtm/vpi_sv.v \
 	      tmp1.v                         > $(VERILOGDIR)/$(TOP_MODULE)_edited.v
 	@rm   -f  tmp1.v
 	verilator --threads-dpi all --cc $(TOP_MODULE)_edited.v --exe sim_main.cpp RBB_Shakti.c -y $(VERILOGDIR) $(VERILATOR_FLAGS)
