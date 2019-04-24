@@ -6,7 +6,7 @@ c-class-rv64-smoke:
     script:
       - source /tools/setup.sh
       - cd base-sim/
-      - ./manager.sh
+      - ./manager.sh update_deps
       - make restore
       - make patch
       - make CONFIG=templates/rv64imafdc.inc 
@@ -35,7 +35,7 @@ c-class-rv32-nightly:
     script:
       - source /tools/setup.sh
       - cd base-sim/
-      - ./manager.sh
+      - ./manager.sh update_deps
       - make patch
       - make restore
       - make CONFIG=templates/rv32imafc.inc
@@ -68,7 +68,7 @@ c-class-rv64-nightly:
     script:
       - source /tools/setup.sh
       - cd base-sim/
-      - ./manager.sh
+      - ./manager.sh update_deps
       - make restore clean_verif 
       - make patch
       - make CONFIG=templates/rv64imafdc.inc
