@@ -5,7 +5,10 @@ ifeq (, $(wildcard ./old_vars))
 else
 	include ./old_vars
 endif
-include soc_config.inc
+
+CONFIG?=soc_config.inc
+
+include $(CONFIG)
 
 ifeq ($(define_macros),)
 	define_macros+= -D Addr_space=21
