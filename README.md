@@ -15,7 +15,7 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
   * [Block Diagram](#block-diagram)
   * [Overview of C-CLASS](#overview-of-c-class)
   * [Compiling and Simulating the the Core](#compiling-and-simulating-the-the-core)
-  * [CI/CD](#ci-cd)
+  * [CI-CD](#ci-cd)
   * [Contributing to the Project](#contributing-to-the-project)
 
 ## Quick Start
@@ -72,7 +72,7 @@ This an overview of the c-class core. More detail documents commenting about the
 
 The repository provides a sample SoC with minimal components like uart, clint, signature-dump, etc which can be used to simulate programs on the core. For more details please refer to the [readme](base-sim/README.md) in the base-sim folder
 
-## CI/CD
+## CI-CD
 
 The project uses a local gitlab-runner housed at RISE-LAB, CSE-Dept, IIT-Madras. Each commit to the master branch will trigger a build run on the runner which does the following:
 
