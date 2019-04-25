@@ -4,27 +4,28 @@ The C-class core is highly-configurable and thus requires certain parameters to 
 
 # Guide
 - [Compiling and Simulating the C-Class](#compiling-and-simulating-the-c-class)
+- [Guide](#guide)
   * [Dependencies](#dependencies)
   * [Generating a SoC RTL for the C-Class core](#generating-a-soc-rtl-for-the-c-class-core)
-    + [Cloning Dependent Modules](#cloning-dependent-modules)
-    + [Generate RTL](#generate-rtl)
-    + [Generate executable for simulation](#generate-executable-for-simulation)
-    + [Generating boot-files](#generating-boot-files)
+      - [1. Cloning Dependent Modules](#1-cloning-dependent-modules)
+      - [2. Generate RTL](#2-generate-rtl)
+      - [3. Generate executable for simulation](#3-generate-executable-for-simulation)
+      - [4. Generating boot-files](#4-generating-boot-files)
   * [Simulating Programs on C-class](#simulating-programs-on-c-class)
-    + [Supporting printf](#supporting-printf)
-    + [Simulation Outputs](#simulation-outputs)
+      - [1. Supporting printf](#1-supporting-printf)
+      - [2. Simulation Outputs](#2-simulation-outputs)
   * [Connecting to GDB](#connecting-to-gdb)
-    + [Simulate the RTL](#simulate-the-rtl)
-    + [Connect to OpenOCD](#connect-to-openocd)
-    + [Connect to GDB](#connect-to-gdb)
+      - [1. Simulate the RTL](#1-simulate-the-rtl)
+      - [2. Connect to OpenOCD](#2-connect-to-openocd)
+      - [3. Connect to GDB](#3-connect-to-gdb)
   * [Linux on Shakti](#linux-on-shakti)
-    + [Generate RTL](#generate-rtl-1)
-    + [Generate Linux Image](#generate-linux-image)
-      - [To simulate on C-class](#to-simulate-on-c-class)
+      - [1. Generate RTL](#1-generate-rtl)
+      - [2. Generate Linux Image](#2-generate-linux-image)
+      - [3. To simulate on C-class](#3-to-simulate-on-c-class)
   * [FreeRTOS on Shakti](#freertos-on-shakti)
-      - [Generate RTL](#generate-rtl-2)
-      - [Generate FreeRTOS Image](#generate-freertos-image)
-      - [To simulate on C-class](#to-simulate-on-c-class-1)
+      - [1. Generate RTL](#1-generate-rtl-1)
+      - [2. Generate FreeRTOS Image](#2-generate-freertos-image)
+      - [3. To simulate on C-class](#3-to-simulate-on-c-class-1)
 
 ## Dependencies
 
@@ -41,7 +42,7 @@ This folder contains a sample (synthesizable) SoC (`Soc.bsv`) and a testbench (`
 
 In order to build the Soc various components like caches, fabrics, devices, etc are required which are maintained in separate repos. These dependencies first have to be pulled from their respective sources.
 
-### Cloning Dependent Modules
+#### 1. Cloning Dependent Modules
 
 To capture all the dependencies 
 ```
@@ -50,7 +51,7 @@ To capture all the dependencies
 
 The above command will clone all the required repositories to build the SoC.
 
-### Generate RTL
+#### 2. Generate RTL
 
 The Makefile in this folder contains multiple targets to generate verilog and link the rtl using different simulators. The makefile requires a configuration of the core as input. The `soc_config.inc` file provides a sample configuration of the core. The details of each hook are available [here](../docs/configuring_code.md). Other various templates used in our CI/CD are available in the `templates` folder.
 
@@ -67,7 +68,7 @@ make CONFIG=soc_config.inc generate_verilog
 One can also pass other configs as an argument to the `CONFIG` variable.
 The above command will generate verilog files in the `verilog` folder.
 
-### Generate executable for simulation
+#### 3. Generate executable for simulation
 
 The makefile supports compiling the verilog for various simulators. However, verilator is the most supported target in SHAKTI as compared to other other simulators (iverilog, irun, msim and vcs). 
 
@@ -79,7 +80,7 @@ make CONFIG=soc_config.inc link_verilator
 The above command will create an executable named `out` in the `bin` folder. 
 
 
-### Generating boot-files
+#### 4. Generating boot-files
 By default the core will start execution from 0x1000 (change RESETPC in `soc_config.inc` to change this variable) which is mapped to the read-only BootROM of the provided SoC. The simulated executable thus expects 2 files `boot.MSB` and `boot.LSB` to be present in the same folder to continue simulation. To generate these files:
 
 ```
@@ -112,11 +113,11 @@ For a 32-bit core use the following:
  ```
 Please note, since the boot code in the bootrom implicitly jumps to `0x80000000` the programs should also be compiled at 0x80000000. Plus the bram main memory is 512KB large. This size can be changed by changing the value of `Addr_space` in `Soc.bsv`. Changing addr-space would required similar changes to the `elf2hex` command arguments as well.
 
-### Supporting printf
+#### 1. Supporting printf
 
 The SoC for simulation contains a simple uart. The putchar function for the same is available [here](https://gitlab.com/shaktiproject/uncore/devices/blob/master/uart/uart_driver.c) . This has to be used in the printf functions. The output of the printf is captured in a separate file `app_log` during simulation.
 
-### Simulation Outputs
+#### 2. Simulation Outputs
 
 1. if `RTLDUMP` variable is `enabled` in `soc_config.inc` then an rtl.dump file is created which contains the trace of the instruction execution sequence.
 2. if `VERBOSITY` variable is set to more than 0, then executing the `out` binary will print all the display statements on the screen.
@@ -132,21 +133,21 @@ Generat executable with debugger enabled and testbench with vpi to support jtag 
 make CONFIG=templates/debugger.inc gdb
 
 ```
-### Simulate the RTL
+#### 1. Simulate the RTL
 In a new terminal do the following:
 ```
 cd c-class/base-sim/bin/
 ./out > /dev/null
 ```
 
-### Connect to OpenOCD
+#### 2. Connect to OpenOCD
 Open a new terminal and type the following:
 ```
 cd c-class/base-sim/gdb_setup/
 openocd -f shakti_ocd.cfg
 ```
 
-### Connect to GDB
+#### 3. Connect to GDB
 Open yet another terminal and type the following:
 ```
 cd c-class/base-sim/gdb_setup
@@ -157,11 +158,11 @@ In this window you can now perform gdb commands like : `set $pc, i r, etc`
 
 ## Linux on Shakti 
 
-### Generate RTL
+#### 1. Generate RTL
 ```
 make CONFIG=templates/linux_sim.inc define_macros=-D Addr_space=25
 ```
-### Generate Linux Image
+#### 2. Generate Linux Image
 
 Download the shakti-linux repository 
 ```
@@ -176,7 +177,7 @@ cd $SHAKTI_LINUX
 make -j16 ISA=rv64imafd
 ```
 
-#### To simulate on C-class
+#### 3. To simulate on C-class
 Come back to the folder c-class/base-sim:
 ```
 cd c-class/base-sim
@@ -189,12 +190,12 @@ cut -c9-16 code.mem > code.mem.MSB
 ```
 
 ## FreeRTOS on Shakti 
-#### Generate RTL
+#### 1. Generate RTL
 ```
 make CONFIG=templates/freertos_sim.inc 
 ```
 
-#### Generate FreeRTOS Image
+#### 2. Generate FreeRTOS Image
 
 Download the shakti-linux repository 
 ```
@@ -207,7 +208,7 @@ cd FreeRTOS/FreeRTOS-RISCV/Demo/shakti/
 make
 ```
 
-#### To simulate on C-class
+#### 3. To simulate on C-class
 Come back to the folder for c-class/base-sim/:
 ```
 cd c-class/base-sim
