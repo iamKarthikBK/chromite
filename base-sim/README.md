@@ -160,7 +160,7 @@ In this window you can now perform gdb commands like : `set $pc, i r, etc`
 
 #### 1. Generate RTL
 ```
-make CONFIG=templates/linux_sim.inc define_macros=-D Addr_space=25
+make CONFIG=templates/linux_sim.inc define_macros='-D Addr_space=25'
 ```
 #### 2. Generate Linux Image
 
@@ -181,7 +181,7 @@ make -j16 ISA=rv64imafd
 Come back to the folder c-class/base-sim:
 ```
 cd c-class/base-sim
-cp $SHAKTI_LINUX/work/riscv-pv/bbl ./bin/
+cp $SHAKTI_LINUX/work/riscv-pk/bbl ./bin/
 cd bin
 elf2hex 8 8388608 bbl 2147483648 > code.mem
 cut -c1-8 code.mem > code.mem.MSB 
