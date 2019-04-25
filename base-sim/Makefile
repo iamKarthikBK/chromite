@@ -158,11 +158,11 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
 CORE:=../src/core/:../src/core/predictors/
 F_EXT:=../src/core/fpu/
 M_EXT:=../src/core/m_ext/
-FABRIC:=./deps/fabrics/axi4:./deps/fabrics/axi4lite
-CACHES:=./deps/caches_mmu/src/
-PERIPHERALS:=./deps/devices/bootrom:./deps/devices/pwm:./deps/devices/uart:./deps/devices/clint:./deps/devices/bram:./deps/devices/riscvDebug013:./deps/devices/jtagdtm/:./deps/devices/err_slave/
-COMMON_BSV:=./deps/common_bsv/
-COMMON_VERILOG:=./deps/common_verilog/
+FABRIC:=./fabrics/axi4:./fabrics/axi4lite
+CACHES:=./caches_mmu/src/
+PERIPHERALS:=./devices/bootrom:./devices/pwm:./devices/uart:./devices/clint:./devices/bram:./devices/riscvDebug013:./devices/jtagdtm/:./devices/err_slave/
+COMMON_BSV:=./common_bsv/
+COMMON_VERILOG:=./common_verilog/
 
 
 VERILATOR_FLAGS += --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
@@ -225,9 +225,9 @@ generate_verilog: check-restore check-env
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BE.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ${VERILOGDIR}
-	@cp ./deps/common_verilog/bram_1r1w.v ${VERILOGDIR}
-	@cp ./deps/common_verilog/bram_1rw.v ${VERILOGDIR}
-	@cp ./deps/common_verilog/BRAM1Load.v ${VERILOGDIR}
+	@cp ./common_verilog/bram_1r1w.v ${VERILOGDIR}
+	@cp ./common_verilog/bram_1rw.v ${VERILOGDIR}
+	@cp ./common_verilog/BRAM1Load.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/FIFO2.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/FIFO1.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/FIFO10.v ${VERILOGDIR}
@@ -356,15 +356,15 @@ link_verilator_gdb:
 	@mkdir -p bin
 	@echo "#define TOPMODULE V$(TOP_MODULE)_edited" >sim_main.h
 	@echo '#include "V$(TOP_MODULE)_edited.h"' >> sim_main.h
-	@sed  -f deps/devices/jtagdtm/sed_script.txt  $(VERILOGDIR)/$(TOP_MODULE).v > tmp1.v
-	@cat  deps/devices/jtagdtm/verilator_config.vlt \
-	      deps/devices/jtagdtm/vpi_sv.v \
+	@sed  -f devices/jtagdtm/sed_script.txt  $(VERILOGDIR)/$(TOP_MODULE).v > tmp1.v
+	@cat  devices/jtagdtm/verilator_config.vlt \
+	      devices/jtagdtm/vpi_sv.v \
 	      tmp1.v                         > $(VERILOGDIR)/$(TOP_MODULE)_edited.v
 	@rm   -f  tmp1.v
 	verilator --threads-dpi all --cc $(TOP_MODULE)_edited.v --exe sim_main.cpp RBB_Shakti.c -y $(VERILOGDIR) $(VERILATOR_FLAGS)
 	@ln -f -s sim_main.cpp obj_dir/sim_main.cpp
 	@ln -f -s sim_main.h obj_dir/sim_main.h
-	@ln -f -s ./deps/devices/jtagdtm/RBB_Shakti.c obj_dir/RBB_Shakti.c
+	@ln -f -s ./devices/jtagdtm/RBB_Shakti.c obj_dir/RBB_Shakti.c
 	@echo "INFO: Linking verilated files"
 	@make -j8 -C obj_dir -f V$(TOP_MODULE)_edited.mk
 	@cp obj_dir/V$(TOP_MODULE)_edited bin/out

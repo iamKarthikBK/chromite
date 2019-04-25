@@ -1,5 +1,13 @@
 
-base-sim/deps
+base-sim/caches_mmu
+
+base-sim/common_bsv
+
+base-sim/common_verilog
+
+base-sim/devices
+
+base-sim/fabrics
 
 base-sim/bsv_build/
 
