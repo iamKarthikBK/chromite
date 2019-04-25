@@ -41,13 +41,17 @@ c-class-rv32-nightly:
       - make CONFIG=templates/rv32imafc.inc
       - make regress opts='--filter=rv32[^!si][^!ud] --test_opts='--timeout=30s' --parallel=90 --sub' CONFIG_ISA=RV32IMAFC
       - make regress opts='--filter=rv32[^!si][^!ud] --final' CONFIG_ISA=RV32IMAFC
+      - make regress opts='--filter=rv32si --test_opts='--timeout=30s' --parallel=90 --sub' CONFIG_ISA=RV32IMAFC
+      - make regress opts='--filter=rv32si --final' CONFIG_ISA=RV32IMAFC
       - make aapg opts='--config=rv32imafc_bringup --test_count=30 --aapg_opts='--arch=rv32''
       - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV32IMAFC
       - make regress opts='--list=aapg.list --final'
       - make restore clean_verif
-      - make CONFIG=rv32imafc_nocache_nobpu_nosupervisor
+      - make CONFIG=templates/rv32imafc_nocache_nobpu.inc
       - make regress opts='--filter=rv32[^!si][^!ud].*p --test_opts='--timeout=30s' --parallel=90 --sub' CONFIG_ISA=RV32IMAFC
       - make regress opts='--filter=rv32[^!si][^!ud].*p --final' CONFIG_ISA=RV32IMAFC
+      - make regress opts='--filter=rv32si --test_opts='--timeout=30s' --parallel=90 --sub' CONFIG_ISA=RV32IMAFC
+      - make regress opts='--filter=rv32si --final' CONFIG_ISA=RV32IMAFC
       - make aapg opts='--config=rv32imafc_bringup --test_count=30  --aapg_opts='--arch=rv32''
       - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV32IMAFC
       - make regress opts='--list=aapg.list --final'
@@ -86,13 +90,6 @@ c-class-rv64-nightly:
       - make CONFIG=templates/rv64imafdc_nocache_nobpu.inc
       - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub'
       - make regress opts='--filter=rv64 --final'
-      - make aapg opts='--config=rv64imafdc_bringup --test_count=30'
-      - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV64IMAFDC
-      - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
-      - make restore clean_verif
-      - make CONFIG=templates/rv64imafdc_nocache_nobpu_nosupervisor.inc
-      - make regress opts='--filter=rv64[^!si].*p --parallel=90 --test_opts='--timeout=30s' --sub'
-      - make regress opts='--filter=rv64[^!si].*p --final'
       - make aapg opts='--config=rv64imafdc_bringup --test_count=30'
       - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
