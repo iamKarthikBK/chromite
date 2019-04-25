@@ -32,13 +32,13 @@ The C-class core is highly-configurable and thus requires certain parameters to 
 The core along with the provided SoC can be simulated on a number of commercial and open-source verilog simulators. The scripts for each of the following platforms can be found in the Makefile.
 
 * **Open Source Simulators**:
-    * `Verilator`: You will need verilator-4.004 or above to compile the generated verilog RTL into an executable. You can download verilator from [here](https://www.veripool.org/projects/verilator/wiki/Installing). This the most supported platform for a number of SHAKTI C-class cores. Once the verilog of the design is generated/available use the command `make link_verilator` to generate the executable in the `bin` directory.
+    * `Verilator`: You will need verilator-4.004 or above to compile the generated verilog RTL into an executable. You can download verilator from [HERE](https://www.veripool.org/projects/verilator/wiki/Installing). This the most supported platform for a number of SHAKTI C-class cores. Once the verilog of the design is generated/available use the command `make link_verilator` to generate the executable in the `bin` directory.
 * **Commercial Simulators**: These simulators will look for sources in the Bluespec directory thus requiring `$BLUESPECDIR` to be set before running them. These platforms will not be rigorously supported and are meant to provide basic templates to each platform. Currently supported simulators are:
     * `VCS`, `NCVERILOG`, `Modelsim` and `IRUN`
 
 ## Generating a SoC RTL for the C-Class core
 
-This folder contains a sample (synthesizable) SoC (`Soc.bsv`) and a testbench (`TbSoc.bsv`) with minimal peripherals like: uart, clint, jtag-debugger, bram-based bootrom and a bram-based memory (acting as main-mem). These two files are provided as a base template for the user to create their own complex SoCs. A few standard SoCs instantiating C-class can be found [here](https://gitlab.com/shaktiproject/cores/shakti-soc). 
+This folder contains a sample (synthesizable) SoC (`Soc.bsv`) and a testbench (`TbSoc.bsv`) with minimal peripherals like: uart, clint, jtag-debugger, bram-based bootrom and a bram-based memory (acting as main-mem). These two files are provided as a base template for the user to create their own complex SoCs. A few standard SoCs instantiating C-class can be found [HERE](https://gitlab.com/shaktiproject/cores/shakti-soc). 
 
 In order to build the Soc various components like caches, fabrics, devices, etc are required which are maintained in separate repos. These dependencies first have to be pulled from their respective sources.
 
@@ -53,7 +53,7 @@ The above command will clone all the required repositories to build the SoC.
 
 #### 2. Generate RTL
 
-The Makefile in this folder contains multiple targets to generate verilog and link the rtl using different simulators. The makefile requires a configuration of the core as input. The `soc_config.inc` file provides a sample configuration of the core. The details of each hook are available [here](../docs/configuring_code.md). Other various templates used in our CI/CD are available in the `templates` folder.
+The Makefile in this folder contains multiple targets to generate verilog and link the rtl using different simulators. The makefile requires a configuration of the core as input. The `soc_config.inc` file provides a sample configuration of the core. The details of each hook are available [HERE](../docs/configuring_code.md). Other various templates used in our CI/CD are available in the `templates` folder.
 
 To see all available targets:
 ```
@@ -115,7 +115,7 @@ Please note, since the boot code in the bootrom implicitly jumps to `0x80000000`
 
 #### 1. Supporting printf
 
-The SoC for simulation contains a simple uart. The putchar function for the same is available [here](https://gitlab.com/shaktiproject/uncore/devices/blob/master/uart/uart_driver.c) . This has to be used in the printf functions. The output of the printf is captured in a separate file `app_log` during simulation.
+The SoC for simulation contains a simple uart. The putchar function for the same is available [HERE](https://gitlab.com/shaktiproject/uncore/devices/blob/master/uart/uart_driver.c) . This has to be used in the printf functions. The output of the printf is captured in a separate file `app_log` during simulation.
 
 #### 2. Simulation Outputs
 
