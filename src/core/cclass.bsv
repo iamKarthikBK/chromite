@@ -33,11 +33,8 @@ package cclass;
   //=================== Interface and module for a cclass - master on the AXI4 fabric ============= //
   // project related imports
 	import Semi_FIFOF:: *;
-  import AXI4_Lite_Types::*;
-  import AXI4_Lite_Fabric::*;
 	import AXI4_Types:: *;
 	import AXI4_Fabric:: *;
-  import Tilelink_lite_Types::*;
   import riscv:: * ;
   import common_types:: * ;
   import FIFOF::*;

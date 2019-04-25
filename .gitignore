@@ -1,16 +1,24 @@
 
-bsv_build/
+base-sim/caches_mmu
 
-verilog/
+base-sim/common_bsv
 
-obj_dir/
+base-sim/common_verilog
 
-bin/
+base-sim/devices
 
-old_vars
+base-sim/fabrics
 
-src/testbench/sim_main\.h
+base-sim/bsv_build/
 
-fpga/
+base-sim/verilog/
 
-verification/workdir
+base-sim/obj_dir/
+
+base-sim/bin/
+
+base-sim/old_vars
+
+base-sim/sim_main\.h
+
+base-sim/verification/

@@ -28,8 +28,8 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package TbSoC;
-  import SoC:: *;
+package TbSoc;
+  import Soc:: *;
   import Clocks::*;
   import GetPut:: *;
 	import Semi_FIFOF:: *;
@@ -47,9 +47,7 @@ package TbSoC;
   import "BDPI" function ActionValue #(Bit #(8))get_frame(int client_fd);
   import "BDPI" function Action send_tdo(Bit #(1) tdo , int client_fd);
 `endif
-  module mkTbSoC(Empty);
-
-    String tb = ""; // for logger
+  module mkTbSoc(Empty);
 
     let def_clk <- exposeCurrentClock;
     let def_rst <- exposeCurrentReset;
@@ -58,7 +56,7 @@ package TbSoC;
     MakeResetIfc trst <- mkReset(0,False,tck_clk.new_clk);
 
 
-    Ifc_SoC soc <- mkSoC(tck_clk.new_clk,trst.new_rst);
+    Ifc_Soc soc <- mkSoc(tck_clk.new_clk,trst.new_rst);
     
     UserInterface#(`paddr,XLEN,16) uart <- mkuart_user(5);
     Reg#(Bool) rg_read_rx<- mkDReg(False);
@@ -188,4 +186,4 @@ package TbSoC;
         endrule
       `endif
   endmodule
-endpackage: TbSoC
+endpackage: TbSoc

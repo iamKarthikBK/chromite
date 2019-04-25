@@ -28,7 +28,7 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package Tbsign_dump;
+package sign_dump;
   import Vector::*;
   import FIFOF::*;
   import DReg::*;
@@ -42,13 +42,13 @@ package Tbsign_dump;
 	import AXI4_Fabric:: *;
 	import Semi_FIFOF:: *;
 
-  interface Ifc_Tbsign_dump;
+  interface Ifc_sign_dump;
 		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master;
 		interface AXI4_Slave_IFC#(`paddr, ELEN, USERSPACE) slave;
   endinterface
 
   (*synthesize*)
-  module mkTbsign_dump(Ifc_Tbsign_dump);
+  module mksign_dump(Ifc_sign_dump);
     let word_count = 128/valueOf(ELEN);
 
     Reg#(Bool) rg_start<- mkReg(False);

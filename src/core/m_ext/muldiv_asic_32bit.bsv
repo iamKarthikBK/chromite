@@ -314,6 +314,7 @@ package muldiv_asic_32bit;
       method  Action rd_arith_excep_en(Bit#(1) arith_en);
       wr_arith_en<=arith_en;
       endmethod
+    `endif
 	endmodule
 
 endpackage
