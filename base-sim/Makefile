@@ -390,27 +390,27 @@ vivado_build:
   running synthesis")
 
 .PHONY: regress 
-regress: update_xlen  
+regress: 
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeRegress.pl $(opts)
 	
 .PHONY: test
-test: update_xlen  
+test: 
 	@SHAKTI_HOME=$$PWD CONFIG_LOG=0 perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeTest.pl $(opts)
 
 .PHONY: torture
-torture: update_xlen    
+torture: 
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeTorture.pl $(opts)
 
 .PHONY: aapg
-aapg: update_xlen    
+aapg: 
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeAapg.pl $(opts)
 
 .PHONY: csmith
-csmith: update_xlen    
+csmith: 
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeCSmith.pl $(opts)
 
 .PHONY: generate_boot_files
-generate_boot_files:
+generate_boot_files: update_xlen
 	@mkdir -p bin
 	@cd verification/dts/; make;
 	@cut -c1-8 verification/dts/boot.hex > bin/boot.MSB
