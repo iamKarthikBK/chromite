@@ -185,7 +185,7 @@ cp $SHAKTI_LINUX/work/riscv-pk/bbl ./bin/
 cd bin
 elf2hex 8 8388608 bbl 2147483648 > code.mem
 cut -c1-8 code.mem > code.mem.MSB 
-cut -c9-16 code.mem > code.mem.MSB 
+cut -c9-16 code.mem > code.mem.LSB 
 ./out
 ```
 
@@ -216,6 +216,6 @@ cp FreeRTOS/FreeRTOS-RISCV/Demo/shakti/frtos-shakti.elf ./bin
 cd bin
 elf2hex 8 8388608 frtos-shakti.elf 2147483648 > code.mem
 cut -c1-8 code.mem > code.mem.MSB 
-cut -c9-16 code.mem > code.mem.MSB 
+cut -c9-16 code.mem > code.mem.LSB 
 ./out
 ```
