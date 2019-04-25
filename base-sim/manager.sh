@@ -2,15 +2,27 @@
 
 ### Constants
 VERSION=0.1.0
-BRANCH=feature/soc-templates
+REPO_BASE=https://gitlab.com/shaktiproject
+DEPS_FOLDER=.
 
-CACHES_REPO=https://gitlab.com/shaktiproject/uncore/caches_mmu
-COMMON_BSV_REPO=https://gitlab.com/shaktiproject/common_bsv
-DEVICES_REPO=https://gitlab.com/shaktiproject/uncore/devices
-FABRICS_REPO=https://gitlab.com/shaktiproject/uncore/fabrics
-COMMON_VERILOG_REPO=https://gitlab.com/shaktiproject/common_verilog
-VERIFICATION=https://gitlab.com/shaktiproject/verification_environment/verification
+repo_list=(
+  $REPO_BASE/uncore/caches_mmu 
+  $REPO_BASE/common_bsv 
+  $REPO_BASE/uncore/devices 
+  $REPO_BASE/uncore/fabrics 
+  $REPO_BASE/common_verilog 
+  $REPO_BASE/verification_environment/verification
+  )
 
+branch_list=(
+  master
+  master
+  master
+  master
+  master
+  master
+  )
+COUNT=${#repo_list[*]}
 
 ### Functions to be re-used
 
@@ -24,23 +36,32 @@ usage () {
     printf "\n"
     printf "Available commands: \n\n"
     printf "./manager.sh help \t\t Displays help\n"
-    printf "./manager.sh update_deps \t\t Clones the Dependent Repos\n"
+    printf "./manager.sh update_deps \t Clones/Updates the Dependent Repos\n"
     exit 1
 }
 
 ## Die function
 err() { echo "$*" 1>&2 ;}
 
-## Checking dependencies function
+## Extract repo directory name
+extract_name () {
+  echo "$1"| rev | cut -d'/' -f1 | rev
+}
+
+## Parse through the list of repos and either clone them if they don't exist or update the existing
+## folders
 update_deps () {
-    printf "\n"
-    mkdir -p deps
-    git clone $CACHES_REPO deps/caches_mmu || err "caches_mmu already exists"
-    git clone $COMMON_BSV_REPO deps/common_bsv || err "common_bsv already exists"
-    git clone $DEVICES_REPO deps/devices || err "devices already exists"
-    git clone $FABRICS_REPO deps/fabrics || err "fabrics already exists"
-    git clone $COMMON_VERILOG_REPO deps/common_verilog || err "common_verilog already exists"
-    git clone $VERIFICATION verification --recursive || err "verification already exists"
+  for i in ${!repo_list[*]}; do
+    local dirname=$(extract_name "${repo_list[$i]}") 
+    if [ -d $DEPS_FOLDER/$dirname ]; then
+      echo "Updating Repo: " ${repo_list[$i]} 
+      (cd $DEPS_FOLDER/$dirname; git pull origin ${branch_list[$i]})
+    else
+      echo "Cloning Repo: " ${repo_list[$i]} 
+      git clone ${repo_list[$i]} $DEPS_FOLDER/$dirname --recursive
+      (cd $DEPS_FOLDER/$dirname; git checkout ${branch_list[$i]})
+    fi
+  done
 }
 
 ### Main Script
