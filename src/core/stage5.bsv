@@ -358,7 +358,7 @@ package stage5;
         end
         else if(commit matches tagged REG .r)begin
           // in case of regular instruction simply update RF and forward the data.
-          `logLevel( stage5, 0, $format("WBMEM: Regular commit"))
+          `logLevel( stage5, 0, $format("STAGE5: Regular commit"))
           wr_increment_minstret<=True;
         `ifdef spfpu
           wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdtype));
@@ -393,7 +393,7 @@ package stage5;
         end
       end
       else begin
-          `logLevel( stage5, 0, $format("WBMEM: Dropping instruction"))
+          `logLevel( stage5, 0, $format("STAGE5: Dropping instruction"))
           if(commit matches tagged STORE .s)
             wr_initiate_store<=tuple2(unpack(rg_epoch),True);
         // TODO if the instruction is a Store we need to deque that entry from the store buffer.
