@@ -1,4 +1,4 @@
-### Makefile for the c-class project
+## 			Makefile for C-Class Base-sim
 
 ifeq (, $(wildcard ./old_vars))
 	old_define_macros = ""
@@ -27,6 +27,8 @@ TOP_FILE:=TbSoc.bsv
 TOP_DIR:=./
 WORKING_DIR := $(shell pwd)
 
+
+# ------------------ based on the config generate define macros for bsv compilation --------------#
 ifneq (,$(findstring RV64,$(ISA)))
   override define_macros += -D RV64=True
   XLEN=64
@@ -154,7 +156,8 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
 								 -D extrahist=$(EXTRAHIST) -D rasdepth=$(RASDEPTH) -D rastagdepth=$(RASTAGDEPTH) \
 								 -D bpureset=$(BPURESET) -D causesize=$(CAUSESIZE) -D $(PREDICTOR)=True
 		
-
+# ------------------------------------------------------------------------------------------------ #
+# ------------------ Include directories for bsv compilation ------------------------------------- #
 CORE:=../src/core/:../src/core/predictors/
 F_EXT:=../src/core/fpu/
 M_EXT:=../src/core/m_ext/
@@ -163,26 +166,20 @@ CACHES:=./caches_mmu/src/
 PERIPHERALS:=./devices/bootrom:./devices/pwm:./devices/uart:./devices/clint:./devices/bram:./devices/riscvDebug013:./devices/jtagdtm/:./devices/err_slave/
 COMMON_BSV:=./common_bsv/
 COMMON_VERILOG:=./common_verilog/
+BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(F_EXT):$(M_EXT):$(FABRIC):$(PERIPHERALS):$(COMMON_BSV):$(COMMON_VERILOG):$(CACHES)
+# ------------------------------------------------------------------------------------------------ #
 
-
+# ----------------- Setting up flags for verilator ----------------------------------------------- #
 VERILATOR_FLAGS += --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
 --noassert sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
 -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS) \
 -DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY
-BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(F_EXT):$(M_EXT):$(FABRIC):$(PERIPHERALS):$(COMMON_BSV):$(COMMON_VERILOG):$(CACHES)
+# ------------------------------------------------------------------------------------------------ #
 
-default: generate_verilog link_verilator generate_boot_files
-gdb: generate_verilog link_verilator_gdb generate_boot_files
-
-check-env:
-	@if test -z "$$BLUESPECDIR"; then echo "BLUESPECDIR variable not set"; exit 1; fi;
-	@if test -z "$$SHAKTI_HOME"; then echo "SHAKTI_HOME variable not set"; exit 1; fi;
-
-check-py:
-	@if ! [ -a /usr/bin/python3 ] ; then echo "Python3 is required in /usr/bin to run AAPG" ; exit 1; fi;
-
-###### Setting the variables for bluespec compile #$############################
-BSVCOMPILEOPTS:= -check-assert  -keep-fires -opt-undetermined-vals -remove-false-rules -remove-empty-rules -remove-starved-rules 
+# ---------------- Setting the variables for bluespec compile  --------------------------------- #
+BSC_CMD:= bsc -u -verilog -elab 
+BSVCOMPILEOPTS:= +RTS -K40000M -RTS -check-assert  -keep-fires -opt-undetermined-vals \
+								 -remove-false-rules -remove-empty-rules -remove-starved-rules -remove-dollar
 BSVLINKOPTS:=-parallel-sim-link 8 -keep-fires
 VERILOGDIR:=./verilog/
 BSVBUILDDIR:=./bsv_build/
@@ -190,13 +187,27 @@ BSVOUTDIR:=./bin
 ifeq (, $(wildcard ${TOOLS_DIR}/shakti-tools/insert_license.sh))
   VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout
 else
-  VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout -verilog-filter ${TOOLS_DIR}/shakti-tools/insert_license.sh \
+  VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout \
+									 -verilog-filter ${TOOLS_DIR}/shakti-tools/insert_license.sh \
 									 -verilog-filter ${TOOLS_DIR}/shakti-tools/rename_translate.sh
   VERILOGLICENSE:= cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt ${VERILOGDIR}
 endif
-################################################################################
+# ------------------------------------------------------------------------------------------------ #
 
-########## BSIM COMLILE, LINK AND SIMULATE TARGETS #################################
+# ------------------------------------- Makefile TARGETS ----------------------------------------- #
+default: generate_verilog link_verilator generate_boot_files
+gdb: generate_verilog link_verilator_gdb generate_boot_files
+
+.PHONY: help
+help: ## This help dialog.
+	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//' | column	-c2 -t -s :
+
+check-env:
+	@if test -z "$$BLUESPECDIR"; then echo "BLUESPECDIR variable not set"; exit 1; fi;
+
+check-py:
+	@if ! [ -a /usr/bin/python3 ] ; then echo "Python3 is required in /usr/bin to run AAPG" ; exit 1; fi;
+
 .PHONY: check-restore
 check-restore:
 	@if [ "$(define_macros)" != "$(old_define_macros)" ];	then	make clean ;	fi;
@@ -206,20 +217,20 @@ update_xlen:
 	@echo "XLEN=$(XLEN)" > verification/dts/Makefile.inc
 
 .PHONY: simulate
-simulate:
+simulate: ## Simulate the 'out' executable
 	@echo Simulation...
 	@exec ./$(BSVOUTDIR)/out > log
 	@echo Simulation finished
-########################################################################################
 
 .PHONY: generate_verilog 
-generate_verilog: check-restore check-env 
+generate_verilog: ## Generete verilog from BSV 
+generate_verilog: check-restore check-env
 	@echo Compiling $(TOP_MODULE) in verilog ...
 	@mkdir -p $(BSVBUILDDIR); 
 	@mkdir -p $(VERILOGDIR); 
 	@echo "old_define_macros = $(define_macros)" > old_vars
-	bsc -u -verilog +RTS -K40000M -RTS -remove-dollar -elab -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
-  $(define_macros) -D verilog=True $(BSVCOMPILEOPTS) $(VERILOG_FILTER) \
+	$(BSC_CMD) -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
+  $(define_macros) $(BSVCOMPILEOPTS) $(VERILOG_FILTER) \
   -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1) 
 	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ${VERILOGDIR}  
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ${VERILOGDIR}
@@ -253,7 +264,7 @@ generate_verilog: check-restore check-env
 	@echo Compilation finished
 
 .PHONY: link_vcs
-link_vcs: 
+link_vcs: ## Generate simulation executable using Synopsys VCS 
 	@rm -rf $(BSVOUTDIR)
 	@mkdir -p $(BSVOUTDIR)
 	vcs -full64 -l vcs_compile.log -sverilog +vpi +v2k -lca +define+TOP=$(TOP_MODULE) $(VCS_MACROS)\
@@ -267,7 +278,7 @@ link_vcs:
 	@mv csrc out* $(BSVOUTDIR)
 
 .PHONY: link_ncverilog
-link_ncverilog: 
+link_ncverilog: ## Generate simulation executable using Cadence NCVerilog 
 	@echo "Linking $(TOP_MODULE) using ncverilog..."
 	@rm -rf work include $(BSVOUTDIR)/work
 	@mkdir -p $(BSVOUTDIR)
@@ -289,7 +300,7 @@ link_ncverilog:
 	@echo Linking finished
 
 .PHONY: link_ncverilog_openocd
-link_ncverilog_openocd: 
+link_ncverilog_openocd: ## Generate simulation executable using Synopsys VCS with VPI for GDB
 	@echo "Linking $(TOP_MODULE) using ncverilog..."
 	@rm -rf work include bin/work
 	@mkdir -p bin 
@@ -322,7 +333,7 @@ link_irun:
 	
 
 .PHONY: link_msim
-link_msim: 
+link_msim: ## Generate simulation executable using Mentor's ModelSim tool
 	@echo "Linking $(TOP_MODULE) using modelsim..."
 	@rm -rf work* $(BSVOUTDIR)/*
 	@mkdir -p $(BSVOUTDIR)
@@ -338,7 +349,7 @@ link_msim:
 
 
 .PHONY: link_verilator
-link_verilator: 
+link_verilator: ## Generate simulation executable using Verilator
 	@echo "Linking $(TOP_MODULE) using verilator"
 	@mkdir -p $(BSVOUTDIR) obj_dir
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > sim_main.h
@@ -351,7 +362,7 @@ link_verilator:
 
 
 .PHONY: link_verilator_gdb
-link_verilator_gdb:
+link_verilator_gdb: ## Generate simulation executable using Verilator and VPI for GDB
 	@echo "Linking Verilator With the Shakti RBB Vpi"
 	@mkdir -p bin
 	@echo "#define TOPMODULE V$(TOP_MODULE)_edited" >sim_main.h
@@ -371,45 +382,28 @@ link_verilator_gdb:
 	@cp gdb_setup/code.mem* ./bin/
 	@echo Linking finished
 
-.PHONY: ip_build
-ip_build: 
-	vivado -mode tcl -notrace -source $(SHAKTI_HOME)/src/tcl/create_ip_project.tcl -tclargs $(FPGA) || (echo "Could \
-not create IP project"; exit 1)
-	@vivado -mode tcl -notrace -source $(SHAKTI_HOME)/src/tcl/create_multiplier.tcl -tclargs $(XLEN) $(MULSTAGES) ||\
-(echo "Could not create Multiplier IP"; exit 1)
-#	@vivado -mode tcl -notrace -source $(SHAKTI_HOME)/src/tcl/create_nexys4_mig.tcl ||\
-(echo "Could not create NEXYS4DDR-MIG  IP"; exit 1)
-#	@vivado -mode tcl -notrace -source $(SHAKTI_HOME)/src/tcl/create_divider.tcl -tclargs $(XLEN) $(DIVSTAGES) ||\
-(echo "Could not create Divider IP"; exit 1)
-
-.PHONY: vivado_build
-vivado_build: 
-	@vivado -mode tcl -source $(SHAKTI_HOME)/src/tcl/create_project.tcl -tclargs \
-  $(SYNTHTOP) $(FPGA) $(ISA) || (echo "Could not create core project"; exit 1)
-	@vivado -mode tcl -source $(SHAKTI_HOME)/src/tcl/run.tcl || (echo "ERROR: While\
-  running synthesis")
-
 .PHONY: regress 
-regress: 
+regress: ## To run regressions on the core.
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeRegress.pl $(opts)
 	
 .PHONY: test
-test: 
+test: ## To run a single riscv-test on the core.
 	@SHAKTI_HOME=$$PWD CONFIG_LOG=0 perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeTest.pl $(opts)
 
 .PHONY: torture
-torture: 
+torture: ## To run riscv-tortur on the core.
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeTorture.pl $(opts)
 
 .PHONY: aapg
-aapg: 
+aapg: ## to generate and run aapf tests
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeAapg.pl $(opts)
 
 .PHONY: csmith
-csmith: 
+csmith: ## to generate and run csmith tests
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeCSmith.pl $(opts)
 
 .PHONY: generate_boot_files
+generate_boot_files: ## to generate boot files for simulation
 generate_boot_files: update_xlen
 	@mkdir -p bin
 	@cd verification/dts/; make;
