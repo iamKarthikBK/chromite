@@ -174,7 +174,7 @@ package muldiv_fpga;
           (!mul_div && rg_upperbits)? truncateLSB(reslt): truncate(reslt);
       return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
                     effective_addr:?, cause:?, redirect : False
-                    `ifdef bpu , branch_taken: ?, redirect_pc: ? `endif};
+                    `ifdef bpu , branch_taken: ?, redirect_pc: ? `endif };
     endmethod
 
 
