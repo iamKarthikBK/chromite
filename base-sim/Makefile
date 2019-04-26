@@ -267,13 +267,9 @@ generate_verilog: check-restore check-env
 link_vcs: ## Generate simulation executable using Synopsys VCS 
 	@rm -rf $(BSVOUTDIR)
 	@mkdir -p $(BSVOUTDIR)
-	vcs -full64 -l vcs_compile.log -sverilog +vpi +v2k -lca +define+TOP=$(TOP_MODULE) $(VCS_MACROS)\
-	+define+BSV_TIMESCALE=1ns/1ps +cli+4 +libext+.v +notimingcheck\
-  ${XILINX_VIVADO}/data/verilog/src/glbl.v \
-	-y $(VERILOGDIR)/  \
-	-y ${XILINX_VIVADO}/data/verilog/src/unisims +libext+.v \
-	-y ${XILINX_VIVADO}/data/verilog/src/unimacro +libext+.v \
-	-y ${XILINX_VIVADO}/data/verilog/src/retarget +libext+.v \
+	vcs -full64 -l vcs_compile.log -sverilog +vpi +v2k -lca +define+TOP=$(TOP_MODULE) $(VCS_MACROS) \
+	+define+BSV_TIMESCALE=1ns/1ps +cli+4 +libext+.v +notimingcheck \
+	-y $(VERILOGDIR)/ \
 	${BLUESPECDIR}/Verilog/main.v -o out
 	@mv csrc out* $(BSVOUTDIR)
 
