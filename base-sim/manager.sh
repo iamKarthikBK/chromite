@@ -40,6 +40,15 @@ usage () {
     exit 1
 }
 
+check_version () {
+  local version=$($1 --version | rev | cut -d' ' -f1 | rev)
+  local minimum=$(echo -e "$version\n$2" | sort -V | head -n1)
+  if [ $2 == $version ] && return 1 || [ $version == $minimum ]; then
+    echo "Please update $DTC to $2 or above"
+    exit 1
+  fi
+}
+
 ## Die function
 err() { echo "$*" 1>&2 ;}
 
@@ -78,6 +87,7 @@ case $1 in
     update_deps)
         printf "\nshakti-soc manager ${VERSION} - update_deps\n"
         printf "======================================\n"
+        check_version dtc 1.4.7
         update_deps
         ;;
 esac
