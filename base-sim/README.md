@@ -2,6 +2,22 @@
 
 The C-class core is highly-configurable and thus requires certain parameters to be defined at compile time. This readme will guide you through the steps of generating an instance of the core in a basic Soc and simulating it. Steps to simulate linux on the core are also provided.
 
+# Quickstart
+```
+./manager.sh update_deps
+make CONFIG=soc_config.inc generate_verilog
+make CONFIG=soc_config.inc link_verilator
+make generate_boot_files CONFIG=soc_config.inc
+```
+
+Now assuming your code resides in the `bin` folder - 
+```
+cd bin
+elf2hex 8 525428 prog.elf 2147483648 > code.hex
+cut -c1-8 code.hex> code.mem.MSB 
+cut -c9-16 code.hex > code.mem.LSB 
+```
+
 # Guide
 - [Compiling and Simulating the C-Class](#compiling-and-simulating-the-c-class)
 - [Guide](#guide)
@@ -84,7 +100,7 @@ The above command will create an executable named `out` in the `bin` folder.
 By default the core will start execution from 0x1000 (change RESETPC in `soc_config.inc` to change this variable) which is mapped to the read-only BootROM of the provided SoC. The simulated executable thus expects 2 files `boot.MSB` and `boot.LSB` to be present in the same folder to continue simulation. To generate these files:
 
 ```
-make generate_boot_files CONFIG=templates/soc_config.inc
+make generate_boot_files CONFIG=soc_config.inc
 ```
 
 The above command will generate the required boot files in the bin folder. The boot-files basically hold the dts(device-tree-string) which is available in verification/dts/boot.hex. The first few instructions sets the redirection to 0x80000000 where the program needs to reside.
