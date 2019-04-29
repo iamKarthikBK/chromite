@@ -1,3 +1,9 @@
 #!/usr/bin/env bash
 
-echo "post commit"
+echo "Post commit hook fired"
+echo "======================"
+
+echo ""
+
+echo "Running ctags"
+./.git_hooks/parse.py .
