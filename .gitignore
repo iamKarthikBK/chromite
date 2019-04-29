@@ -22,3 +22,5 @@ base-sim/old_vars
 base-sim/sim_main\.h
 
 base-sim/verification/
+
+tags

@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     # Iterate over bsv files
     for item in bsc_files:
-        print("Parsing file: {}".format(item))
+        #print("Parsing file: {}".format(item))
         with open(item, 'r') as f:
             code = f.read()
 
