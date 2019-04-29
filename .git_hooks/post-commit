@@ -8,6 +8,7 @@ echo ""
 echo "Running ctags"
 ./.git_hooks/parse.py .
 
+echo ""
 echo "Post commit done"
 echo "================"
 
