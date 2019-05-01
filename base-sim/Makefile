@@ -170,7 +170,7 @@ BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(F_EXT):$(M_EXT)
 # ------------------------------------------------------------------------------------------------ #
 
 # ----------------- Setting up flags for verilator ----------------------------------------------- #
-VERILATOR_FLAGS += --stats -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
+VERILATOR_FLAGS += --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
 --noassert sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
 -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS) \
 -DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY
