@@ -145,14 +145,14 @@ package cclass;
     Reg#(Maybe#(Bit#(DXLEN))) rg_abst_response <- mkReg(tagged Invalid); // registered container for responses
   `endif
 
-	Reg#(Bit#(3)) rg_io_lower_addr_bits <- mkReg(0);
-	Reg#(Maybe#(Bit#(3))) rg_fetch_lower_addr_bits <- mkReg(tagged Invalid);
-	Reg#(Maybe#(Bit#(3))) rg_memory_lower_addr_bits <- mkReg(tagged Invalid);
+	Reg#(Bit#(TLog#(TDiv#(ELEN,8)))) rg_io_lower_addr_bits <- mkReg(0);
+	Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_fetch_lower_addr_bits <- mkReg(tagged Invalid);
+	Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_memory_lower_addr_bits <- mkReg(tagged Invalid);
 
   `ifdef cache_control
 	  rule handle_nc_resp;
 	    let fab_resp <- pop_o (io_xactor.o_rd_data);
-			Bit#(6) lv_shift = {rg_io_lower_addr_bits, 3'd0};
+			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {rg_io_lower_addr_bits, 3'd0};
 			let lv_data= fab_resp.rdata >> lv_shift;
 			fab_resp.rdata= lv_data;
       wr_io_read_response <= fab_resp;
@@ -219,8 +219,8 @@ package cclass;
 	  rule handle_imem_line_resp;
 	    let fab_resp <- pop_o (fetch_xactor.o_rd_data);
 	  	Bool bus_error = !(fab_resp.rresp == AXI4_OKAY);
-			Bit#(3) lower_addr_bits= fromMaybe(0, rg_fetch_lower_addr_bits);
-			Bit#(6) lv_shift = {lower_addr_bits,3'd0};
+			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= fromMaybe('d0, rg_fetch_lower_addr_bits);
+			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits,3'd0};
 			let lv_data= fab_resp.rdata >> lv_shift;
       imem.read_mem_resp.put(ICache_mem_response{data   : truncate(lv_data), 
                                                  last   : fab_resp.rlast, 
@@ -338,8 +338,8 @@ package cclass;
 
 	  rule handle_dmem_line_resp;
 	    let fab_resp <- pop_o (memory_xactor.o_rd_data);
-			Bit#(3) lower_addr_bits= fromMaybe(0, rg_memory_lower_addr_bits);
-			Bit#(6) lv_shift = {lower_addr_bits, 3'd0};
+			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= fromMaybe('d0, rg_memory_lower_addr_bits);
+			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits, 3'd0};
 			let lv_data= fab_resp.rdata >> lv_shift;
 	  	Bool bus_error = !(fab_resp.rresp == AXI4_OKAY);
       dmem.read_mem_resp.put(DCache_mem_readresp{data:truncate(lv_data), 
