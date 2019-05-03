@@ -24,6 +24,7 @@ c-class-rv64-smoke:
       - make regress opts='--list=riscv-torture.list --final'
     only:
         - merge_requests
+        - master
     tags:
         - c-class-build-rv64
 
