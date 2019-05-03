@@ -31,7 +31,7 @@ on Bluespec can be found [here](www.bluespec.com).
 ``` 
 git clone https://gitlab.com/shaktiproject/cores/c-class.git
 cd c-class/base-sim
-./manager.sh update_deps
+./manager.sh
 ```
 #### Install DTC
 We use the DTC 1.4.7 to generate the device tree string in the boot-files. To install DTC follow the below commands:
