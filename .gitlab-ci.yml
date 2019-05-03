@@ -23,7 +23,7 @@ c-class-rv64-smoke:
       - make regress opts='--list=riscv-torture.list --test_opts='--timeout=15m' --parallel=20 --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--list=riscv-torture.list --final'
     only:
-        - master
+        - merge_requests
     tags:
         - c-class-build-rv64
 
