@@ -190,7 +190,7 @@ else
   VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout \
 									 -verilog-filter ${TOOLS_DIR}/shakti-tools/insert_license.sh \
 									 -verilog-filter ./rename_translate.sh
-  VERILOGLICENSE:= cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt ${VERILOGDIR}
+	VERILOGLICENSE:= cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt ${VERILOGDIR}/LICENSE.txt
 endif
 # ------------------------------------------------------------------------------------------------ #
 
