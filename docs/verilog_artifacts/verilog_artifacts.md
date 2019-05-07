@@ -39,6 +39,7 @@ The extracted `verilog-artifact` folder has the following structure:
 3. `benchmarks`: directory containing the sample benchmarks and programs which can be run on the core. 
 4. `LICENSE`: contains the copyright information of the artifact.
 5. `core_config.inc`: contains the configuration file used to the generate the this artifact from BSV.
+6. `version.txt`: contains the tag and commit number of the repo at which point this release was made.
 
 ## RTL Details
 The feature of the c-class (mkcclass_axi4) core are available in the `core_config.inc` file in the artifact folder. The user is encouraged to read the [configuring-core](https://gitlab.com/shaktiproject/cores/c-class/blob/master/docs/configuring_core.md) document for further information of the features. A quick summary of the features is presented below:
