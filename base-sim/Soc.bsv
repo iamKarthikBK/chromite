@@ -40,8 +40,6 @@ package Soc;
   `include "Soc.defines"
 
   // peripheral imports
-  import bram::*;
-  import bootrom:: *;
   import uart::*;
   import clint::*;
   import sign_dump::*;
@@ -91,9 +89,8 @@ package Soc;
     `ifdef rtldump
       interface Get#(DumpType) io_dump;
     `endif
-    `ifdef EXTERNAL
-      interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) mem_master;
-    `endif
+    interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) main_mem_master;
+    interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) boot_mem_master;
     interface RS232 uart_io;
   `ifdef debug
       // ------------- JTAG IOs ----------------------//
@@ -113,16 +110,15 @@ package Soc;
   module mkSoc#(Clock tck_clk, Reset trst)(Ifc_Soc);
     let curr_clk<-exposeCurrentClock;
     let curr_reset<-exposeCurrentReset;
-    Ifc_cclass_axi4 cclass <- mkcclass_axi4();
-    Ifc_sign_dump signature<- mksign_dump();
+
     AXI4_Fabric_IFC #(Num_Masters, `Num_Slaves, `paddr, ELEN, USERSPACE) 
                                                     fabric <- mkAXI4_Fabric(fn_slave_map);
- 		Ifc_bram_axi4#(`paddr, ELEN, USERSPACE, `Addr_space) main_memory <- mkbram_axi4(`MemoryBase, 
-                                                "code.mem.MSB", "code.mem.LSB", "MainMEM");
+
+    Ifc_cclass_axi4 cclass <- mkcclass_axi4();
+    Ifc_sign_dump signature<- mksign_dump();
   `ifdef debug
     Ifc_debug_halt_loop#(`paddr, ELEN, USERSPACE) debug_memory <- mkdebug_halt_loop;
   `endif
-		Ifc_bootrom_axi4#(`paddr, ELEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
 	  Ifc_uart_axi4#(`paddr,ELEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);
     Ifc_clint_axi4#(`paddr, ELEN, 0, 1, 16) clint <- mkclint_axi4();
     Ifc_err_slave#(`paddr,ELEN,0) err_slave <- mkerr_slave;
@@ -193,8 +189,6 @@ package Soc;
   `endif
    	mkConnection(signature.master, fabric.v_from_masters[valueOf(Sign_master_num) ]);
 
-  	mkConnection(fabric.v_to_slaves[`Memory_slave_num ],main_memory.slave);
-		mkConnection (fabric.v_to_slaves [`BootRom_slave_num ],bootrom.slave);
  	  mkConnection (fabric.v_to_slaves [`Uart_slave_num ],uart.slave);
   	mkConnection (fabric.v_to_slaves [`Clint_slave_num ],clint.slave);
     mkConnection (fabric.v_to_slaves [`Sign_slave_num ] , signature.slave);
@@ -212,6 +206,8 @@ package Soc;
       interface io_dump= cclass.io_dump;
     `endif
     interface uart_io=uart.io;
+    interface main_mem_master = fabric.v_to_slaves[`Memory_slave_num] ;
+    interface boot_mem_master = fabric.v_to_slaves[`BootRom_slave_num] ;
 
       // ------------- JTAG IOs ----------------------//
   `ifdef debug
