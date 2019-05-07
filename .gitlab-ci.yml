@@ -30,8 +30,9 @@ c-class:
     tags:
         - core-runner
     artifacts:
+      name: verilog-artifacts
       paths:
-        - verilog-artifacts.tar.gz
+        - ./base-sim/verilog-artifacts
 
 c-class-rv32-nightly:
     only:
