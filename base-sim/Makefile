@@ -367,6 +367,19 @@ link_verilator_gdb: ## Generate simulation executable using Verilator and VPI fo
 	@cp gdb_setup/code.mem* ./bin/
 	@echo Linking finished
 
+.PHONY: release-verilog-artifacts
+release-verilog-artifacts: ## target to generate verilog artifacts
+release-verilog-artifacts: generate_verilog generate_boot_files link_verilator
+	@mkdir -p verilog-artifacts
+	@mkdir -p verilog-artifacts/sim
+	@cp -r ${VERILOGDIR} verilog-artifacts/
+	@cp ${CONFIG} verilog-artifacts/
+	@cp -r benchmarks verilog-artifacts/
+	@cp ${BSVOUTDIR}/boot.* verilog-artifacts/sim
+	@cp ${BSVOUTDIR}/out verilog-artifacts/sim/cclass
+	@cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt verilog-artifacts/LICENSE.txt
+	@tar cvzf verilog-artifacts.tar.gz verilog-artifacts
+
 .PHONY: regress 
 regress: ## To run regressions on the core.
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeRegress.pl $(opts)
