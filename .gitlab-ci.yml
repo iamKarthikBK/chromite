@@ -1,4 +1,4 @@
-c-class-rv64-smoke:
+c-class:
     except:
       - schedules
     variables:
@@ -22,11 +22,16 @@ c-class-rv64-smoke:
       - make torture opts='--config=all --parallel=10'
       - make regress opts='--list=riscv-torture.list --test_opts='--timeout=15m' --parallel=20 --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--list=riscv-torture.list --final'
+      - make restore
+      - make CONFIG=templates/asic_synth.inc release-verilog-artifacts
       - python3 /scratch/version-update.py
     only:
         - master
     tags:
         - core-runner
+    artifacts:
+      paths:
+        - verilog-artifacts.tar.gz
 
 c-class-rv32-nightly:
     only:
