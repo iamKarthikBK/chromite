@@ -3,6 +3,9 @@
 The C-class core is highly-configurable and thus requires certain parameters to be defined at compile time. This readme will guide you through the steps of generating an instance of the core in a basic Soc and simulating it. Steps to simulate linux on the core are also provided.
 
 # Quickstart
+
+Make sure you have the `$BLUESPECDIR` variable set to point your `<bluespec-install-dir>/lib`
+
 ```
 ./manager.sh update_deps
 make CONFIG=soc_config.inc generate_verilog
@@ -13,7 +16,7 @@ make generate_boot_files CONFIG=soc_config.inc
 Now assuming your code resides in the `bin` folder - 
 ```
 cd bin
-elf2hex 8 525428 prog.elf 2147483648 > code.hex
+elf2hex 8 524288 prog.elf 2147483648 > code.hex
 cut -c1-8 code.hex> code.mem.MSB 
 cut -c9-16 code.hex > code.mem.LSB 
 ```
@@ -113,7 +116,7 @@ Let's the software program that you would like to simulate on the core is called
 In order for the `out` executable to work the following files are requires in addition to the `boot.*` files: `code.mem.LSB` and `code.mem.MSB`. These files can be generated using the `elf2hex` command:
 
 ```
-elf2hex 8 525428 prog.elf 2147483648 > code.hex
+elf2hex 8 524288 prog.elf 2147483648 > code.hex
 ```
 
 This code.hex should now be further split into code.mem.LSB and code.mem.MSB as follows:
@@ -124,8 +127,8 @@ cut -c9-16 code.hex > code.mem.LSB
             
 For a 32-bit core use the following:
 ```
- elf2hex 4 52428 software.elf 2147483648 > code.mem.MSB
- elf2hex 4 52428 software.elf 2147483648 > code.mem.LSB
+ elf2hex 4 524288 software.elf 2147483648 > code.mem.MSB
+ elf2hex 4 524288 software.elf 2147483648 > code.mem.LSB
  ```
 Please note, since the boot code in the bootrom implicitly jumps to `0x80000000` the programs should also be compiled at 0x80000000. Plus the bram main memory is 512KB large. This size can be changed by changing the value of `Addr_space` in `Soc.bsv`. Changing addr-space would required similar changes to the `elf2hex` command arguments as well.
 

@@ -282,13 +282,9 @@ link_ncverilog: ## Generate simulation executable using Cadence NCVerilog
 	@echo "define work ./work" > cds.lib
 	@echo "define WORK work" > hdl.var
 	@ncvlog -64BIT -sv -cdslib ./cds.lib -hdlvar ./hdl.var +define+TOP=$(TOP_MODULE) $(VCS_MACROS)\
-	${BLUESPECDIR}/Verilog/main.v ${XILINX_VIVADO}/data/verilog/src/glbl.v \
+	${BLUESPECDIR}/Verilog/main.v \
 	-y $(VERILOGDIR)/ \
-	-y ${BLUESPECDIR}/Verilog/ \
-	-y ${XILINX_VIVADO}/data/verilog/src/ \
-	-y ${XILINX_VIVADO}/data/verilog/src/unisims \
-	-y ${XILINX_VIVADO}/data/verilog/src/unimacro \
-	-y ${XILINX_VIVADO}/data/verilog/src/retarget 
+	-y ${BLUESPECDIR}/Verilog/ 
 	@ncelab  -cdslib ./cds.lib -hdlvar ./hdl.var work.main -timescale 1ns/1ps
 	@echo 'ncsim -cdslib ./cds.lib -hdlvar ./hdl.var work.main #> /dev/null' > $(BSVOUTDIR)/out
 	@mv work cds.lib hdl.var $(BSVOUTDIR)/
@@ -318,15 +314,8 @@ link_ncverilog_openocd: ## Generate simulation executable using Synopsys VCS wit
 .PHONY: link_irun
 link_irun:
 	@irun -define TOP=mkTbSoC -timescale 1ns/1ps $(VERILOGDIR)/main.v \
-	${XILINX_VIVADO}/data/verilog/src/glbl.v \
 	-y $(VERILOGDIR)/ \
-	-y ${BLUESPECDIR}/Verilog/ \
-	-y ${XILINX_VIVADO}/data/verilog/src/ \
-	-y ${XILINX_VIVADO}/data/verilog/src/unisims \
-	-y ${XILINX_VIVADO}/data/verilog/src/unimacro \
-	-y ${XILINX_VIVADO}/data/verilog/src/retarget 
-	
-	
+	-y ${BLUESPECDIR}/Verilog/ 
 
 .PHONY: link_msim
 link_msim: ## Generate simulation executable using Mentor's ModelSim tool
