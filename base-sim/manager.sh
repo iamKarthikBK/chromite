@@ -12,9 +12,11 @@ repo_list=(
   $REPO_BASE/uncore/fabrics 
   $REPO_BASE/common_verilog 
   $REPO_BASE/verification_environment/verification
+  $REPO_BASE/cores/benchmarks
   )
 
 branch_list=(
+  master
   master
   master
   master
