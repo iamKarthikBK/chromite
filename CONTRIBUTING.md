@@ -20,6 +20,13 @@
 5. Once ready to merge, assign an approver and resolve the WIP status.
 6. Do not squash-commits and always delete branch.
 
+## Commit Discipline
+
+1. Please make commits with small changes - makes it easy to review and follow
+2. Please be elaborate in your commit messages - it costs nothing
+3. Do not `skip-ci` or its variants in the commit-message. Doing so, will skip the pipeline and thus
+cause the version update to be out of sync.
+
 ## How versioning happens?
 
 Master is updated only through merge-requests which follow the above discipline.
