@@ -22,11 +22,11 @@ c-class-rv64-smoke:
       - make torture opts='--config=all --parallel=10'
       - make regress opts='--list=riscv-torture.list --test_opts='--timeout=15m' --parallel=20 --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--list=riscv-torture.list --final'
+      - python3 /scratch/version-update.py
     only:
-        - merge_requests
         - master
     tags:
-        - c-class-build-rv64
+        - core-runner
 
 c-class-rv32-nightly:
     only:
@@ -63,7 +63,7 @@ c-class-rv32-nightly:
       - make regress opts='--list=aapg.list --final'
       - make restore clean_verif
     tags:
-        - c-class-build-rv32
+        - core-runner
 
 c-class-rv64-nightly:
     only:
@@ -97,4 +97,4 @@ c-class-rv64-nightly:
       - make restore clean_verif
 
     tags:
-        - c-class-build-rv64
+        - core-runner
