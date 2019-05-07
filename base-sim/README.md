@@ -72,7 +72,7 @@ The above command will clone all the required repositories to build the SoC.
 
 #### 2. Generate RTL
 
-The Makefile in this folder contains multiple targets to generate verilog and link the rtl using different simulators. The makefile requires a configuration of the core as input. The `soc_config.inc` file provides a sample configuration of the core. The details of each hook are available [HERE](../docs/configuring_code.md). Other various templates used in our CI/CD are available in the `templates` folder.
+The Makefile in this folder contains multiple targets to generate verilog and link the rtl using different simulators. The makefile requires a configuration of the core as input. The `soc_config.inc` file provides a sample configuration of the core. The details of each hook are available [HERE](/docs/configuring_code.md). Other various templates used in our CI/CD are available in the `templates` folder.
 
 To see all available targets:
 ```
