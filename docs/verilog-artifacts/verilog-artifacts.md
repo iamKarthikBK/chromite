@@ -23,16 +23,16 @@ The verilog artifacts intend to enable users without access to a Bluespec compil
 
 There are [multiple-ways](https://docs.gitlab.com/ee/user/project/pipelines/job_artifacts.html#downloading-artifacts) to download the artifacts. The simplest is to simply click the following link: [ARTIFACT](https://gitlab.com/shaktiproject/cores/c-class/-/jobs/artifacts/master/download?job=c-class). 
 
-The link should initiate the download of the latest artifact as a tar-ball: `verilog-artifact.tar.gz`.
+The link should initiate the download of the latest artifact as an archive: `verilog-artifacts.zip`.
 
 
 ## Directory structure of Artifact
 Once the tar-ball of the artifact has been downloaded untar it using the following command
 ```
-tar -xvzf verilog-artifact.tar.gz
+unzip verilog-artifact.zip
 ```
 
-The extracted `verilog-artifact` folder has the following structure:
+The extracted `verilog-artifacts` folder has the following structure:
 
 1. `verilog`: directory containing the verilog source code of the entire SoC along with the testbench
 2. `sim`: directory containing an executable `cclass`, along with `boot.LSB` and `boot.MSB` files for simulation.
