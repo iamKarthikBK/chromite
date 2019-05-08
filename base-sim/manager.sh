@@ -16,10 +16,10 @@ repo_list=(
   )
 
 branch_list=(
+  1.0.0
   master
-  master
-  master
-  master
+  1.1.0
+  1.0.0
   master
   master
   master
