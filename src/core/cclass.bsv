@@ -144,9 +144,23 @@ package cclass;
   `ifdef debug
     Reg#(Maybe#(Bit#(DXLEN))) rg_abst_response <- mkReg(tagged Invalid); // registered container for responses
   `endif
+
+	Reg#(Bit#(TLog#(TDiv#(ELEN,8)))) rg_io_imem_lower_addr_bits <- mkReg(0);
+	Reg#(Bit#(TLog#(TDiv#(ELEN,8)))) rg_io_dmem_lower_addr_bits <- mkReg(0);
+	Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_fetch_lower_addr_bits <- mkReg(tagged Invalid);
+	Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_memory_lower_addr_bits <- mkReg(tagged Invalid);
+
   `ifdef cache_control
 	  rule handle_nc_resp;
 	    let fab_resp <- pop_o (io_xactor.o_rd_data);
+			Bit#(TLog#(TDiv#(ELEN,8))) lv_lower_addr_bits;
+			if(fab_resp.rid=='d1)		//imem request through IO_Master when cache is disabled
+				lv_lower_addr_bits= rg_io_imem_lower_addr_bits;
+			else //if(fab_resp.rid=='d2)	//dmem request through IO Master when cache is disabled
+				lv_lower_addr_bits= rg_io_dmem_lower_addr_bits;
+			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lv_lower_addr_bits, 3'd0};
+			let lv_data= fab_resp.rdata >> lv_shift;
+			fab_resp.rdata= lv_data;
       wr_io_read_response <= fab_resp;
     endrule
   `endif
@@ -201,13 +215,20 @@ package cclass;
         aruser: ?, arlen : request.burst_len, arsize : request.burst_size, arburst : 'b10, 
         arid : `Fetch_master_num, arprot:{1'b1, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 	    fetch_xactor.i_rd_addr.enq(imem_request);
+			if(request.burst_len == 0)
+				rg_fetch_lower_addr_bits<= tagged Valid truncate(request.address);
+			else
+				rg_fetch_lower_addr_bits<= tagged Invalid;
 	  	`logLevel( core, 1, $format("CORE : IMEM Line Requesting ", fshow(imem_request)))
 	  endrule
 
 	  rule handle_imem_line_resp;
 	    let fab_resp <- pop_o (fetch_xactor.o_rd_data);
 	  	Bool bus_error = !(fab_resp.rresp == AXI4_OKAY);
-      imem.read_mem_resp.put(ICache_mem_response{data   : truncate(fab_resp.rdata), 
+			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= fromMaybe('d0, rg_fetch_lower_addr_bits);
+			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits,3'd0};
+			let lv_data= fab_resp.rdata >> lv_shift;
+      imem.read_mem_resp.put(ICache_mem_response{data   : truncate(lv_data), 
                                                  last   : fab_resp.rlast, 
                                                  err    : bus_error});
 	  	`logLevel( core, 1, $format("CORE : IMEM Line Response ", fshow(fab_resp)))
@@ -222,6 +243,7 @@ package cclass;
         aruser: ?, arlen : 0, arsize : 2, arburst : 'b01, 
         arid : 1, arprot:{1'b1, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 	    io_xactor.i_rd_addr.enq(imem_request);
+			rg_io_imem_lower_addr_bits<= truncate(request.address);
 	  	`logLevel( core, 1, $format("CORE : IMEM IO Requesting ", fshow(imem_request)))
       `ifdef ASSERT
         dynamicAssert(request.burst_len==0 && request.burst_size==2, "ICache NC request is wierd");
@@ -291,10 +313,18 @@ package cclass;
         end
       if(perform_req)  begin
    	    memory_xactor.i_rd_addr.enq(dmem_request);
+				if(req.burst_len == 0)
+					rg_memory_lower_addr_bits<= tagged Valid truncate(req.address);
+				else
+					rg_memory_lower_addr_bits<= tagged Invalid;
         `logLevel( core, 1, $format("CORE : DMEM Line Requesting ", fshow(dmem_request)))
       end
     `else
    	  memory_xactor.i_rd_addr.enq(dmem_request);
+			if(req.burst_len == 0)
+				rg_memory_lower_addr_bits<= tagged Valid truncate(req.address);
+			else
+				rg_memory_lower_addr_bits<= tagged Invalid;
       `logLevel( core, 1, $format("CORE : DMEM Line Requesting ", fshow(dmem_request)))
     `endif
 	  endrule
@@ -303,6 +333,10 @@ package cclass;
     rule handle_delayed_read(rg_read_line_req matches tagged Valid .r &&& wr_write_req matches tagged
                                                                               Invalid);
   	  memory_xactor.i_rd_addr.enq(r);
+			if(r.arlen == 0)
+				rg_memory_lower_addr_bits<= tagged Valid truncate(r.araddr);
+			else
+				rg_memory_lower_addr_bits<= tagged Invalid;
       `logLevel( core, 1, $format("CORE : DMEM Delayed Line Requesting ", fshow(r)))
       rg_read_line_req <= tagged Invalid;
     endrule
@@ -310,8 +344,11 @@ package cclass;
 
 	  rule handle_dmem_line_resp;
 	    let fab_resp <- pop_o (memory_xactor.o_rd_data);
+			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= fromMaybe('d0, rg_memory_lower_addr_bits);
+			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits, 3'd0};
+			let lv_data= fab_resp.rdata >> lv_shift;
 	  	Bool bus_error = !(fab_resp.rresp == AXI4_OKAY);
-      dmem.read_mem_resp.put(DCache_mem_readresp{data:truncate(fab_resp.rdata), 
+      dmem.read_mem_resp.put(DCache_mem_readresp{data:truncate(lv_data), 
                                                  last:fab_resp.rlast, 
                                                  err :bus_error});
       `logLevel( core, 1, $format("CORE : DMEM Line Response ", fshow(fab_resp)))
@@ -396,6 +433,7 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
                     aruser: ?, arlen : 0, arsize : zeroExtend(req.burst_size[1 : 0]), 
                     arburst : 'b01, arid : 2, arprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 	    io_xactor.i_rd_addr.enq(dmem_request);
+			rg_io_dmem_lower_addr_bits<= truncate(req.address);
       `logLevel( core, 1, $format("CORE : DMEM IO - Read Requesting ", fshow(dmem_request)))
 	  endrule
 
