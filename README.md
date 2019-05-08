@@ -16,6 +16,7 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
   * [Overview of C-CLASS](#overview-of-c-class)
   * [Compiling and Simulating the the Core](#compiling-and-simulating-the-the-core)
   * [Benchmarking the Core](./docs/benchmarking.md)
+  * [Verilog-Artifacts](./docs/verilog-artifacts/verilog-artifacts.md)
   * [CI-CD](#ci-cd)
   * [Contributing to the Project](#contributing-to-the-project)
 

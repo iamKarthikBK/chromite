@@ -27,6 +27,4 @@ tags
 
 base-sim/benchmarks/
 
-base-sim/verilog-artifacts\.tar\.gz
-
-base-sim/verilog-artifacts/
+verilog-artifacts/

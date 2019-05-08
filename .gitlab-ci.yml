@@ -25,7 +25,8 @@ c-class:
       - make restore
       - make CONFIG=templates/asic_synth.inc release-verilog-artifacts
       - python3 /scratch/version-update.py
-      - git describe --tags > verilog-artifacts/version.txt
+      - git pull
+      - git describe --tags > ../verilog-artifacts/version.txt
     only:
         - master
     tags:
