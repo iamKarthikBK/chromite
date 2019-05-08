@@ -56,7 +56,7 @@ check_version () {
   local version=$($1 --version | rev | cut -d' ' -f1 | rev)
   local minimum=$(echo -e "$version\n$2" | sort -V | head -n1)
   if [ $2 == $version ] && return 1 || [ $version == $minimum ]; then
-    echo "Please update $DTC to $2 or above"
+    echo "Please update $1 to $2 or above"
     exit 1
   fi
 }
