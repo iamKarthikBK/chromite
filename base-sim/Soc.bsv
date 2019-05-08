@@ -121,7 +121,7 @@ package Soc;
   `endif
 	  Ifc_uart_axi4#(`paddr,ELEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);
     Ifc_clint_axi4#(`paddr, ELEN, 0, 1, 16) clint <- mkclint_axi4();
-    Ifc_err_slave#(`paddr,ELEN,0) err_slave <- mkerr_slave;
+    Ifc_err_slave_axi4#(`paddr,ELEN,0) err_slave <- mkerr_slave_axi4;
 
     // -------------------------------- JTAG + Debugger Setup ---------------------------------- //
 `ifdef debug
