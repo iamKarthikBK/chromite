@@ -378,6 +378,7 @@ release-verilog-artifacts: generate_verilog generate_boot_files link_verilator
 	@cp ${BSVOUTDIR}/boot.* verilog-artifacts/sim
 	@cp ${BSVOUTDIR}/out verilog-artifacts/sim/cclass
 	@cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt verilog-artifacts/LICENSE.txt
+	@mv verilog-artifacts ../
 
 .PHONY: regress 
 regress: ## To run regressions on the core.
