@@ -34,7 +34,7 @@ c-class:
     artifacts:
       name: verilog-artifacts
       paths:
-        - ./base-sim/verilog-artifacts
+        - ./verilog-artifacts
 
 c-class-rv32-nightly:
     only:
