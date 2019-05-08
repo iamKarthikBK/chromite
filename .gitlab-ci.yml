@@ -36,6 +36,29 @@ c-class:
       paths:
         - ./verilog-artifacts
 
+for-merge:
+    except:
+      - schedules
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
+    script:
+      - source /tools/setup.sh
+      - cd base-sim/
+      - ./manager.sh update_deps
+      - make restore
+      - make patch
+      - make CONFIG=templates/rv64imafdc.inc 
+      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub' CONFIG_ISA=RV64IMAFDC
+      - make regress opts='--filter=rv64 --final'
+      - make aapg opts='--config=rv64imafdc* --test_count=3 --parallel=3'
+      - make regress opts='--list=aapg.list --sub --test_opts='--timeout=15m' --parallel=3' CONFIG_ISA=RV64IMAFDC
+      - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
+    only:
+        - merge_requests
+    when: manual
+    tags:
+        - core-runner
+
 c-class-rv32-nightly:
     only:
       - schedules
