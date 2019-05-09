@@ -47,7 +47,7 @@ for-merge:
       - ./manager.sh update_deps
       - make restore
       - make patch
-      - make CONFIG=templates/rv64imafdc.inc 
+      - make CONFIG=templates/rv64imafdc.inc VERILATESIM=slow
       - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--filter=rv64 --final'
     only:

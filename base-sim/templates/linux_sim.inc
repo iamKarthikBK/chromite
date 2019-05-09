@@ -32,6 +32,7 @@ OPENOCD=disable
 COVERAGE=none
 TRACE=disable
 THREADS=1
+VERILATESIM=fast
 
 # DebugOptions
 RTLDUMP=enable
@@ -49,7 +50,6 @@ IREPL=PLRU
 IRESET=1
 IDBANKS=1
 ITBANKS=1
-IBUSWIDTH=64
 
 # Instruction cache
 DCACHE=enable
