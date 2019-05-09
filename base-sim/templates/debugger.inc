@@ -32,6 +32,7 @@ OPENOCD=enable
 COVERAGE=none
 TRACE=disable
 THREADS=1
+VERILATESIM=fast
 
 # DebugOptions
 RTLDUMP=disable

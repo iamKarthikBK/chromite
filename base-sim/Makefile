@@ -135,6 +135,10 @@ ifeq ($(TRACE), enable)
   trace := --trace
 endif
 
+ifeq ($(VERILATESIM), fast)
+	verilate_fast := -CFLAGS -O3
+endif
+
 VCS_MACROS =  +define+BSV_RESET_FIFO_HEAD=True +define+BSV_RESET_FIFO_ARRAY=True
 
 ifneq (0,$(VERBOSITY))
@@ -170,7 +174,7 @@ BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(F_EXT):$(M_EXT)
 # ------------------------------------------------------------------------------------------------ #
 
 # ----------------- Setting up flags for verilator ----------------------------------------------- #
-VERILATOR_FLAGS += --stats -O3 -CFLAGS -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
+VERILATOR_FLAGS += --stats -O3 $(verilate_fast) -LDFLAGS "-static" --x-assign fast --x-initial fast \
 --noassert sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
 -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS) \
 -DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY
