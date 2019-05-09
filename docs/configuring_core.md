@@ -59,6 +59,11 @@ The following hooks only come in to effect when `M` is present in the `ISA` vari
     * `disable`: disables vcd dump for verilator simulations
     To enable vcd generation during simulation use the command `./out +trace`
 * __THREAD__: Integer number indicating the number of threads to be used by verilator for simulation
+* __VERILATESIM__: Valid options:
+    * `fast`: This will insert the `-CFLAGS -O3` flag while compiling with verilator. The resultant
+      executable is small and fast in simulation. The compile time for this is quite huge.
+    * `small`: The verilated binary compiled with this option will be large and slow in simulation.
+      However, the compile time is much much faster.
 * __RTLDUMP__: Valid options:
     * `enable`: Will generate a rtl.dump file during simulation providing a trace of the instruction execution of the application on the core. Please note that enabilng this feature requires extra hardware to be generated and thus should be disabled when targeting synthesis.
     * `disable`: Will disable rtl.dump generation.
