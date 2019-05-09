@@ -50,7 +50,6 @@ IREPL=PLRU
 IRESET=1
 IDBANKS=1
 ITBANKS=1
-IBUSWIDTH=64
 
 # Instruction cache
 DCACHE=disable

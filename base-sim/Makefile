@@ -37,6 +37,15 @@ ifneq (,$(findstring RV32,$(ISA)))
   override define_macros += -D RV32=True
   XLEN=32
 endif
+
+ifneq (,$(findstring RV64,$(ISA)))
+	IBUSWIDTH = 64
+else ifneq (,$(findstring D,$(ISA)))
+	IBUSWIDTH = 64
+else
+	IBUSWIDTH = 32
+endif
+
 ifneq (,$(findstring M,$(ISA)))
   ifeq ($(MUL), fpga)
     override define_macros += -D muldiv_fpga=True -D muldiv=True
