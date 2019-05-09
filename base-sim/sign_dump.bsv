@@ -56,6 +56,8 @@ package sign_dump;
     Reg#(Bit#(`paddr)) rg_total_count <- mkReg(0);
 		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) m_xactor <- mkAXI4_Master_Xactor;
 		AXI4_Slave_Xactor_IFC #(`paddr, ELEN, USERSPACE) s_xactor <- mkAXI4_Slave_Xactor;
+    
+    FIFOF#(Bit#(TLog#(TDiv#(ELEN,8)))) ff_lower_order_bits <- mkSizedFIFOF(8);
 
     Reg#(Bit#(`paddr)) rg_start_address<- mkReg(0);    // 0x2000
     Reg#(Bit#(`paddr)) rg_end_address<- mkReg(0);      // 0x2008
@@ -104,12 +106,17 @@ package sign_dump;
           arlen:0, arsize: 2, arburst: 'b01, arid:2}; // arburst: 00-FIXED 01-INCR 10-WRAP
   			m_xactor.i_rd_addr.enq(read_request);	
         rg_start_address<=rg_start_address+4;
+        ff_lower_order_bits.enq(truncate(rg_start_address));
       end
     endrule
 
     rule receive_response(rg_cnt>=5 && rg_start);
 			let response <- pop_o (m_xactor.o_rd_data);	
-    	$fwrite(dump,"%4h\n", response.rdata[31:0]); 
+      ff_lower_order_bits.deq();
+			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= ff_lower_order_bits.first();
+			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits,3'd0};
+			let lv_data= response.rdata >> lv_shift;
+    	$fwrite(dump,"%4h\n", lv_data[31:0]); 
       rg_total_count<=rg_total_count-1;
       if (response.rresp!=AXI4_OKAY)begin
         $display($time, "\tSIGNATUREDUMP got Bus Error");
