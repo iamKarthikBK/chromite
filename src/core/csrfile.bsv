@@ -325,7 +325,11 @@ package csrfile;
     `else
       Bit#(1) spie = 0;
     `endif
+		`ifdef usertraps
       	Reg#(Bit#(1)) rg_upie <- mkReg(0);
+		`else
+				Bit#(1) rg_upie=0;
+		`endif
 
     Reg#(Bit#(1)) rg_mie	<- mkReg(`ifdef debug 1 `else 0 `endif ); // TODO  
     Bit#(1) hie = 0;
@@ -334,7 +338,11 @@ package csrfile;
     `else
       Bit#(1) sie = 0;
     `endif
-    Reg#(Bit#(1)) rg_uie <- mkReg(0);
+		`ifdef usertraps
+    	Reg#(Bit#(1)) rg_uie <- mkReg(0);
+		`else
+				Bit#(1) rg_uie=0;
+		`endif
 
 	  // mie fields
     Reg#(Bit#(1)) rg_meie <- mkReg(0);
@@ -344,7 +352,11 @@ package csrfile;
     `else
       Bit#(1) seie = 0;
     `endif
-    Reg#(Bit#(1)) rg_ueie <- mkReg(0);
+		`ifdef usertraps
+    	Reg#(Bit#(1)) rg_ueie <- mkReg(0);
+		`else
+			Bit#(1) rg_ueie=0;
+		`endif
     Reg#(Bit#(1)) rg_mtie <- mkReg(0);
     Bit#(1) htie = 0;
     `ifdef supervisor
@@ -352,7 +364,11 @@ package csrfile;
     `else
       Bit#(1) stie = 0;
     `endif
-    Reg#(Bit#(1)) rg_utie <- mkReg(0);
+		`ifdef usertraps
+    	Reg#(Bit#(1)) rg_utie <- mkReg(0);
+		`else
+			Bit#(1) rg_utie=0;
+		`endif
     Reg#(Bit#(1)) rg_msie <- mkReg(0);
     Bit#(1) hsie = 0;
     `ifdef supervisor
@@ -361,7 +377,11 @@ package csrfile;
       Bit#(1) ssie = 0;
     `endif
 
+		`ifdef usertraps
       Reg#(Bit#(1)) rg_usie <-  mkReg(0);
+		`else
+			Bit#(1) rg_usie=0;
+		`endif
 
    
    `ifdef non_m_traps
@@ -467,6 +487,9 @@ package csrfile;
         Reg#(Bit#(1)) rg_sedeleg_u1 <- mkReg(0);  // cause 15
       `else
         Bit#(12) rg_sideleg = 0;
+        Bit#(9) rg_sedeleg_l9 = 0;
+        Bit#(2) rg_sedeleg_m2 = 0;
+        Bit#(1) rg_sedeleg_u1 = 0;
       `endif
     `else
       Bit#(2) sxl = fromInteger(valueOf(TDiv#(XLEN, 32))); 
@@ -870,8 +893,10 @@ package csrfile;
             rg_mode <= word[1 : 0];
         end
         `MSTATUS : begin 
+					`ifdef usertraps
             rg_uie <= word[0];
             rg_upie <= word[4];
+					`endif
           rg_mie <= word[3];
           rg_mpie <= word[7];
           if( word[12 : 11] == 3 || (misa_s == 1 && word[12 : 11] == 1) || (misa_u == 1 && word[12 : 11] == 0))
@@ -903,9 +928,11 @@ package csrfile;
           rg_msie <= word[3];
           rg_mtie <= word[7];
           rg_meie <= word[11];
+					`ifdef usertraps
             rg_ueie <= word[8];
             rg_usie <= word[0];
             rg_utie <= word[4];
+					`endif
           `ifdef supervisor
             seie <= word[9];
             ssie <= word[1];
