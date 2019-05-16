@@ -53,10 +53,8 @@ package decoder;
                   // User Trap setup and user trap handling registers
                   'h0, 'h4, 'h5, 'h40, 'h41, 'h42, 'h43, 'h44: valid=unpack(misa[13]&misa[20]);
                 `endif
-                `ifdef spfpu
                   // user floating point csrs
                   'h1, 'h2, 'h3: valid=True;
-                `endif
               endcase
               // User Counters/Timers
             `ifdef user
