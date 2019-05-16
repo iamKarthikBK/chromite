@@ -89,10 +89,11 @@ package sign_dump;
       end
       else if (aw.awaddr[3:0]=='h8) begin
         rg_end_address<=truncate(w.wdata);
-        rg_start<=True;
         b.bresp=AXI4_OKAY;
         Bit#(`paddr) total_bytes=truncate(w.wdata)-rg_start_address;
         rg_total_count<=total_bytes>>2;
+        if(rg_start_address != truncate(w.wdata))
+          rg_start<=True;
       end
       else if (aw.awaddr[3:0]=='hc) begin
         $finish(0);        
