@@ -34,7 +34,6 @@ package muldiv_asic;
       method Action rd_arith_excep_en(Bit#(1) arith_en);
    `endif
 
-
 	endinterface
   
 
@@ -354,11 +353,11 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
                                             funct3 `ifdef RV64, Bool word_flag `endif );
 `ifdef arith_trap
      let is_mul = ~funct3[2];
-     if(is_mul==0)
-      if(in2==0 && wr_arith_en==1'b1)
-          return ALU_OUT{done:True,cmtype :REGULAR,aluresult :'b1,effective_addr:?,cause:17,redirect:False};//DIV_BY_ZER0 trap
+     
+      if(is_mul==0 && in2==0 && wr_arith_en==1'b1)
+          return ALU_OUT{done:True,cmtype :TRAP,aluresult :'b1,effective_addr:?,cause:17,redirect:False};//DIV_BY_ZER0 trap
       else
-      `endif
+ `endif
       if(`MULSTAGES==0 && funct3[2]==0) begin
         let product = single_mult( in1, in2, funct3 `ifdef RV64 ,word_flag `endif );
         return ALU_OUT{done : True, cmtype : REGULAR, aluresult : zeroExtend(product), 
@@ -382,7 +381,6 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
 			rg_count[0] <= 8;
 			rg_state_counter[0] <= 0;
 		endmethod
-	endmodule
 
    `ifdef arith_trap
       method  Action rd_arith_excep_en(Bit#(1) arith_en);
@@ -390,4 +388,5 @@ sign: %b",x, multiplicand_divisor, rg_count[1], upper_bits, rg_signed, temp_mult
       endmethod
    `endif
 
+endmodule
 endpackage
