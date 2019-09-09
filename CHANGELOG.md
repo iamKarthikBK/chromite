@@ -2,7 +2,7 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2019-08-28
+## [1.0.0] - 2019-09-09
 ## Fixed
 - data types of ISBs has been split to keep logic minimal and optimize frequency closure
 - Logger is used in all submodules.
@@ -13,6 +13,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - ISB types and operand forwarding tuned for better frequency closure.
 - overall changes to remove trailing white-spaces from all files.
 - version extraction based on CHANGELOG will be followed hence forth.
+- fpu convert from dp to sp roundup conditions fixed.
 
 ## Added
 - decompressor function added in stage1
