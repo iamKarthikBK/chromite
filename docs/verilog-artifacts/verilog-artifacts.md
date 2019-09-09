@@ -21,7 +21,7 @@ The verilog artifacts intend to enable users without access to a Bluespec compil
 
 ## Downloading the Artifact
 
-There are [multiple-ways](https://docs.gitlab.com/ee/user/project/pipelines/job_artifacts.html#downloading-artifacts) to download the artifacts. The simplest is to simply click the following link: [ARTIFACT](https://gitlab.com/shaktiproject/cores/c-class/-/jobs/artifacts/master/download?job=c-class). 
+There are [multiple-ways](https://docs.gitlab.com/ee/user/project/pipelines/job_artifacts.html#downloading-artifacts) to download the artifacts. The simplest is to simply click the following link: [ARTIFACT](https://gitlab.com/shaktiproject/cores/c-class/-/jobs/artifacts/master/download?job=release). 
 
 The link should initiate the download of the latest artifact as an archive: `verilog-artifacts.zip`.
 
