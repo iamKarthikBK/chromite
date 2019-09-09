@@ -1,15 +1,15 @@
-/* 
+/*
 Copyright (c) 2018, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
 provided that the following conditions are met:
 
 * Redistributions of source code must retain the above copyright notice, this list of conditions
-  and the following disclaimer.  
-* Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and/or other materials provided 
- with the distribution.  
-* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
+  and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of
+  conditions and the following disclaimer in the documentation and/or other materials provided
+ with the distribution.
+* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or
   promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
@@ -18,7 +18,7 @@ AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYR
 CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
@@ -55,28 +55,28 @@ package TbSoc;
 
     let def_clk <- exposeCurrentClock;
     let def_rst <- exposeCurrentReset;
-    
+
     MakeClockIfc#(Bit#(1)) tck_clk <-mkUngatedClock(1);
     MakeResetIfc trst <- mkReset(0,False,tck_clk.new_clk);
 
 
     Ifc_Soc soc <- mkSoc(tck_clk.new_clk,trst.new_rst);
-    
+
     UserInterface#(`paddr,XLEN,16) uart <- mkuart_user(5);
     Reg#(Bool) rg_read_rx<- mkDReg(False);
 
     Reg#(Bit#(5)) rg_cnt <-mkReg(0);
- 		
-    Ifc_bram_axi4#(`paddr, ELEN, USERSPACE, `Addr_space) main_memory <- mkbram_axi4(`MemoryBase, 
+
+    Ifc_bram_axi4#(`paddr, ELEN, USERSPACE, `Addr_space) main_memory <- mkbram_axi4(`MemoryBase,
                                                 "code.mem.MSB", "code.mem.LSB", "MainMEM");
-		Ifc_bootrom_axi4#(`paddr, ELEN, USERSPACE) bootrom <-mkbootrom_axi4(`BootRomBase);
+		Ifc_bootrom_axi4#(`paddr, ELEN, USERSPACE, 13) bootrom <-mkbootrom_axi4(`BootRomBase);
 
   	mkConnection(soc.main_mem_master, main_memory.slave);
 		mkConnection(soc.boot_mem_master, bootrom.slave);
 
     `ifdef simulate
       rule display_eol;
-	      let timeval <- $time; 
+	      let timeval <- $time;
         `logLevel( tb, 0, $format("\n[%10d]", timeval))
       endrule
     `endif
@@ -84,16 +84,19 @@ package TbSoc;
   `ifdef rtldump
  	  let dump <- mkReg(InvalidFile) ;
     rule open_file_rtldump(rg_cnt<5);
-      String dumpFile = "rtl.dump" ;
-    	File lfh <- $fopen( dumpFile, "w" ) ;
-    	if ( lfh == InvalidFile )begin
-    	  `logLevel( tb, 0, $format("TB: cannot open %s", dumpFile))
-    	  $finish(0);
-    	end
-    	dump <= lfh ;
+      let generate_dump <- $test$plusargs("rtldump");
+      if(generate_dump) begin
+        String dumpFile = "rtl.dump" ;
+    	  File lfh <- $fopen( dumpFile, "w" ) ;
+    	  if ( lfh == InvalidFile )begin
+    	    `logLevel( tb, 0, $format("TB: cannot open %s", dumpFile))
+    	    $finish(0);
+    	  end
+    	  dump <= lfh ;
+      end
     endrule
   `endif
-    
+
  	  let dump1 <- mkReg(InvalidFile) ;
     rule open_file_app(rg_cnt<5);
       String dumpFile1 = "app_log" ;
@@ -125,23 +128,24 @@ package TbSoc;
     endrule
 
   `ifdef rtldump
-    rule write_dump_file(rg_cnt>=5 );
+    rule write_dump_file(rg_cnt>=5);
+      let generate_dump <- $test$plusargs("rtldump");
       let {prv, pc, instruction, rd, data, rdtype}<- soc.io_dump.get;
     `ifndef openocd
       if(instruction=='h00006f||instruction =='h00a001)
         $finish(0);
-      else 
-    `endif 
-      begin
-  	  	$fwrite(dump, prv, " 0x%16h", pc, " (0x%8h", instruction, ")"); 
+      else
+    `endif
+      if(generate_dump)begin
+      	$fwrite(dump, prv, " 0x%16h", pc, " (0x%8h", instruction, ")");
         if(rdtype == FRF && valueOf(FLEN) == 64)
-  	  	  $fwrite(dump, " f%d", rd, " 0x%16h", data[63:0], "\n"); 
+      	  $fwrite(dump, " f%d", rd, " 0x%16h", data[63:0], "\n");
         else if(rdtype == FRF && valueOf(FLEN) == 32)
-  	  	  $fwrite(dump, " f%d", rd, " 0x%8h", data[31:0], "\n"); 
+      	  $fwrite(dump, " f%d", rd, " 0x%8h", data[31:0], "\n");
         else if(rdtype == IRF && valueOf(XLEN) == 64)
-  		    $fwrite(dump, " x%d", rd, " 0x%16h", data[63:0], "\n"); 
+    	    $fwrite(dump, " x%d", rd, " 0x%16h", data[63:0], "\n");
         else if(rdtype == IRF && valueOf(XLEN) == 32)
-  		    $fwrite(dump, " x%d", rd, " 0x%8h", data[31:0], "\n"); 
+    	    $fwrite(dump, " x%d", rd, " 0x%8h", data[31:0], "\n");
       end
     endrule
   `endif

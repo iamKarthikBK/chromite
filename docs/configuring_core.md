@@ -20,24 +20,26 @@ The C-class is a highly-configurable core. Almost all the configurable hooks can
 * __ISA__: This variable defines the RISC-V ISA to be supported by the C-Class core. The core supports the I, M, A, F, D and C extensions in both 32-bit and 64-bit formats. 
     * *Usage*: `ISA=RV32IMAC`, `ISA=RV64IMAFDC`, etc
 
+## Configuring User Support
 * __USERTRAPS__: Valid options:
     * `enable`: enables the `N` Extension of RISC-V ISA spec.
     * `disable`: disables the `N` Extension of RISC-V ISA spec.
 * __USER__: Valid options:
     * `enable`: enables the `U` Extension of the RISC-V ISA spec.
     * `disable`: disables the `U` Extension of the RISC-V ISA spec.
+
+## Configuring Supervisor Support
 * __SUPERVISOR__: Valid options:
-    * `enable`: enables the `S` Extension of the RISC-V ISA spec.
-    * `disable`: disables the `S` Extension of the RISC-V ISA spec.
+    * `sv32`: enables the `sv32` mode support
+    * `sv39`: enables the `sv39` mode support
+    * `sv48`: enables the `sv48` mode support.
+    * `none`: disables the `S` Extension of the RISC-V ISA spec.
+* __ITLBSIZE__: Integer value defining the number of entries in the fully-associative Instruction TLB
+* __DTLBSIZE__: Integer value defining the number of entries in the fully-associative Data TLB
 
 ## Configuring the M-Extension
 
 The following hooks only come in to effect when `M` is present in the `ISA` variable described above.
-
-* __MUL__: This variable is used to configure the type of multiplier to be used while supporting the M-extension. Valid Options are
-    * `fpga`: This will use a Xilinx's DSP based multiplier coregen IP. The number of stages in the multiplier is defined using the MULSTAGES variable in the `soc_config.inc`. The bit-width of the multiplier is 32-bits if the ISA variable field includes `RV32` and 64-bits if the ISA variable includes `RV64`. A bluespec wrapper to incorporate this IP in bluespec is available in the src/wrappers.bsv directory. This should be set when targetting FPGAs. For simulation purpose, a functional bsv code is used which mimics the FPGA IP in ports and behavior. Please note this will not simulate the DSP IPs from Xilinx.
-    
-    * `asic`: This will implement either a single-cycle multiplier or a sequential multiplier without an early out mechanism. The choice depends on the value of MULSTAGES. The bsv source of this is available in the src/m_ext folder. The bit-width of the multiplier is 32-bits if the ISA variable field includes `RV32` and 64-bits if the ISA variable includes `RV64`. This should be set when targetting ASIC synthesis.
 
 * __MULSTAGES__: a numerical value indicating the number of cycles to perform multiplication. When set to `0` a single-cycle multiplier is instantiated. When `MUL` is set to fpga, this variable will indicate the number of cycles the Xilinx IP is configured with. When `MUL` is set to `asic` a non-zero value will instantiate an 8-cycle early out multiplier.  
 
@@ -45,39 +47,10 @@ The following hooks only come in to effect when `M` is present in the `ISA` vari
     
 * __DIVSTAGES__: The c-class implements an iterative restoring division algorithm. This variable indicates the number of cycles it takes the algorithm to complete the division. For max-frequency keep this value as equal to the XLEN value specified in the `ISA` variable. For highest throughput keep it low. i.e. 1.
 
-## Configuring the Simulation Environment
-* __VERBOSITY__: Valid values are 0 or 1. 
-    Once the bluespec-generated-verilog is available, post-processing script is run to subsume all the `$display` statements in the verilog file, under the `VERBOSE` macro. This variable is used to indicate the RTL simulator (e.g. verilator, vcs, modelsim, etc.) whether or not to the `VERBOSE` macro is to be defined or not at compile-time. A value of 0 will ensure that no `$display` statements are compiled (except the ones inserted by bluespec based on rule-conflicts). A non-zero 0 will ensure they are compiled and one can use the Logger scheme to enabled different modules and levels at simulation time.
-
-* __COVERAGE__: This is used by verilator to generate specific coverage metrics during simulation. Valid otions:
-    * `none`: disable all coverage
-    * `all`: enable all coverage metrics supported in verilator
-    * `line`: enable line coverage
-    * `toggle`: enable toggle coverage
-* __TRACE__: Valid options:
-    * `enable`: enables vcd dump for verilator simulation
-    * `disable`: disables vcd dump for verilator simulations
-    To enable vcd generation during simulation use the command `./out +trace`
-* __THREAD__: Integer number indicating the number of threads to be used by verilator for simulation
-* __VERILATESIM__: Valid options:
-    * `fast`: This will insert the `-CFLAGS -O3` flag while compiling with verilator. The resultant
-      executable is small and fast in simulation. The compile time for this is quite huge.
-    * `small`: The verilated binary compiled with this option will be large and slow in simulation.
-      However, the compile time is much much faster.
-* __RTLDUMP__: Valid options:
-    * `enable`: Will generate a rtl.dump file during simulation providing a trace of the instruction execution of the application on the core. Please note that enabilng this feature requires extra hardware to be generated and thus should be disabled when targeting synthesis.
-    * `disable`: Will disable rtl.dump generation.
-* __ASSERTIONS__: Valid options:
-    * `enable`: Will enable dynamic assertions where-ever found.
-    * `disable`: Will disable dynamic assertions where-ever found.
-    In Bluespec, the dynamic/static assertions from the `Assert` library are compiled into `$display` statements in the generated verilog. Thus, having this feature enabled while targeting synthesis will have no effect on the synthesis. (All the display statements come under synopsys_translate_off macro which almost all synthesis tools will ignore)
-
 ## Configuring the Branch Predictor
 * __PREDICTOR__: Valid options:
     * `none`: will disable the pc-gen stage and stage0 will no longer exist. PC generation happens in stage1 module.
-    * `gshare`: will instantiate a gshare predictor using direct-mapped BTB.
-    * `gshare_fa`: will instantiate a gshare predictor using a full-associative BTB.
-    * `bimodal`: will instantiate a bimodal branch predictor using direct-mapped BTB. 
+    * `gshare`: will instantiate a gshare predictor using a full-associative BTB.
 * __BPURESET__: Can be either 0 or 1. A value of 0 indicates that the branch predictor is disabled at reset. A value of 1 indicates that the branch predictor will be enabled immediately after reset. The predictor can later be enabled/disabled by setting the relevant bit of the custom-control csr.
 
 * __BTBDEPTH__: Integer number defining the number of entries in the BTB
@@ -85,7 +58,7 @@ The following hooks only come in to effect when `M` is present in the `ISA` vari
 * __HISTLEN__: Valid only for gshare. Accepts a number indicating the number of bits in the global history register.
 * __EXTRAHIST__: Valid only for gshare. Accepts a number indicating the number of extra speculative bits in the GHR. For c-class 3 gives the best performance.
 * __RASDEPTH__: Number of entries in the Return-Address-Stack.
-* __RASTAGDEPTH__: The direct mapped gshare maintains a separate table for ras entries. This field indicates the size of that table.
+
 
 ## Configuring the Instruction Cache
 
@@ -102,7 +75,7 @@ The following hooks only come in to effect when `M` is present in the `ISA` vari
 * __IDBANKS__: The number of banks that data-rams of the I-cache should be split into.
 * __ITBANKS__: The number of banks that tag-rams of the I-cache should be split into.
 
-## Configuring the Instruction Cache
+## Configuring the Data Cache
 * __DCACHE__: Valid options:
     * `enable`: Will enable creating a single instance of the data-cache
     * `disable`: No data cache will be instantiated. But instead a simple state-maching to handle requests will be used and maintain a store-buffer will be used..
@@ -117,7 +90,6 @@ The following hooks only come in to effect when `M` is present in the `ISA` vari
 * __DDBANKS__: The number of banks that data-rams of the D-cache should be split into.
 * __DTBANKS__: The number of banks that tag-rams of the D-cache should be split into.
 
-
 ## Configuring Physical Memory Protection.
 * __PMP__: Valid options
     * `enable`: Will enable physical memory protection scheme as mentioned in the spec.
@@ -126,15 +98,42 @@ The following hooks only come in to effect when `M` is present in the `ISA` vari
 * __ASIDWIDTH__: An integer `<=16` for RV64 and `<=9` for RV32 indicating the size of the ASID when supervisor is enabled. 
 
 ## Configuring Debugger and Triggers
-* __DEBUGGER__: Valid options are `enable` or `disable`. When enabled a JTAG based debugger is instantiated in the SoC. This debugger is based on the riscv-debug-spec.
+* __DEBUG__: Valid options are `enable` or `disable`. When enabled a JTAG based debugger is instantiated in the SoC. This debugger is based on the riscv-debug-spec.
 * __OPENOCD__: Valid options are `enable` or `disable`. When enabled the test-bench includes a vpi to connect to open-ocd via remote-bitbang.
 * __TRIGGERS__: Accepts a valid number >=0. 
     Indicates the number of hardware triggers instantiated in the core. More information about the nature of the triggers can be found [here](../docs/triggers.md)
-    
+
+# BSV compile options
+* __SUPPRESSWARNINGS__: setting to `all` will suppress all warnings during bsv compilation. default is none
+
+## Configuring the Simulation Environment
+
+* __COVERAGE__: This is used by verilator to generate specific coverage metrics during simulation. Valid otions:
+    * `none`: disable all coverage
+    * `all`: enable all coverage metrics supported in verilator
+    * `line`: enable line coverage
+    * `toggle`: enable toggle coverage
+* __TRACE__: Valid options:
+    * `enable`: enables vcd dump for verilator simulation
+    * `disable`: disables vcd dump for verilator simulations
+    To enable vcd generation during simulation use the command `./out +trace`
+* __THREAD__: Integer number indicating the number of threads to be used by verilator for simulation
+* __VERILATESIM__: Valid options:
+    * `fast`: This will insert the `-CFLAGS -O3` flag while compiling with verilator. The resultant
+      executable is small and fast in simulation. The compile time for this is quite huge.
+    * `small`: The verilated binary compiled with this option will be large and slow in simulation.
+      However, the compile time is much much faster.
+* __VERBOSITY__: Valid values are 0 or 1. 
+    Once the bluespec-generated-verilog is available, post-processing script is run to subsume all the `$display` statements in the verilog file, under the `VERBOSE` macro. This variable is used to indicate the RTL simulator (e.g. verilator, vcs, modelsim, etc.) whether or not to the `VERBOSE` macro is to be defined or not at compile-time. A value of 0 will ensure that no `$display` statements are compiled (except the ones inserted by bluespec based on rule-conflicts). A non-zero 0 will ensure they are compiled and one can use the Logger scheme to enabled different modules and levels at simulation time.
+* __RTLDUMP__: Valid options:
+    * `enable`: Will generate a rtl.dump file during simulation providing a trace of the instruction execution of the application on the core. Please note that enabilng this feature requires extra hardware to be generated and thus should be disabled when targeting synthesis.
+    * `disable`: Will disable rtl.dump generation.
+* __ASSERTIONS__: Valid options:
+    * `enable`: Will enable dynamic assertions where-ever found.
+    * `disable`: Will disable dynamic assertions where-ever found.
+    In Bluespec, the dynamic/static assertions from the `Assert` library are compiled into `$display` statements in the generated verilog. Thus, having this feature enabled while targeting synthesis will have no effect on the synthesis. (All the display statements come under synopsys_translate_off macro which almost all synthesis tools will ignore)
+
 ## Miscellaneous Configurations
-* __PIPE__: Valid options:
-    * 1: Instantiates a pipeline-buffer between the decode and the execute stage
-    * 2: Instantiates a SizedFIFO(2) buffer between the decode and the execute stage
 * __RESETPC__: Values in integer format indicating the reset program counter value.
 * __PADDR__: Bit-wdith of the phyiscal address.
 * __COREFABRIC__: This variable indicates the fabric protocol supported by the Core. Current valid options are only `AXI4`. Future support will be provided for AXI4-Lite, TileLink-U, TileLink-H and TileLink-C.

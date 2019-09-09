@@ -200,13 +200,15 @@ package gshare_fa_nc;
       Bit#(`countlen) bht_state0 = bht.sub(bht_index0);
       Bit#(TAdd#(`extrahist, `histlen)) pred0_ghr = rg_ghr[0];
 
-      Bit#(`btbdepth) match0 = 0;
+      Bit#(`btbdepth) match0;
 
       for(Integer i=0; i<`btbdepth; i=i+1)begin
-        if(btb[i].tag == pc0 && btb[i].valid && wr_bpu_enable)
-          match0[i] = 1;
+        match0[i]= pack(btb[i].tag == pc0 && btb[i].valid && wr_bpu_enable);
       end
+
+    `ifdef ASSERT
       dynamicAssert(countOnes(match0) < 2, "Multiple Matches in Prediction0");
+    `endif
 
       Bit#(TLog#(`btbdepth)) hitindex0 = truncate(pack(countZerosLSB(match0)));
 
@@ -282,7 +284,9 @@ package gshare_fa_nc;
           hit[i] = pack(btb[i].tag == td.pc && btb[i].valid);
         end
 
+      `ifdef ASSERT
         dynamicAssert(countOnes(hit) < 2, "Multiple hits in the BTB");
+      `endif
 
         if(|hit == 0) begin // no hit in the btb allocate a new entry
           btb[rg_allocate] <= BTBEntry{valid: True, tag: td.pc, target: td.target, ci: td.ci};

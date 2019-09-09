@@ -1,15 +1,15 @@
-/* 
+/*
 Copyright (c) 2013, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
 provided that the following conditions are met:
 
 * Redistributions of source code must retain the above copyright notice, this list of conditions
-  and the following disclaimer.  
-* Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and/or other materials provided 
- with the distribution.  
-* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
+  and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of
+  conditions and the following disclaimer in the documentation and/or other materials provided
+ with the distribution.
+* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or
   promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
@@ -18,7 +18,7 @@ AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYR
 CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
@@ -57,7 +57,7 @@ package stage5;
     method Tuple4#(Bool, Bit#(`vaddr), Bool, Bool) flush;
   `else
     method Tuple3#(Bool, Bit#(`vaddr), Bool) flush;
-  `endif  
+  `endif
     method CSRtoDecode csrs_to_decode;
 	  method Action clint_msip(Bit#(1) intrpt);
 		method Action clint_mtip(Bit#(1) intrpt);
@@ -108,14 +108,14 @@ package stage5;
 `ifdef debug
   (*conflict_free="debug_access_csrs,instruction_commit"*)
 `endif
-  module mkstage5(Ifc_stage5);
+  module mkstage5#(parameter Bit#(XLEN) hartid) (Ifc_stage5);
 
 
     RX#(PIPE4) rx<-mkRX;
   `ifdef rtldump
     RX#(Tuple2#(Bit#(`vaddr),Bit#(32))) rxinst <-mkRX;
   `endif
-    Ifc_csr csr <- mkcsr();
+    Ifc_csr csr <- mkcsr(hartid);
 
     // wire that carries the commit data that needs to be written to the integer register file.
     Wire#(Maybe#(CommitData)) wr_commit <- mkDWire(tagged Invalid);
@@ -215,7 +215,7 @@ package stage5;
       Bit#(`vaddr) jump_address=?;
       Bool fl = False;
       `ifdef rtldump
-        `logLevel( stage5, 0, $format("STAGE5: PC: %h: inst: %h commit: ",simpc,inst,fshow(commit)))
+        `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: PC: %h: inst: %h commit: ",simpc,inst,fshow(commit)))
       `endif
       if(rg_epoch==epoch)begin
       `ifdef triggers
@@ -227,14 +227,14 @@ package stage5;
           `ifdef rtldump
             rxinst.u.deq;
           `endif
-          `logLevel( stage5, 0, $format("STAGE5: Trigger TRAP:%d NewPC:%h fl:%b", 
+          `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: Trigger TRAP:%d NewPC:%h fl:%b",
                                                          rg_take_trigger.cause,jump_address,fl))
         end
         else
       `endif
         if(commit matches tagged TRAP .t)begin
           if(t.cause==`Rerun || t.cause==`IcacheFence `ifdef supervisor || t.cause==`SFence `endif )begin
-            `logLevel( stage5, 0, $format("STAGE5: Rerun initiated"))
+            `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: Rerun initiated"))
             fl=True;
             jump_address=t.pc;
             fenceI=(t.cause==`IcacheFence );
@@ -251,26 +251,20 @@ package stage5;
           `ifdef rtldump
             rxinst.u.deq;
           `endif
-          `logLevel( stage5, 0, $format("STAGE5: Received TRAP:%d NewPC:%h fl:%b",t.cause,jump_address,fl))
+          `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: Received TRAP:%d NewPC:%h fl:%b",t.cause,jump_address,fl))
         end
         else if (commit matches tagged STORE .s)begin
         `ifdef dcache
           if (!rg_store_initiated && wr_store_is_cached)begin
             wr_initiate_store <= tuple2(unpack(rg_epoch),True);
             wr_increment_minstret<=True;
-            `ifdef spfpu
               `ifdef atomic
-                wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
+                wr_commit <= tagged Valid CommitData{addr: s.rd, data:s.commitvalue
+                                            `ifdef spfpu , rdtype: IRF `endif };
               `else
-                wr_commit <= tagged Valid (tuple3(0, 0, IRF)); 
+                wr_commit <= tagged Valid CommitData{addr: 0, data:0
+                                            `ifdef spfpu , rdtype: IRF `endif };
               `endif
-            `else
-              `ifdef atomic
-                wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
-              `else
-                wr_commit <= tagged Valid (tuple2(0, 0));
-              `endif
-            `endif
             `ifdef rtldump
               `ifdef atomic
                 Bit#(ELEN) data=s.commitvalue;
@@ -284,32 +278,26 @@ package stage5;
             `endif
               rx.u.deq;
           end
-          else 
+          else
         `endif
           if(!rg_store_initiated)begin
             wr_initiate_store <= tuple2(unpack(rg_epoch),True);
             rg_store_initiated<=True;
-            `logLevel( stage5, 0, $format("STAGE5: Initiating Store request"))
+            `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: Initiating Store request"))
           end
           else if(wr_store_response matches tagged Valid .resp) begin
             rg_store_initiated<=False;
-            `logLevel( stage5, 0, $format("STAGE5: Store response Received: ",fshow(resp)))
+            `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: Store response Received: ",fshow(resp)))
             let {err, badaddr} = resp;
             if(err==0)begin
               wr_increment_minstret<=True;
-            `ifdef spfpu
               `ifdef atomic
-                wr_commit <= tagged Valid (tuple3(s.rd, s.commitvalue, IRF)); 
+                wr_commit <= tagged Valid CommitData{addr: s.rd, data: s.commitvalue
+                                            `ifdef spfpu ,rdtype: IRF `endif };
               `else
-                wr_commit <= tagged Valid (tuple3(0, 0, IRF)); 
+                wr_commit <= tagged Valid CommitData{addr: 0, data: 0
+                                            `ifdef spfpu ,rdtype: IRF `endif };
               `endif
-            `else
-              `ifdef atomic
-                wr_commit <= tagged Valid (tuple2(s.rd, s.commitvalue));
-              `else
-                wr_commit <= tagged Valid (tuple2(0, 0));
-              `endif
-            `endif
             `ifdef rtldump
               `ifdef atomic
                 Bit#(ELEN) data=s.commitvalue;
@@ -334,19 +322,17 @@ package stage5;
             end
           end
           else begin
-            `logLevel( stage5, 0, $format("STAGE5: Waiting for Store response"))
+            `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: Waiting for Store response"))
           end
         end
         else if(commit matches tagged SYSTEM .sys)begin
           let {drain, newpc, dest}<-csr.system_instruction(sys.csraddr, sys.rs1, sys.func3, sys.lpc);
           jump_address=newpc;
           fl=drain;
-        `ifdef spfpu
-          wr_commit <= tagged Valid (tuple3(sys.rd, zeroExtend(dest), IRF));
-        `else
-          wr_commit <= tagged Valid (tuple2(sys.rd, dest));
-        `endif
-        `ifdef rtldump 
+
+          wr_commit <= tagged Valid CommitData{addr: sys.rd, data: zeroExtend(dest)
+                                      `ifdef spfpu, rdtype: IRF `endif };
+        `ifdef rtldump
           if(sys.rd==0)
             dest=0;
           dump_ff.enq(tuple6(prv, signExtend(simpc), inst, sys.rd, zeroExtend(dest), IRF));
@@ -358,14 +344,13 @@ package stage5;
         end
         else if(commit matches tagged REG .r)begin
           // in case of regular instruction simply update RF and forward the data.
-          `logLevel( stage5, 0, $format("STAGE5: Regular commit"))
+          `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: Regular commit"))
           wr_increment_minstret<=True;
         `ifdef spfpu
-          wr_commit <= tagged Valid (tuple3(r.rd, r.commitvalue, r.rdtype));
-          csr.update_fflags(r.fflags); 
-        `else
-          wr_commit <= tagged Valid (tuple2(r.rd, r.commitvalue));
+          csr.update_fflags(r.fflags);
         `endif
+          wr_commit <= tagged Valid CommitData{addr:r.rd, data:r.commitvalue
+                                      `ifdef spfpu , rdtype: r.rdtype `endif };
           rx.u.deq;
         `ifdef rtldump
           rxinst.u.deq;
@@ -378,8 +363,8 @@ package stage5;
             IRF `endif ));
         `endif
         end
-        
-        // if it is a branch/JAL_R instruction generate a flush signal to the pipe. 
+
+        // if it is a branch/JAL_R instruction generate a flush signal to the pipe.
       `ifdef supervisor
         wr_flush<=tuple4(fl, jump_address, fenceI, sFence);
       `else
@@ -393,7 +378,7 @@ package stage5;
         end
       end
       else begin
-          `logLevel( stage5, 0, $format("STAGE5: Dropping instruction"))
+          `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: Dropping instruction"))
           if(commit matches tagged STORE .s)
             wr_initiate_store<=tuple2(unpack(rg_epoch),True);
         // TODO if the instruction is a Store we need to deque that entry from the store buffer.
@@ -454,7 +439,7 @@ package stage5;
     method pmp_addr=csr.pmp_addr;
   `endif
   `ifdef debug
-    method debug_access_csrs = csr.debug_access_csrs; 
+    method debug_access_csrs = csr.debug_access_csrs;
     method debug_halt_request = csr.debug_halt_request;
     method debug_resume_request = csr.debug_resume_request;
     method core_is_halted = csr.core_is_halted;
@@ -462,7 +447,7 @@ package stage5;
     method step_ie = csr.step_ie;
     method core_debugenable = csr.core_debugenable;
   `endif
-    
+
     `ifdef arith_trap
       method arith_excep = csr.arith_excep;
    `endif

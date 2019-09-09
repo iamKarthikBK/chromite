@@ -1,3 +1,12 @@
+  `define statesize 2
+  
+  `ifdef muldiv
+    `define multicycle True
+  `endif
+  `ifdef spfpu
+    `define multicycle True
+  `endif
+
 // ------------ NEEDS TO BE REVISED ------------------
 `define SDRAMMemBase	'h80000000	
 `define SDRAMMemEnd  'h8FFFFFFF // 1GB
@@ -42,7 +51,7 @@
 `define FNXOR	  4	  //'b0100  	
 `define FNSR	  5	  //'b0101  	
 `define FNOR	  6	  //'b0110	
-`define FNAND	  7	  //'b0101
+`define FNAND	  7	  //'b0111
 `define FNSUB	  10	//'b1010
 `define FNSRA	  11	//'b1011
 `define FNSLT	  12	//'b1100

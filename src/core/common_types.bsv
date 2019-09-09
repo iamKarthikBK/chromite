@@ -30,7 +30,7 @@ Details:
 */
 package common_types;
   `include "common_params.bsv"
-
+  
   `ifdef RV64
   	typedef 64 XLEN;
   `else
@@ -75,41 +75,27 @@ package common_types;
                                                                   Op2type deriving(Bits, Eq, FShow);
   typedef enum {FRF = 1, IRF = 0} RFType deriving(Bits, Eq, FShow);
 //  typedef enum {SYSTEM_INSTR, REGULAR, TRAP} Commit_type deriving(Eq, Bits, FShow);
-  typedef enum {MEMORY, SYSTEM_INSTR, REGULAR, TRAP} PreCommit_type deriving(Eq, Bits, FShow);
+//  typedef enum {MEMORY, SYSTEM_INSTR, REGULAR, TRAP} PreCommit_type deriving(Eq, Bits, FShow);
   typedef enum {Machine = 3, Supervisor = 1, User = 0} Privilege_mode 
                                                                           deriving(Eq, Bits, FShow);
   // -------------------------------------------------------------------------------------
 
   // ------- The following typdefs are used to define the output from the decode stage -----
   // data structure of the fwding data structure
-  `ifdef spfpu
-    typedef Tuple5#(Bool, Bool, Bit#(5), Bit#(ELEN), RFType) FwdType;
-  `else
-    typedef Tuple4#(Bool, Bool, Bit#(5), Bit#(ELEN)) FwdType;
-  `endif
-  
-  // This struct captures the decoded addresses of the operands and destination registers.
-  // Max width : 20 bits
-  typedef struct{
-    Bit#(5) rs1addr;
-    Bit#(5) rs2addr;
-    Bit#(5) rd;
-  `ifdef spfpu
-    Bit#(5) rs3addr;
-  `endif
-  } OpAddr deriving(Bits, Eq, FShow);
-
-  // this struct captures the type of the operands based on the instruction being decoded.
-  // Max width : 2+3 + 1+1 = 7 bits
-  typedef struct{
-    Op1type rs1type;
-    Op2type rs2type;
-  `ifdef spfpu
-    RFType  rs3type;
-    RFType  rdtype;
-  `endif
-  } OpType deriving(Bits, Eq, FShow);
-
+    typedef struct{
+      Bool valid;
+      Bool available;
+      Bit#(5) addr;
+      Bit#(ELEN) data;
+    `ifdef spfpu
+      RFType rftype;
+    `endif
+    } FwdType deriving(Bits, FShow, Eq);
+//  `ifdef spfpu
+//    typedef Tuple5#(Bool, Bool, Bit#(5), Bit#(ELEN), RFType) FwdType;
+//  `else
+//    typedef Tuple4#(Bool, Bool, Bit#(5), Bit#(ELEN)) FwdType;
+//  `endif
   // this struct holds the meta decoded information of an instruction
   typedef struct{
     Instruction_type inst_type; // instruction type
@@ -140,15 +126,12 @@ package common_types;
 
   // define all tuples here
   typedef struct{
-    Bool done; 
-    PreCommit_type cmtype;
+    Bool trap;
     Bit#(ELEN) aluresult ;
-    Bit#(`vaddr) effective_addr;
-    Bit#(`causesize) cause;
+    Bit#(`vaddr) redirect_pc;
     Bool redirect;
   `ifdef bpu
     Bool branch_taken;
-    Bit#(`vaddr) redirect_pc;
   `endif
   } ALU_OUT deriving (Bits,  Eq,  FShow);
   
@@ -210,6 +193,17 @@ package common_types;
     Bit#(2) epoch;
   } PIPE0 deriving(Bits, Eq, FShow);
 
+  // ---- structure of the zeroth pipeline stage ----------------//
+  typedef struct{
+    Bit#(addr)  address;
+  `ifdef compressed
+    Bool discard;
+  `endif
+  `ifdef bpu
+    BTBResponse btbresponse;    
+  `endif
+  } Stage0PC#(numeric type addr) deriving(Bits, Eq, FShow);
+
   // -- structure of the first pipeline stage -----------------//
   typedef struct{
   	Bit#(`vaddr) program_counter;
@@ -219,10 +213,10 @@ package common_types;
     Bit#(`causesize) cause;
   `ifdef compressed
     Bool upper_err;
+    Bool compressed; 
   `endif
   `ifdef bpu
-    Bit#(2) prediction;
-    Bool    btbhit;
+    BTBResponse btbresponse;
   `endif
   }PIPE1 deriving (Bits, Eq, FShow);
   
@@ -234,33 +228,65 @@ package common_types;
     Bit#(7) funct;
     Access_type memaccess;
     Instruction_type inst_type;
+    Bit#(2) epochs;
+    Bit#(5) rd;
+  `ifdef spfpu
+    RFType rdtype;
+  `endif
   `ifdef RV64
     Bool  word32;
   `elsif dpfpu
     Bool word32;
   `endif
-    Bit#(2) epochs;
-  `ifdef compressed
-    Bool compressed;
-  `endif
   `ifdef bpu
-    Bit#(2) prediction;
-    Bool    btbhit;
+    `ifdef compressed
+      Bool compressed;
+    `endif
+    BTBResponse btbresponse;
   `endif
   } Stage3Meta deriving(Bits, Eq, FShow);
 
-  // struct holding the operands read from the RF in decode stage.
-  // Max width = 64 * 3 = 192 bits
   typedef struct{
-    Bit#(ELEN) op1;
-    Bit#(ELEN) op2;
-    Bit#(FLEN) op3;
-  } RFOperands deriving(Bits, Eq, FShow);
+    Bit#(5)     addr;
+    Bit#(ELEN)  data;
+    Op1type     optype;
+  } RFOp1 deriving(Bits, Eq, FShow);
+  
+  typedef struct{
+    Bit#(5)     addr;
+    Bit#(ELEN)  data;
+    Op2type     optype;
+  } RFOp2 deriving(Bits, Eq, FShow);
 
   typedef struct{
-    OpAddr op_addr;
-    OpType op_type;
-  } Stage3OpMeta deriving(Bits, Eq, FShow);
+    Bit#(ELEN)  data;
+  `ifdef spfpu
+    Bit#(5)     addr;
+    RFType      optype;
+  `endif
+  } RFOp3 deriving(Bits, Eq, FShow);
+
+  // This struct captures the decoded addresses of the operands and destination registers.
+  // Max width : 20 bits
+  typedef struct{
+    Bit#(5) rs1addr;
+    Bit#(5) rs2addr;
+    Bit#(5) rd;
+  `ifdef spfpu
+    Bit#(5) rs3addr;
+  `endif
+  } OpAddr deriving(Bits, Eq, FShow);
+
+  //// this struct captures the type of the operands based on the instruction being decoded.
+  //// Max width : 2+3 + 1+1 = 7 bits
+  typedef struct{
+    Op1type rs1type;
+    Op2type rs2type; // TODO redundant to send in Stage3
+  `ifdef spfpu
+    RFType  rs3type;
+    RFType  rdtype;
+  `endif
+  } OpType deriving(Bits, Eq, FShow);
 
   
   // -------------------------------------------------------------
@@ -364,25 +390,18 @@ package common_types;
   	Privilege_mode prv;
   } Chmod deriving(Bits, Eq);
 
+  typedef struct{
+    Bit#(5)     addr;
+    Bit#(ELEN)  data;
   `ifdef spfpu
-    typedef Tuple3#(Bit#(5), Bit#(ELEN), RFType) CommitData;
-    typedef Tuple3#(Bit#(5), Bit#(TLog#(PRFDEPTH)), RFType) CommitRename;
-  `else
-    typedef Tuple2#(Bit#(5), Bit#(XLEN)) CommitData;
-    typedef Tuple2#(Bit#(5), Bit#(TLog#(PRFDEPTH))) CommitRename;
+    RFType      rdtype ;
   `endif
+  } CommitData deriving(Bits, FShow, Eq);
 
   typedef struct{
 		Bit#(width) final_result;					// the final result for the operation
 		Bit#(5) fflags; 					// indicates if any exception is generated.
 	}Floating_output#(numeric type width) deriving(Bits, Eq);				// data structure of the output FIFO.
-
-  typedef struct{
-    PreCommit_type commit_type;
-		Bit#(width) final_result;					// the final result for the operation
-		Bit#(5) fflags; 			
-    Bit#(`causesize) cause ; // indicates if any exception is generated.
-	}Float_result#(numeric type width) deriving(Bits, Eq);				// data structure of the output FIFO.
 // ------------------------------------------------------------- //
 
 `ifdef triggers
@@ -461,4 +480,62 @@ package common_types;
 
 `endif
 
+  typedef struct{
+    Bit#(ELEN)  data;
+    Bool        valid;
+  `ifdef arith_trap
+    Bool             trap;
+    Bit#(`causesize) cause;
+  `endif
+  `ifdef spfpu
+    Bit#(5) fflags;
+  `endif
+  } XBoxOutput deriving(Bits, Eq, FShow);
+
+  // ------------------------------ types for predictor ------------------------------------------//
+  typedef enum {Branch = 0, JAL = 1, Call = 2, Ret = 3} ControlInsn deriving(Bits, Eq, FShow);
+
+  typedef struct{
+    Bit#(`statesize) prediction;
+    Bool btbhit ;
+  `ifdef compressed
+    Bool hi;
+  `endif
+  `ifdef gshare
+    Bit#(TAdd#(`extrahist, `histlen)) history;
+  `endif
+  } BTBResponse deriving(Bits, Eq, FShow);
+
+  typedef struct {
+    Bit#(`vaddr) nextpc;
+    BTBResponse btbresponse;
+  `ifdef compressed
+    Bool instr16;
+  `endif
+  }PredictionResponse deriving (Bits, Eq, FShow);
+
+  typedef struct {
+      Bit#(`vaddr)  pc;
+      Bit#(`vaddr)  target;
+      Bit#(2)       state;
+      ControlInsn   ci;
+      Bool          btbhit;
+    `ifdef compressed
+      Bool          instr16;
+    `endif
+    `ifdef gshare
+      Bit#(TAdd#(`extrahist, `histlen)) history;
+    `endif
+  } Training_data deriving (Bits, Eq, FShow);
+
+  typedef struct{
+    Bit#(`vaddr) pc;
+  `ifdef ifence
+    Bool         fence;
+  `endif
+  `ifdef compressed
+    Bool         discard;
+  `endif
+  } PredictionRequest deriving(Bits, Eq, FShow);
+  // --------------------------------------------------------------------------------------------//
 endpackage

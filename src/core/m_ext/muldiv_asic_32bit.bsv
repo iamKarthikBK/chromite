@@ -102,7 +102,6 @@ package muldiv_asic_32bit;
                redirect_pc : ? `endif };
 
     let xlen = valueOf(XLEN);
-    let verbosity=`VERBOSITY;
 		Wrapper2#(Bit#(41), Bit#(41), Bit#(41))   wrapper_add_1     <- mkUniqueWrapper2( \+ );
 		Wrapper2#(Bit#(9), Bit#(33), Bit#(41))   wrapper_mul_1      <- mkUniqueWrapper2( func_mult );
 		Wrapper2#(Bit#(24), Bit#(3), Bool)   wrapper_is_op_zero <- mkUniqueWrapper2( is_op_zero );
@@ -140,13 +139,9 @@ package muldiv_asic_32bit;
 				earlyout<- wrapper_is_op_zero.func(accumulator[31:8],rg_count[1]);
 			else
 				earlyout<- wrapper_is_op_zero.func(accumulator[23:0],rg_count[1]);
-			if(verbosity>1) $display($time,"\tAccumulator: %h Multiplicand: %h count: %d isHi: %b compl: %b sign: %b",x,multiplicand_divisor,rg_count[1],upper_bits, rg_signed,temp_multiplier_sign); 
-			if(verbosity>1) $display($time,"\tx: %h y: %h",x,y); 
 			if(rg_count[1]==0 || earlyout)begin
-				if(verbosity>1) $display($time,"\tMUL/DIV: Ending Mul/Div operation"); 
 				y = unpack(x);
 				x=pack(y>>({2'b0,rg_count[1]}*8));
-				if(verbosity>1) $display($time,"\tx: %h y: %h",x,y); 
 				if(upper_bits)
 					ff_muldiv_result.enq(x[2*xlen-1:xlen]);
 				else
@@ -203,7 +198,6 @@ package muldiv_asic_32bit;
 		rule first_stage(rg_count[1]==4);
 			ff_input.deq;
 			let {in1,in2,funct3, is_mul}=ff_input.first;
-			if(verbosity>1) $display($time,"\tMUL/DIV: in1: %h in2: %h funct3: %h is_mul: %b",in1,in2,funct3, is_mul); 
 			Bit#(1) in2_sign=funct3[1:0]==1? in2[31]:0;
 			Bit#(1) in1_sign=(funct3[1]^funct3[0]) & (in1[31]);
 
