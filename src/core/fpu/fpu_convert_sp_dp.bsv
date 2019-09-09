@@ -138,7 +138,7 @@ function ActionValue#(Bit#(37)) doubleFloat(Bit#(1) sign, Bit#(11) exponent, Bit
             exception[0] = exception[0] | lv_inexact;
       if(flags[2]==0 && flags[0] == 0 && flags[1]==0 && flags[3] == 0) begin
         if(rounding_mode == 'b000) 
-			lv_round_up = lv_guard & (lv_round|lv_sticky|mantissa[27]);
+			lv_round_up = lv_guard & (lv_round|lv_sticky|man[26]);
 		else if(rounding_mode == 'b100)
 			lv_round_up = lv_guard; //& (lv_round|lv_sticky|sign);
 		else if(rounding_mode == 'b011) 
