@@ -1,15 +1,15 @@
-/* 
+/*
 Copyright (c) 2013, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
 provided that the following conditions are met:
 
 * Redistributions of source code must retain the above copyright notice, this list of conditions
-  and the following disclaimer.  
-* Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and / or other materials provided 
- with the distribution.  
-* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
+  and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of
+  conditions and the following disclaimer in the documentation and / or other materials provided
+ with the distribution.
+* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or
   promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
@@ -18,14 +18,14 @@ AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYR
 CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
 Author : Neel Gala
 Email id : neelgala@gmail.com
 Details:
-1.  This module decodes the instructions fetched from the previous stage and also fetches the 
+1.  This module decodes the instructions fetched from the previous stage and also fetches the
     operands from the registerfile.
 2.  If a csr operation is being decoded, then the next instruction is stalled untill the csr
     completes and commits the instruction.
@@ -48,7 +48,7 @@ NOTE1 : Handling Traps
   pipeline buffers which will generate a memory exception. While taking the trap in the decode stage
   you have corrupted the csrs and this will screw up all further exception handling.
 
-NOTE2 : Handling WFI. 
+NOTE2 : Handling WFI.
   WFI is also handled in this stage. If a wfi instruction is encountered is treated as a NOP and
   simply dropped. Simultaenously a register is set. When the instruction requests to be decoded and
   the register is set,  the instruction will only progress if an interrupt has arrived. This will
@@ -72,6 +72,7 @@ package stage2;
 	import DReg::*;
 	import Connectable::*;
 	import GetPut::*;
+	import ConfigReg :: * ;
 
   // -- project imports --//
 	import registerfile::*;       // for instantiating the registerfile
@@ -87,112 +88,156 @@ package stage2;
 
 	interface Ifc_stage2;
 
-    // recieve packet from stage1
+    /*doc:subifc: recieve instruction and pc packet from stage1*/
 		interface RXe#(PIPE1) rx_from_stage1;
 
-    // send decoded info to stage3 
+    /*doc:subifc: send instruction meta data to stage3 */
     interface TXe#(Stage3Meta)    tx_meta_to_stage3;
-    interface TXe#(RFOperands)    tx_op_to_stage3;
-    interface TXe#(Stage3OpMeta)  tx_opmeta_to_stage3;
+
+    /*doc:subifc: send bad-address information to stage3 in case of TRAPs*/
+    interface TXe#(Bit#(XLEN))    tx_mtval_to_stage3;
+
+    (*always_ready*)
+    /*doc:method: Latest value of operand1 from rf*/
+    method RFOp1 mv_op1;
+
+    (*always_ready*)
+    /*doc:method: Latest value of operand2 from rf*/
+    method RFOp2 mv_op2;
+
+    (*always_ready*)
+    /*doc:method: Latest value of operand3 from rf*/
+    method RFOp3 mv_op3;
 
   `ifdef rtldump
-    // this interface is like a parallel for dumping the trace.
+    /*doc:subifc: receive instruction of trace from previous stage */
+    interface RXe#(Bit#(32)) rx_inst;
+
+    /*doc:subifc: send instruction trace to next stage */
     interface TXe#(Bit#(32)) tx_inst;
   `endif
-		
-    // input from commit stage (stage5) to update the regfile on instruction retirement
-    method Action commit_rd (Maybe#(CommitData) commit);
 
-    // input from the csr file containing all the required csrs to capture exceptions.
+    /*doc:method: input from commit stage (stage5) to update the regfile on instruction retirement*/
+    method Action commit_rd (CommitData commit);
+
+    (*always_ready*)
+    /*doc:method: input from the csr file containing all the required csrs to capture exceptions.*/
     method Action csrs (CSRtoDecode csr);
 
-
-    // this method indicates that a flush has been generated from the exe / wb stage and thus the
-    // current stage can quit the stall that was initiated due to an exception generation
+    /*doc:method: this method indicates that a flush has been generated from the exe / wb stage and
+    thus the current stage can quit the stall that was initiated due to an exception generation */
     method Action clear_stall (Bool upd);
 
-    // method to update epochs on redirection from execute stage
+    (*always_ready*)
+    /*doc:method: method to update epochs on redirection from execute stage*/
 		method Action update_eEpoch;
-    
-    // method to update epochs on redirection from write - back stage
+
+    (*always_ready*)
+    /*doc:method method to update epochs on redirection from write - back stage*/
 		method Action update_wEpoch;
 
-    // this is an input method used for operand forwarding from the commit - stage (stage5)
-    method Action fwd_from_wb(CommitData commit);
-
   `ifdef debug
-    // interface to interact with debugger
+    /*doc:method: interface to interact with debugger*/
     method ActionValue#(Bit#(XLEN)) debug_access_gprs(AbstractRegOp cmd);
 
-    // debug related info checking interrupts
     (*always_enabled, always_ready*)
+    /*doc:method debug related info checking interrupts */
     method Action debug_status (DebugStatus status);
   `endif
 	endinterface : Ifc_stage2
 
   (*synthesize*)
-  module mkstage2(Ifc_stage2);
+  module mkstage2#(parameter Bit#(XLEN) hartid) (Ifc_stage2);
 
     String stage2=""; // defined for logger
 
     // --------------------- Start instantiations ------------------------//
-    // instantiation of the registerfile module
-    Ifc_registerfile registerfile <- mkregisterfile();
 
-    // FIFO to interface with stage0 and receive fetched instruction
+    /*doc:mod: instantiation of the registerfile module */
+    Ifc_registerfile registerfile <- mkregisterfile(hartid);
+
+    /*doc:mod FIFO to interface with stage0 and receive fetched instruction */
 		RX#(PIPE1) rx <- mkRX;
 
-    // FIFO interface to send the decoded information to the next stage.
+    /*doc:mod FIFO interface to send the decoded information to the next stage.*/
     TX#(Stage3Meta)   tx_meta   <- mkTX;
-    TX#(Stage3OpMeta) tx_opmeta <- mkTX;
-    TX#(RFOperands)   tx_op     <- mkTX;
+
+    /*doc:mod FIFO interface to send the bad-address information to the next stage.*/
+    TX#(Bit#(XLEN))   tx_mtval   <- mkTX;
 
   `ifdef rtldump
     // fifo interface used to transmit the trace of the instruction for rtl.dump generation
     TX#(Bit#(32)) txinst <- mkTX;
+    RX#(Bit#(32)) rxinst <- mkRX;
   `endif
-   
-    Wire#(CSRtoDecode) wr_csrs <- mkWire();
-    
-    // The following registers are use to the maintain epochs from various pipeline stages:
-    // writeback and execute stage.
-		Reg#(Bit#(1)) eEpoch <- mkReg(0);
-		Reg#(Bit#(1)) wEpoch <- mkReg(0);
 
-    // this register is used to stall the current stage from processing any new instructions until a
-    // redirection from execute / write - back is received. The stall is generated when an trap is
-    // detected in this stage for the current instruction being processed. This prevents flooding
-    // the pipe with un - necessary instructions since a redirection is expected.
+    /*doc:wire: wire to capture the latest csr values from csr-file*/
+    Wire#(CSRtoDecode) wr_csrs <- mkWire();
+
+    /*doc:reg: this register maintains the epoch value modified by the execute stage*/
+		Reg#(Bit#(1)) eEpoch <- mkConfigReg(0);
+
+    /*doc:reg: this register maintains the epoch value modified by the write-back stage*/
+		Reg#(Bit#(1)) wEpoch <- mkConfigReg(0);
+
+    /*doc:reg:
+      this register is used to stall the current stage from processing any new instructions until a
+      redirection from execute / write - back is received. The stall is generated when an trap is
+      detected in this stage for the current instruction being processed. This prevents flooding
+      the pipe with un - necessary instructions since a redirection is expected.*/
     Reg#(Bool) rg_stall <- mkReg(False);
+
+    /*doc:reg:
+      this register when True indicates the current stage is waiting for interrupts before
+      sending any new info to the next stage*/
     Reg#(Bool) rg_wfi   <- mkReg(False);
 
-    // This register when set to true indicates that the current instruction being processed will
-    // have to be re - fetched and executed since the previous instruction was a CSR operation.
+    /*doc:reg:
+      This register when set to true indicates that the current instruction being processed will
+      have to be re - fetched and executed since the previous instruction was a CSR operation.*/
     Reg#(Bool) rg_rerun <- mkReg(False);
-    
-    // This register when set to true indicates that the current instruction being processed will
-    // have to be re - fetched and executed since the previous instruction was a fencei instruction
+
+    /*doc:reg:
+      This register when set to true indicates that the current instruction being processed will
+      have to be re - fetched and executed since the previous instruction was a fencei instruction*/
     Reg#(Bool) rg_fencei_rerun <- mkReg(False);
 
   `ifdef supervisor
-    // This register when set to true indicates that the current instruction being processed will
-    // have to be re - fetched and executed since the previous instruction was a sfence instruction
+    /*doc:reg:
+      This register when set to true indicates that the current instruction being processed will
+      have to be re - fetched and executed since the previous instruction was a sfence instruction*/
     Reg#(Bool) rg_sfence_rerun <- mkReg(False);
   `endif
 
-    // the following wires are used to ensure that rg_rerun and rg_stall are not set in the cycle a
-    // redirection from the exe / wb stage is received.
+    /*doc:wire:
+      the following wires are used to ensure that rg_rerun and rg_stall are not set in the cycle a
+      redirection from the exe / wb stage is received.*/
     Wire#(Bool) wr_flush_from_exe <- mkDWire(False);
     Wire#(Bool) wr_flush_from_wb  <- mkDWire(False);
 
   `ifdef debug
-    // This wire will capture info about the current debug state of the core
+    /*doc:wire: This wire will capture info about the current debug state of the core*/
     Wire#(DebugStatus) wr_debug_info <- mkWire();
 
     // This register indicates when an instruction passed the decode stage after a resume request is
     // received while is step is set.
     Reg#(Bool) rg_step_done <- mkReg(False);
   `endif
+
+    /*doc:reg:
+      This register holds the latest value of operand1 from the RF. This will get updated
+      every time a retirement to the same register occurs.*/
+    Reg#(RFOp1) rg_op1[2] <- mkCReg(2, unpack(0));
+
+    /*doc:reg:
+      This register holds the latest value of operand2 from the RF. This will get updated
+      every time a retirement to the same register occurs.*/
+    Reg#(RFOp2) rg_op2[2] <- mkCReg(2, unpack(0));
+
+    /*doc:reg:
+      This register holds the latest value of operand3 from the RF. This will get updated
+      every time a retirement to the same register occurs.*/
+    Reg#(RFOp3) rg_op3[2] <- mkCReg(2, unpack(0));
 
     // ---------------------- End Instatiations --------------------------//
 
@@ -203,7 +248,7 @@ package stage2;
     // Implicit Conditions : rx.notEmpty and all tx fifos are not full
     // Description : This rule decodes the current fetched instruction, fetches the operands from the
     // registerfile and sends the required struct to the next stage.
-    rule decode_and_opfetch(!rg_stall);
+    rule decode_and_opfetch(!rg_stall && rx.u.notEmpty && tx_mtval.u.notFull);
 
       // --- extract the fields from the packet received from the stage1 ---- //
 	    let pc = rx.u.first.program_counter;
@@ -213,18 +258,20 @@ package stage2;
       let trapcause = rx.u.first.cause;
     `ifdef compressed
       let upper_err = rx.u.first.upper_err;
+      let compressed = rx.u.first.compressed ;
     `endif
     `ifdef bpu
-      let prediction = rx.u.first.prediction;
-      let btbhit = rx.u.first.btbhit;
+      let btbresponse = rx.u.first.btbresponse;
     `endif
-      // -------------------------------------------------------------------- //
+      // ---------------------------------------------------------------------------------------- //
 
-      `logLevel( stage2, 0, $format("STAGE2: csrs:",fshow(wr_csrs)))
+      `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2: csrs:",fshow(wr_csrs)))
 
-      let decoded <- decoder_func(inst,trap, trapcause, wr_csrs, 
-                                  rg_rerun, rg_fencei_rerun 
-                                  `ifdef supervisor ,rg_sfence_rerun `endif 
+      // ----------------------------- perform decode ------------------------ //
+      let decoded <- decoder_func(inst,trap, `ifdef compressed compressed, `endif
+                                  trapcause, wr_csrs,
+                                  rg_rerun, rg_fencei_rerun
+                                  `ifdef supervisor ,rg_sfence_rerun `endif
                                   `ifdef debug ,wr_debug_info, rg_step_done `endif );
       let imm = decoded.meta.immediate;
       let func_cause = decoded.meta.funct;
@@ -234,7 +281,25 @@ package stage2;
       RFType rf1type = `ifdef spfpu decoded.op_type.rs1type == FloatingRF ? FRF : `endif IRF;
       RFType rf2type = `ifdef spfpu decoded.op_type.rs2type == FloatingRF ? FRF : `endif IRF;
     `endif
-      `logLevel( stage2, 0, $format("STAGE2 : PC:%h Instruction:%h",pc, inst))
+      `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2 : PC:%h Instruction:%h",pc, inst))
+      `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2 : OpAddr: ",fshow(decoded.op_addr)))
+      `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2 : OpType: ",fshow(decoded.op_type)))
+      // ---------------------------------------------------------------------------------------- //
+
+      // ---------------------- generate bad-address value in case of traps --------------------- //
+        Bit#(XLEN) mtval = 0;
+        if(instrType == TRAP && func_cause == `Illegal_inst )
+            mtval = zeroExtend(inst); // for badaddr
+    `ifdef supervisor
+        if(instrType == TRAP && func_cause == `Inst_pagefault)
+            mtval = zeroExtend(pc);
+      `ifdef compressed
+        if(instrType == TRAP && func_cause == `Inst_pagefault && upper_err)
+            mtval = zeroExtend(pc) + 2;
+      `endif
+    `endif
+        `logLevel( stage2, 1, $format("core:%2d ",hartid,"STAGE2: BadAddress(MTVAL): %h", mtval))
+      // ---------------------------------------------------------------------------------------- //
 
       if(instrType != WFI && {eEpoch, wEpoch}==epochs)begin
 
@@ -246,7 +311,7 @@ package stage2;
       // branch/jump) is tagged as a Trap with HaltStep cause code, thus causing the core to go back
       // to the halted stage. When the core is again halted then, rg_step_done is reset to False.
       `ifdef debug
-        `logLevel( stage2, 0, $format("STAGE2: step_done:%b",rg_step_done))
+        `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2: step_done:%b",rg_step_done))
         if(rg_step_done && wr_debug_info.core_is_halted)
           rg_step_done<=False;
         else
@@ -254,93 +319,129 @@ package stage2;
                                                       && wr_debug_info.debugger_available;
       `endif
 
-        let rs1 <- registerfile.read_rs1(decoded.op_addr.rs1addr 
+        // ---------------------------- read operands from the registerfile ----------------------//
+        let rs1_from_rf <- registerfile.read_rs1(inst[19:15]
                             `ifdef spfpu ,rf1type `endif );
-        let rs2 <- registerfile.read_rs2(decoded.op_addr.rs2addr 
+        let rs2_from_rf <- registerfile.read_rs2(inst[24:20]
                             `ifdef spfpu ,rf2type `endif );
       `ifdef spfpu
-        let rs3 <- registerfile.read_rs3(decoded.op_addr.rs3addr);
+        let rs3 <- registerfile.read_rs3(inst[31:27]);
       `endif
+        // -------------------------------------------------------------------------------------- //
 
-        Bit#(ELEN) op1 = rs1;
-        Bit#(ELEN) op2 = (decoded.op_type.rs2type == Constant2) ? 'd2: // constant2 only is C enabled.
-                       (decoded.op_type.rs2type == Constant4) ? 'd4:
-                       (decoded.op_type.rs2type == Immediate) ? signExtend(imm) : rs2;
-        // TODO send badaddress as separate field if required.
-        if(instrType == TRAP && func_cause == `Illegal_inst )
-            op1 = zeroExtend(inst); // for badaddr
-        else if(instrType == TRAP && func_cause == `Inst_pagefault)
-            op1 = zeroExtend(pc); 
-      `ifdef compressed
-        if(instrType == TRAP && func_cause == `Inst_pagefault && upper_err)
-            op1 = zeroExtend(pc) + 2;
-      `endif
+        // ------------------------ modify operand values before enquing to next stage -----------//
+        Bit#(ELEN) op1 =  (decoded.op_type.rs1type == IntegerRF && decoded.op_addr.rs1addr == 0)?
+                            0 : rs1_from_rf;
+        Bit#(ELEN) op2 =  (decoded.op_type.rs2type == Constant2) ? 'd2: // constant2 only is C enabled.
+                          (decoded.op_type.rs2type == Constant4) ? 'd4:
+                          (decoded.op_type.rs2type == Immediate) ? signExtend(imm) :
+                          (decoded.op_addr.rs2addr == 0 && decoded.op_type.rs2type == IntegerRF)? 0
+                          : rs2_from_rf;
       `ifdef spfpu
         Bit#(FLEN) op4 = (decoded.op_type.rs3type == FRF) ? rs3 : signExtend(imm);
       `else
         Bit#(FLEN) op4 = signExtend(imm);
       `endif
+        // -------------------------------------------------------------------------------------- //
+
         rg_rerun <= decoded.meta.rerun && !wr_flush_from_exe && !wr_flush_from_wb;
         if(instrType == MEMORY && decoded.meta.memaccess == FenceI)
           rg_fencei_rerun <= True;
-        else 
+        else
           rg_fencei_rerun <= False;
       `ifdef supervisor
         if(instrType == MEMORY && decoded.meta.memaccess == SFence)
           rg_sfence_rerun <= True;
-        else 
+        else
           rg_sfence_rerun <= False;
       `endif
 
-        let stage3meta = Stage3Meta{funct : func_cause, memaccess : decoded.meta.memaccess, 
-                                    inst_type : instrType, pc : pc, epochs : epochs 
-                                    `ifdef RV64               , word32:     word32     
-                                    `elsif dpfpu              , word32:     word32 `endif
-                                    `ifdef compressed         , compressed : decoded.compressed `endif 
-                                    `ifdef bpu , prediction : prediction 
-                                                              , btbhit     : btbhit `endif };
+        // -------------------------- Enque relevant data to the next stage -------------------- //
+        let stage3meta = Stage3Meta{funct : func_cause, memaccess : decoded.meta.memaccess,
+                                    inst_type : instrType, pc : pc, epochs : epochs,
+                                    rd: decoded.op_addr.rd
+                                    `ifdef spfpu ,rdtype: decoded.op_type.rdtype `endif
+                                    `ifdef RV64           , word32     :     word32
+                                    `elsif dpfpu          , word32     :     word32 `endif
+                                `ifdef bpu                , btbresponse:  btbresponse
+                                    `ifdef compressed     , compressed : compressed `endif
+                                `endif };
 
-        let stage3opmeta = Stage3OpMeta{ op_addr : decoded.op_addr, op_type : decoded.op_type};
-        let stage3op = RFOperands{op1 : op1, op2 : op2, op3 : op4};
         tx_meta.u.enq(stage3meta);
-        tx_opmeta.u.enq(stage3opmeta);
-        tx_op.u.enq(stage3op);
+        tx_mtval.u.enq(mtval);
       `ifdef rtldump
-        txinst.u.enq(inst);
+        txinst.u.enq(rxinst.u.first);
       `endif
 
+        rg_op1[0] <= RFOp1{ addr: decoded.op_addr.rs1addr, data: op1,
+                            optype: decoded.op_type.rs1type};
+        rg_op2[0] <= RFOp2{ addr: decoded.op_addr.rs2addr, data: op2,
+                            optype: decoded.op_type.rs2type};
+        rg_op3[0] <= RFOp3{ data: op4 `ifdef spfpu ,addr: decoded.op_addr.rs3addr,
+                            optype: decoded.op_type.rs3type `endif };
+        // -------------------------------------------------------------------------------------- //
         if(instrType == TRAP)
           rg_stall <= True && !wr_flush_from_exe && !wr_flush_from_wb;
 
-        `logLevel( stage2, 1, $format("STAGE2: ",fshow(stage3opmeta.op_addr)))
-        `logLevel( stage2, 1, $format("STAGE2: ",fshow(stage3opmeta.op_type)))
-        `logLevel( stage2, 1, $format("STAGE2: ",fshow(stage3op)))
-        `logLevel( stage2, 1, $format("STAGE2: ",fshow(stage3meta)))
+        `logLevel( stage2, 1, $format("core:%2d ",hartid,"STAGE2: ",fshow(stage3meta)))
 
       end
       else begin
-        `logLevel( stage2, 0, $format("STAGE2 : Dropping Instruction due to epoch mis - match"))
+        `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2 : Dropping Instruction due to epoch mis - match"))
       end
-      rx.u.deq; 
+      rx.u.deq;
+    `ifdef rtldump
+      rxinst.u.deq;
+    `endif
     endrule
+
 
     // interface to send decoded structs to the next stage.
     interface tx_meta_to_stage3   = tx_meta.e;
-    interface tx_op_to_stage3     = tx_op.e;
-    interface tx_opmeta_to_stage3 = tx_opmeta.e;
+    interface tx_mtval_to_stage3  = tx_mtval.e;
 
   `ifdef rtldump
     interface tx_inst = txinst.e;
+    interface rx_inst = rxinst.e;
   `endif
-    
+
 		method rx_from_stage1 = rx.e;
 
     method Action csrs (CSRtoDecode csr);
       wr_csrs <= csr;
     endmethod
 
-		method Action commit_rd (Maybe#(CommitData) commit);
+		method Action commit_rd (CommitData commit);
       registerfile.commit_rd(commit);
+      `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2: Commit: ",fshow(commit)))
+      `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2: RgOp1: ",fshow(rg_op1[1])))
+      `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2: RgOp2: ",fshow(rg_op2[1])))
+
+    `ifdef spfpu
+      if(commit.addr == rg_op1[1].addr)begin
+        if(commit.rdtype == FRF && rg_op1[1].optype == FloatingRF)
+          rg_op1[1].data<=commit.data;
+        else if(commit.rdtype == IRF && rg_op1[1].addr!=0 && rg_op1[1].optype != FloatingRF)
+          rg_op1[1].data<=commit.data;
+      end
+
+      if(commit.addr == rg_op2[1].addr)begin
+        if(commit.rdtype == FRF && rg_op2[1].optype == FloatingRF)
+          rg_op2[1].data<=commit.data;
+        else if(commit.rdtype == IRF && rg_op2[1].addr!=0 && rg_op2[1].optype != FloatingRF)
+          rg_op2[1].data<=commit.data;
+      end
+
+      if(rg_op3[1].addr == commit.addr && rg_op3[1].optype == FRF &&  commit.rdtype == FRF)
+        rg_op3[1].data <= commit.data;
+
+    `else
+      if(rg_op1[1].addr == commit.addr && rg_op1[1].addr!=0)
+          rg_op1[1].data <= commit.data;
+
+      if(rg_op2[1].addr == commit.addr && rg_op2[1].addr!=0 )
+          rg_op2[1].data <= commit.data;
+    `endif
     endmethod
 
     // This method will get activated when there is a flush from the execute stage
@@ -362,15 +463,14 @@ package stage2;
       end
     endmethod
 
-    method Action fwd_from_wb(CommitData commit);
-      registerfile.fwd_from_wb(commit);
-    endmethod
-
   `ifdef debug
     method debug_access_gprs = registerfile.debug_access_gprs;
     method Action debug_status (DebugStatus status);
       wr_debug_info <= status;
     endmethod
   `endif
+    method mv_op1 = rg_op1[0];
+    method mv_op2 = rg_op2[0];
+    method mv_op3 = rg_op3[0];
   endmodule
 endpackage

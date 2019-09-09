@@ -1,15 +1,15 @@
-/* 
+/*
 Copyright (c) 2013, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
 provided that the following conditions are met:
 
 * Redistributions of source code must retain the above copyright notice, this list of conditions
-  and the following disclaimer.  
-* Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and / or other materials provided 
- with the distribution.  
-* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
+  and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of
+  conditions and the following disclaimer in the documentation and / or other materials provided
+ with the distribution.
+* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or
   promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
@@ -18,7 +18,7 @@ AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYR
 CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
@@ -44,9 +44,9 @@ package csr;
   import debug_types::*;
 `endif
 
-  // package imports 
+  // package imports
   import ConfigReg::*;
-	
+
   interface Ifc_csr;
 	  method ActionValue#(Tuple3#(Bool, Bit#(`vaddr), Bit#(XLEN))) system_instruction(
             Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
@@ -97,9 +97,9 @@ package csr;
   (*mutually_exclusive="system_instruction, take_trap"*)
   (*conflict_free="system_instruction, set_external_interrupt"*)
   (*conflict_free="take_trap, set_external_interrupt"*)
-  module mkcsr(Ifc_csr);
-  
-    Ifc_csrfile csrfile <- mkcsrfile();
+  module mkcsr#(parameter Bit#(XLEN) hartid) (Ifc_csr);
+
+    Ifc_csrfile csrfile <- mkcsrfile(hartid);
 	  method ActionValue#(Tuple3#(Bool, Bit#(`vaddr), Bit#(XLEN))) system_instruction(
          Bit#(12) csr_address, Bit#(XLEN) op1, Bit#(3) funct3, Bit#(2) lpc);
       Bool flush = False;
@@ -107,7 +107,7 @@ package csr;
 	  	let csrread <- csrfile.read_csr(csr_address);
       Bit#(XLEN) writecsrdata = 0;
 	  	Bit#(XLEN) destination_value = 0;
-      `logLevel( csr, 2, $format("CSR : Operation csr: %h op1: %h, funct3: %b csr_read: %h", csr_address, 
+      `logLevel( csr, 2, $format("core:%2d ",hartid,"CSR : Operation csr: %h op1: %h, funct3: %b csr_read: %h", csr_address,
             op1, funct3, csrread))
 
 	  	case(funct3)
@@ -116,7 +116,7 @@ package csr;
                 let temp <- csrfile.upd_on_ret( `ifdef non_m_traps unpack(csr_address[9 : 8]) `endif );
                 jump_add = temp;
                 flush = True;
-                `logLevel( csr, 1, $format("CSR : RET Function: %h",csr_address))
+                `logLevel( csr, 1, $format("core:%2d ",hartid,"CSR : RET Function: %h",csr_address))
               end
 	  		    endcase
         default : begin
@@ -132,9 +132,9 @@ package csr;
       endcase
 	  	return tuple3(flush, jump_add, destination_value);
 	  endmethod
-	
+
     method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(`causesize) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
-      let jump_address <- csrfile.upd_on_trap(type_cause, pc, badaddr); 
+      let jump_address <- csrfile.upd_on_trap(type_cause, pc, badaddr);
 		  return jump_address;
   	endmethod
 
@@ -160,7 +160,7 @@ package csr;
 	  method Action set_external_interrupt(Bit#(1) ex_i) = csrfile.set_external_interrupt(ex_i);
     method csr_misa_c = csrfile.csr_misa_c;
     method mv_cacheenable = csrfile.mv_cacheenable;
- 
+
   `ifdef arith_trap
     method arith_excep = csrfile.arith_excep;
   `endif

@@ -1,15 +1,15 @@
-/* 
+/*
 Copyright (c) 2013, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
 provided that the following conditions are met:
 
 * Redistributions of source code must retain the above copyright notice, this list of conditions
-  and the following disclaimer.  
-* Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and / or other materials provided 
- with the distribution.  
-* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
+  and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of
+  conditions and the following disclaimer in the documentation and / or other materials provided
+ with the distribution.
+* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or
   promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
@@ -18,7 +18,7 @@ AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYR
 CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
@@ -49,9 +49,6 @@ package cclass;
   `else
     import ptwalk_rv32::*;
   `endif
-`endif
-`ifdef bpu
-  import bpu :: *;
 `endif
   `include "common_params.bsv"
   `include "Logger.bsv"
@@ -102,19 +99,11 @@ package cclass;
     (*preempts="dtlb_req_to_ptwalk, itlb_req_to_ptwalk"*)
     (*preempts="core_req_to_dmem, ptwalk_request_to_dcache"*)
   `endif
-`ifdef bpu
-  (*conflict_free="connect_instruction_req,connect_bpu_training"*)
-`endif
-  module mkcclass_axi4(Ifc_cclass_axi4);
+  module mkcclass_axi4#(Bit#(`vaddr) resetpc, parameter Bit#(XLEN) hartid)(Ifc_cclass_axi4);
     String core = "";
     let vaddr = valueOf(`vaddr);
     let paddr = valueOf(`paddr);
-    Ifc_riscv riscv <- mkriscv();
-  `ifdef bpu
-    let bpu <- mkbpu();
-  `else
-    FIFOF#(NextPC) ff_next_pc <- mkSizedFIFOF(2);
-  `endif
+    Ifc_riscv riscv <- mkriscv(resetpc, hartid);
   `ifdef supervisor
   `ifdef RV64
     Ifc_ptwalk_rv64#(`asidwidth) ptwalk <- mkptwalk_rv64;
@@ -132,7 +121,7 @@ package cclass;
 `ifdef cache_control
   `ifdef dcache
     Reg#(Bit#(8)) rg_burst_count <- mkReg(0);
-    Reg#(Bit#(TLog#(TMul#(TMul#(`dwords, 8),`dblocks)))) rg_shift_amount <- mkReg(`dwords * 8 );
+    Reg#(Bit#(TLog#(TMul#(TMul#(`dwords, 8), `dblocks)))) rg_shift_amount <- mkReg(`dwords * 8 );
   `endif
 `endif
     FIFOF#(Tuple2#(Bit#(3), Bit#(1))) ff_rd_epochs <- mkSizedFIFOF(6);
@@ -168,51 +157,21 @@ package cclass;
 	  mkConnection(imem.core_resp, riscv.inst_response); // imem integration
 
     rule connect_instruction_req;
-      let req <- riscv.inst_request;
-      imem.core_req.put(req.icache_req);
-    `ifdef bpu
-      `ifdef supervisor if( !req.icache_req.sfence) `endif 
-        bpu.prediction_req(PredictionRequest{pc       : req.icache_req.address,
-                                             fence    : req.icache_req.fence,
-                                             epochs   : req.icache_req.epochs
-                          `ifdef compressed ,discard  : req.discard `endif });
-    `else
-      if( True `ifdef supervisor && !req.icache_req.sfence `endif 
-          `ifdef ifence && !req.icache_req.fence `endif )
-        ff_next_pc.enq(NextPC{va:req.icache_req.address
-                    `ifdef compressed ,discard: req.discard `endif });
-    `endif
+      let req <- riscv.instr_req.get;
+      imem.core_req.put(req);
     endrule
-
-  `ifdef bpu
-    mkConnection(riscv.next_pc, bpu.next_pc);
-    rule connect_prediction;
-      riscv.predicted_pc(bpu.predicted_pc);
-    endrule
-    rule connect_bpu_training;
-      bpu.train_bpu(riscv.train_bpu);
-    endrule
-    rule connect_ras_push;
-      bpu.ras_push(riscv.ras_push);
-    endrule
-    rule connect_bpu_enable;
-      bpu.bpu_enable(unpack(riscv.mv_cacheenable[2]));
-    endrule
-  `else
-    mkConnection(riscv.next_pc, toGet(ff_next_pc));
-  `endif
 
   `ifdef supervisor
     rule tlb_csr_info;
-      imem.satp_from_csr.put(riscv.csr_satp);
-      imem.curr_priv.put(curr_priv);
+      imem.ma_satp_from_csr(riscv.csr_satp);
+      imem.ma_curr_priv(curr_priv);
     endrule
   `endif
 
 	  rule handle_imem_line_request;
 	  	let request <- imem.read_mem_req.get;
-	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr : truncate(request.address), 
-        aruser: ?, arlen : request.burst_len, arsize : request.burst_size, arburst : 'b10, 
+	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr : truncate(request.address),
+        aruser: ?, arlen : request.burst_len, arsize : request.burst_size, arburst : 'b10,
         arid : `Fetch_master_num, arprot:{1'b1, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 	    fetch_xactor.i_rd_addr.enq(imem_request);
 			if(request.burst_len == 0)
@@ -228,8 +187,8 @@ package cclass;
 			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= fromMaybe('d0, rg_fetch_lower_addr_bits);
 			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits,3'd0};
 			let lv_data= fab_resp.rdata >> lv_shift;
-      imem.read_mem_resp.put(ICache_mem_response{data   : truncate(lv_data), 
-                                                 last   : fab_resp.rlast, 
+      imem.read_mem_resp.put(ICache_mem_response{data   : truncate(lv_data),
+                                                 last   : fab_resp.rlast,
                                                  err    : bus_error});
 	  	`logLevel( core, 1, $format("CORE : IMEM Line Response ", fshow(fab_resp)))
 	  endrule
@@ -239,8 +198,8 @@ package cclass;
     endrule
     rule handle_imem_nc_request;
 	  	let request <- imem.nc_read_req.get;
-	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr : truncate(request.address), 
-        aruser: ?, arlen : 0, arsize : 2, arburst : 'b01, 
+	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr : truncate(request.address),
+        aruser: ?, arlen : 0, arsize : 2, arburst : 'b01,
         arid : 1, arprot:{1'b1, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 	    io_xactor.i_rd_addr.enq(imem_request);
 			rg_io_imem_lower_addr_bits<= truncate(request.address);
@@ -252,8 +211,8 @@ package cclass;
 
     rule handle_imem_nc_read_response(wr_io_read_response.rid == 1);
 	  	Bool bus_error = !(wr_io_read_response.rresp == AXI4_OKAY);
-      imem.nc_read_resp.put(ICache_mem_response{data  : truncate(wr_io_read_response.rdata), 
-                                                last  : wr_io_read_response.rlast, 
+      imem.nc_read_resp.put(ICache_mem_response{data  : truncate(wr_io_read_response.rdata),
+                                                last  : wr_io_read_response.rlast,
                                                 err   : bus_error});
       `logLevel( core, 1, $format("CORE : IMEM IO Response ", fshow(wr_io_read_response)))
 	  endrule
@@ -268,15 +227,15 @@ package cclass;
 	  mkConnection(dmem.core_resp, riscv.memory_response); // dmem integration
   `ifdef supervisor
     rule dtlb_csr_info;
-      dmem.satp_from_csr.put(riscv.csr_satp);
-      dmem.curr_priv.put(curr_priv);
-      dmem.mstatus_from_csr.put(riscv.csr_mstatus);
+      dmem.ma_satp_from_csr(riscv.csr_satp);
+      dmem.ma_curr_priv(curr_priv);
+      dmem.ma_mstatus_from_csr(riscv.csr_mstatus);
     endrule
   `endif
     rule drive_dmem_enable;
 		  dmem.cache_enable(unpack(riscv.mv_cacheenable[1]));
     endrule
-	  
+
     rule dirve_storebuffer_empyty;
       riscv.storebuffer_empty(dmem.storebuffer_empty);
       riscv.cache_is_available(dmem.cache_available);
@@ -302,8 +261,8 @@ package cclass;
     rule handle_dmem_line_read_request(rg_read_line_req matches tagged Invalid);
       Bool perform_req = True;
 	  	let req <- dmem.read_mem_req.get;
-	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr : truncate(req.address), aruser: ?, 
-        arlen : req.burst_len, arsize : req.burst_size, arburst : 'b10, arid : `Mem_master_num 
+	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr : truncate(req.address), aruser: ?,
+        arlen : req.burst_len, arsize : req.burst_size, arburst : 'b10, arid : `Mem_master_num
         ,arprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
     `ifdef dcache
       if(wr_write_req matches tagged Valid .waddr)
@@ -348,8 +307,8 @@ package cclass;
 			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits, 3'd0};
 			let lv_data= fab_resp.rdata >> lv_shift;
 	  	Bool bus_error = !(fab_resp.rresp == AXI4_OKAY);
-      dmem.read_mem_resp.put(DCache_mem_readresp{data:truncate(lv_data), 
-                                                 last:fab_resp.rlast, 
+      dmem.read_mem_resp.put(DCache_mem_readresp{data:truncate(lv_data),
+                                                 last:fab_resp.rlast,
                                                  err :bus_error});
       `logLevel( core, 1, $format("CORE : DMEM Line Response ", fshow(fab_resp)))
 	  endrule
@@ -357,11 +316,11 @@ package cclass;
     rule handle_dmem_line_write_request `ifdef dcache (rg_burst_count == 0) `endif ;
       let req = dmem.write_mem_req_rd;
     `ifdef dcache
-		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(req.address), awuser : 0, 
-        awlen : req.burst_len, awsize : zeroExtend(req.burst_size[1 : 0]), awburst : 'b01, 
+		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(req.address), awuser : 0,
+        awlen : req.burst_len, awsize : zeroExtend(req.burst_size[1 : 0]), awburst : 'b01,
         awid : `Mem_master_num, awprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 
-  	  let w  = AXI4_Wr_Data {wdata : truncate(req.data), wstrb : '1, 
+  	  let w  = AXI4_Wr_Data {wdata : truncate(req.data), wstrb : '1,
                              wlast : `ifdef dcache False, `else True, `endif wid : `Mem_master_num};
       rg_burst_count <= rg_burst_count + 1;
     `else
@@ -371,18 +330,18 @@ package cclass;
         req.data = duplicate(req.data[15 : 0]);
       else if(req.burst_size == 2)
         req.data = duplicate(req. data[31 : 0]);
-  	  Bit#(TDiv#(ELEN, 8)) write_strobe = req.burst_size == 0?'b1 : 
-                                          req.burst_size == 1?'b11 : 
+  	  Bit#(TDiv#(ELEN, 8)) write_strobe = req.burst_size == 0?'b1 :
+                                          req.burst_size == 1?'b11 :
                                           req.burst_size == 2?'hf : '1;
 
       Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(req.address);
   	  if(req.burst_size != 3)// 8 - bit write;
   	  	write_strobe = write_strobe<<byte_offset;
 
-		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(req.address), awuser : 0, 
-                                    awlen : 0, awsize : zeroExtend(req.burst_size), awburst : 'b01, 
+		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(req.address), awuser : 0,
+                                    awlen : 0, awsize : zeroExtend(req.burst_size), awburst : 'b01,
                                     awid : `Mem_master_num, awprot:{1'b1, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
-  	  let w  = AXI4_Wr_Data {wdata : req.data, wstrb : write_strobe, wlast : True, 
+  	  let w  = AXI4_Wr_Data {wdata : req.data, wstrb : write_strobe, wlast : True,
                              wid : `Mem_master_num};
       dmem.write_mem_req_deq;
     `endif
@@ -396,7 +355,7 @@ package cclass;
       Bool last = rg_burst_count == fromInteger(`dblocks - 1 );
       let req = dmem.write_mem_req_rd;
       req.data = req.data >> rg_shift_amount;
-  	  let w  = AXI4_Wr_Data {wdata : truncate(req.data), wstrb : '1, wlast : last, 
+  	  let w  = AXI4_Wr_Data {wdata : truncate(req.data), wstrb : '1, wlast : last,
                              wid : `Mem_master_num};
       Bit#(TAdd#(TAdd#(TLog#(`dwords), 1), 3)) shift = {`dwords, 3'b0};
       if(last) begin
@@ -429,8 +388,8 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
   `ifdef dcache
     rule handle_dmem_nc_request;
 	  	let req <- dmem.nc_read_req.get;
-	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr : truncate(req.address), 
-                    aruser: ?, arlen : 0, arsize : zeroExtend(req.burst_size[1 : 0]), 
+	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr : truncate(req.address),
+                    aruser: ?, arlen : 0, arsize : zeroExtend(req.burst_size[1 : 0]),
                     arburst : 'b01, arid : 2, arprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 	    io_xactor.i_rd_addr.enq(dmem_request);
 			rg_io_dmem_lower_addr_bits<= truncate(req.address);
@@ -439,8 +398,8 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
 
     rule handle_dmem_nc_read_response(wr_io_read_response.rid == 2);
 	  	Bool bus_error = !(wr_io_read_response.rresp == AXI4_OKAY);
-      dmem.nc_read_resp.put(DCache_mem_readresp{data:truncate(wr_io_read_response.rdata), 
-                                                last:wr_io_read_response.rlast, 
+      dmem.nc_read_resp.put(DCache_mem_readresp{data:truncate(wr_io_read_response.rdata),
+                                                last:wr_io_read_response.rlast,
                                                 err :bus_error});
       `logLevel( core, 1, $format("CORE : DMEM IO Response ", fshow(wr_io_read_response)))
 	  endrule
@@ -453,15 +412,15 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
         req.data = duplicate(req.data[15 : 0]);
       else if(req.burst_size == 2)
         req.data = duplicate(req.data[31 : 0]);
-  	  Bit#(TDiv#(ELEN, 8)) write_strobe = req.burst_size == 0?'b1 : 
-                                          req.burst_size == 1?'b11 : 
+  	  Bit#(TDiv#(ELEN, 8)) write_strobe = req.burst_size == 0?'b1 :
+                                          req.burst_size == 1?'b11 :
                                           req.burst_size == 2?'hf : '1;
 
       Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(req.address);
   	  if(req.burst_size != 3)// 8 - bit write;
   	  	write_strobe = write_strobe<<byte_offset;
-		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(req.address), awuser : 0, 
-          awlen : 0, awsize : zeroExtend(req.burst_size[1 : 0]), awburst : 'b01, 
+		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(req.address), awuser : 0,
+          awlen : 0, awsize : zeroExtend(req.burst_size[1 : 0]), awburst : 'b01,
           awid : `IO_master_num, awprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 
   	  let w  = AXI4_Wr_Data {wdata : req.data, wstrb : write_strobe, wlast : True, wid : `Mem_master_num};
@@ -497,14 +456,14 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
   `endif
 
     rule itlb_req_to_ptwalk(rg_ptw_state == None);
-      let req <- imem.req_to_ptw.get();
+      let req <- imem.request_to_ptw.get();
       ptwalk.from_tlb.put(req);
       rg_ptw_state <= IWalk;
     endrule
 
     rule ptwalk_resp_to_itlb(rg_ptw_state == IWalk);
       let resp <- ptwalk.to_tlb.get();
-      imem.resp_from_ptw.put(resp);
+      imem.response_frm_ptw.put(resp);
       rg_ptw_state <= None;
     endrule
     rule dtlb_req_to_ptwalk(rg_ptw_state == None);

@@ -1,6 +1,6 @@
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 [![pipeline status](https://gitlab.com/shaktiproject/cores/c-class/badges/master/pipeline.svg)](https://gitlab.com/shaktiproject/cores/c-class/commits/master)
-# SHAKTI C-CLASS Core 
+# SHAKTI C-CLASS Core
 ---------------------
 This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http://shakti.org.in/) Processor family. The design here is an upgraded version of the previous design found on [bitbucket](https://bitbucket.org/casl/c-class). Once a few critical features have been fixed/integrated the bitbucket repo will be made obsolete.
 
@@ -27,9 +27,9 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
 A BSV compiler (version 2017 or above) is necessary to compile the code. More information
 on Bluespec can be found [here](www.bluespec.com).
 
-#### Clone the repo 
+#### Clone the repo
 
-``` 
+```
 git clone https://gitlab.com/shaktiproject/cores/c-class.git
 cd c-class/base-sim
 ./manager.sh
@@ -41,7 +41,7 @@ sudo wget https://git.kernel.org/pub/scm/utils/dtc/dtc.git/snapshot/dtc-1.4.7.ta
 sudo tar -xvzf dtc-1.4.7.tar.gz
 cd dtc-1.4.7/
 sudo make NO_PYTHON=1 PREFIX=/usr/
-sudo make install NO_PYTHON=1 PREFIX=/usr/             
+sudo make install NO_PYTHON=1 PREFIX=/usr/
 ```
 
 ## Directory Structure
@@ -49,17 +49,18 @@ sudo make install NO_PYTHON=1 PREFIX=/usr/
     │   ├── core                # dir: c-class core
     │   │   ├── fpu             # dir: fpu unit
     │   │   ├── m_ext           # dir: modules for M extension support
-    ├── base-sim                # Contains a base SoC and setup to simulate and verify the core. 
-    ├── docs		            # Contains more info about the core and the environment.
-   
- 
+    │   │   ├── predictors      # dir: modules for branch predictors
+    ├── base-sim                # Contains a base SoC and setup to simulate and verify the core.
+    ├── docs                    # Contains more info about the core and the environment.
+
+
 ## Block Diagram
 
 This an overview of the c-class core. More detail documents commenting about the micro-arch will be uploaded soon.
 
 ![](https://i.imgur.com/Elf1NQl.png)
 
-## Overview of C-CLASS 
+## Overview of C-CLASS
 
 * 5-stage 64/32-bit pipelined core.
 * Supports ISA=RV64IMAFDC based on riscv-spec-2.2 and privilege-spec-1.10.
@@ -88,6 +89,6 @@ The project uses a local gitlab-runner housed at RISE-LAB, CSE-Dept, IIT-Madras.
 The runner also performs a nightly build which checks for other configs the runs tests on them as well.
 
 
-## Contributing to the Project 
+## Contributing to the Project
 
 The quickest way to contribute to the SHAKTI project is to create a pull-request for existing issues or any feature additions. A contributing guideline will be uploaded soon

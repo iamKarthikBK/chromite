@@ -1,44 +1,28 @@
 ISA=RV32IMAFC
-MUL=asic
-COREFABRIC=AXI4
-SYNTH=SIM
-VERBOSITY=0
+
+# User mode related settings
 USERTRAPS=disable
 USER=enable
-SUPERVISOR=enable
-ARITH_TRAP=disable
-MULSTAGES=0
-DIVSTAGES=32
-FPGA=xc7a100tcsg324-1
-SYNTHTOP=mkriscv
-RESETPC=4096
-PADDR=32
 
-# Predictor Config
-PREDICTOR=gshare_fa
+# Supervisor related settings
+SUPERVISOR=sv32
+ITLBSIZE=4
+DTLBSIZE=4
+
+# Configuring M extension
+MULSTAGES=2
+DIVSTAGES=32
+
+# Configuring the branch predictor
+PREDICTOR=gshare
 BPURESET=1
 BTBDEPTH=32
-BHTDEPTH=128
-HISTLEN=7
+BHTDEPTH=512
+HISTLEN=8
 EXTRAHIST=3
 RASDEPTH=8
-RASTAGDEPTH=64
 
-CAUSESIZE=6
-DEBUG=disable
-OPENOCD=disable
-
-# Verilator options
-COVERAGE=none
-TRACE=disable
-THREADS=1
-VERILATESIM=fast
-
-# DebugOptions
-RTLDUMP=enable
-ASSERTIONS=enable
-
-# Instruction cache
+# configuring the Instruction cache
 ICACHE=enable
 ISETS=64
 IWORDS=4
@@ -51,7 +35,7 @@ IRESET=1
 IDBANKS=1
 ITBANKS=1
 
-# Instruction cache
+# configuring the Data cache
 DCACHE=enable
 DESIZE=1
 DSETS=64
@@ -65,13 +49,36 @@ DRESET=1
 DDBANKS=1
 DTBANKS=1
 
-#PIPELINE CONFIG
-PIPE=2
-
-#PMP CONFIG
+# Configuring the PMP CONFIG
 PMP=disable
 PMPSIZE=0
 ASIDWIDTH=9
 
-# Trigger Setup
-TRIGGERS=2
+# Configuring Debug and Trigger Setup
+TRIGGERS=0
+DEBUG=disable
+OPENOCD=disable
+
+
+#BSV compile options
+SUPPRESSWARNINGS=none
+
+# Simulation configurations and env settings
+COVERAGE=none
+TRACE=disable
+THREADS=1
+VERILATESIM=fast
+VERBOSITY=disable
+RTLDUMP=enable
+ASSERTIONS=enable
+
+# miscellaneous configs
+SYNTH=SIM
+ARITH_TRAP=disable
+RESETPC=4096
+PADDR=32
+COREFABRIC=AXI4
+
+# Do not change
+CAUSESIZE=6
+PIPE=1

@@ -1,15 +1,15 @@
-/* 
+/*
 Copyright (c) 2018, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
 provided that the following conditions are met:
 
 * Redistributions of source code must retain the above copyright notice, this list of conditions
-  and the following disclaimer.  
-* Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and/or other materials provided 
- with the distribution.  
-* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
+  and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of
+  conditions and the following disclaimer in the documentation and/or other materials provided
+ with the distribution.
+* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or
   promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
@@ -18,7 +18,7 @@ AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYR
 CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
@@ -54,7 +54,6 @@ package storebuffer;
 
   (*synthesize*)
   module mkstorebuffer(Ifc_storebuffer);
-    let verbosity = `VERBOSITY ;
     let offset = valueOf(XLEN)==64?2:1;
     Reg#(Bool) valid_data[ `buffsize ][2];
     Reg#(Bit#(`vaddr)) store_addr [ `buffsize ];
@@ -85,10 +84,7 @@ package storebuffer;
         Bit#(ELEN) temp = store_size[rg_tail-1]==0?'hff:
                           store_size[rg_tail-1]==1?'hffff:
                           store_size[rg_tail-1]==2?'hffffffff:'1;
-        temp = temp << shiftamt1; 
-        if(verbosity>0)
-          $display($time,"\tSTOREBUFFER Addr1: %h Data1: %h Size: %h temp: %h rg_tail: %d",store_addr[rg_tail-1],
-                                     store_data[rg_tail-1],store_size[rg_tail-1], temp, rg_tail-1);
+        temp = temp << shiftamt1;
         storemask1 = temp;               // 'h00_00_00_FF
       end
       if(truncateLSB(store_addr[rg_tail]) == wordaddr && valid)begin
@@ -97,12 +93,9 @@ package storebuffer;
                           store_size[rg_tail]==1?'hffff:
                           store_size[rg_tail]==2?'hffffffff:'1;
         temp = temp << shiftamt2;
-        if(verbosity>0)
-          $display($time,"\tSTOREBUFFER Addr1: %h Data1: %h Size: %h temp: %h rg_tail: %d",store_addr[rg_tail],
-                                       store_data[rg_tail],store_size[rg_tail], temp, rg_tail);
         storemask2 = temp&(~storemask1); // 'h00_00_00_FF
       end
-    
+
       let data1 = storemask1& store_data[rg_tail-1];
       let data2 = storemask2& store_data[rg_tail];
       return tuple2(storemask1|storemask2,data1|data2);
@@ -114,9 +107,6 @@ package storebuffer;
         data=duplicate(data[15:0]);
       else if(size==2)
         data=duplicate(data[31:0]);
-      if(verbosity>0)
-        $display($time,"\tSTOREBUFFER: Enquing Store Addr: %h Data: %h size: %b into Tail: %d",
-              addr, data, size, rg_tail);
       store_addr[rg_tail]<=addr;
       store_data[rg_tail]<=data;
       store_size[rg_tail]<=size;
@@ -125,9 +115,6 @@ package storebuffer;
       valid_data[rg_tail][1]<=True;
     endmethod
     method ActionValue#(MemoryWriteReq#(`vaddr,1,ELEN)) perform_store ;
-      if(verbosity>0)
-        $display($time,"\tSTAGE4: Sending Store request for Addr:%h Data: %h size: %b",
-          store_addr[rg_head], store_data[rg_head], store_size[rg_head]);
       return tuple3(truncate(store_addr[rg_head]),store_data[rg_head],store_size[rg_head]);
     endmethod
     method Bit#(`vaddr) write_address;

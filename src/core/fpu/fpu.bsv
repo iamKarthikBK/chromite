@@ -7,13 +7,15 @@ Description:
 TODO
 */
 package fpu;
+`define verbose
 /*==== Project imports ==== */
-`include "common_params.bsv"	
-`include "fpu.defines"	
+`include "common_params.bsv"
+`include "fpu.defines"
+`include "Logger.bsv"
 import common_types::*;
-import fpu_compare_min_max::*;						
+import fpu_compare_min_max::*;
 import fpu_int_to_sp::*;
-import fpu_sign_injection::*;	
+import fpu_sign_injection::*;
 import fpu_divider::*;
 import fpu_sqrt::*;
 import fpu_sp_to_int::*;
@@ -36,15 +38,15 @@ import Clocks::*;
 /*========================= */
 
 interface Ifc_fpu;							//interface to module mk_fpu
-	method Action _start(Bit#(ELEN) operand1, Bit#(ELEN) operand2, 
-                       Bit#(ELEN) operand3, Bit#(4) opcode, 
-                       Bit#(7) funct7,      Bit#(3) funct3, 
+	method Action _start(Bit#(ELEN) operand1, Bit#(ELEN) operand2,
+                       Bit#(ELEN) operand3, Bit#(4) opcode,
+                       Bit#(7) funct7,      Bit#(3) funct3,
                        Bit#(2) imm, Bool issp
                       );
  `ifdef arith_trap
       method Action rd_arith_excep_en(Bit#(1) arith_en);
  `endif
-	method ActionValue#(Float_result#(ELEN)) get_result;
+	method XBoxOutput get_result;
 	method Action flush;
 endinterface
 
@@ -60,25 +62,25 @@ typedef struct{
     }Input_Packet deriving (Bits,Eq);
 
 (*synthesize*)
-module mkfpu(Ifc_fpu); 
+module mkfpu(Ifc_fpu);
   // ============================================
   //  Decode and Maintenance Registers
   // ============================================
-  let verbosity=`VERBOSITY;
-	FIFO# (Floating_output#(ELEN)) ff_result <- mkFIFO1;
+  Reg#(XBoxOutput) rg_result <- mkDReg(XBoxOutput{valid: False, data:?, fflags: 0
+                                        `ifdef arith_trap ,trap:False, cause:? `endif });
   FIFO# (Input_Packet) ff_input   <- mkFIFO1;
 	Wire#(Bool) wr_flush<-mkDWire(False);
- 
+
  `ifdef arith_trap
   Wire#(Bit#(1)) wr_arith_en <-mkDWire(0);
  `endif
 
   // =============================================
- 
+
   // ==============================================
   //  Module Instantiations
   // ==============================================
-     
+
      `ifdef fpu_hierarchical
          Ifc_fpu_compare_min_max32        inst_fpu_compare_min_max   <- mkfpu_compare_min_max32();
          Ifc_fpu_sign_injection32         inst_spfpu_sign_injection  <- mkfpu_sign_injection32();
@@ -86,7 +88,7 @@ module mkfpu(Ifc_fpu);
          Ifc_fpu_sqrt32                   inst_spfpu_sqrt            <- mkfpu_sqrt32();
          Ifc_fpu_fm_add_sub32             inst_spfm_add_sub          <- mkfpu_fm_add_sub32();
          Ifc_fpu_fclass32                 inst_spfpu_fclass          <- mkfpu_fclass32();
-      
+
        `ifdef dpfpu
          Ifc_fpu_compare_min_max64        inst_dpfpu_compare_min_max <- mkfpu_compare_min_max64();
          Ifc_fpu_sign_injection64         inst_dpfpu_sign_injection  <- mkfpu_sign_injection64();
@@ -97,16 +99,16 @@ module mkfpu(Ifc_fpu);
        `endif
      `else
          Ifc_fpu_compare_min_max#(32,23,8)	inst_fpu_compare_min_max  <- mkfpu_compare_min_max(); // No Flush
-         Ifc_fpu_sign_injection#(32,23,8)		inst_spfpu_sign_injection <- mkfpu_sign_injection(); // No Flush 
+         Ifc_fpu_sign_injection#(32,23,8)		inst_spfpu_sign_injection <- mkfpu_sign_injection(); // No Flush
          Ifc_fpu_divider#(32,23,8)				  inst_spfpu_divider        <- mkfpu_divider();
          Ifc_fpu_sqrt#(32,23,8)					    inst_spfpu_sqrt           <- mkfpu_sqrt();
          Ifc_fpu_fm_add_sub#(32,23,8)		    inst_spfm_add_sub         <- mkfpu_fm_add_sub();
          Ifc_fpu_fclass#(32,23,8)					  inst_spfpu_fclass         <- mkfpu_fclass();						// No Flush
-     
+
         `ifdef dpfpu
          Ifc_fpu_compare_min_max#(64,52,11)	inst_dpfpu_compare_min_max <- mkfpu_compare_min_max();   // No Flush
          Ifc_fpu_sign_injection#(64,52,11)	inst_dpfpu_sign_injection  <- mkfpu_sign_injection();	 // No Flush
-         Ifc_fpu_divider#(64,52,11)				  inst_dpfpu_divider         <- mkfpu_divider();						
+         Ifc_fpu_divider#(64,52,11)				  inst_dpfpu_divider         <- mkfpu_divider();
          Ifc_fpu_sqrt#(64,52,11)			      inst_dpfpu_sqrt            <- mkfpu_sqrt();
          Ifc_fpu_fm_add_sub#(64,52,11)		  inst_dpfm_add_sub          <- mkfpu_fm_add_sub();
          Ifc_fpu_fclass#(64,52,11)				  inst_dpfpu_fclass          <- mkfpu_fclass();		     // No Flush
@@ -114,13 +116,13 @@ module mkfpu(Ifc_fpu);
        `endif
 
          Ifc_fpu_sp_to_int						    inst_spfp_to_int   <- mkfpu_sp_to_int();						// No Flush
-         Ifc_fpu_convert_sp_dp						inst_spfpu_cnvt    <- mkfpu_convert_sp_dp();				// No Flush 
+         Ifc_fpu_convert_sp_dp						inst_spfpu_cnvt    <- mkfpu_convert_sp_dp();				// No Flush
          Ifc_fpu_int_to_sp							  inst_fpu_int_to_fp <- mkfpu_int_to_sp();				  // No Flush
-      
+
          `ifdef dpfpu
            Ifc_fpu_dp_to_int						  inst_dpfp_to_int     <- mkfpu_dp_to_int();						// No Flush
            Ifc_fpu_convert_dp_sp					inst_dpfpu_cnvt      <- mkfpu_convert_dp_sp();				// No Flush
-           Ifc_fpu_int_to_dp							inst_dpfpu_int_to_fp <- mkfpu_int_to_dp();				 // No Flush 
+           Ifc_fpu_int_to_dp							inst_dpfpu_int_to_fp <- mkfpu_int_to_dp();				 // No Flush
         `endif
 
 
@@ -194,7 +196,7 @@ module mkfpu(Ifc_fpu);
         return tuple3(truncate(op1),truncate(op2),truncate(op3));
    `endif
     endfunction
-   
+
 // ================================================
 //  Function Wrappers
 // ================================================
@@ -217,7 +219,7 @@ module mkfpu(Ifc_fpu);
  `endif
 
  rule start_stage;
-///		Bool issp = (funct7[0] == 0);     
+///		Bool issp = (funct7[0] == 0);
         let input_packet = ff_input.first;
         Bit#(ELEN) operand1 = input_packet.operand1;
         Bit#(ELEN) operand2 = input_packet.operand2;
@@ -228,23 +230,22 @@ module mkfpu(Ifc_fpu);
         Bit#(2) imm          = input_packet.imm;
         Bool    issp         = input_packet.issp;
         ff_input.deq;
-		if(((funct7[6:2]==`FCMP_f5) || funct7[6:2] == `FMMAX_f5) && opcode == `FP_OPCODE)begin // compare min max 
+		if(((funct7[6:2]==`FCMP_f5) || funct7[6:2] == `FMMAX_f5) && opcode == `FP_OPCODE)begin // compare min max
 			if(issp) begin
-            let {op1,op2,op3} <- setCanonicalNaN.func(operand1,operand2,'1);
-				    let {man1,man2,man3}   <- getMant32.func(op1, op2,0);
-            let {exp1,exp2,exp3}   <- getExp32.func(op1, op2,0);
-            let {flags1,flags2,flags3} <- condFlags32.func(tuple2(man1,exp1),tuple2(man2,exp2),tuple2(0,0));
-            let sign1 = op1[31];
-            let sign2 = op2[31];
-            let x<-inst_fpu_compare_min_max._start(op1,op2,funct3,funct7[2],tuple2(flags1,flags2));  
-				Floating_output#(ELEN) y=?;
+        let {op1,op2,op3} <- setCanonicalNaN.func(operand1,operand2,'1);
+				let {man1,man2,man3}   <- getMant32.func(op1, op2,0);
+        let {exp1,exp2,exp3}   <- getExp32.func(op1, op2,0);
+        let {flags1,flags2,flags3} <- condFlags32.func(tuple2(man1,exp1),tuple2(man2,exp2),tuple2(0,0));
+        let sign1 = op1[31];
+        let sign2 = op2[31];
+        let x <- inst_fpu_compare_min_max._start(op1,op2,funct3,funct7[2],tuple2(flags1,flags2));
+        let y = XBoxOutput {valid:True, fflags:x.fflags, data:?};
 				`ifdef dpfpu
-					y.final_result=funct7[2]==0?zeroExtend(x.final_result):{'1,x.final_result};
+					y.data=funct7[2]==0?zeroExtend(x.final_result):{'1,x.final_result};
 				`else
-					y.final_result=zeroExtend(x.final_result);
+					y.data=zeroExtend(x.final_result);
 				`endif
-				y.fflags=x.fflags;
-				ff_result.enq(y);
+        rg_result <= y;
 			end
     `ifdef dpfpu
 			else begin
@@ -254,7 +255,7 @@ module mkfpu(Ifc_fpu);
             let sign3 = operand1[63];
             let sign4 = operand2[63];
             let x<-inst_dpfpu_compare_min_max._start(operand1,operand2,funct3,funct7[2],tuple2(f1,f2));
-				ff_result.enq(x);
+				rg_result <= XBoxOutput{valid: True, data: x.final_result, fflags: x.fflags};
 			end
     `endif
    	  `ifdef verbose $display($time,"\tGiving inputs to fpu_compare_min_max %h operand2 %h funct7 : %h",operand1, operand2,funct7); `endif
@@ -262,19 +263,18 @@ module mkfpu(Ifc_fpu);
 		else if((funct7[6:2]==`FCVT_F_I_f5) && opcode == `FP_OPCODE) begin
 			if(issp)begin
 				let x <-inst_fpu_int_to_fp._start(zeroExtend(operand1), imm[0],imm[1], funct3);
-				Floating_output#(ELEN) y=?;
+        let y = XBoxOutput {valid:True, fflags:x.fflags, data:?};
 				`ifdef dpfpu
-					y.final_result={'1,x.final_result};
+					y.data={'1,x.final_result};
 				`else
-					y.final_result=zeroExtend(x.final_result);
+					y.data=zeroExtend(x.final_result);
 				`endif
-				y.fflags=x.fflags;
-				ff_result.enq(y);
+        rg_result <= y;
 			end
     `ifdef dpfpu
 			else begin
 				let x<-inst_dpfpu_int_to_fp._start(operand1,imm[0],imm[1],funct3);
-				ff_result.enq(x);
+				rg_result <= XBoxOutput{valid: True, data: x.final_result, fflags: x.fflags};
 			end
     `endif
    	  `ifdef verbose $display($time,"\tGiving inputs to fpu_int_to_fp %h operand2[0] %h operand2[1] : %h",operand1, operand2[0],operand2[1]); `endif
@@ -282,20 +282,19 @@ module mkfpu(Ifc_fpu);
 		else if((funct7[6:2] == `FSGNJN_f5) && opcode == `FP_OPCODE)begin
 			if(issp)begin
 				let {op1,op2,op3} <- setCanonicalNaN.func(operand1,operand2,'1);
-			   let x <-inst_spfpu_sign_injection._start(op1, op2, funct3);
-				Floating_output#(ELEN) y=?;
-				`ifdef dpfpu
-					y.final_result={'1,x.final_result};
-				`else
-					y.final_result=zeroExtend(x.final_result);
-				`endif
-				y.fflags=x.fflags;
-				ff_result.enq(y);
+			  let x <-inst_spfpu_sign_injection._start(op1, op2, funct3);
+        let y = XBoxOutput {valid:True, fflags:x.fflags, data:?};
+			`ifdef dpfpu
+			  y.data={'1,x.final_result};
+			`else
+				y.data=zeroExtend(x.final_result);
+			`endif
+        rg_result <= y;
       end
     `ifdef dpfpu
       else begin
 				let x<-inst_dpfpu_sign_injection._start(operand1,operand2,funct3);
-				ff_result.enq(x);
+				rg_result <= XBoxOutput{valid: True, data: x.final_result, fflags: x.fflags};
 			end
     `endif
 			`ifdef verbose $display($time,"\tGiving inputs to the fpu sign injection"); `endif
@@ -307,7 +306,7 @@ module mkfpu(Ifc_fpu);
 				let {exp1,exp2,exp3} <- getExp32.func(op1, 0,0);
 				let {flags1,flags2,flags3} <- condFlags32.func(tuple2(man1,exp1),tuple2(0,0),tuple2(0,0));
 				let x <- inst_spfp_to_int._start(op1[31],exp1,man1, imm[0],imm[1],funct3,flags1);
-				ff_result.enq(x);
+				rg_result <= XBoxOutput{valid: True, data: x.final_result, fflags: x.fflags};
       end
     `ifdef dpfpu
       else begin
@@ -315,7 +314,7 @@ module mkfpu(Ifc_fpu);
       	  let {exp4,exp5,exp6} <- getExp64.func(operand1, 0,0);
       	  let {flags4,flags5,flags6} <- condFlags64.func(tuple2(man4,exp4),tuple2(0,0),tuple2(0,0));
       	  let x<-inst_dpfp_to_int._start(operand1[63],exp4,man4,imm[0],imm[1],funct3,flags4);
-			  ff_result.enq(x);
+				rg_result <= XBoxOutput{valid: True, data: x.final_result, fflags: x.fflags};
       end
     `endif
 			 `ifdef verbose $display($time,"\tGiving Inputs to fpu to int Conversion Module");   `endif
@@ -327,8 +326,7 @@ module mkfpu(Ifc_fpu);
 				let {exp1,exp2,exp3}     <- getExp32.func(op1, 0,0);
 				let {x1,x2,x3}           <- condFlags32.func(tuple2(man1,exp1),tuple2(0,0),tuple2(0,0));
 				let x<-inst_spfpu_fclass._start(op1[31],man1,exp1,x1);
-				Floating_output#(ELEN) y = Floating_output{final_result:zeroExtend(x.final_result),fflags:x.fflags};
-				ff_result.enq(y);
+				rg_result <= XBoxOutput{valid: True, data: zeroExtend(x.final_result), fflags: x.fflags};
        end
      `ifdef dpfpu
        else begin
@@ -336,7 +334,7 @@ module mkfpu(Ifc_fpu);
 				let {exp1,exp2,exp3} <- getExp64.func(operand1, 0,0);
 				let {x1,x2,x3}       <- condFlags64.func(tuple2(man1,exp1),tuple2(0,0),tuple2(0,0));
 				let x<-inst_dpfpu_fclass._start(operand1[63],man1,exp1,x1);
-				ff_result.enq(x);
+				rg_result <= XBoxOutput{valid: True, data: x.final_result, fflags: x.fflags};
        end
      `endif
 		`ifdef verbose $display($time,"\tGiving inputs to floating classify module"); `endif
@@ -350,7 +348,7 @@ module mkfpu(Ifc_fpu);
       	     let {exp1,exp2,exp3}     <- getExp32.func(op1, 0,0);
       	     let {x1,x2,x3}           <- condFlags32.func(tuple2(man1,exp1),tuple2(0,0),tuple2(0,0));
       	     let x<-inst_spfpu_cnvt._start(op1[31],exp1,man1,funct3,x1);
-				  ff_result.enq(x);
+				rg_result <= XBoxOutput{valid: True, data: x.final_result, fflags: x.fflags};
       	end
       	else begin
 					`ifdef verbose $display("Giving inputs to Convert DP to SP"); `endif
@@ -358,14 +356,13 @@ module mkfpu(Ifc_fpu);
       	     let {exp1,exp2,exp3}     <- getExp64.func(operand1, 0,0);
       	     let {x1,x2,x3}           <- condFlags64.func(tuple2(man1,exp1),tuple2(0,0),tuple2(0,0));
       	     let x<-inst_dpfpu_cnvt._start(operand1[63],exp1,man1,funct3,x1);
-				  Floating_output#(ELEN) y=?;
-				`ifdef dpfpu
-        		    y.final_result = {'hffffffff,x.final_result[31:0]};
-        		`else
-        		    y.final_result = x.final_result;
-        		`endif
-				y.fflags=x.fflags;
-				ff_result.enq(y);
+          let y = XBoxOutput {valid:True, fflags:x.fflags, data:?};
+			  `ifdef dpfpu
+			    y.data={'hffffffff,x.final_result[31:0]};
+			  `else
+			  	y.data=(x.final_result);
+			  `endif
+          rg_result<=y;
       	end
 		end
   `endif
@@ -380,7 +377,7 @@ module mkfpu(Ifc_fpu);
   	 			`else
   	 				final_result= zeroExtend(operand1[31:0]);
   	 			`endif
-			ff_result.enq(Floating_output{final_result:final_result, fflags : 0});
+      rg_result <= XBoxOutput{valid: True, data:final_result, fflags:0};
 		end
 		else if(((funct7 == `FMV_X_D_f7 || funct7 == `FMV_D_X_f7) && funct3 == 'b000) && opcode == `FP_OPCODE)begin // TODO merge with above condition
 			`ifdef verbose $display($time,"\tGiving inputs to FMV"); `endif
@@ -389,7 +386,7 @@ module mkfpu(Ifc_fpu);
 				final_result = operand1;
 			else // integer to sp FMV.W.X
 						final_result= operand1;
-			ff_result.enq(Floating_output{final_result:final_result, fflags : 0});
+      rg_result <= XBoxOutput{valid: True, data:final_result, fflags:0};
 		end
 		else if(((funct7[6:2] == `FADD_f5 || funct7[6:2] == `FSUB_f5) && opcode == `FP_OPCODE))begin // add sub
 			rg_multicycle_op<=True;
@@ -513,44 +510,39 @@ module mkfpu(Ifc_fpu);
   rule rl_get_output_from_spfpu_divider(!wr_flush && rg_multicycle_op);
     `ifdef verbose $display($time,"\tGot output from spfpu divider");  `endif
     let x= inst_spfpu_divider.final_result_;
-    Floating_output#(ELEN) y=?;
-    y.fflags=x.fflags;
+    let y = XBoxOutput{valid: True, fflags: x.fflags, data:?};
     `ifdef dpfpu
-        y.final_result={'1,x.final_result};
+        y.data={'1,x.final_result};
     `else
-        y.final_result=zeroExtend(x.final_result);
+        y.data=zeroExtend(x.final_result);
     `endif
-    ff_result.enq(y);
+    rg_result <= y;
 	  rg_multicycle_op<=False;
   endrule
-  
+
  `ifdef dpfpu
   //rule to get output from spfpu divider
   rule rl_get_output_from_dpfpu_divider(!wr_flush && rg_multicycle_op);
     `ifdef verbose $display($time,"\tGot output from spfpu divider");  `endif
     let x= inst_dpfpu_divider.final_result_;
-    Floating_output#(ELEN) y=?;
-    y.fflags=x.fflags;
-    y.final_result=x.final_result;
-    ff_result.enq(y);
+    rg_result <= XBoxOutput{valid: True, data:x.final_result, fflags:x.fflags};
 	  rg_multicycle_op<=False;
   endrule
  `endif
-     
+
 	//rule to give inputs to spfpu square root module
 
   //rule to get output spfpu square root module
   rule rl_get_output_from_spfpu_sqrt(inst_spfpu_sqrt.get_result matches tagged Valid .res &&& !wr_flush &&& rg_multicycle_op); // TODO check for inexact and underflow
     `ifdef verbose $display($time,"\tGot output from spfpu sqrt");  `endif
     let x = res;
-		Floating_output#(ELEN) y=?;
-		y.fflags=x.fflags;
+		let y= XBoxOutput{valid:True, data:?, fflags: x.fflags};
 		`ifdef dpfpu
-			y.final_result={'1,x.final_result};
+			y.data={'1,x.final_result};
 		`else
-			y.final_result=zeroExtend(x.final_result);
+			y.data=zeroExtend(x.final_result);
 		`endif
-		ff_result.enq(y);
+    rg_result <= y;
 	  rg_multicycle_op<=False;
   endrule
 
@@ -559,10 +551,7 @@ module mkfpu(Ifc_fpu);
  rule rl_get_output_from_dpfpu_sqrt(inst_dpfpu_sqrt.get_result matches tagged Valid .res &&& !wr_flush &&& rg_multicycle_op); // TODO check for inexact and underflow
     `ifdef verbose $display($time,"\tGot output from spfpu sqrt");  `endif
     let x = res;
-	Floating_output#(ELEN) y=?;
-	y.fflags=x.fflags;
-	y.final_result=x.final_result;
-	ff_result.enq(y);
+    rg_result <= XBoxOutput{valid: True, data:x.final_result, fflags:x.fflags};
 	  rg_multicycle_op<=False;
   endrule
 `endif
@@ -572,15 +561,14 @@ module mkfpu(Ifc_fpu);
 	 rule rl_get_output_from_fm_add_sub(!wr_flush && rg_multicycle_op);
 		`ifdef verbose $display($time,"\tGot output from sp fused multiple add conversion Module"); `endif
 		let x= inst_spfm_add_sub.get_result;
-		Floating_output#(ELEN) y=?;
-		y.fflags=x.fflags;
+		let y= XBoxOutput{valid:True, data:?, fflags: x.fflags};
 		`ifdef dpfpu
-			y.final_result={'hffffffff,x.final_result[31:0]};
+			y.data={'hffffffff,x.final_result[31:0]};
 		`else
-			y.final_result=zeroExtend(x.final_result);
+			y.data=zeroExtend(x.final_result);
 		`endif
-		 ff_result.enq(y);
-     `ifdef verbose $display($time,"\tFMA Result : %16h", y.final_result); `endif
+    rg_result <= y;
+     `ifdef verbose $display($time,"\tFMA Result : %16h", y.data); `endif
 	  rg_multicycle_op<=False;
 	 endrule
 
@@ -589,24 +577,20 @@ module mkfpu(Ifc_fpu);
 	 rule rl_get_output_from_dpfm_add_sub(!wr_flush && rg_multicycle_op);
 		`ifdef verbose $display($time,"\tGot output from sp fused multiple add conversion Module"); `endif
 		let x= inst_dpfm_add_sub.get_result;
-		Floating_output#(ELEN) y=?;
-		y.fflags=x.fflags;
-		y.final_result=x.final_result;
-		ff_result.enq(y);
-     `ifdef verbose $display($time,"\tFMA Result : %16h", y.final_result); `endif
+    rg_result <= XBoxOutput{valid: True, data:x.final_result, fflags:x.fflags};
+     `ifdef verbose $display($time,"\tFMA Result : %16h", x.final_result); `endif
 	  rg_multicycle_op<=False;
 	 endrule
   `endif
-	 
+
 	rule flush_fifo(wr_flush);
-		ff_result.clear;
 		rg_multicycle_op<=False;
 	endrule
      //rule to give inputs to spfloating multiplier
 
 	// input method to start the floating point operation
 
-	method Action _start(Bit#(ELEN) operand1, Bit#(ELEN) operand2, Bit#(ELEN) operand3, Bit#(4) opcode, Bit#(7) funct7, Bit#(3) funct3, Bit#(2) imm, Bool issp) if(!rg_multicycle_op); 
+	method Action _start(Bit#(ELEN) operand1, Bit#(ELEN) operand2, Bit#(ELEN) operand3, Bit#(4) opcode, Bit#(7) funct7, Bit#(3) funct3, Bit#(2) imm, Bool issp) if(!rg_multicycle_op);
 	    ff_input.enq ( Input_Packet {
                                         operand1 : operand1,
                                         operand2 : operand2,
@@ -617,40 +601,33 @@ module mkfpu(Ifc_fpu);
                                         imm      : imm,
                                         issp     : issp
                                     });
-      if(verbosity>0)begin
-        $display($time,"\tFPU: op1:%h, op2:%h, op3:%h",operand1,operand2,operand3);
-        $display($time,"\tFPU: opcode:%h, funct7:%h, funct3:%h, imm:%b issp:%b",opcode, funct7,
-            funct3, imm, issp);
-      end
+      `logLevel( fpu, 0, $format("FPU: op1:%h op2:%h op3:%h",operand1,operand2,operand3))
+      `logLevel( fpu, 0, $format("FPU: opcode:%b f7:%h f3:%b imm:%h issp:%b", opcode, funct7,
+                                                                                funct3,imm, issp))
     endmethod
- 
-	method ActionValue#(Float_result#(ELEN)) get_result;
-    Bit#(`causesize) cause =0;
-    PreCommit_type commit_type = REGULAR;
-		ff_result.deq;
 
-    //Generating TRAPS for FPU exception flags is optional.....This can be configured by setting   /csr_reg arith_excep...enabling bit generates traps for all FPU flags with cause values as written below//  
+	method XBoxOutput get_result;
+    let res_ = rg_result;
+    //Generating TRAPS for FPU exception flags is optional.....This can be configured by setting   /csr_reg arith_excep...enabling bit generates traps for all FPU flags with cause values as written below//
   `ifdef arith_trap
     if(wr_arith_en==1'b1) begin
-      if(ff_result.first.fflags!=0) begin
-          if(verbosity > 0)
-            $display("TRAP from fpu:fflags %b",ff_result.first.fflags);
-          commit_type=TRAP;
-      end
-      if (ff_result.first.fflags[4]==1)
-        cause =`FP_invalid; //Invalid
-      else if (ff_result.first.fflags[3]==1)
-        cause=`FP_divide_by_zero; //Divide_by_zero_float
-      else if (ff_result.first.fflags[2]==1)
-        cause=`FP_overflow; //Overflow
-      else if (ff_result.first.fflags[1]==1)
-        cause=`FP_underflow; //Underflow
-      else if (ff_result.first.fflags[0]==1)
-        cause=`FP_inexact; //Inexact
+      if(res_.fflags!=0) begin
+          res_.trap = True;
+
+      if (res_.fflags[4]==1)
+        res_.cause =`FP_invalid; //Invalid
+      else if (res_.fflags[3]==1)
+        res_.cause=`FP_divide_by_zero; //Divide_by_zero_float
+      else if (res_.fflags[2]==1)
+        res_.cause=`FP_overflow; //Overflow
+      else if (res_.fflags[1]==1)
+        res_.cause=`FP_underflow; //Underflow
+      else if (res_.fflags[0]==1)
+        res_.cause=`FP_inexact; //Inexact
     end
 	`endif
 
-     return Float_result{commit_type:commit_type,final_result:ff_result.first.final_result,fflags:ff_result.first.fflags,cause:cause};
+     return res_ ;
 	endmethod
 	method Action flush;
 		  wr_flush<=True;

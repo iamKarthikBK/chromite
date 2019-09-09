@@ -45,14 +45,6 @@ else ifneq (,$(findstring D,$(ISA)))
 else
 	IBUSWIDTH = 32
 endif
-
-ifneq (,$(findstring M,$(ISA)))
-  ifeq ($(MUL), fpga)
-    override define_macros += -D muldiv_fpga=True -D muldiv=True
-  else
-    override define_macros += -D $(MUL)=True -D muldiv=True
-  endif
-endif
 ifneq (,$(findstring A,$(ISA)))
   override define_macros += -D atomic=True
 endif
@@ -66,6 +58,10 @@ ifneq (,$(findstring D,$(ISA)))
 endif
 ifneq (,$(findstring C,$(ISA)))
   override define_macros += -D compressed=True
+endif
+
+ifneq (,$(findstring M,$(ISA)))
+  override define_macros += -D muldiv=True
 endif
 ifeq ($(SYNTH),SIM)
   override define_macros += -D simulate=True
@@ -85,8 +81,8 @@ endif
 ifeq ($(RTLDUMP), enable)
   override define_macros += -D rtldump=True
 endif
-ifeq ($(SUPERVISOR),  enable)
-  override define_macros += -D supervisor=True
+ifneq ($(SUPERVISOR),  none)
+  override define_macros += -D supervisor=True -D $(SUPERVISOR)
 endif
 ifeq ($(ASSERTIONS), enable)
   override define_macros += -D ASSERT=True
@@ -102,11 +98,6 @@ ifeq ($(PMP), enable)
 endif
 ifneq ($(PREDICTOR), none)
 	override define_macros += -D bpu=True 
-  ifneq (,$(findstring C,$(ISA)))
-		override define_macros += -D $(PREDICTOR)_c=True
-  else
-		override define_macros += -D $(PREDICTOR)_nc=True
-  endif
 endif
 ifeq ($(ARITH_TRAP), enable)
 	override define_macros += -D arith_trap=True
@@ -133,6 +124,10 @@ ifneq ($(TRIGGERS), 0)
 	endif
 endif
 
+ifneq ($(RASDEPTH), 0)
+	override define_macros += -D bpu_ras
+endif
+
 ifeq ($(COVERAGE), none)
 else ifeq ($(COVERAGE),all)
   coverage := --coverage
@@ -150,12 +145,16 @@ endif
 
 VCS_MACROS =  +define+BSV_RESET_FIFO_HEAD=True +define+BSV_RESET_FIFO_ARRAY=True
 
-ifneq (0,$(VERBOSITY))
+ifeq (enable,$(VERBOSITY))
 	VERILATOR_FLAGS += -DVERBOSE
 	VCS_MACROS += +define+VERBOSE=True
 endif
 
-override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
+ifeq ($(SUPPRESSWARNINGS), all)
+	suppresswarn= -suppress-warnings G0020:G0010:G0117:G0023:T0054:G0024:G0015:G0036
+endif
+
+override define_macros += -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
 								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS)\
 								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
 								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL) -D icachereset=$(IRESET) -D iesize=$(IESIZE) \
@@ -163,22 +162,24 @@ override define_macros += -D VERBOSITY=$(VERBOSITY) -D CORE_$(COREFABRIC)=True -
 								 -D dwords=$(DWORDS) -D dblocks=$(DBLOCKS) -D dways=$(DWAYS) -D dsets=$(DSETS) \
 								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) -D desize=$(DESIZE) \
 								 -D dsbsize=$(DSBSIZE) -D ibuswidth=$(IBUSWIDTH) \
-								 -D PIPE$(PIPE)=True -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
+								 -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
 								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) \
 								 -D btbdepth=$(BTBDEPTH) -D bhtdepth=$(BHTDEPTH) -D histlen=$(HISTLEN) \
-								 -D extrahist=$(EXTRAHIST) -D rasdepth=$(RASDEPTH) -D rastagdepth=$(RASTAGDEPTH) \
-								 -D bpureset=$(BPURESET) -D causesize=$(CAUSESIZE) -D $(PREDICTOR)=True
+								 -D extrahist=$(EXTRAHIST) -D rasdepth=$(RASDEPTH) \
+								 -D bpureset=$(BPURESET) -D causesize=$(CAUSESIZE) -D $(PREDICTOR)=True\
+								 -D itlbsize=$(ITLBSIZE) -D dtlbsize=$(DTLBSIZE)
+								
 		
 # ------------------------------------------------------------------------------------------------ #
 # ------------------ Include directories for bsv compilation ------------------------------------- #
 CORE:=../src/core/:../src/core/predictors/
 F_EXT:=../src/core/fpu/
-M_EXT:=../src/core/m_ext/
+M_EXT:=../src/core/m_ext/:../src/core/m_ext/multiplier_designs/
 FABRIC:=./fabrics/axi4:./fabrics/axi4lite
 CACHES:=./caches_mmu/src/
 PERIPHERALS:=./devices/bootrom:./devices/pwm:./devices/uart:./devices/clint:./devices/bram:./devices/riscvDebug013:./devices/jtagdtm/:./devices/err_slave/
 COMMON_BSV:=./common_bsv/
-COMMON_VERILOG:=./common_verilog/
+COMMON_VERILOG:=./common_verilog/bsvwrappers/
 BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(F_EXT):$(M_EXT):$(FABRIC):$(PERIPHERALS):$(COMMON_BSV):$(COMMON_VERILOG):$(CACHES)
 # ------------------------------------------------------------------------------------------------ #
 
@@ -192,13 +193,15 @@ VERILATOR_FLAGS += --stats -O3 $(verilate_fast) -LDFLAGS "-static" --x-assign fa
 # ---------------- Setting the variables for bluespec compile  --------------------------------- #
 BSC_CMD:= bsc -u -verilog -elab 
 BSVCOMPILEOPTS:= +RTS -K40000M -RTS -check-assert  -keep-fires -opt-undetermined-vals \
-								 -remove-false-rules -remove-empty-rules -remove-starved-rules -remove-dollar
+									$(suppresswarn) -remove-false-rules -remove-empty-rules -remove-starved-rules \
+									-remove-dollar -unspecified-to X -show-schedule -show-module-use
 BSVLINKOPTS:=-parallel-sim-link 8 -keep-fires
 VERILOGDIR:=./verilog/
 BSVBUILDDIR:=./bsv_build/
 BSVOUTDIR:=./bin
 ifeq (, $(wildcard ${TOOLS_DIR}/shakti-tools/insert_license.sh))
-  VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout
+  VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout \
+									 -verilog-filter ./rename_translate.sh
 else
   VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout \
 									 -verilog-filter ${TOOLS_DIR}/shakti-tools/insert_license.sh \
@@ -273,6 +276,7 @@ generate_verilog: check-restore check-env
 	@cp ${BLUESPECDIR}/Verilog/ResetEither.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/SyncHandshake.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog/SyncFIFO1.v ${VERILOGDIR}
+	@cp common_verilog/signedmul.v ${VERILOGDIR}
 	@$(VERILOGLICENSE)
 	@echo Compilation finished
 
@@ -280,7 +284,7 @@ generate_verilog: check-restore check-env
 link_vcs: ## Generate simulation executable using Synopsys VCS 
 	@rm -rf $(BSVOUTDIR)
 	@mkdir -p $(BSVOUTDIR)
-	vcs -full64 -l vcs_compile.log -sverilog +vpi +v2k -lca +define+TOP=$(TOP_MODULE) $(VCS_MACROS) \
+	vcs -LDFLAGS -Wl,--no-as-needed -l vcs_compile.log -sverilog +vpi +v2k -lca +define+TOP=$(TOP_MODULE) $(VCS_MACROS) \
 	+define+BSV_TIMESCALE=1ns/1ps +cli+4 +libext+.v +notimingcheck \
 	-y $(VERILOGDIR)/ \
 	${BLUESPECDIR}/Verilog/main.v -o out
@@ -352,7 +356,7 @@ link_verilator: ## Generate simulation executable using Verilator
 	@mkdir -p $(BSVOUTDIR) obj_dir
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > sim_main.h
 	@echo '#include "V$(TOP_MODULE).h"' >> sim_main.h
-	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v -y $(VERILOGDIR) --exe
+	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v -y $(VERILOGDIR) -y common_verilog --exe
 	@ln -f -s sim_main.cpp obj_dir/sim_main.cpp
 	@ln -f -s sim_main.h obj_dir/sim_main.h
 	@make -j8 -C obj_dir -f V$(TOP_MODULE).mk

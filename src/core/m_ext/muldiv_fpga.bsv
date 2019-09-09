@@ -47,9 +47,7 @@ package muldiv_fpga;
 
   (*synthesize*)
 	module mkmuldiv(Ifc_muldiv);
-    let verbosity = valueOf(`VERBOSITY);
     Ifc_multiplier#(XLEN) mult <- mkmultiplier;
-//    Ifc_divider#(XLEN) divider <- mkdivider;
     Ifc_restoring_div divider <-mkrestoring_div();
     Reg#(Bit#(TLog#(TAdd#(TMax#(`MULSTAGES, `DIVSTAGES), 1)))) rg_count <-mkReg(0);
     Reg#(Bool) mul_div <-mkReg(False); // False = Mul, True = Div.
@@ -66,13 +64,9 @@ package muldiv_fpga;
     rule increment_counter(rg_count!=0);
       if((rg_count== fromInteger(`MULSTAGES) && !mul_div) || 
           (rg_count== fromInteger(`DIVSTAGES)+ 1 && mul_div)) begin
-        if(verbosity>1)
-          $display($time, "\tALU: got output from Mul/Div. mul_div: %b", mul_div);
         rg_count<= 0;
       end
       else begin
-        if(verbosity>1)
-          $display($time, "\tALU: Waiting for mul/div to respond. Count: %d", rg_count);
         rg_count<= rg_count+ 1;
       end
     endrule
@@ -120,9 +114,6 @@ package muldiv_fpga;
       Bit#(XLEN) default_out='1;
       Bool result_avail=False;
       if(funct3[2]==0)begin // multiplication operation
-        if(verbosity>1)
-          $display($time, "\tALU: Sending inputs to multiplier. A: %h B: %h funct3: %b", op1, op2,
-        funct3);
         mult.iA(op1);
         mult.iB(op2);
         if(`MULSTAGES==0)begin
@@ -186,27 +177,4 @@ package muldiv_fpga;
    `endif
 
 	endmodule:mkmuldiv
-/*
-  module mkTb(Empty);
-    Ifc_muldiv muldiv <-mkmuldiv;
-    Reg#(Bit#(32)) rg_count <- mkReg(0);
-    rule increment_counter;
-      rg_count<= rg_count+1;
-      if(rg_count=='d100)
-        $finish(0);
-    endrule
-    rule check(rg_count==20);
-      let x<-muldiv.get_inputs(zeroExtend(rg_count), zeroExtend(rg_count), 0,  False);
-      if(verbosity>1)
-        $display($time, "\t Giving inputs: %d", rg_count);
-    endrule
-    rule check_output;
-      let {committype, out, paddr} <- muldiv.delayed_output;
-      if(verbosity>1)
-        $display($time, "\tOutput: %d", out);
-      $finish(0);
-    endrule
-  endmodule
-*/
-
 endpackage:muldiv_fpga
