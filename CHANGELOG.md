@@ -2,6 +2,10 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2019-09-09
+## Fixed
+- links to verilog artifacts in readme fixed.
+
 ## [1.0.0] - 2019-09-09
 ## Fixed
 - data types of ISBs has been split to keep logic minimal and optimize frequency closure
