@@ -2,6 +2,10 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2019-09-10
+## Added
+- makefile now uses bsvpath to identify directories for bsv source. This makes using vim-bsv easier.
+
 ## [1.0.2] - 2019-09-10
 ## Fixed
 - rg_delayed_redirect register in stage0 should only be used when bpu and compressed both enabled.
