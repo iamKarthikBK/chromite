@@ -242,10 +242,12 @@ package stage0;
       rg_sfence[1] <= fl.sfence;
     `endif
       rg_pc[1] <= fl.pc;
+  `ifdef bpu
     `ifdef compressed
       // reset any delayed-redirect
       rg_delayed_redirect[1] <= tagged Invalid;
     `endif
+  `endif
     endmethod
 
 `ifdef bpu
