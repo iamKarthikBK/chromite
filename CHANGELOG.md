@@ -2,6 +2,11 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2019-09-10
+## Fixed
+- rg_delayed_redirect register in stage0 should only be used when bpu and compressed both enabled.
+
+
 ## [1.0.1] - 2019-09-09
 ## Fixed
 - links to verilog artifacts in readme fixed.
