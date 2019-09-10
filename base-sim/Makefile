@@ -97,7 +97,7 @@ ifeq ($(PMP), enable)
 	override define_macros += -D pmp=True
 endif
 ifneq ($(PREDICTOR), none)
-	override define_macros += -D bpu=True 
+	override define_macros += -D bpu=True
 endif
 ifeq ($(ARITH_TRAP), enable)
 	override define_macros += -D arith_trap=True
@@ -168,19 +168,13 @@ override define_macros += -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
 								 -D extrahist=$(EXTRAHIST) -D rasdepth=$(RASDEPTH) \
 								 -D bpureset=$(BPURESET) -D causesize=$(CAUSESIZE) -D $(PREDICTOR)=True\
 								 -D itlbsize=$(ITLBSIZE) -D dtlbsize=$(DTLBSIZE)
-								
-		
+
+
 # ------------------------------------------------------------------------------------------------ #
 # ------------------ Include directories for bsv compilation ------------------------------------- #
-CORE:=../src/core/:../src/core/predictors/
-F_EXT:=../src/core/fpu/
-M_EXT:=../src/core/m_ext/:../src/core/m_ext/multiplier_designs/
-FABRIC:=./fabrics/axi4:./fabrics/axi4lite
-CACHES:=./caches_mmu/src/
-PERIPHERALS:=./devices/bootrom:./devices/pwm:./devices/uart:./devices/clint:./devices/bram:./devices/riscvDebug013:./devices/jtagdtm/:./devices/err_slave/
-COMMON_BSV:=./common_bsv/
-COMMON_VERILOG:=./common_verilog/bsvwrappers/
-BSVINCDIR:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC:$(CORE):$(F_EXT):$(M_EXT):$(FABRIC):$(PERIPHERALS):$(COMMON_BSV):$(COMMON_VERILOG):$(CACHES)
+BSVDEFAULT:=.:%/Prelude:%/Libraries:%/Libraries/BlueNoC
+VARIABLE := $(BSVDEFAULT)$(shell sed 's/^/:..\//g' ../bsvpath)
+BSVINCDIR := $(shell echo $(VARIABLE) | sed 's/ //g' )
 # ------------------------------------------------------------------------------------------------ #
 
 # ----------------- Setting up flags for verilator ----------------------------------------------- #
@@ -191,7 +185,7 @@ VERILATOR_FLAGS += --stats -O3 $(verilate_fast) -LDFLAGS "-static" --x-assign fa
 # ------------------------------------------------------------------------------------------------ #
 
 # ---------------- Setting the variables for bluespec compile  --------------------------------- #
-BSC_CMD:= bsc -u -verilog -elab 
+BSC_CMD:= bsc -u -verilog -elab
 BSVCOMPILEOPTS:= +RTS -K40000M -RTS -check-assert  -keep-fires -opt-undetermined-vals \
 									$(suppresswarn) -remove-false-rules -remove-empty-rules -remove-starved-rules \
 									-remove-dollar -unspecified-to X -show-schedule -show-module-use
@@ -238,17 +232,17 @@ simulate: ## Simulate the 'out' executable
 	@exec ./$(BSVOUTDIR)/out > log
 	@echo Simulation finished
 
-.PHONY: generate_verilog 
-generate_verilog: ## Generete verilog from BSV 
+.PHONY: generate_verilog
+generate_verilog: ## Generete verilog from BSV
 generate_verilog: check-restore check-env
 	@echo Compiling $(TOP_MODULE) in verilog ...
-	@mkdir -p $(BSVBUILDDIR); 
-	@mkdir -p $(VERILOGDIR); 
+	@mkdir -p $(BSVBUILDDIR);
+	@mkdir -p $(VERILOGDIR);
 	@echo "old_define_macros = $(define_macros)" > old_vars
 	$(BSC_CMD) -vdir $(VERILOGDIR) -bdir $(BSVBUILDDIR) -info-dir $(BSVBUILDDIR)\
   $(define_macros) $(BSVCOMPILEOPTS) $(VERILOG_FILTER) \
-  -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1) 
-	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ${VERILOGDIR}  
+  -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1)
+	@cp ${BLUESPECDIR}/Verilog.Vivado/RegFile.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BELoad.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2BE.v ${VERILOGDIR}
 	@cp ${BLUESPECDIR}/Verilog.Vivado/BRAM2.v ${VERILOGDIR}
@@ -281,7 +275,7 @@ generate_verilog: check-restore check-env
 	@echo Compilation finished
 
 .PHONY: link_vcs
-link_vcs: ## Generate simulation executable using Synopsys VCS 
+link_vcs: ## Generate simulation executable using Synopsys VCS
 	@rm -rf $(BSVOUTDIR)
 	@mkdir -p $(BSVOUTDIR)
 	vcs -LDFLAGS -Wl,--no-as-needed -l vcs_compile.log -sverilog +vpi +v2k -lca +define+TOP=$(TOP_MODULE) $(VCS_MACROS) \
@@ -291,7 +285,7 @@ link_vcs: ## Generate simulation executable using Synopsys VCS
 	@mv csrc out* $(BSVOUTDIR)
 
 .PHONY: link_ncverilog
-link_ncverilog: ## Generate simulation executable using Cadence NCVerilog 
+link_ncverilog: ## Generate simulation executable using Cadence NCVerilog
 	@echo "Linking $(TOP_MODULE) using ncverilog..."
 	@rm -rf work include $(BSVOUTDIR)/work
 	@mkdir -p $(BSVOUTDIR)
@@ -301,7 +295,7 @@ link_ncverilog: ## Generate simulation executable using Cadence NCVerilog
 	@ncvlog -64BIT -sv -cdslib ./cds.lib -hdlvar ./hdl.var +define+TOP=$(TOP_MODULE) $(VCS_MACROS)\
 	${BLUESPECDIR}/Verilog/main.v \
 	-y $(VERILOGDIR)/ \
-	-y ${BLUESPECDIR}/Verilog/ 
+	-y ${BLUESPECDIR}/Verilog/
 	@ncelab  -cdslib ./cds.lib -hdlvar ./hdl.var work.main -timescale 1ns/1ps
 	@echo 'ncsim -cdslib ./cds.lib -hdlvar ./hdl.var work.main #> /dev/null' > $(BSVOUTDIR)/out
 	@mv work cds.lib hdl.var $(BSVOUTDIR)/
@@ -312,7 +306,7 @@ link_ncverilog: ## Generate simulation executable using Cadence NCVerilog
 link_ncverilog_openocd: ## Generate simulation executable using Synopsys VCS with VPI for GDB
 	@echo "Linking $(TOP_MODULE) using ncverilog..."
 	@rm -rf work include bin/work
-	@mkdir -p bin 
+	@mkdir -p bin
 	@mkdir work
 	@echo "Building RBB VPI"
 	@echo "define work ./work" > cds.lib
@@ -320,7 +314,7 @@ link_ncverilog_openocd: ## Generate simulation executable using Synopsys VCS wit
 	@ncvlog -64BIT -sv -cdslib ./cds.lib -hdlvar ./hdl.var +define+TOP=$(TOP_MODULE) \
 	${BLUESPECDIR}/Verilog/main.v \
 	-y $(VERILOGDIR)/ \
-	-y ${BLUESPECDIR}/Verilog/ 
+	-y ${BLUESPECDIR}/Verilog/
 	@ncelab -64BIT -cdslib ./cds.lib -hdlvar ./hdl.var work.main -loadvpi rbb_vpi.so: -timescale 1ns/1ps
 	@echo 'ncsim -64BIT -cdslib ./cds.lib -hdlvar ./hdl.var -loadvpi rbb_vpi.so: work.main #> /dev/null' > $(BSVOUTDIR)/out
 	@mv ./*.so $(BSVOUTDIR)/
@@ -332,7 +326,7 @@ link_ncverilog_openocd: ## Generate simulation executable using Synopsys VCS wit
 link_irun:
 	@irun -define TOP=mkTbSoC -timescale 1ns/1ps $(VERILOGDIR)/main.v \
 	-y $(VERILOGDIR)/ \
-	-y ${BLUESPECDIR}/Verilog/ 
+	-y ${BLUESPECDIR}/Verilog/
 
 .PHONY: link_msim
 link_msim: ## Generate simulation executable using Mentor's ModelSim tool
@@ -397,10 +391,10 @@ release-verilog-artifacts: generate_verilog generate_boot_files link_verilator
 	@cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt verilog-artifacts/LICENSE.txt
 	@mv verilog-artifacts ../
 
-.PHONY: regress 
+.PHONY: regress
 regress: ## To run regressions on the core.
 	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeRegress.pl $(opts)
-	
+
 .PHONY: test
 test: ## To run a single riscv-test on the core.
 	@SHAKTI_HOME=$$PWD CONFIG_LOG=0 perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeTest.pl $(opts)
@@ -445,7 +439,7 @@ clean:
 	rm -rf $(BSVBUILDDIR) *.log $(BSVOUTDIR) obj_dir
 	rm -f *.jou rm *.log *.mem old_vars log
 
-clean_verilog: clean 
+clean_verilog: clean
 	rm -rf verilog/
 	rm -rf fpga/
 	rm -rf INCA*
