@@ -66,9 +66,9 @@ release:
         - cd base-sim/
         - ./manager.sh update_deps
         - make CONFIG=templates/asic_synth.inc release-verilog-artifacts
+        - make restore
         - cd ..
         - cp version.txt verilog-artifacts
-        - make restore
     only:
         refs:
             - master
