@@ -1,15 +1,15 @@
-/* 
+/*
 Copyright (c) 2013, IIT Madras All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted
 provided that the following conditions are met:
 
 * Redistributions of source code must retain the above copyright notice, this list of conditions
-  and the following disclaimer.  
-* Redistributions in binary form must reproduce the above copyright notice, this list of 
-  conditions and the following disclaimer in the documentation and / or other materials provided 
- with the distribution.  
-* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or 
+  and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of
+  conditions and the following disclaimer in the documentation and / or other materials provided
+ with the distribution.
+* Neither the name of IIT Madras  nor the names of its contributors may be used to endorse or
   promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
@@ -18,7 +18,7 @@ AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYR
 CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------------------
 
@@ -30,7 +30,7 @@ Details:
 */
 package common_types;
   `include "common_params.bsv"
-  
+
   `ifdef RV64
   	typedef 64 XLEN;
   `else
@@ -59,24 +59,23 @@ package common_types;
   `endif
   } Stage0Flush deriving(Bits, Eq, FShow);
 
-
-  //------ The follwing contain common tuples across the stages ------------- 
+  //------ The follwing contain common tuples across the stages -------------
 	typedef enum {ALU, MEMORY, BRANCH, JAL, JALR, SYSTEM_INSTR, TRAP, WFI
-                `ifdef spfpu, FLOAT `endif 
+                `ifdef spfpu, FLOAT `endif
                 `ifdef muldiv, MULDIV `endif } Instruction_type deriving(Bits, Eq, FShow);
 
-	typedef enum {Load = 0, Store = 1, Fence = 3, FenceI = 4 
-                `ifdef atomic,      Atomic = 2 `endif 
+	typedef enum {Load = 0, Store = 1, Fence = 3, FenceI = 4
+                `ifdef atomic,      Atomic = 2 `endif
                 `ifdef supervisor,  SFence = 5 `endif } Access_type deriving (Bits, Eq, FShow);
 
   typedef enum {Regular, None} Flush_type2 deriving (Bits, Eq, FShow);
 	typedef enum {`ifdef spfpu FloatingRF = 2, `endif IntegerRF = 0, PC = 1} Op1type deriving(Bits, Eq, FShow);
-	typedef enum {`ifdef spfpu FloatingRF = 4, `endif IntegerRF = 0, Immediate = 1, Constant4 = 2, Constant2 = 3} 
+	typedef enum {`ifdef spfpu FloatingRF = 4, `endif IntegerRF = 0, Immediate = 1, Constant4 = 2, Constant2 = 3}
                                                                   Op2type deriving(Bits, Eq, FShow);
   typedef enum {FRF = 1, IRF = 0} RFType deriving(Bits, Eq, FShow);
 //  typedef enum {SYSTEM_INSTR, REGULAR, TRAP} Commit_type deriving(Eq, Bits, FShow);
 //  typedef enum {MEMORY, SYSTEM_INSTR, REGULAR, TRAP} PreCommit_type deriving(Eq, Bits, FShow);
-  typedef enum {Machine = 3, Supervisor = 1, User = 0} Privilege_mode 
+  typedef enum {Machine = 3 `ifdef supervisor , Supervisor = 1 `endif , User = 0} Privilege_mode
                                                                           deriving(Eq, Bits, FShow);
   // -------------------------------------------------------------------------------------
 
@@ -104,7 +103,7 @@ package common_types;
     Bit#(7) funct;              // concatenation of f3 and fn fields
     Bool    resume_wfi;         // indicates if core should resume from wfi
     Bool    rerun;              // indicates if the current instruction needs to be rerun
-  } InstrMeta deriving(Bits, Eq, FShow); 
+  } InstrMeta deriving(Bits, Eq, FShow);
 
   // the final structure of the response from the decoder
   typedef struct{
@@ -118,7 +117,7 @@ package common_types;
   // ------------------------------------------------------------------------------------------
 
   `ifdef spfpu
-    typedef Tuple6#(Bit#(ELEN), Bit#(ELEN), Bit#(3), Bit#(3), 
+    typedef Tuple6#(Bit#(ELEN), Bit#(ELEN), Bit#(3), Bit#(3),
                     Bit#(FLEN), Bit#(3)) Operands ;
   `else
     typedef Tuple4#(Bit#(XLEN), Bit#(XLEN), Bit#(3), Bit#(3)) Operands ;
@@ -134,14 +133,15 @@ package common_types;
     Bool branch_taken;
   `endif
   } ALU_OUT deriving (Bits,  Eq,  FShow);
-  
+
   typedef Tuple5#(Bit#(`paddr), Bit#(XLEN), Access_type, Bit#(2), Bit#(1)) MemoryRequest;
   typedef Tuple4#(Bit#(`paddr), Access_type, Bit#(2), Bit#(1)) CoreRequest;
 
   typedef Tuple3#(Bit#(5), Bool, Bit#(XLEN)) OpFwding;
   typedef struct{
     Privilege_mode prv;
-    Bit#(`ifdef debug 14 `else 12 `endif ) csr_mip;
+    Bit#(TAdd#(12, TAdd#(`ifdef debug 2 `else 0 `endif ,
+                         `ifdef perfmonitors 1 `else 0 `endif ))) csr_mip;
     Bit#(12) csr_mie;
   `ifdef non_m_traps
     Bit#(12) csr_mideleg;
@@ -173,10 +173,10 @@ package common_types;
   } DebugStatus deriving(Bits, Eq, FShow);
 
   typedef Tuple6#(Privilege_mode, Bit#(XLEN), Bit#(32), Bit#(5), Bit#(ELEN), RFType) DumpType;
- 
+
                     // data, trap, cause, eopch size
   typedef Tuple4#(Bit#(ELEN), Bool, Bit#(6), Bit#(esize)) MemoryReadResp#(numeric type esize);
-  
+
   typedef Tuple3#(
     Bit#(addr), // ADDR
     Bit#(data), // DATA
@@ -200,7 +200,7 @@ package common_types;
     Bool discard;
   `endif
   `ifdef bpu
-    BTBResponse btbresponse;    
+    BTBResponse btbresponse;
   `endif
   } Stage0PC#(numeric type addr) deriving(Bits, Eq, FShow);
 
@@ -213,13 +213,13 @@ package common_types;
     Bit#(`causesize) cause;
   `ifdef compressed
     Bool upper_err;
-    Bool compressed; 
+    Bool compressed;
   `endif
   `ifdef bpu
     BTBResponse btbresponse;
   `endif
   }PIPE1 deriving (Bits, Eq, FShow);
-  
+
   // ---------- Tuples for the second Pipeline Stage -----------//
   // type holding the meta information for stage3.
   // Max Width : 7+3 + 4+64 + 1+2 = 81 bits
@@ -251,7 +251,7 @@ package common_types;
     Bit#(ELEN)  data;
     Op1type     optype;
   } RFOp1 deriving(Bits, Eq, FShow);
-  
+
   typedef struct{
     Bit#(5)     addr;
     Bit#(ELEN)  data;
@@ -288,7 +288,7 @@ package common_types;
   `endif
   } OpType deriving(Bits, Eq, FShow);
 
-  
+
   // -------------------------------------------------------------
   // ---------- Tuples for the third Pipeline Stage -----------//
 
@@ -338,7 +338,7 @@ package common_types;
     Stage4System  System;
   } Stage4Type deriving (Bits, Eq, FShow);
 
-                
+
   // ----------------------------------------------------------//
   // Common : epoch 1 - bit
   typedef struct{
@@ -352,7 +352,7 @@ package common_types;
   `ifdef atomic
     Bit#(ELEN) commitvalue;
     Bit#(5) rd;
-  `endif 
+  `endif
   } CommitStore deriving (Bits, Eq, FShow);
 
   typedef struct{
@@ -472,13 +472,14 @@ package common_types;
     ETrigger ETRIGGER;
     void NONE;
   } TriggerData deriving(Bits, Eq, FShow);
-    
+
   typedef struct{
       Bool trap;
       Bit#(`causesize) cause;
     } TriggerStatus deriving(Bits, Eq, FShow);
 
 `endif
+	//-------structure defined here is common across all the CSR grps in the daisy chain-------
 
   typedef struct{
     Bit#(ELEN)  data;
@@ -538,4 +539,79 @@ package common_types;
   `endif
   } PredictionRequest deriving(Bits, Eq, FShow);
   // --------------------------------------------------------------------------------------------//
+	typedef struct {
+  	Bit#(12) csr_address;
+  	Bit#(XLEN) writedata;
+    Bit#(2) funct3;
+    `ifdef compressed Bit#(2) lpc; `endif
+	} CSRReq deriving(Bits, FShow, Eq);
+  typedef struct{
+    Bool hit;
+    Bit#(XLEN)  data;
+  } CSRResponse deriving(Bits, Eq, FShow);
+	//-----------------------------------------------------------------------------------------
+
+`ifdef perfmonitors
+		typedef struct{
+      Bit#(1) misprediction            ;
+      Bit#(1) exceptions               ;
+      Bit#(1) interrupts               ;
+      Bit#(1) csrops                   ;
+      Bit#(1) jumps                    ;
+      Bit#(1) branches                 ;
+      Bit#(1) floats                   ;
+      Bit#(1) muldiv                   ;
+      Bit#(1) rawstalls                ;
+      Bit#(1) exetalls                 ;
+      Bit#(1) icache_access            ;
+      Bit#(1) icache_hits              ;
+      Bit#(1) icache_fbhit             ;
+      Bit#(1) icache_ncaccess          ;
+      Bit#(1) icache_fbrelease         ;
+      Bit#(1) dcache_read_access		    ;
+      Bit#(1) dcache_write_access		  ;
+      Bit#(1) dcache_atomic_access		  ;
+      Bit#(1) dcache_nc_read_access		;
+      Bit#(1) dcache_nc_write_access   ;
+      Bit#(1) dcache_read_hits		      ;
+      Bit#(1) dcache_write_hits		    ;
+      Bit#(1) dcache_atomic_hits		    ;
+      Bit#(1) dcache_read_fb_hits		  ;
+      Bit#(1) dcache_write_fb_hits		  ;
+      Bit#(1) dcache_atomic_fb_hits		;
+      Bit#(1) dcache_fb_releases		    ;
+      Bit#(1) dcache_line_evictions		;
+      Bit#(1) itlb_misses              ;
+      Bit#(1) dtlb_misses              ;
+  	} Events deriving(Bits, Eq, FShow);
+	// types for events
+	`ifdef csr_grp4
+  	typedef Events Events_grp4;
+  `endif
+  `ifdef csr_grp5
+  	typedef Events Events_grp5;
+	`endif
+	`ifdef csr_grp6
+  	typedef Events Events_grp6;
+  `endif
+  `ifdef csr_grp7
+  	typedef Events Events_grp7;
+  `endif
+  function String event_to_string(Bit#(XLEN) event_count);
+    case (event_count)
+      'd1:  return "Exceptions";
+      'd2:  return "Interrupts";
+      'd3:  return "Branches Taken";
+      'd4:  return "Branches Not Taken";
+      'd5:  return "MulDiv Inst";
+      'd6:  return "CSR Inst";
+      'd7:  return "Jumps";
+      'd8:  return "Loads";
+      'd9:  return "Stores";
+      'd10: return "Control Redirections";
+      'd11: return "RAW Stalls";
+      default: return "Unknown Event";
+    endcase
+  endfunction
+`endif
 endpackage

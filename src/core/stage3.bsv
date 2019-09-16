@@ -130,7 +130,19 @@ package stage3;
     method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
     method Action trigger_enable(Vector#(`trigger_num, Bool) t);
   `endif
-
+  `ifdef perfmonitors
+    /*doc:method: */
+    `ifdef spfpu
+      method Bit#(1) mv_count_floats;
+    `endif
+    `ifdef muldiv
+      method Bit#(1) mv_count_muldiv;
+    `endif
+    method Bit#(1) mv_count_jumps;
+    method Bit#(1) mv_count_branches;
+    method Bit#(1) mv_count_rawstalls ;
+    method Bit#(1) mv_count_exestalls ;
+  `endif
   endinterface
 
   (*synthesize*)
@@ -212,6 +224,16 @@ package stage3;
   `ifdef multicycle
     Reg#(Bool) rg_stall <- mkReg(False);
     Ifc_multicycle_alu multicycle_alu <- mkmulticycle_alu(hartid);
+  `endif
+
+  `ifdef perfmonitors
+    /*doc:wire: */
+    Wire#(Bit#(1)) wr_count_floats <- mkDWire(0);
+    Wire#(Bit#(1)) wr_count_muldiv <- mkDWire(0);
+    Wire#(Bit#(1)) wr_count_branches <- mkDWire(0);
+    Wire#(Bit#(1)) wr_count_jumps <- mkDWire(0);
+    Wire#(Bit#(1)) wr_count_rawstalls <- mkDWire(0);
+    Wire#(Bit#(1)) wr_count_exestalls <- mkDWire(0);
   `endif
     // ---------------------- End Instatiations --------------------------//
 
@@ -454,6 +476,10 @@ package stage3;
                                                                               !isValid(wr_next_pc))
         execute = False;
     `endif
+    `ifdef perfmonitors
+      if(epochs_match && !operands_available)
+        wr_count_rawstalls <= 1;
+    `endif
       if(!epochs_match)begin
         `logLevel( stage3, 0, $format("core:%2d ",hartid,"STAGE3: Dropping Instructions"))
         deq_rx;
@@ -518,6 +544,20 @@ package stage3;
                               default       : tagged Regular s4regular;
                             endcase;
       // ---------------------------------------------------------------------------------- //
+      `ifdef perfmonitors
+        if(meta.inst_type == JALR || meta.inst_type == JAL)
+          wr_count_jumps <= 1;
+        if(meta.inst_type == BRANCH)
+          wr_count_branches <= 1;
+        `ifdef spfpu
+          if(meta.inst_type == FLOAT)
+            wr_count_floats <= 1;
+        `endif
+        `ifdef muldiv
+          if(meta.inst_type == MULDIV)
+            wr_count_muldiv <= 1;
+        `endif
+      `endif
       `ifdef multicycle
         Bool is_multicyle = `ifdef muldiv meta.inst_type == MULDIV  || `endif
                             `ifdef spfpu  meta.inst_type == FLOAT || `endif False;
@@ -557,6 +597,10 @@ package stage3;
         `logLevel( stage3, 1, $format("core:%2d ",hartid,"STAGE3: Enquing Delayed Result "))
         rg_stall <= False;
       end
+    `ifdef perfmonitors
+      else
+        wr_count_exestalls <= 1;
+    `endif
     endrule
   `endif
 
@@ -662,6 +706,19 @@ package stage3;
       for(Integer i=0; i<`trigger_num; i=i+1)
         v_trigger_enable[i] <= t[i];
     endmethod
+  `endif
+  `ifdef perfmonitors
+    /*doc:method: */
+    `ifdef spfpu
+      method mv_count_floats = wr_count_floats;
+    `endif
+    `ifdef muldiv
+      method mv_count_muldiv = wr_count_muldiv;
+    `endif
+    method mv_count_jumps = wr_count_jumps;
+    method mv_count_branches = wr_count_branches;
+    method mv_count_rawstalls = wr_count_rawstalls;
+    method mv_count_exestalls = wr_count_exestalls;
   `endif
   endmodule
 endpackage

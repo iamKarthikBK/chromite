@@ -68,7 +68,7 @@ package TbSoc;
     Reg#(Bit#(5)) rg_cnt <-mkReg(0);
 
     Ifc_bram_axi4#(`paddr, ELEN, USERSPACE, `Addr_space) main_memory <- mkbram_axi4(`MemoryBase,
-                                                "code.mem.MSB", "code.mem.LSB", "MainMEM");
+                                                "code.mem", "MainMEM");
 		Ifc_bootrom_axi4#(`paddr, ELEN, USERSPACE, 13) bootrom <-mkbootrom_axi4(`BootRomBase);
 
   	mkConnection(soc.main_mem_master, main_memory.slave);

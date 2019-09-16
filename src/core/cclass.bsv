@@ -127,17 +127,19 @@ package cclass;
     FIFOF#(Tuple2#(Bit#(3), Bit#(1))) ff_rd_epochs <- mkSizedFIFOF(6);
 
     FIFOF#(Bit#(`iesize))  ff_epoch <- mkSizedFIFOF(4);
-    let curr_priv = riscv.curr_priv;
+    let curr_priv = riscv.mv_curr_priv;
 
     // TODO debug
   `ifdef debug
     Reg#(Maybe#(Bit#(DXLEN))) rg_abst_response <- mkReg(tagged Invalid); // registered container for responses
+    Reg#(Bool) rg_debug_waitcsr <- mkReg(False);
+    let csr_response = riscv.mv_resp_to_core;
   `endif
 
-	Reg#(Bit#(TLog#(TDiv#(ELEN,8)))) rg_io_imem_lower_addr_bits <- mkReg(0);
-	Reg#(Bit#(TLog#(TDiv#(ELEN,8)))) rg_io_dmem_lower_addr_bits <- mkReg(0);
-	Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_fetch_lower_addr_bits <- mkReg(tagged Invalid);
-	Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_memory_lower_addr_bits <- mkReg(tagged Invalid);
+	  Reg#(Bit#(TLog#(TDiv#(ELEN,8)))) rg_io_imem_lower_addr_bits <- mkReg(0);
+	  Reg#(Bit#(TLog#(TDiv#(ELEN,8)))) rg_io_dmem_lower_addr_bits <- mkReg(0);
+	  Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_fetch_lower_addr_bits <- mkReg(tagged Invalid);
+	  Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_memory_lower_addr_bits <- mkReg(tagged Invalid);
 
   `ifdef cache_control
 	  rule handle_nc_resp;
@@ -163,7 +165,7 @@ package cclass;
 
   `ifdef supervisor
     rule tlb_csr_info;
-      imem.ma_satp_from_csr(riscv.csr_satp);
+      imem.ma_satp_from_csr(riscv.mv_csr_satp);
       imem.ma_curr_priv(curr_priv);
     endrule
   `endif
@@ -227,9 +229,9 @@ package cclass;
 	  mkConnection(dmem.core_resp, riscv.memory_response); // dmem integration
   `ifdef supervisor
     rule dtlb_csr_info;
-      dmem.ma_satp_from_csr(riscv.csr_satp);
+      dmem.ma_satp_from_csr(riscv.mv_csr_satp);
       dmem.ma_curr_priv(curr_priv);
-      dmem.ma_mstatus_from_csr(riscv.csr_mstatus);
+      dmem.ma_mstatus_from_csr(riscv.mv_csr_mstatus);
     endrule
   `endif
     rule drive_dmem_enable;
@@ -438,20 +440,20 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
 `endif
 `ifdef supervisor
     rule csrs_to_ptwalk;
-      ptwalk.satp_from_csr.put(riscv.csr_satp);
+      ptwalk.satp_from_csr.put(riscv.mv_csr_satp);
       ptwalk.curr_priv.put(curr_priv);
-      ptwalk.mstatus_from_csr.put(riscv.csr_mstatus);
+      ptwalk.mstatus_from_csr.put(riscv.mv_csr_mstatus);
     endrule
 
   `ifdef pmp
     rule connect_pmp_to_imem;
-      imem.pmp_cfg(riscv.pmp_cfg);
-      imem.pmp_addr(riscv.pmp_addr);
+      imem.pmp_cfg(riscv.mv_pmp_cfg);
+      imem.pmp_addr(riscv.mv_pmp_addr);
     endrule
 
     rule connect_pmp_to_dmem;
-      dmem.pmp_cfg(riscv.pmp_cfg);
-      dmem.pmp_addr(riscv.pmp_addr);
+      dmem.pmp_cfg(riscv.mv_pmp_cfg);
+      dmem.pmp_addr(riscv.mv_pmp_addr);
     endrule
   `endif
 
@@ -486,24 +488,48 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
     mkConnection(dmem.hold_req, ptwalk.hold_req);
 `endif
 
+`ifdef perfmonitors
+  `ifdef icache
+    mkConnection(riscv.ma_icache_counters,imem.mv_icache_perf_counters);
+  `endif
+  `ifdef dcache
+    mkConnection(riscv.ma_dcache_counters,dmem.mv_dcache_perf_counters);
+  `endif
+  `ifdef supervisor
+    mkConnection(riscv.ma_itlb_counters,imem.mv_itlb_perf_counters);
+    mkConnection(riscv.ma_dtlb_counters,dmem.mv_dtlb_perf_counters);
+  `endif
+`endif   
+
+  `ifdef debug
+    rule rl_wait_for_csr_response(rg_debug_waitcsr && !isValid(rg_abst_response));
+      if (csr_response.hit) begin
+        rg_abst_response <= tagged Valid csr_response.data;
+        rg_debug_waitcsr <= False;
+      end
+      else
+        rg_debug_waitcsr <= True;
+    endrule
+  `endif
+
     interface sb_clint_msip = interface Put
   	  method Action put(Bit#(1) intrpt);
-        riscv.clint_msip(intrpt);
+        riscv.ma_clint_msip(intrpt);
       endmethod
     endinterface;
     interface sb_clint_mtip = interface Put
       method Action put(Bit#(1) intrpt);
-        riscv.clint_mtip(intrpt);
+        riscv.ma_clint_mtip(intrpt);
       endmethod
     endinterface;
     interface sb_clint_mtime = interface Put
   		method Action put (Bit#(64) c_mtime);
-        riscv.clint_mtime(c_mtime);
+        riscv.ma_clint_mtime(c_mtime);
       endmethod
     endinterface;
     interface sb_externalinterrupt = interface Put
       method Action put(Bit#(1) intrpt);
-        riscv.set_external_interrupt(intrpt);
+        riscv.ma_set_external_interrupt(intrpt);
       endmethod
     endinterface;
 		interface master_i = fetch_xactor.axi_side;
@@ -517,10 +543,14 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
   `ifdef debug
     interface debug_server = interface Hart_Debug_Ifc
 
-      method Action   abstractOperation(AbstractRegOp cmd)if (!(isValid(rg_abst_response)));
+      method Action   abstractOperation(AbstractRegOp cmd)if (!(isValid(rg_abst_response)) 
+                                                              && !rg_debug_waitcsr );
         if(cmd.address < zeroExtend(14'h1000))begin // Explot address bits to optimize this filter
-          let lv_resp <- riscv.debug_access_csrs(cmd);
-          rg_abst_response <= tagged Valid zeroExtend(lv_resp);
+          riscv.ma_debug_access_csrs(cmd);
+          if (csr_response.hit)
+            rg_abst_response <= tagged Valid zeroExtend(csr_response.data);
+          else
+            rg_debug_waitcsr <= True;
         end
         else if(cmd.address < `ifdef spfpu 'h1040 `else 'h1020 `endif )begin
           let lv_resp <- riscv.debug_access_gprs(cmd);
@@ -531,20 +561,20 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
         end
       endmethod
 
-      method ActionValue#(Bit#(DXLEN)) abstractReadResponse if (isValid(rg_abst_response));
+      method ActionValue#(Bit#(DXLEN)) abstractReadResponse if (isValid(rg_abst_response) );
         rg_abst_response <= tagged Invalid;
         return validValue(rg_abst_response);
       endmethod
 
-      method haltRequest = riscv.debug_halt_request;
+      method haltRequest = riscv.ma_debug_halt_request;
 
-      method resumeRequest = riscv.debug_resume_request;
+      method resumeRequest = riscv.ma_debug_resume_request;
 
-      method dm_active = riscv.debugger_available;
+      method dm_active = riscv.ma_debugger_available;
 
-      method is_halted = riscv.core_is_halted();
+      method is_halted = riscv.mv_core_is_halted();
 
-      method is_unavailable = ~riscv.core_debugenable;
+      method is_unavailable = ~riscv.mv_core_debugenable;
 
       method Action hartReset(Bit#(1) hart_reset_v); // Change to reset type // Signal TO Reset HART -Active HIGH
         noAction;

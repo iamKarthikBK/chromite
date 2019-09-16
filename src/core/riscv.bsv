@@ -59,34 +59,49 @@ package riscv;
     method Action store_is_cached(Bool c);
     (*always_enabled*)
     method Action cache_is_available(Bool avail);
-    method Action clint_msip(Bit#(1) intrpt);
-    method Action clint_mtip(Bit#(1) intrpt);
-    method Action clint_mtime(Bit#(64) c_mtime);
-	  method Action set_external_interrupt(Bit#(1) ex_i);
+    method Action ma_clint_msip(Bit#(1) intrpt);
+    method Action ma_clint_mtip(Bit#(1) intrpt);
+    method Action ma_clint_mtime(Bit#(64) c_mtime);
+	  method Action ma_set_external_interrupt(Bit#(1) ex_i);
   `ifdef rtldump
     interface Get#(DumpType) dump;
   `endif
-    method Bit#(XLEN) csr_mstatus;
+    method Bit#(XLEN) mv_csr_mstatus;
     method Bit#(3) mv_cacheenable;
-    method Bit#(2) curr_priv;
+    method Bit#(2) mv_curr_priv;
 	`ifdef supervisor
-		method Bit#(XLEN) csr_satp;
+		method Bit#(XLEN) mv_csr_satp;
 	`endif
   `ifdef pmp
-    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
-    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+    method Vector#(`PMPSIZE, Bit#(8)) mv_pmp_cfg;
+    method Vector#(`PMPSIZE, Bit#(`paddr )) mv_pmp_addr;
   `endif
 
   `ifdef debug
     // interface to interact with debugger
     method ActionValue#(Bit#(XLEN)) debug_access_gprs(AbstractRegOp cmd);
-    method ActionValue#(Bit#(XLEN)) debug_access_csrs(AbstractRegOp cmd);
-    method Action debug_halt_request(Bit#(1) ip);
-    method Action debug_resume_request(Bit#(1) ip);
-    method Bit#(1) core_is_halted;
-    method Bit#(1) core_debugenable;
-    method Action debugger_available (Bit#(1) avail);
+    method Action ma_debug_access_csrs(AbstractRegOp cmd);
+    method Action ma_debug_halt_request(Bit#(1) ip);
+    method Action ma_debug_resume_request(Bit#(1) ip);
+    method Bit#(1) mv_core_is_halted;
+    method Bit#(1) mv_core_debugenable;
+    method Action ma_debugger_available (Bit#(1) avail);
+  	method CSRResponse mv_resp_to_core;
   `endif
+`ifdef perfmonitors
+  `ifdef icache
+    /*doc:method: */
+    method Action ma_icache_counters (Bit#(5) i);
+  `endif
+  `ifdef dcache
+    /*doc:method: */
+    method Action ma_dcache_counters (Bit#(13) i);
+  `endif
+  `ifdef supervisor
+    method Action ma_dtlb_counters (Bit#(1) i);
+    method Action ma_itlb_counters (Bit#(1) i);
+  `endif
+`endif
   endinterface
 
   (*synthesize*)
@@ -135,6 +150,79 @@ package riscv;
   `ifdef rtldump
     FIFOF#(Tuple2#(Bit#(`vaddr), Bit#(32))) pipe4inst <- mkLFIFOF;
   `endif
+    let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
+    let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor, sfence `endif }=stage5.flush;
+
+`ifdef perfmonitors
+    /*doc:wire: */
+  `ifdef icache
+    Wire#(Bit#(5)) wr_icache_counters <- mkDWire(0);
+  `endif
+  `ifdef dcache
+    Wire#(Bit#(13)) wr_dcache_counters <- mkDWire(0);
+  `endif
+  `ifdef supervisor
+    /*doc:wire: */
+    Wire#(Bit#(1)) wr_dtlb_counters <- mkDWire(0);
+    Wire#(Bit#(1)) wr_itlb_counters <- mkDWire(0);
+  `endif
+    Bit#(1) lv_count_misprediction          = pack(flush_from_exe && !flush_from_wb);
+    Bit#(1) lv_count_exceptions             = stage5.mv_count_exceptions;
+    Bit#(1) lv_count_interrupts             = stage5.mv_count_interrupts;
+    Bit#(1) lv_count_csrops                 = stage5.mv_count_csrops;
+    Bit#(1) lv_count_jumps                  = stage3.mv_count_jumps;
+    Bit#(1) lv_count_branches               = stage3.mv_count_branches;
+    Bit#(1) lv_count_floats                 = `ifdef spfpu stage3.mv_count_floats `else 0 `endif ;
+    Bit#(1) lv_count_muldiv                 = `ifdef muldiv stage3.mv_count_muldiv `else 0 `endif ;
+    Bit#(1) lv_count_rawstalls              = stage3.mv_count_rawstalls;
+    Bit#(1) lv_count_exetalls               = stage3.mv_count_exestalls;
+    Bit#(1) lv_count_icache_access          = `ifdef icache wr_icache_counters[0] `else 0 `endif ;
+    Bit#(1) lv_count_icache_hits            = `ifdef icache wr_icache_counters[1] `else 0 `endif ;
+    Bit#(1) lv_count_icache_fbhit           = `ifdef icache wr_icache_counters[2] `else 0 `endif ;
+    Bit#(1) lv_count_icache_ncaccess        = `ifdef icache wr_icache_counters[3] `else 0 `endif ;
+    Bit#(1) lv_count_icache_fbrelease       = `ifdef icache wr_icache_counters[4] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_read_access		  = `ifdef dcache wr_dcache_counters[12] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_write_access		= `ifdef dcache wr_dcache_counters[11] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_atomic_access		= `ifdef dcache wr_dcache_counters[10] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_nc_read_access	= `ifdef dcache wr_dcache_counters[9] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_nc_write_access = `ifdef dcache wr_dcache_counters[8] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_read_hits		    = `ifdef dcache wr_dcache_counters[7] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_write_hits		  = `ifdef dcache wr_dcache_counters[6] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_atomic_hits		  = `ifdef dcache wr_dcache_counters[5] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_read_fb_hits		= `ifdef dcache wr_dcache_counters[4] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_write_fb_hits		= `ifdef dcache wr_dcache_counters[3] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_atomic_fb_hits	= `ifdef dcache wr_dcache_counters[2] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_fb_releases		  = `ifdef dcache wr_dcache_counters[1] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_line_evictions	= `ifdef dcache wr_dcache_counters[0] `else 0 `endif ;
+    Bit#(1) lv_count_itlb_misses            = `ifdef supervisor wr_itlb_counters `else 0 `endif ;
+    Bit#(1) lv_count_dtlb_misses            = `ifdef supervisor wr_dtlb_counters `else 0 `endif ;
+
+    let lv_total_count = {lv_count_misprediction, lv_count_exceptions, lv_count_interrupts,
+      lv_count_csrops, lv_count_jumps, lv_count_branches, lv_count_floats, lv_count_muldiv,
+      lv_count_rawstalls, lv_count_exetalls, lv_count_icache_access, lv_count_icache_hits,
+      lv_count_icache_fbhit, lv_count_icache_ncaccess, lv_count_icache_fbrelease,
+      lv_count_dcache_read_access		, lv_count_dcache_write_access		,
+      lv_count_dcache_atomic_access		, lv_count_dcache_nc_read_access		,
+      lv_count_dcache_nc_write_access, lv_count_dcache_read_hits		, lv_count_dcache_write_hits
+      , lv_count_dcache_atomic_hits		, lv_count_dcache_read_fb_hits		,
+      lv_count_dcache_write_fb_hits		, lv_count_dcache_atomic_fb_hits		,
+      lv_count_dcache_fb_releases		, lv_count_dcache_line_evictions		, lv_count_itlb_misses,
+    lv_count_dtlb_misses};
+    rule rl_connect_events;
+    `ifdef csr_grp4
+      stage5.ma_events_grp4(lv_total_count);
+    `endif
+    `ifdef csr_grp5
+      stage5.ma_events_grp5(lv_total_count);
+    `endif
+    `ifdef csr_grp6
+      stage5.ma_events_grp6(lv_total_count);
+    `endif
+    `ifdef csr_grp7
+      stage5.ma_events_grp7(lv_total_count);
+    `endif
+    endrule
+`endif
 
     mkConnection(stage0.tx_to_stage1, pipe0);
     mkConnection(pipe0, stage1.rx_from_stage0);
@@ -185,9 +273,6 @@ package riscv;
     mkConnection(stage4.tx_inst, pipe4inst);
     mkConnection(pipe4inst, stage5.rx_inst);
   `endif
-    let {flush_from_exe, flushpc_from_exe}=stage3.flush_from_exe;
-    let {flush_from_wb, flushpc_from_wb, fenceI `ifdef supervisor, sfence `endif }=stage5.flush;
-
   `ifdef triggers
     rule send_triggers_to_stage1;
       stage1.trigger_data1(stage5.trigger_data1);
@@ -214,7 +299,6 @@ package riscv;
     endrule
    `endif
 
-
     rule update_wEpoch(flush_from_wb);
       rg_wEpoch<=~rg_wEpoch;
     endrule
@@ -234,9 +318,9 @@ package riscv;
                                 `endif });
     endrule
     rule connect_csrs;
-      stage2.csrs(stage5.csrs_to_decode);
-      stage1.csr_misa_c(stage5.csr_misa_c);
-      stage3.csr_misa_c(stage5.csr_misa_c);
+      stage2.csrs(stage5.mv_csrs_to_decode);
+      stage1.csr_misa_c(stage5.mv_csr_misa_c);
+      stage3.csr_misa_c(stage5.mv_csr_misa_c);
     `ifdef bpu
       stage0.ma_bpu_enable(unpack(stage5.mv_cacheenable[2]));
     `endif
@@ -316,10 +400,10 @@ package riscv;
   `ifdef debug
     rule connect_debug_info;
       stage2.debug_status(DebugStatus {debugger_available : wr_debugger_available ,
-                                       core_is_halted     : unpack(stage5.core_is_halted),
-                                       step_set           : unpack(stage5.step_is_set),
-                                       step_ie            : unpack(stage5.step_ie),
-                                       core_debugenable   : unpack(stage5.core_debugenable)} );
+                                       core_is_halted     : unpack(stage5.mv_core_is_halted),
+                                       step_set           : unpack(stage5.mv_step_is_set),
+                                       step_ie            : unpack(stage5.mv_step_ie),
+                                       core_debugenable   : unpack(stage5.mv_core_debugenable)} );
     endrule
   `endif
     ///////////////////////////////////////////
@@ -327,9 +411,9 @@ package riscv;
     interface instr_req = stage0.to_icache;
     interface inst_response = stage1.inst_response;
     interface memory_request = stage3.memory_request;
-    method Action clint_msip(Bit#(1) intrpt) = stage5.clint_msip(intrpt);
-    method Action clint_mtip(Bit#(1) intrpt) = stage5.clint_mtip(intrpt);
-    method Action clint_mtime(Bit#(64) c_mtime) = stage5.clint_mtime(c_mtime);
+    method ma_clint_msip= stage5.ma_clint_msip;
+    method ma_clint_mtip = stage5.ma_clint_mtip;
+    method ma_clint_mtime = stage5.ma_clint_mtime;
     `ifdef rtldump
       interface dump = stage5.dump;
     `endif
@@ -347,27 +431,50 @@ package riscv;
     method Action cache_is_available(Bool avail);
       stage3.cache_is_available(avail);
     endmethod
-	  method Action set_external_interrupt(Bit#(1) ex_i) = stage5.set_external_interrupt(ex_i);
-    method csr_mstatus = stage5.csr_mstatus;
+	  method ma_set_external_interrupt = stage5.ma_set_external_interrupt;
+    method mv_csr_mstatus = stage5.mv_csr_mstatus;
     method mv_cacheenable = stage5.mv_cacheenable;
-    method curr_priv = stage5.curr_priv;
+    method mv_curr_priv = stage5.mv_curr_priv;
 		`ifdef supervisor
-			method csr_satp = stage5.csr_satp;
+			method mv_csr_satp = stage5.mv_csr_satp;
 		`endif
   `ifdef pmp
-    method pmp_cfg = stage5.pmp_cfg;
-    method pmp_addr = stage5.pmp_addr;
+    method mv_pmp_cfg = stage5.mv_pmp_cfg;
+    method mv_pmp_addr = stage5.mv_pmp_addr;
   `endif
   `ifdef debug
     method debug_access_gprs = stage2.debug_access_gprs;
-    method debug_access_csrs = stage5.debug_access_csrs;
-    method debug_halt_request = stage5.debug_halt_request;
-    method debug_resume_request = stage5.debug_resume_request;
-    method core_is_halted = stage5.core_is_halted;
-    method core_debugenable = stage5.core_debugenable;
-    method Action debugger_available (Bit#(1) avail);
+    method ma_debug_access_csrs = stage5.ma_debug_access_csrs;
+    method ma_debug_halt_request = stage5.ma_debug_halt_request;
+    method ma_debug_resume_request = stage5.ma_debug_resume_request;
+    method mv_core_is_halted = stage5.mv_core_is_halted;
+    method mv_core_debugenable = stage5.mv_core_debugenable;
+    method Action ma_debugger_available (Bit#(1) avail);
       wr_debugger_available <= unpack(avail);
     endmethod
+  	method mv_resp_to_core = stage5.mv_resp_to_core;
+  `endif
+  `ifdef perfmonitors
+  `ifdef icache
+    /*doc:method: */
+    method Action ma_icache_counters (Bit#(5) i);
+      wr_icache_counters <= i;
+    endmethod
+  `endif
+  `ifdef dcache
+    /*doc:method: */
+    method Action ma_dcache_counters (Bit#(13) i);
+      wr_dcache_counters <= i;
+    endmethod
+  `endif
+  `ifdef supervisor
+    method Action ma_dtlb_counters (Bit#(1) i);
+      wr_dtlb_counters <= i;
+    endmethod
+    method Action ma_itlb_counters (Bit#(1) i);
+      wr_itlb_counters <= i;
+    endmethod
+  `endif
   `endif
   endmodule
 

@@ -166,6 +166,7 @@
 `define User_external_int     8
 `define Supervisor_external_int 9
 `define Machine_external_int  11
+`define CounterInterrupt      16
 `define HaltEbreak            17
 `define HaltTrigger           18
 `define HaltDebugger          19
