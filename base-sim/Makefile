@@ -11,11 +11,11 @@ CONFIG?=soc_config.inc
 include $(CONFIG)
 
 ifeq ($(define_macros),)
-	define_macros+= -D Addr_space=21
+	define_macros+= -D Addr_space=25
 else
 ifneq (,$(findstring Addr_space,$(define_macros)))
 else
-	override define_macros+= -D Addr_space=21
+	override define_macros+= -D Addr_space=25
 endif
 endif
 
@@ -150,12 +150,44 @@ ifeq (enable,$(VERBOSITY))
 	VCS_MACROS += +define+VERBOSE=True
 endif
 
-ifeq ($(SUPPRESSWARNINGS), all)
-	suppresswarn= -suppress-warnings G0020:G0010:G0117:G0023:T0054:G0024:G0015:G0036
+ifeq ($(CSR_LATENCY),low)
+	override define_macros += -D csr_low_latency=True
+endif
+
+ifneq ($(COUNTERS_GRP4), 0)
+	override define_macros += -D perfmonitors=True
+	override define_macros += -D csr_grp4=True
+	ifneq ($(COUNTERS_GRP5), 0)
+		override define_macros += -D csr_grp5=True
+		ifneq ($(COUNTERS_GRP6), 0)
+			override define_macros += -D csr_grp6=True
+			ifneq ($(COUNTERS_GRP7), 0)
+				override define_macros += -D csr_grp7=True
+			endif
+		endif
+	endif
+endif
+
+ifneq ($(COUNTERS_GRP4), 0)
+	ifneq ($(COUNTERS_GRP5), 0)
+		ifneq ($(COUNTERS_GRP6), 0)
+			ifneq ($(COUNTERS_GRP7), 0)
+				override define_macros += -D counters_size=$(shell echo $(COUNTERS_GRP4) + $(COUNTERS_GRP5) + $(COUNTERS_GRP6) + $(COUNTERS_GRP7) | bc)
+			else
+				override define_macros += -D counters_size=$(shell echo $(COUNTERS_GRP4) + $(COUNTERS_GRP5) + $(COUNTERS_GRP6) | bc)
+			endif
+		else
+			override define_macros += -D counters_size=$(shell echo $(COUNTERS_GRP4) + $(COUNTERS_GRP5) | bc)
+		endif
+	else
+		override define_macros += -D counters_size=$(COUNTERS_GRP4)
+	endif
 endif
 
 override define_macros += -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
-								 -D DIVSTAGES=$(DIVSTAGES) -D Counters=$(COUNTERS)\
+								 -D DIVSTAGES=$(DIVSTAGES) -D counters_grp4=$(COUNTERS_GRP4)\
+								 -D counters_grp5=$(COUNTERS_GRP5) -D counters_grp6=$(COUNTERS_GRP6)\
+								 -D counters_grp7=$(COUNTERS_GRP7)\
 								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
 								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL) -D icachereset=$(IRESET) -D iesize=$(IESIZE) \
 								 -D idbanks=$(IDBANKS) -D itbanks=$(ITBANKS) -D ddbanks=$(DDBANKS) -D dtbanks=$(DTBANKS) \

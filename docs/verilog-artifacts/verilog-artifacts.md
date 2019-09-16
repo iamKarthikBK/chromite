@@ -12,6 +12,7 @@ This document describes the verilog artifact that is released with each tag on t
   * [Simulating Core](#simulating-core)
     + [BootRom content](#bootrom-content)
     + [Compiling programs](#compiling-programs)
+    + [Running Linux](#running-linux)
   * [Simulation Outputs](#simulation-outputs)
   * [Ending the simulation](#ending-the-simulation)
 
@@ -109,7 +110,7 @@ The `mkimem` and `mkdmem` module include SRAM instances which implement the resp
 
 The `verilog-artifact/sim` directory includes a simulation model `(cclass)` of the testbench which was compiled using `verilator`. Users wanting to simulate the core with other simulators should refer to various `link_*` targets in the [Makefile](../../base-sim/Makefile) available in the repo.
 
-Simulating core, requires `boot.MSB` and `boot.LSB` files which are also provided in the `verilog-artifact/sim` directory. The executable requires 2 more files `code.mem.LSB` and `code.mem.MSB` the generation of which is described below.
+Simulating core, requires `boot.MSB` and `boot.LSB` files which are also provided in the `verilog-artifact/sim` directory. The executable requires 1 more file `code.mem` the generation of which is described below.
 
 ### BootRom content
 
@@ -118,12 +119,17 @@ On system-reset the core will always jump to `0x1000` which is mapped to the boo
 ### Compiling programs
 The directory `verilog-artifact/benchmarks` holds a few basic programs and their compile scripts which can be used as reference to compile the programs using the riscv-gnu-toolchain. Please refer to the `benchmarks/README` for further details. 
 
-**NOTE**: Please note that the bram-based memory in the test-bench can only hold upt 2MB of code.
+**NOTE**: Please note that the bram-based memory in the test-bench can only hold upto 32MB of code.
 
-As shown in the sample examples of the benchmarks folder, for each program 2 files are generated: `code.mem.MSB` and `code.mem.LSB`. Coy these 2 files in the `verilog-artifact/sim` folder and then execute the following from the `verilog-artifact/sim` folder
+As shown in the sample examples of the benchmarks folder, for each program 1 file is required: `code.mem`. Copy this file in the `verilog-artifact/sim` folder and then execute the following from the `verilog-artifact/sim` folder
 ```
+cd verilog-artifacts/sim
 ./cclass 
 ```
+
+### Running linux
+You can also run a linux image on this executable. Please follow the commands mentioned
+[here](../../base-sim/README.md#linux-on-shakti)
 
 ## Simulation Outputs
 The `syscalls.c` program in the `verilog-artifact/benchmarks/common` directory contains the sample `putchar` function which uses the uart module. The test-bench is configured to dump all the characters received by the uart in to a file : `app_log`. Thus, all the `printf` calls will be captured in a file named `app_log`. 

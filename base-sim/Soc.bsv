@@ -117,7 +117,7 @@ package Soc;
     Ifc_cclass_axi4 cclass <- mkcclass_axi4(`resetpc, 0);
     Ifc_sign_dump signature<- mksign_dump();
   `ifdef debug
-    Ifc_debug_halt_loop#(`paddr, ELEN, USERSPACE) debug_memory <- mkdebug_halt_loop;
+    Ifc_debug_halt_loop_axi4#(`paddr, ELEN, USERSPACE) debug_memory <- mkdebug_halt_loop_axi4;
   `endif
 	  Ifc_uart_axi4#(`paddr,ELEN,0, 16) uart <- mkuart_axi4(curr_clk,curr_reset, 5);
     Ifc_clint_axi4#(`paddr, ELEN, 0, 1, 16) clint <- mkclint_axi4();

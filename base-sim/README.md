@@ -13,12 +13,10 @@ make CONFIG=soc_config.inc link_verilator
 make generate_boot_files CONFIG=soc_config.inc
 ```
 
-Now assuming your code resides in the `bin` folder - 
+Now assuming your code resides in the `bin` folder -
 ```
 cd bin
-elf2hex 8 524288 prog.elf 2147483648 > code.hex
-cut -c1-8 code.hex> code.mem.MSB 
-cut -c9-16 code.hex > code.mem.LSB 
+elf2hex 8 4194304 prog.elf 2147483648 > code.mem
 ```
 
 # Guide
@@ -57,13 +55,13 @@ The core along with the provided SoC can be simulated on a number of commercial 
 
 ## Generating a SoC RTL for the C-Class core
 
-This folder contains a sample (synthesizable) SoC (`Soc.bsv`) and a testbench (`TbSoc.bsv`) with minimal peripherals like: uart, clint, jtag-debugger, bram-based bootrom and a bram-based memory (acting as main-mem). These two files are provided as a base template for the user to create their own complex SoCs. A few standard SoCs instantiating C-class can be found [HERE](https://gitlab.com/shaktiproject/cores/shakti-soc). 
+This folder contains a sample (synthesizable) SoC (`Soc.bsv`) and a testbench (`TbSoc.bsv`) with minimal peripherals like: uart, clint, jtag-debugger, bram-based bootrom and a bram-based memory (acting as main-mem). These two files are provided as a base template for the user to create their own complex SoCs. A few standard SoCs instantiating C-class can be found [HERE](https://gitlab.com/shaktiproject/cores/shakti-soc).
 
 In order to build the Soc various components like caches, fabrics, devices, etc are required which are maintained in separate repos. These dependencies first have to be pulled from their respective sources.
 
 #### 1. Cloning Dependent Modules
 
-To capture all the dependencies 
+To capture all the dependencies
 ```
 ./manager.sh update_deps
 ```
@@ -89,14 +87,14 @@ The above command will generate verilog files in the `verilog` folder.
 
 #### 3. Generate executable for simulation
 
-The makefile supports compiling the verilog for various simulators. However, verilator is the most supported target in SHAKTI as compared to other other simulators (iverilog, irun, msim and vcs). 
+The makefile supports compiling the verilog for various simulators. However, verilator is the most supported target in SHAKTI as compared to other other simulators (iverilog, irun, msim and vcs).
 
 To generate a verilated executable:
 ```
 make CONFIG=soc_config.inc link_verilator
 ```
 
-The above command will create an executable named `out` in the `bin` folder. 
+The above command will create an executable named `out` in the `bin` folder.
 
 
 #### 4. Generating boot-files
@@ -113,24 +111,18 @@ The above command will generate the required boot files in the bin folder. The b
 The following steps assume that an `out` executable and the `boot.LSB` and `boot.MSB` files exist in the `bin` folder.
 Let's the software program that you would like to simulate on the core is called `prog.elf` (compiled using standard riscv-gcc).
 
-In order for the `out` executable to work the following files are requires in addition to the `boot.*` files: `code.mem.LSB` and `code.mem.MSB`. These files can be generated using the `elf2hex` command:
+In order for the `out` executable to work the following files are requires in addition to the `boot.*` files: `code.mem`. This file can be generated using the `elf2hex` command:
 
 ```
-elf2hex 8 524288 prog.elf 2147483648 > code.hex
+elf2hex 8 4194304 add.elf 2147483648 > code.mem
 ```
 
-This code.hex should now be further split into code.mem.LSB and code.mem.MSB as follows:
-```
-cut -c1-8 code.hex> code.mem.MSB 
-cut -c9-16 code.hex > code.mem.LSB 
-```
-            
 For a 32-bit core use the following:
 ```
- elf2hex 4 524288 software.elf 2147483648 > code.mem.MSB
- elf2hex 4 524288 software.elf 2147483648 > code.mem.LSB
- ```
-Please note, since the boot code in the bootrom implicitly jumps to `0x80000000` the programs should also be compiled at 0x80000000. Plus the bram main memory is 512KB large. This size can be changed by changing the value of `Addr_space` in `Soc.bsv`. Changing addr-space would required similar changes to the `elf2hex` command arguments as well.
+elf2hex 4 4194304 add.elf 2147483648 > code.mem
+```
+
+Please note, since the boot code in the bootrom implicitly jumps to `0x80000000` the programs should also be compiled at 0x80000000. Plus the bram main memory is 32MB large. This size can be changed by changing the value of `Addr_space` in `Soc.bsv`. Changing addr-space would required similar changes to the `elf2hex` command arguments as well.
 
 #### 1. Supporting printf
 
@@ -144,7 +136,7 @@ The SoC for simulation contains a simple uart. The putchar function for the same
 
 ## Connecting to GDB
 
-A debugger implementation following the riscv-debug-draft-014 has been integrated with the core. 
+A debugger implementation following the riscv-debug-draft-014 has been integrated with the core.
 Perform the following steps to connect to the core executable with a gdb terminal. This assumes you have installed openocd and is available as part of you $PATH variable.
 Generat executable with debugger enabled and testbench with vpi to support jtag remote-bitbang:
 
@@ -175,22 +167,22 @@ riscv64-unknown-elf-gdb -x gdb.script
 
 In this window you can now perform gdb commands like : `set $pc, i r, etc`
 
-## Linux on Shakti 
+## Linux on Shakti
 
 #### 1. Generate RTL
 ```
-make CONFIG=templates/linux_sim.inc define_macros='-D Addr_space=25'
+make CONFIG=templates/linux_sim.inc
 ```
 #### 2. Generate Linux Image
 
-Download the shakti-linux repository 
+Download the shakti-linux repository
 ```
 git clone https://gitlab.com/shaktiproject/software/shakti-linux
 cd shakti-linux
 export SHAKTI_LINUX=$(pwd)
 git submodule update --init --recursive
 ```
-To generate the kernel image 
+To generate the kernel image
 ```
 cd $SHAKTI_LINUX
 make -j16 ISA=rv64imafd
@@ -202,26 +194,24 @@ Come back to the folder c-class/base-sim:
 cd c-class/base-sim
 cp $SHAKTI_LINUX/work/riscv-pk/bbl ./bin/
 cd bin
-elf2hex 8 8388608 bbl 2147483648 > code.mem
-cut -c1-8 code.mem > code.mem.MSB 
-cut -c9-16 code.mem > code.mem.LSB 
+elf2hex 8 4194304 add.elf 2147483648 > code.mem
 ./out
 ```
 
-## FreeRTOS on Shakti 
+## FreeRTOS on Shakti
 #### 1. Generate RTL
 ```
-make CONFIG=templates/freertos_sim.inc 
+make CONFIG=templates/freertos_sim.inc
 ```
 
 #### 2. Generate FreeRTOS Image
 
-Download the shakti-linux repository 
+Download the shakti-linux repository
 ```
 git clone https://gitlab.com/shaktiproject/software/FreeRTOS
 
 ```
-To generate the kernel image 
+To generate the kernel image
 ```
 cd FreeRTOS/FreeRTOS-RISCV/Demo/shakti/
 make
@@ -233,8 +223,6 @@ Come back to the folder for c-class/base-sim/:
 cd c-class/base-sim
 cp FreeRTOS/FreeRTOS-RISCV/Demo/shakti/frtos-shakti.elf ./bin
 cd bin
-elf2hex 8 8388608 frtos-shakti.elf 2147483648 > code.mem
-cut -c1-8 code.mem > code.mem.MSB 
-cut -c9-16 code.mem > code.mem.LSB 
+elf2hex 8 4194304 add.elf 2147483648 > code.mem
 ./out
 ```

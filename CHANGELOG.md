@@ -2,6 +2,19 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2019-09-16
+## Added
+- CSRs are now daisy chained.
+- Performance counters and their event encodings added.
+- Interrupts for counters has also been added.
+- Increased default bram size in TB to be 32MB. This has increased regression time but now the same
+  executable can be used for linux sim as well
+
+## Fixed
+- BRAM now uses only a single file: `code.mem` for read-only. MSB and LSB files no longer required.
+- Updated docs to reflect new additions and fixes made above.
+- renamed a few methods based on the coding guidelines.
+
 ## [1.0.3] - 2019-09-10
 ## Added
 - makefile now uses bsvpath to identify directories for bsv source. This makes using vim-bsv easier.

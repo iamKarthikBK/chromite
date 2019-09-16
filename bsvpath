@@ -3,6 +3,8 @@ src/core/predictors
 src/core/m_ext
 src/core/fpu/
 src/core/m_ext/multiplier_designs
+src/core/csr
+src/core/csr/daisy_chain
 base-sim/fabrics/axi4
 base-sim/fabrics/axi4lite
 base-sim/caches_mmu/src

@@ -39,7 +39,6 @@ package stage5;
   import FIFO::*;
   import FIFOF::*;
   import csr::*;
-  import csrfile::*;
   import DReg::*;
   import Vector::*;
 `ifdef debug
@@ -58,55 +57,85 @@ package stage5;
   `else
     method Tuple3#(Bool, Bit#(`vaddr), Bool) flush;
   `endif
-    method CSRtoDecode csrs_to_decode;
-	  method Action clint_msip(Bit#(1) intrpt);
-		method Action clint_mtip(Bit#(1) intrpt);
-		method Action clint_mtime(Bit#(64) c_mtime);
+    method CSRtoDecode mv_csrs_to_decode;
+	  method Action ma_clint_msip(Bit#(1) intrpt);
+		method Action ma_clint_mtip(Bit#(1) intrpt);
+		method Action ma_clint_mtime(Bit#(64) c_mtime);
     //This method returns value of csr_reg which enables/disables arith_exceptions
     `ifdef arith_trap
-      method Bit#(1) arith_excep;
+      method Bit#(1) mv_arith_excep;
    `endif
     `ifdef rtldump
       interface Get#(DumpType) dump;
     `endif
 		`ifdef supervisor
-			method Bit#(XLEN) csr_satp;
+			method Bit#(XLEN) mv_csr_satp;
 		`endif
-	  method Action set_external_interrupt(Bit#(1) ex_i);
-    method Bit#(1) csr_misa_c;
+	  method Action ma_set_external_interrupt(Bit#(1) ex_i);
+    method Bit#(1) mv_csr_misa_c;
     method Tuple2#(Bool,Bool) initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
     (*always_enabled*)
     method Action store_is_cached(Bool c);
     method Bit#(3) mv_cacheenable;
-    method Bit#(2) curr_priv;
-    method Bit#(XLEN) csr_mstatus;
+    method Bit#(2) mv_curr_priv;
+    method Bit#(XLEN) mv_csr_mstatus;
   `ifdef pmp
-    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
-    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+    method Vector#(`PMPSIZE, Bit#(8)) mv_pmp_cfg;
+    method Vector#(`PMPSIZE, Bit#(`paddr )) mv_pmp_addr;
   `endif
   `ifdef debug
-    method ActionValue#(Bit#(XLEN)) debug_access_csrs(AbstractRegOp cmd);
-    method Action debug_halt_request(Bit#(1) ip);
-    method Action debug_resume_request(Bit#(1) ip);
-    method Bit#(1) core_is_halted;
-    method Bit#(1) step_is_set;
-    method Bit#(1) step_ie;
-    method Bit#(1) core_debugenable;
+    method Action ma_debug_access_csrs(AbstractRegOp cmd);
+    method Action ma_debug_halt_request(Bit#(1) ip);
+    method Action ma_debug_resume_request(Bit#(1) ip);
+    method Bit#(1) mv_core_is_halted;
+    method Bit#(1) mv_step_is_set;
+    method Bit#(1) mv_step_ie;
+    method Bit#(1) mv_core_debugenable;
+  	method CSRResponse mv_resp_to_core;
   `endif
   `ifdef triggers
     method Vector#(`trigger_num, TriggerData) trigger_data1;
     method Vector#(`trigger_num, Bit#(XLEN)) trigger_data2;
     method Vector#(`trigger_num, Bool) trigger_enable;
   `endif
+  `ifdef perfmonitors
+    `ifdef csr_grp4
+    	//(*doc = "method : whenever event corresponding to the group-4 occur, the method is to be \
+   		//          called, so that corresponding counters are incremented"*)
+   		method Action ma_events_grp4(Bit#(SizeOf#(Events_grp4)) e);
+    `endif
+
+    `ifdef csr_grp5
+    	//(*doc = "method : whenever event corresponding to the group-5 occur, the method is to be \
+   		//          called, so that corresponding counters are incremented"*)
+ 			method Action ma_events_grp5(Bit#(SizeOf#(Events_grp5)) e);
+ 		`endif
+
+ 		`ifdef csr_grp6
+ 			//(*doc = "method : whenever event corresponding to the group-6 occur, the method is to be \
+   		//          called, so that corresponding counters are incremented"*)
+ 			method Action ma_events_grp6(Bit#(SizeOf#(Events_grp6)) e);
+ 		`endif
+
+ 		`ifdef csr_grp7
+ 			//(*doc = "method : whenever event corresponding to the group-7 occur, the method is to be \
+   		//          called, so that corresponding counters are incremented"*)
+ 			method Action ma_events_grp7(Bit#(SizeOf#(Events_grp7)) e);
+ 		`endif
+ 		  /*doc:method: */
+   		method Bit#(1) mv_count_exceptions;
+   		method Bit#(1) mv_count_interrupts;
+   		method Bit#(1) mv_count_csrops;
+ 	`endif
   endinterface
 
   (*synthesize*)
-  (*conflict_free="instruction_commit,set_external_interrupt"*)
+  (*conflict_free="instruction_commit,ma_set_external_interrupt"*)
   (*conflict_free="instruction_commit,increment_instruction_counter"*)
-  (*conflict_free="set_external_interrupt,instruction_commit"*)
+  (*conflict_free="ma_set_external_interrupt,instruction_commit"*)
 `ifdef debug
-  (*conflict_free="debug_access_csrs,instruction_commit"*)
+  (*conflict_free="ma_debug_access_csrs,instruction_commit"*)
 `endif
   module mkstage5#(parameter Bit#(XLEN) hartid) (Ifc_stage5);
 
@@ -128,12 +157,18 @@ package stage5;
     Wire#(Tuple3#(Bool, Bit#(`vaddr), Bool)) wr_flush <- mkDWire(tuple3(False, ?, False));
   `endif
 
+  `ifdef perfmonitors
+    /*doc:wire: */
+    Wire#(Bit#(1)) wr_count_exceptions <- mkDWire(0);
+    Wire#(Bit#(1)) wr_count_interrupts <- mkDWire(0);
+    Wire#(Bit#(1)) wr_count_csrops <- mkDWire(0);
+  `endif
     // the local epoch register
     Reg#(Bit#(1)) rg_epoch <- mkReg(0);
 
   `ifdef rtldump
     FIFO#(DumpType) dump_ff <- mkLFIFO;
-    let prv=csr.csrs_to_decode.prv;
+    let prv=csr.mv_csrs_to_decode.prv;
   `endif
     Reg#(Bool) rg_store_initiated <- mkReg(False);
     Wire#(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr)))) wr_store_response <- mkDWire(tagged Invalid);
@@ -143,6 +178,9 @@ package stage5;
   `else
     Wire#(Tuple2#(Bool,Bool)) wr_initiate_store <- mkDReg(tuple2(False,False));
   `endif
+    let csr_resp = csr.mv_resp_to_core;
+    let csr_dest = csr_resp.data;
+    let csr_valid = csr_resp.hit;
 
   `ifdef triggers
     Reg#(TriggerStatus) rg_take_trigger <- mkConfigReg(unpack(0));
@@ -246,6 +284,12 @@ package stage5;
             let newpc <- csr.take_trap(t.cause, t.pc, t.badaddr);
             fl=True;
             jump_address=newpc;
+          `ifdef perfmonitors
+            if(truncateLSB(t.cause) == 1'b1)
+              wr_count_interrupts <= 1;
+            else
+              wr_count_exceptions <= 1;
+          `endif
           end
           rx.u.deq;
           `ifdef rtldump
@@ -326,28 +370,33 @@ package stage5;
           end
         end
         else if(commit matches tagged SYSTEM .sys)begin
-          let {drain, newpc, dest}<-csr.system_instruction(sys.csraddr, sys.rs1, sys.func3, sys.lpc);
-          jump_address=newpc;
-          fl=drain;
-
-          wr_commit <= tagged Valid CommitData{addr: sys.rd, data: zeroExtend(dest)
+          let {drain, newpc}<-csr.system_instruction(sys.csraddr, sys.rs1, sys.func3, sys.lpc);
+          let dest= csr_dest;
+          if(drain || csr_valid) begin
+            jump_address=newpc;
+            fl=drain;
+            wr_commit <= tagged Valid CommitData{addr: sys.rd, data: zeroExtend(dest)
                                       `ifdef spfpu, rdtype: IRF `endif };
-        `ifdef rtldump
-          if(sys.rd==0)
-            dest=0;
-          dump_ff.enq(tuple6(prv, signExtend(simpc), inst, sys.rd, zeroExtend(dest), IRF));
-        `endif
-        `ifdef rtldump
-          rxinst.u.deq;
-        `endif
-          rx.u.deq;
+            `ifdef rtldump
+              if(sys.rd==0)
+                dest=0;
+              dump_ff.enq(tuple6(prv, signExtend(simpc), inst, sys.rd, zeroExtend(dest), IRF));
+            `endif
+            `ifdef rtldump
+              rxinst.u.deq;
+            `endif
+              rx.u.deq;
+            `ifdef perfmonitors
+              wr_count_csrops <= 1;
+            `endif
+          end
         end
         else if(commit matches tagged REG .r)begin
           // in case of regular instruction simply update RF and forward the data.
           `logLevel( stage5, 0, $format("core:%2d ",hartid,"STAGE5: Regular commit"))
           wr_increment_minstret<=True;
         `ifdef spfpu
-          csr.update_fflags(r.fflags);
+          csr.ma_update_fflags(r.fflags);
         `endif
           wr_commit <= tagged Valid CommitData{addr:r.rd, data:r.commitvalue
                                       `ifdef spfpu , rdtype: r.rdtype `endif };
@@ -390,7 +439,7 @@ package stage5;
     endrule
 
     rule increment_instruction_counter(wr_increment_minstret);
-      csr.incr_minstret;
+      csr.ma_incr_minstret;
     endrule
     interface rx_in=rx.e;
   `ifdef rtldump
@@ -400,17 +449,11 @@ package stage5;
       return wr_commit;
     endmethod
     method flush=wr_flush;
-    method csrs_to_decode = csr.csrs_to_decode;
+    method mv_csrs_to_decode = csr.mv_csrs_to_decode;
 
-	  method Action clint_msip(Bit#(1) intrpt);
-      csr.clint_msip(intrpt);
-    endmethod
-		method Action clint_mtip(Bit#(1) intrpt);
-      csr.clint_mtip(intrpt);
-    endmethod
-		method Action clint_mtime(Bit#(64) c_mtime);
-      csr.clint_mtime(c_mtime);
-    endmethod
+	  method ma_clint_msip = csr.ma_clint_msip;
+		method ma_clint_mtip = csr.ma_clint_mtip;
+		method ma_clint_mtime = csr.ma_clint_mtime;
     `ifdef rtldump
       interface dump = interface Get
         method ActionValue#(DumpType) get ;
@@ -420,10 +463,10 @@ package stage5;
       endinterface;
     `endif
 		`ifdef supervisor
-			method csr_satp=csr.csr_satp;
+			method mv_csr_satp=csr.mv_csr_satp;
 		`endif
-	  method Action set_external_interrupt(Bit#(1) ex_i)=csr.set_external_interrupt(ex_i);
-    method csr_misa_c=csr.csr_misa_c;
+	  method ma_set_external_interrupt = csr.ma_set_external_interrupt;
+    method mv_csr_misa_c=csr.mv_csr_misa_c;
     method initiate_store=wr_initiate_store;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1),Bit#(`vaddr))) r);
       wr_store_response<=r;
@@ -432,30 +475,51 @@ package stage5;
       wr_store_is_cached<=c;
     endmethod
     method mv_cacheenable = csr.mv_cacheenable;
-    method curr_priv = csr.curr_priv;
-    method csr_mstatus= csr.csr_mstatus;
+    method mv_curr_priv = csr.mv_curr_priv;
+    method mv_csr_mstatus= csr.mv_csr_mstatus;
   `ifdef pmp
-    method pmp_cfg=csr.pmp_cfg;
-    method pmp_addr=csr.pmp_addr;
+    method pmp_cfg=csr.mv_pmp_cfg;
+    method pmp_addr=csr.mv_pmp_addr;
   `endif
   `ifdef debug
-    method debug_access_csrs = csr.debug_access_csrs;
-    method debug_halt_request = csr.debug_halt_request;
-    method debug_resume_request = csr.debug_resume_request;
-    method core_is_halted = csr.core_is_halted;
-    method step_is_set = csr.step_is_set;
-    method step_ie = csr.step_ie;
-    method core_debugenable = csr.core_debugenable;
+    method ma_debug_access_csrs = csr.ma_debug_access_csrs;
+    method ma_debug_halt_request = csr.ma_debug_halt_request;
+    method ma_debug_resume_request = csr.ma_debug_resume_request;
+    method mv_core_is_halted = csr.mv_core_is_halted;
+    method mv_step_is_set = csr.mv_step_is_set;
+    method mv_step_ie = csr.mv_step_ie;
+    method mv_core_debugenable = csr.mv_core_debugenable;
+    method mv_resp_to_core = csr.mv_resp_to_core;
   `endif
 
     `ifdef arith_trap
-      method arith_excep = csr.arith_excep;
+      method mv_arith_excep = csr.mv_arith_excep;
    `endif
   `ifdef triggers
     method trigger_data1 = csr.trigger_data1;
     method trigger_data2 = csr.trigger_data2;
     method trigger_enable = csr.trigger_enable;
   `endif
+  `ifdef perfmonitors
+  	`ifdef csr_grp4
+ 			method ma_events_grp4 = csr.ma_events_grp4;
+ 		`endif
+
+ 		`ifdef csr_grp5
+ 			method ma_events_grp5 = csr.ma_events_grp5;
+ 		`endif
+
+ 		`ifdef csr_grp6
+ 			method ma_events_grp6 = csr.ma_events_grp6;
+ 		`endif
+
+ 		`ifdef csr_grp7
+ 			method ma_events_grp7 = csr.ma_events_grp7;
+ 		`endif
+   		method mv_count_exceptions = wr_count_exceptions;
+   		method mv_count_interrupts = wr_count_interrupts;
+   		method mv_count_csrops = wr_count_csrops;
+	`endif
 
   endmodule
 endpackage

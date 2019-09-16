@@ -154,7 +154,7 @@ package decoder;
 
   (*noinline*)
 	function Tuple3#(Bit#(`causesize), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(XLEN) mstatus,
-        Bit#(14) mip, Bit#(12) mie `ifdef non_m_traps , Bit#(12) mideleg `endif
+        Bit#(15) mip, Bit#(12) mie `ifdef non_m_traps , Bit#(12) mideleg `endif
       `ifdef supervisor
         ,Bit#(12) sip, Bit#(12) sie `ifdef usertraps , Bit#(12) sideleg `endif
       `endif
@@ -174,7 +174,7 @@ package decoder;
     Bool resume_wfi= unpack(|( mie&truncate(mip))); // should halt interrupt on wfi cause
 
   `ifdef debug
-    Bit#(14) debug_interrupts = { mip[13],mip[12],12'd0};
+    Bit#(15) debug_interrupts = { mip[14],mip[13],mip[12],12'd0};
     Bool d_enabled = debug.debugger_available && debug.core_debugenable;
   `endif
 
@@ -193,7 +193,7 @@ package decoder;
               `ifdef debug      & signExtend(pack(!debug.core_is_halted)) `endif ;
   `endif
 
-  Bit#(14) pending_interrupts = `ifdef debug d_enabled? debug_interrupts:0 | `endif
+    Bit#(15) pending_interrupts = `ifdef debug d_enabled? debug_interrupts:0 | `endif
                            (m_enabled?zeroExtend(m_interrupts):0)
       `ifdef supervisor |  (s_enabled?zeroExtend(s_interrupts):0) `endif
       `ifdef usertraps  |  (u_enabled?zeroExtend(u_interrupts):0) `endif ;
@@ -209,6 +209,11 @@ package decoder;
     else if(pending_interrupts[13] == 1)
       int_cause = `Resume_int;
     else
+  `endif
+  `ifdef perfmonitors
+    if(pending_interrupts[14] == 1)
+      int_cause = `CounterInterrupt;
+    else 
   `endif
     if(pending_interrupts[11]==1)
       int_cause=`Machine_external_int;

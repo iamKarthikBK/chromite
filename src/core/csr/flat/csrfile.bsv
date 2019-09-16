@@ -147,45 +147,45 @@ package csrfile;
     method Action write_csr(Bit#(12) addr,  Bit#(XLEN) word, Bit#(2) lpc);
     method ActionValue#(Bit#(`vaddr)) upd_on_ret `ifdef non_m_traps (Privilege_mode prv) `endif ;
     method ActionValue#(Bit#(`vaddr)) upd_on_trap(Bit#(`causesize) cause, Bit#(`vaddr) pc, Bit#(`vaddr) tval);
-    method Action incr_minstret;
+    method Action incr_minstret; //group-3
   // ------------------------ csrs to other pipeline stages ---------------------------------//
-    method CSRtoDecode csrs_to_decode;
+    method CSRtoDecode csrs_to_decode; //-???
 	`ifdef supervisor
-		method Bit#(XLEN) csr_satp;
+		method Bit#(XLEN) csr_satp; //group-1
 	`endif
   `ifdef spfpu
-    method Action update_fflags(Bit#(5) flags);
+    method Action update_fflags(Bit#(5) flags); //group-2
   `endif
-    method Bit#(3) mv_cacheenable;
+    method Bit#(3) mv_cacheenable; //group-2
   //returns arithmetic exception enabled/disabled
   `ifdef arith_trap
-    method Bit#(1) arith_excep;
+    method Bit#(1) arith_excep; //group-2
   `endif
-    method Bit#(1) csr_misa_c;
-    method Bit#(2) curr_priv;
-    method Bit#(XLEN) csr_mstatus;
+    method Bit#(1) csr_misa_c; //group-2
+    method Bit#(2) curr_priv; //-TODO to be placed in the groups
+    method Bit#(XLEN) csr_mstatus; //group-1
   //-------------------------- sideband connections -----------------------------------------//
-	  method Action clint_msip(Bit#(1) intrpt);
-		method Action clint_mtip(Bit#(1) intrpt);
-		method Action clint_mtime(Bit#(64) c_mtime);
-	  method Action set_external_interrupt(Bit#(1) ex_i);
+	  method Action clint_msip(Bit#(1) intrpt); //group-1
+		method Action clint_mtip(Bit#(1) intrpt); //group-1
+		method Action clint_mtime(Bit#(64) c_mtime); //group-3
+	  method Action set_external_interrupt(Bit#(1) ex_i); //group-1
   // ---------------------------------------------------------------------------------------//
   `ifdef pmp
-    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;
-    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr;
+    method Vector#(`PMPSIZE, Bit#(8)) pmp_cfg;  //group-2
+    method Vector#(`PMPSIZE, Bit#(`paddr )) pmp_addr; //group-2
   `endif
   `ifdef debug
-    method Action debug_halt_request(Bit#(1) ip);
-    method Action debug_resume_request(Bit#(1) ip);
-    method Bit#(1) core_is_halted;
-    method Bit#(1) step_is_set;
-    method Bit#(1) step_ie;
-    method Bit#(1) core_debugenable;
+    method Action debug_halt_request(Bit#(1) ip); //group-3
+    method Action debug_resume_request(Bit#(1) ip); //group-3
+    method Bit#(1) core_is_halted; //group-3
+    method Bit#(1) step_is_set;  //group-3
+    method Bit#(1) step_ie; //group -3
+    method Bit#(1) core_debugenable; //group-3
   `endif
   `ifdef triggers
-    method Vector#(`trigger_num, TriggerData) trigger_data1;
-    method Vector#(`trigger_num, Bit#(XLEN)) trigger_data2;
-    method Vector#(`trigger_num, Bool) trigger_enable;
+    method Vector#(`trigger_num, TriggerData) trigger_data1; //group-3
+    method Vector#(`trigger_num, Bit#(XLEN)) trigger_data2;  //group-3
+    method Vector#(`trigger_num, Bool) trigger_enable; //group-3
   `endif
   endinterface
 
@@ -231,7 +231,11 @@ package csrfile;
 	  Reg#(Privilege_mode) rg_prv <- mkReg(Machine); // resets to machine mode
 
 	  Bit#(XLEN) csr_mvendorid  = 0;   // To be provided by JEDEC.
+	`ifdef simulate
     Bit#(XLEN) csr_marchid    = 0; // To be provided by the RISC - V foundation.
+  `else
+    Bit#(XLEN) csr_marchid    = 15; // To be provided by the RISC - V foundation.
+  `endif
     Bit#(XLEN) csr_mimpid     = 0; // Implementation ID set by SHAKTI.
     Bit#(XLEN) csr_mhartid    = 0;
 
@@ -785,14 +789,14 @@ package csrfile;
         if (addr == `PMPADDR5 && `PMPSIZE >5) data = zeroExtend(v_pmp_addr[5]);
         if (addr == `PMPADDR6 && `PMPSIZE >6) data = zeroExtend(v_pmp_addr[6]);
         if (addr == `PMPADDR7 && `PMPSIZE >7) data = zeroExtend(v_pmp_addr[7]);
-        if (addr == `PMPADDR8 && `PMPSIZE >7) data = zeroExtend(v_pmp_addr[8]);
-        if (addr == `PMPADDR9 && `PMPSIZE >8) data = zeroExtend(v_pmp_addr[9]);
-        if (addr == `PMPADDR10 && `PMPSIZE >10) data = zeroExtend(v_pmp_addr[11]);
-        if (addr == `PMPADDR11 && `PMPSIZE >11) data = zeroExtend(v_pmp_addr[12]);
-        if (addr == `PMPADDR12 && `PMPSIZE >12) data = zeroExtend(v_pmp_addr[13]);
-        if (addr == `PMPADDR13 && `PMPSIZE >13) data = zeroExtend(v_pmp_addr[14]);
-        if (addr == `PMPADDR14 && `PMPSIZE >14) data = zeroExtend(v_pmp_addr[15]);
-        if (addr == `PMPADDR15 && `PMPSIZE >15) data = zeroExtend(v_pmp_addr[16]);
+        if (addr == `PMPADDR8 && `PMPSIZE >8) data = zeroExtend(v_pmp_addr[8]);
+        if (addr == `PMPADDR9 && `PMPSIZE >9) data = zeroExtend(v_pmp_addr[9]);
+        if (addr == `PMPADDR10 && `PMPSIZE >10) data = zeroExtend(v_pmp_addr[10]);
+        if (addr == `PMPADDR11 && `PMPSIZE >11) data = zeroExtend(v_pmp_addr[11]);
+        if (addr == `PMPADDR12 && `PMPSIZE >12) data = zeroExtend(v_pmp_addr[12]);
+        if (addr == `PMPADDR13 && `PMPSIZE >13) data = zeroExtend(v_pmp_addr[13]);
+        if (addr == `PMPADDR14 && `PMPSIZE >14) data = zeroExtend(v_pmp_addr[14]);
+        if (addr == `PMPADDR15 && `PMPSIZE >15) data = zeroExtend(v_pmp_addr[15]);
     `endif
         // =============== Supervisor level CSRs ==========//
         `ifdef supervisor
