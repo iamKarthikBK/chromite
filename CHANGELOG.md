@@ -2,6 +2,11 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2019-09-16
+## Fixed
+- ci-cd script fixed to delete all generated files
+
+
 ## [1.1.0] - 2019-09-16
 ## Added
 - CSRs are now daisy chained.
