@@ -879,8 +879,9 @@ package csr_grp3;
  				default : begin
  				`ifdef csr_grp4
           ff_fwd_request.enq(req);
-        `endif
+        `else
           rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
+        `endif
         end
  			endcase
  		endmethod

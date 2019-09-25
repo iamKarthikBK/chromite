@@ -41,6 +41,7 @@ package csr_grp4;
   //project imports
   `include "csrgrp.defines"
   `include "common_params.bsv"
+  `include "Logger.bsv"
 	import common_types :: * ;
 
 
@@ -158,13 +159,16 @@ package csr_grp4;
     Bit#(7) lv_counter_interrupt = 0;
     for (Integer i = 0; i< `counters_grp4 ; i = i + 1) begin
       lv_counter_interrupt[i] = pack(mhpmevent[i]!=0 && mhpmcounter[i] == 0
-                                                    && wr_mcountinhibit[i] == 0);
+                                                    && wr_mcountinhibit[i] == 0
+                                                    && wr_mhpminterrupten[i] ==1);
     end
    	////////////////////////////////////////////////////////////////////////////////////////////////
    	(*doc = "rule : the rule increments the performance monitoring counters"*)
     rule increment_perfmonitors `ifdef debug (wr_dcsr_stopcount == 0) `endif ;
+      `logLevel( csr, 0, $format("CSR4: wr_events:%b interrupten:%b lv_counter_interrupt:%b",
+                                              wr_events, wr_mhpminterrupten, lv_counter_interrupt))
       for(Integer i=0; i< `counters_grp4; i=i+1)begin
-        if(lv_counter_interrupt[i] == 0)
+        if(lv_counter_interrupt[i] == 0)  
           mhpmcounter[i] <= mhpmcounter[i] + zeroExtend(wr_events[mhpmevent[i]]) ;
       end
     endrule
@@ -190,7 +194,9 @@ package csr_grp4;
  						mhpmcounter[0][31:0] <= word;
  					`endif
 					end
-					else rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
+					else begin
+					  rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
+					end
 				end
 
 				`MHPMCOUNTER4 : begin
@@ -604,8 +610,9 @@ package csr_grp4;
  				default : begin
  				`ifdef csr_grp5
           ff_fwd_request.enq(req);
-        `endif
+        `else
           rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
+        `endif
         end
  			endcase
  		endmethod

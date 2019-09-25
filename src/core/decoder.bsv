@@ -105,8 +105,7 @@ package decoder;
                       `endif
                       endcase
                   // Machine counter Setup
-                  'h2: if(addr[3:0]>2) valid=True;
-                  'h3: valid=True;
+                  'h2,'h3: valid=True;
                     // Machine Trap Handling
                   'h4:case(addr[3:0])
                         'h0, 'h1, 'h2, 'h3, 'h4: valid=True;
@@ -121,12 +120,15 @@ package decoder;
                 `endif
                   endcase
               // Machine Counter/Timers
-            'b10: `ifdef RV32 if(addr[6:5]==0 `else if(addr[7:5]==0 `endif && addr[3:0]!=1) valid=True;
+            'b10: valid=True;
            // TODO B01 and 801 should be invalid
               // DTVEC and DEnable
             'b01: begin
                 `ifdef debug
                   if( addr[7:0] == 'hC0 || addr[7:0] == 'hC1 ) valid = True;
+                `endif
+                `ifdef perfmonitors
+                  if(addr[7:0] == 'hC2) valid = True;
                 `endif
                 `ifdef triggers
                   if( addr[7:4] == 'hA && addr[3:0] < 4) valid = True;
@@ -154,7 +156,9 @@ package decoder;
 
   (*noinline*)
 	function Tuple3#(Bit#(`causesize), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(XLEN) mstatus,
-        Bit#(15) mip, Bit#(12) mie `ifdef non_m_traps , Bit#(12) mideleg `endif
+      Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) mip, 
+      Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) mie 
+      `ifdef non_m_traps , Bit#(12) mideleg `endif
       `ifdef supervisor
         ,Bit#(12) sip, Bit#(12) sie `ifdef usertraps , Bit#(12) sideleg `endif
       `endif
@@ -174,13 +178,13 @@ package decoder;
     Bool resume_wfi= unpack(|( mie&truncate(mip))); // should halt interrupt on wfi cause
 
   `ifdef debug
-    Bit#(15) debug_interrupts = { mip[14],mip[13],mip[12],12'd0};
+    Bit#(19) debug_interrupts = { mip[18],mip[17],13'd0};
     Bool d_enabled = debug.debugger_available && debug.core_debugenable;
   `endif
 
     // truncating because in debug mode mie and mip are 14 bits. 12-halt-req 13-resume-req
-    Bit#(12) m_interrupts = mie & truncate(mip) & signExtend(pack(m_enabled))
-             `ifdef non_m_traps & ~mideleg `endif
+    Bit#(17) m_interrupts = mie & truncate(mip) & signExtend(pack(m_enabled))
+             `ifdef non_m_traps & ~zeroExtend(mideleg) `endif
              `ifdef debug       & signExtend(pack(!debug.core_is_halted)) `endif ;
   `ifdef supervisor
     Bit#(12) s_interrupts = sie & sip & mideleg & signExtend(pack(s_enabled))
@@ -193,7 +197,8 @@ package decoder;
               `ifdef debug      & signExtend(pack(!debug.core_is_halted)) `endif ;
   `endif
 
-    Bit#(15) pending_interrupts = `ifdef debug d_enabled? debug_interrupts:0 | `endif
+    Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) pending_interrupts = 
+              `ifdef debug d_enabled? debug_interrupts:0 | `endif
                            (m_enabled?zeroExtend(m_interrupts):0)
       `ifdef supervisor |  (s_enabled?zeroExtend(s_interrupts):0) `endif
       `ifdef usertraps  |  (u_enabled?zeroExtend(u_interrupts):0) `endif ;
@@ -204,14 +209,14 @@ package decoder;
     if(step_done && !debug.core_is_halted) begin
       int_cause = `HaltStep;
     end
-    else if(pending_interrupts[12] == 1)
+    else if(pending_interrupts[17] == 1)
       int_cause = `HaltDebugger;
-    else if(pending_interrupts[13] == 1)
+    else if(pending_interrupts[18] == 1)
       int_cause = `Resume_int;
     else
   `endif
   `ifdef perfmonitors
-    if(pending_interrupts[14] == 1)
+    if(pending_interrupts[16] == 1)
       int_cause = `CounterInterrupt;
     else 
   `endif
@@ -655,7 +660,7 @@ package decoder;
                 `ifdef debug , DebugStatus debug, Bool step_done `endif ) =  actionvalue
       DecodeOut result_decode = decoder_func_32(inst, csrs `ifdef compressed ,compressed `endif );
       let {icause, takeinterrupt, resume_wfi} = chk_interrupt( csrs.prv, csrs.csr_mstatus,
-          zeroExtend(csrs.csr_mip), csrs.csr_mie `ifdef non_m_traps ,csrs.csr_mideleg `endif
+          csrs.csr_mip, csrs.csr_mie `ifdef non_m_traps ,csrs.csr_mideleg `endif
         `ifdef supervisor
           ,csrs.csr_sip, csrs.csr_sie `ifdef usertraps ,csrs.csr_sideleg `endif
         `endif
