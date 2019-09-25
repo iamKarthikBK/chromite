@@ -197,7 +197,7 @@ package riscv;
     Bit#(1) lv_count_itlb_misses            = `ifdef supervisor wr_itlb_counters `else 0 `endif ;
     Bit#(1) lv_count_dtlb_misses            = `ifdef supervisor wr_dtlb_counters `else 0 `endif ;
 
-    let lv_total_count = {lv_count_misprediction, lv_count_exceptions, lv_count_interrupts,
+    let lv_total_count = reverseBits({lv_count_misprediction, lv_count_exceptions, lv_count_interrupts,
       lv_count_csrops, lv_count_jumps, lv_count_branches, lv_count_floats, lv_count_muldiv,
       lv_count_rawstalls, lv_count_exetalls, lv_count_icache_access, lv_count_icache_hits,
       lv_count_icache_fbhit, lv_count_icache_ncaccess, lv_count_icache_fbrelease,
@@ -207,7 +207,7 @@ package riscv;
       , lv_count_dcache_atomic_hits		, lv_count_dcache_read_fb_hits		,
       lv_count_dcache_write_fb_hits		, lv_count_dcache_atomic_fb_hits		,
       lv_count_dcache_fb_releases		, lv_count_dcache_line_evictions		, lv_count_itlb_misses,
-    lv_count_dtlb_misses};
+  lv_count_dtlb_misses});
     rule rl_connect_events;
     `ifdef csr_grp4
       stage5.ma_events_grp4(lv_total_count);

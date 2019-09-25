@@ -337,6 +337,12 @@ package csr_grp1;
   `endif
 
 		//MIE fields
+	`ifdef perfmonitors
+	  /*doc:reg: enable interrupts on counters*/
+  	Reg#(Bit#(1)) rg_mcounterie <- mkReg(0);
+  `else
+    Bit#(1) rg_mcounterie = 0;
+  `endif
 		(*doc = "reg : Machine External Interrupt Enable register"*)
     Reg#(Bit#(1)) rg_meie <- mkReg(0);
     Bit#(1) heie = 0;
@@ -554,14 +560,15 @@ package csr_grp1;
   `endif
 
 		//csr_to_decode method's variables
-		let lv_csr_mip= { `ifdef perfmonitors |wr_counter_interrupts, `endif 
-		                  `ifdef debug wr_resume_int&wr_core_halted, //side band connections to grp3
+		let lv_csr_mip= {`ifdef debug wr_resume_int&wr_core_halted, //side band connections to grp3
 										wr_halt_int&~wr_core_halted, `endif       //side band connections to grp3
+                    `ifdef perfmonitors |wr_counter_interrupts, `else 1'b0, `endif 4'd0, 
                     rg_meip, heip, lv_misa_s & rg_seip, lv_misa_n & rg_ueip, rg_mtip, htip,
                     lv_misa_s & rg_stip, lv_misa_n & rg_utip, lv_misa_s & rg_msip, hsip,
                     lv_misa_s & rg_ssip, lv_misa_n & rg_usip};
 
-    Bit#(12) lv_csr_mie= {rg_meie, heie, rg_seie, rg_ueie, rg_mtie, htie, rg_stie, rg_utie, rg_msie,
+    let lv_csr_mie= { `ifdef debug 2'd0, `endif rg_mcounterie, 4'd0,
+                      rg_meie, heie, rg_seie, rg_ueie, rg_mtie, htie, rg_stie, rg_utie, rg_msie,
                        hsie, rg_ssie, rg_usie};
   `ifdef supervisor
     Bit#(12) lv_csr_sip = {'d0, lv_misa_s & rg_seip, lv_misa_n & rg_ueip, 2'd0, rg_stip & lv_misa_s,
@@ -670,11 +677,11 @@ package csr_grp1;
 
         `MIE : begin
         	//read previous value
-        	rg_resp_to_core <= CSRResponse{ hit : True, data : {'d0, rg_meie, heie, rg_seie,
+        	rg_resp_to_core <= CSRResponse{ hit : True, data : {'d0, rg_mcounterie, rg_meie, heie, rg_seie,
         	                                                    lv_misa_n & rg_ueie, rg_mtie, htie,
         	                                                    rg_stie, lv_misa_n & rg_utie, rg_msie,
         	                                                    hsie, rg_ssie, lv_misa_n & rg_usie}};
-					Bit#(XLEN) readdata = {'d0, rg_meie, heie, rg_seie, lv_misa_n & rg_ueie, rg_mtie, htie,
+					Bit#(XLEN) readdata = {'d0, rg_mcounterie, rg_meie, heie, rg_seie, lv_misa_n & rg_ueie, rg_mtie, htie,
 					                       rg_stie, lv_misa_n & rg_utie, rg_msie, hsie, rg_ssie,
 					                       lv_misa_n & rg_usie};
 
@@ -685,6 +692,9 @@ package csr_grp1;
 					rg_msie <= word[3];
           rg_mtie <= word[7];
           rg_meie <= word[11];
+        `ifdef perfmonitors
+          rg_mcounterie <= word[16];
+        `endif
 				`ifdef usertraps
           rg_ueie <= word[8];
           rg_usie <= word[0];
@@ -1001,13 +1011,13 @@ package csr_grp1;
 
 				`UIE : begin
 					//read previous value
-        	rg_resp_to_core <= CSRResponse{ hit : True, data : {'d0, rg_meie, heie, rg_seie,
+        	rg_resp_to_core <= CSRResponse{ hit : True, data : {'d0, rg_mcounterie,rg_meie, heie, rg_seie,
         	                                                    rg_mideleg[8] & rg_ueie, rg_mtie,
         	                                                    htie, rg_stie,rg_mideleg[4] & rg_utie,
         	                                                    rg_msie, hsie, rg_ssie,
         	                                                    rg_mideleg[0] & rg_usie}};
 
-        	Bit#(XLEN) readdata = {'d0, rg_meie, heie, rg_seie, rg_mideleg[8] & rg_ueie, rg_mtie,htie,
+        	Bit#(XLEN) readdata = {'d0, rg_mcounterie, rg_meie, heie, rg_seie, rg_mideleg[8] & rg_ueie, rg_mtie,htie,
         	                       rg_stie, rg_mideleg[4] & rg_utie, rg_msie, hsie, rg_ssie,
         	                       rg_mideleg[0] & rg_usie};
 

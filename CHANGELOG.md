@@ -2,6 +2,16 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2019-09-25
+## Fixed
+- performance counter increment conditions and interrupt generation scheme. A counter will not
+  increment if the respective interrupt has been set.
+- the last daisy-module instantiated should respond with true and data=0
+
+## Added
+- added tests and benchmarks for performance counters.
+
+
 ## [1.1.1] - 2019-09-16
 ## Fixed
 - ci-cd script fixed to delete all generated files

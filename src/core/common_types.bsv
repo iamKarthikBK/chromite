@@ -140,9 +140,8 @@ package common_types;
   typedef Tuple3#(Bit#(5), Bool, Bit#(XLEN)) OpFwding;
   typedef struct{
     Privilege_mode prv;
-    Bit#(TAdd#(12, TAdd#(`ifdef debug 2 `else 0 `endif ,
-                         `ifdef perfmonitors 1 `else 0 `endif ))) csr_mip;
-    Bit#(12) csr_mie;
+    Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) csr_mip;
+    Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) csr_mie;
   `ifdef non_m_traps
     Bit#(12) csr_mideleg;
   `endif

@@ -157,7 +157,8 @@ package csr_grp5;
     Bit#(7) lv_counter_interrupt = 0;
     for (Integer i = 0; i< `counters_grp5 ; i = i + 1) begin
       lv_counter_interrupt[i] = pack(mhpmevent[i]!=0 && mhpmcounter[i] == 0
-                                                    && wr_mcountinhibit[i] == 0);
+                                                    && wr_mcountinhibit[i] == 0
+                                                    && wr_mhpminterrupten[i] ==1);
     end
    	////////////////////////////////////////////////////////////////////////////////////////////////
  		(*doc = "rule : the rule increments the performance monitoring counters"*)
@@ -603,8 +604,9 @@ package csr_grp5;
  				default : begin
  				`ifdef csr_grp6
           ff_fwd_request.enq(req);
-        `endif
+        `else
           rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
+        `endif
         end
  			endcase
  		endmethod

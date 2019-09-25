@@ -152,7 +152,8 @@ package csr_grp7;
     Bit#(8) lv_counter_interrupt = 0;
     for (Integer i = 0; i< `counters_grp7 ; i = i + 1) begin
       lv_counter_interrupt[i] = pack(mhpmevent[i]!=0 && mhpmcounter[i] == 0
-                                                    && wr_mcountinhibit[i] == 0);
+                                                    && wr_mcountinhibit[i] == 0
+                                                    && wr_mhpminterrupten[i] ==1);
     end
    	////////////////////////////////////////////////////////////////////////////////////////////////
    	(*doc = "rule : the rule increments the performance monitoring counters"*)
