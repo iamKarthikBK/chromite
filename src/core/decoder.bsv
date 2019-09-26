@@ -120,7 +120,7 @@ package decoder;
                 `endif
                   endcase
               // Machine Counter/Timers
-            'b10: valid=True;
+            'b10: if(addr[7:4] == 0 || addr[7:4] == 1 || addr[7:4] == 8 || addr[7:4] ==9)valid=True;
            // TODO B01 and 801 should be invalid
               // DTVEC and DEnable
             'b01: begin

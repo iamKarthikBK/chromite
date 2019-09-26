@@ -8,6 +8,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   increment if the respective interrupt has been set.
 - the last daisy-module instantiated should respond with true and data=0
 - fixed op-fwding bug mentioned in issue #140
+- decoding performance counters is fixed now. refer issue #141
 
 ## Added
 - added tests and benchmarks for performance counters.

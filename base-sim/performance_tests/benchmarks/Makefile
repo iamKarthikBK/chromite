@@ -111,4 +111,4 @@ install-link:
 # Clean up
 
 clean:
-	rm -rf $(objs) $(junk)
+	rm -rf $(objs) $(junk) *.mem app_log *.dump out boot.*
