@@ -2,6 +2,11 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2019-09-26
+## Changed
+- tracking cache misses instead of hits. refer to issue #143 for more info.
+- updated performance tests with encodings.
+
 ## [1.2.1] - 2019-09-26
 ## Fixed
 - fixed mm benchmark to print stats at end of program
