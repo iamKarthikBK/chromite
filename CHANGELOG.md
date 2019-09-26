@@ -2,6 +2,10 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2019-09-26
+## Fixed
+- fixed mm benchmark to print stats at end of program
+
 ## [1.2.0] - 2019-09-26
 ## Fixed
 - performance counter increment conditions and interrupt generation scheme. A counter will not
