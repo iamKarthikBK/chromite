@@ -61,9 +61,6 @@ package stage4;
     // interface to receive the response from dmem memory sub system
     interface Put#(DMem_core_response#(ELEN,1)) memory_response;
 
-    // method to update epochs on redirection from write - back stage
-    method Action update_wEpoch;
-
   `ifdef triggers
     method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
     method Action trigger_data2(Vector#(`trigger_num, Bit#(XLEN)) t);
@@ -147,9 +144,6 @@ package stage4;
 
     // fifo to capture the response from the dmem subsystem
     FIFOF#(DMem_core_response#(ELEN,1)) ff_memory_response <- mkUGBypassFIFOF();
-
-    // Holds the current epoch of the pipe
-    Reg#(Bit#(1)) rg_wEpoch <- mkReg(0);
 
   `ifdef triggers
     Vector#(`trigger_num, Wire#(TriggerData)) v_trigger_data1 <- replicateM(mkWire());
@@ -285,9 +279,6 @@ package stage4;
         ff_memory_response.enq(response);
       endmethod
     endinterface;
-    method Action update_wEpoch;
-      rg_wEpoch<=~rg_wEpoch;
-    endmethod
   `ifdef triggers
     method Action trigger_data1(Vector#(`trigger_num, TriggerData) t);
       for(Integer i=0; i<`trigger_num; i=i+1)
