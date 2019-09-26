@@ -3,6 +3,38 @@
 #ifndef RISCV_CSR_ENCODING_H
 #define RISCV_CSR_ENCODING_H
 
+#define misprediction           1 
+#define exceptions              2
+#define interrupts              3
+#define csrops                  4
+#define jumps                   5
+#define branches                6
+#define floats                  7
+#define muldiv                  8
+#define rawstalls               9
+#define exetalls                10
+#define icache_access           11
+#define icache_miss             12
+#define icache_fbhit            13
+#define icache_ncaccess         14
+#define icache_fbrelease        15
+#define dcache_read_access		  16
+#define dcache_write_access		  17
+#define dcache_atomic_access		18
+#define dcache_nc_read_access		19
+#define dcache_nc_write_access  20
+#define dcache_read_miss		    21
+#define dcache_write_miss		    22
+#define dcache_atomic_miss		  23
+#define dcache_read_fb_hits		  24
+#define dcache_write_fb_hits		25
+#define dcache_atomic_fb_hits		26
+#define dcache_fb_releases		  27
+#define dcache_line_evictions		28
+#define itlb_misses             29
+#define dtlb_misses             30
+
+
 #define MSTATUS_UIE         0x00000001
 #define MSTATUS_SIE         0x00000002
 #define MSTATUS_HIE         0x00000004
@@ -863,6 +895,7 @@
 #define CSR_MHPMCOUNTER29 0xb1d
 #define CSR_MHPMCOUNTER30 0xb1e
 #define CSR_MHPMCOUNTER31 0xb1f
+#define CSR_MCOUNTINHIBIT 0x320
 #define CSR_MHPMEVENT3 0x323
 #define CSR_MHPMEVENT4 0x324
 #define CSR_MHPMEVENT5 0x325
@@ -1355,6 +1388,7 @@ DECLARE_CSR(mhpmcounter28, CSR_MHPMCOUNTER28)
 DECLARE_CSR(mhpmcounter29, CSR_MHPMCOUNTER29)
 DECLARE_CSR(mhpmcounter30, CSR_MHPMCOUNTER30)
 DECLARE_CSR(mhpmcounter31, CSR_MHPMCOUNTER31)
+DECLARE_CSR(mcountinhibit, CSR_MCOUNTINHIBIT)
 DECLARE_CSR(mhpmevent3, CSR_MHPMEVENT3)
 DECLARE_CSR(mhpmevent4, CSR_MHPMEVENT4)
 DECLARE_CSR(mhpmevent5, CSR_MHPMEVENT5)

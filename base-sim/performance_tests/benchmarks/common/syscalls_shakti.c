@@ -39,6 +39,9 @@ static char* counter_names[NUM_COUNTERS];
 
 void setStats(int enable)
 {
+  if(!enable) {
+    asm volatile ("not t0,x0; csrw 0x320, t0");
+  }
   int i = 0;
 #define READ_CTR(name,event_name) do { \
     while (i >= NUM_COUNTERS) ; \
@@ -60,7 +63,7 @@ void setStats(int enable)
   READ_CTR(mhpmcounter11,rawstalls);
   READ_CTR(mhpmcounter12,exetalls);
   READ_CTR(mhpmcounter13,icache_access);
-  READ_CTR(mhpmcounter14,icache_hits);
+  READ_CTR(mhpmcounter14,icache_miss);
   READ_CTR(mhpmcounter15,icache_fbhit);
   READ_CTR(mhpmcounter16,icache_ncaccess);
   READ_CTR(mhpmcounter17,icache_fbrelease);
@@ -69,9 +72,9 @@ void setStats(int enable)
   READ_CTR(mhpmcounter20,dcache_atomic_access		);
   READ_CTR(mhpmcounter21,dcache_nc_read_access		);
   READ_CTR(mhpmcounter22,dcache_nc_write_access);
-  READ_CTR(mhpmcounter23,dcache_read_hits		);
-  READ_CTR(mhpmcounter24,dcache_write_hits		);
-  READ_CTR(mhpmcounter25,dcache_atomic_hits		);
+  READ_CTR(mhpmcounter23,dcache_read_miss		);
+  READ_CTR(mhpmcounter24,dcache_write_miss		);
+  READ_CTR(mhpmcounter25,dcache_atomic_miss		);
   READ_CTR(mhpmcounter26,dcache_read_fb_hits		);
   READ_CTR(mhpmcounter27,dcache_write_fb_hits		);
   READ_CTR(mhpmcounter28,dcache_atomic_fb_hits		);

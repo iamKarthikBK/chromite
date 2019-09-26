@@ -55,35 +55,35 @@ _start:
   not t0, t0
 #  csrw 0x320, t0 # mcountinhibit
   # set all events
-  csrwi mhpmevent3, 1
-  csrwi mhpmevent4, 2
-  csrwi mhpmevent5, 3
-  csrwi mhpmevent6, 4
-  csrwi mhpmevent7, 5
-  csrwi mhpmevent8, 6
-  csrwi mhpmevent9, 7
-  csrwi mhpmevent10, 8
-  csrwi mhpmevent11, 9
-  csrwi mhpmevent12, 10 
-  csrwi mhpmevent13, 11
-  csrwi mhpmevent14, 12
-  csrwi mhpmevent15, 13
-  csrwi mhpmevent16, 14
-  csrwi mhpmevent17, 15
-  csrwi mhpmevent18, 16
-  csrwi mhpmevent19, 17
-  csrwi mhpmevent20, 18
-  csrwi mhpmevent21, 19
-  csrwi mhpmevent22, 20
-  csrwi mhpmevent23, 21
-  csrwi mhpmevent24, 22
-  csrwi mhpmevent25, 23
-  csrwi mhpmevent26, 24
-  csrwi mhpmevent27, 25
-  csrwi mhpmevent28, 26
-  csrwi mhpmevent29, 27
-  csrwi mhpmevent30, 28
-  csrwi mhpmevent31, 29
+  csrwi mhpmevent3, misprediction         
+  csrwi mhpmevent4, exceptions            
+  csrwi mhpmevent5, interrupts            
+  csrwi mhpmevent6, csrops                
+  csrwi mhpmevent7, jumps                 
+  csrwi mhpmevent8, branches              
+  csrwi mhpmevent9, floats                
+  csrwi mhpmevent10,muldiv                
+  csrwi mhpmevent11,rawstalls             
+  csrwi mhpmevent12,exetalls              
+  csrwi mhpmevent13,icache_access         
+  csrwi mhpmevent14,icache_miss           
+  csrwi mhpmevent15,icache_fbhit          
+  csrwi mhpmevent16,icache_ncaccess       
+  csrwi mhpmevent17,icache_fbrelease      
+  csrwi mhpmevent18,dcache_read_access		
+  csrwi mhpmevent19,dcache_write_access		
+  csrwi mhpmevent20,dcache_atomic_access	
+  csrwi mhpmevent21,dcache_nc_read_access	
+  csrwi mhpmevent22,dcache_nc_write_access
+  csrwi mhpmevent23,dcache_read_miss		  
+  csrwi mhpmevent24,dcache_write_miss		  
+  csrwi mhpmevent25,dcache_atomic_miss		
+  csrwi mhpmevent26,dcache_read_fb_hits		
+  csrwi mhpmevent27,dcache_write_fb_hits	
+  csrwi mhpmevent28,dcache_atomic_fb_hits	
+  csrwi mhpmevent29,dcache_fb_releases		
+  csrwi mhpmevent30,dcache_line_evictions	
+  csrwi mhpmevent31,itlb_misses           
 
   # make sure XLEN agrees with compilation choice
   li t0, 1

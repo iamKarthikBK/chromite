@@ -177,7 +177,7 @@ package riscv;
     Bit#(1) lv_count_rawstalls              = stage3.mv_count_rawstalls;
     Bit#(1) lv_count_exetalls               = stage3.mv_count_exestalls;
     Bit#(1) lv_count_icache_access          = `ifdef icache wr_icache_counters[0] `else 0 `endif ;
-    Bit#(1) lv_count_icache_hits            = `ifdef icache wr_icache_counters[1] `else 0 `endif ;
+    Bit#(1) lv_count_icache_miss            = `ifdef icache wr_icache_counters[1] `else 0 `endif ;
     Bit#(1) lv_count_icache_fbhit           = `ifdef icache wr_icache_counters[2] `else 0 `endif ;
     Bit#(1) lv_count_icache_ncaccess        = `ifdef icache wr_icache_counters[3] `else 0 `endif ;
     Bit#(1) lv_count_icache_fbrelease       = `ifdef icache wr_icache_counters[4] `else 0 `endif ;
@@ -186,9 +186,9 @@ package riscv;
     Bit#(1) lv_count_dcache_atomic_access		= `ifdef dcache wr_dcache_counters[10] `else 0 `endif ;
     Bit#(1) lv_count_dcache_nc_read_access	= `ifdef dcache wr_dcache_counters[9] `else 0 `endif ;
     Bit#(1) lv_count_dcache_nc_write_access = `ifdef dcache wr_dcache_counters[8] `else 0 `endif ;
-    Bit#(1) lv_count_dcache_read_hits		    = `ifdef dcache wr_dcache_counters[7] `else 0 `endif ;
-    Bit#(1) lv_count_dcache_write_hits		  = `ifdef dcache wr_dcache_counters[6] `else 0 `endif ;
-    Bit#(1) lv_count_dcache_atomic_hits		  = `ifdef dcache wr_dcache_counters[5] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_read_miss		    = `ifdef dcache wr_dcache_counters[7] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_write_miss		  = `ifdef dcache wr_dcache_counters[6] `else 0 `endif ;
+    Bit#(1) lv_count_dcache_atomic_miss		  = `ifdef dcache wr_dcache_counters[5] `else 0 `endif ;
     Bit#(1) lv_count_dcache_read_fb_hits		= `ifdef dcache wr_dcache_counters[4] `else 0 `endif ;
     Bit#(1) lv_count_dcache_write_fb_hits		= `ifdef dcache wr_dcache_counters[3] `else 0 `endif ;
     Bit#(1) lv_count_dcache_atomic_fb_hits	= `ifdef dcache wr_dcache_counters[2] `else 0 `endif ;
@@ -199,12 +199,12 @@ package riscv;
 
     let lv_total_count = reverseBits({lv_count_misprediction, lv_count_exceptions, lv_count_interrupts,
       lv_count_csrops, lv_count_jumps, lv_count_branches, lv_count_floats, lv_count_muldiv,
-      lv_count_rawstalls, lv_count_exetalls, lv_count_icache_access, lv_count_icache_hits,
+      lv_count_rawstalls, lv_count_exetalls, lv_count_icache_access, lv_count_icache_miss,
       lv_count_icache_fbhit, lv_count_icache_ncaccess, lv_count_icache_fbrelease,
       lv_count_dcache_read_access		, lv_count_dcache_write_access		,
       lv_count_dcache_atomic_access		, lv_count_dcache_nc_read_access		,
-      lv_count_dcache_nc_write_access, lv_count_dcache_read_hits		, lv_count_dcache_write_hits
-      , lv_count_dcache_atomic_hits		, lv_count_dcache_read_fb_hits		,
+      lv_count_dcache_nc_write_access, lv_count_dcache_read_miss		, lv_count_dcache_write_miss
+      , lv_count_dcache_atomic_miss		, lv_count_dcache_read_fb_hits		,
       lv_count_dcache_write_fb_hits		, lv_count_dcache_atomic_fb_hits		,
       lv_count_dcache_fb_releases		, lv_count_dcache_line_evictions		, lv_count_itlb_misses,
   lv_count_dtlb_misses});

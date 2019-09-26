@@ -30,3 +30,26 @@ base-sim/benchmarks/
 verilog-artifacts/
 
 base-sim/fpga_project/
+
+base-sim/performance_tests/benchmarks/app_log
+base-sim/performance_tests/benchmarks/*.mem
+base-sim/performance_tests/benchmarks/*.riscv
+base-sim/performance_tests/benchmarks/*.out
+base-sim/performance_tests/benchmarks/*.dump
+base-sim/performance_tests/benchmarks/out
+base-sim/performance_tests/benchmarks/rtldump
+base-sim/performance_tests/benchmarks/boot.*
+base-sim/performance_tests/benchmarks/signature
+base-sim/performance_tests/benchmarks/log
+
+
+base-sim/performance_tests/tests/app_log
+base-sim/performance_tests/tests/*.mem
+base-sim/performance_tests/tests/*.riscv
+base-sim/performance_tests/tests/*.out
+base-sim/performance_tests/tests/*.dump
+base-sim/performance_tests/tests/out
+base-sim/performance_tests/tests/rtldump
+base-sim/performance_tests/tests/boot.*
+base-sim/performance_tests/tests/signature
+base-sim/performance_tests/tests/log

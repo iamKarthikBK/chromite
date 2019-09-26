@@ -58,7 +58,7 @@ The C-Class core will support capturing the following 26 events:
 |9| Number of rawstalls                 |
 |10| Number of exetalls                  |
 |11| Number of icache_access             |
-|12| Number of icache_hits               |
+|12| Number of icache_miss               |
 |13| Number of icache_fbhit              |
 |14| Number of icache_ncaccess           |
 |15| Number of icache_fbrelease          |
@@ -67,9 +67,9 @@ The C-Class core will support capturing the following 26 events:
 |18| Number of dcache_atomic_access		  |
 |19| Number of dcache_nc_read_access	  	|
 |20| Number of dcache_nc_write_access    |
-|21| Number of dcache_read_hits		      |
-|22| Number of dcache_write_hits		      |
-|23| Number of dcache_atomic_hits		    |
+|21| Number of dcache_read_miss		      |
+|22| Number of dcache_write_miss		      |
+|23| Number of dcache_atomic_miss		    |
 |24| Number of dcache_read_fb_hits		    |
 |25| Number of dcache_write_fb_hits		  |
 |26| Number of dcache_atomic_fb_hits		  |
