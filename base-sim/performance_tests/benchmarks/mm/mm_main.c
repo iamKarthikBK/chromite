@@ -22,6 +22,8 @@ void thread_entry(int cid, int nc)
   t b[p*n];
   t c[m*n];
 
+  setStats(0);
+
   for (size_t i = 0; i < m; i++)
     for (size_t j = 0; j < p; j++)
       a[i*p+j] = (t)(s = lfsr(s));
@@ -68,5 +70,10 @@ void thread_entry(int cid, int nc)
 #endif
 
   barrier(nc);
-  exit(0);
+//  exit(0);
+}
+
+int main()
+{
+  setStats(1);
 }
