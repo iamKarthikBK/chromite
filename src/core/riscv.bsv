@@ -338,7 +338,6 @@ package riscv;
       stage1.update_wEpoch();
       stage2.update_wEpoch();
       stage3.update_wEpoch();
-      stage4.update_wEpoch();
     endrule
 
     rule fwding_from_exe1;
@@ -356,7 +355,7 @@ package riscv;
 
       Bit#(ELEN) rdval = s4type.Regular.rdvalue;
 
-      Bool valid = !(rd==0 `ifdef spfpu && rdtype == IRF `endif ) ;
+      Bool valid = !(rd==0 `ifdef spfpu && rdtype == IRF `endif ) && s4common.epochs == rg_wEpoch;
 
       stage3.fwd_from_pipe3(FwdType{valid:valid, available:available, addr:rd, data:rdval
         `ifdef spfpu , rftype: rdtype `endif });
@@ -388,7 +387,7 @@ package riscv;
         rdtype = IRF;
       end
     `endif
-    Bool valid = !(rd==0 `ifdef spfpu && rdtype == IRF `endif ) ;
+    Bool valid = !(rd==0 `ifdef spfpu && rdtype == IRF `endif ) && epoch == rg_wEpoch ;
     stage3.fwd_from_pipe4_first(FwdType{valid: valid, available:available,
                                   addr:rd, data:rdval `ifdef spfpu , rftype: rdtype `endif });
     endrule

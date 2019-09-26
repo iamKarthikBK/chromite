@@ -2,14 +2,18 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.1] - 2019-09-25
+## [1.2.0] - 2019-09-26
 ## Fixed
 - performance counter increment conditions and interrupt generation scheme. A counter will not
   increment if the respective interrupt has been set.
 - the last daisy-module instantiated should respond with true and data=0
+- fixed op-fwding bug mentioned in issue #140
 
 ## Added
 - added tests and benchmarks for performance counters.
+
+## Removed
+- removed redundant epoch register and method from stage4
 
 
 ## [1.1.1] - 2019-09-16

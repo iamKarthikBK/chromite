@@ -15,7 +15,7 @@ c-class:
       - make restore
       - make patch
       - make CONFIG=templates/rv64imafdc.inc
-      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub' CONFIG_ISA=RV64IMAFDC
+      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--filter=rv64 --final'
       - make clean_verif
       - make aapg opts='--config=rv64imafdc* --test_count=10 --parallel=30'
@@ -25,7 +25,7 @@ c-class:
       - make csmith opts='--test_count=30 --parallel=100'
       - make regress opts='--list=csmith.list --parallel=100 --sub'  CONFIG_ISA=RV64IMAFDC
       - make regress opts='--list=csmith.list --final'
-      - make regress opts="--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=20s'" CONFIG_ISA=RV64IMAFDC
+      - make regress opts="--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=120s'" CONFIG_ISA=RV64IMAFDC
       - make clean_verif
 #      - make torture opts='--config=all --parallel=10'
 #      - make regress opts='--list=riscv-torture.list --test_opts='--timeout=15m' --parallel=20 --sub' CONFIG_ISA=RV64IMAFDC
@@ -49,7 +49,7 @@ for-merge:
       - make restore
       - make patch
       - make CONFIG=templates/rv64imafdc.inc VERILATESIM=slow
-      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub' CONFIG_ISA=RV64IMAFDC
+      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--filter=rv64 --final'
       - make restore
     only:
