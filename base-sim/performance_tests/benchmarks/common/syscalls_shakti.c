@@ -22,7 +22,7 @@ static uintptr_t syscall(uintptr_t which, uint64_t arg0, uint64_t arg1, uint64_t
   magic_mem[1] = arg0;
   magic_mem[2] = arg1;
   magic_mem[3] = arg2;
-//  __sync_synchronize();
+  __sync_synchronize();
 
   tohost = (uintptr_t)magic_mem;
   while (fromhost == 0)
@@ -142,31 +142,18 @@ static void init_tls()
   memset(thread_pointer + tdata_size, 0, tbss_size);
 }
 
-/*
-#undef getchar
-int getchar()                                                              
+void _init(int cid, int nc)
 {
- //  int8_t* get_address = (int*) 0x11200;
- //  int8_t value = 0;
+  init_tls();
+  thread_entry(cid, nc);
 
-//   while(value==0){
-//    value = *get_address;
-//    value = value & 0x1;
-//   }
-
- register char a0 asm("a0");
-       asm volatile ("li t1, 0x11200" "\n\t" //The base address of UART config registers
-           		  	"uart_statusr: lb t2, 40(t1)" "\n\t"
-    				"andi t2, t2, 0x1" "\n\t"
-	    			"beqz t2, uart_statusr" "\n\t"
-                    "lb a0, 0(t1)"  "\n\t"      //The base address of UART data register
-                    :  
-                    :  
-                    :"a0","t1","t2","cc","memory");
-    
-   return a0;
+  // only single-threaded programs should ever get here.
+  int ret = main(0, 0);
+  for (int i = 0; i < NUM_COUNTERS; i++)
+			printf("%s = %d\n",counter_names[i],counters[i]);
+  exit(ret);
 }
-*/
+
 
 #undef putchar
 int putchar(int ch)
@@ -183,17 +170,25 @@ int putchar(int ch)
   return 0;
 }
 
-
-void _init(int cid, int nc)
+/*
+#undef getchar
+int getchar()                                                              
 {
-//  init_tls();
-//  thread_entry(cid, nc);
-  // only single-threaded programs should ever get here.
-  int ret = main(0, 0);
-  for (int i = 0; i < NUM_COUNTERS; i++)
-			printf("%s = %d\n",counter_names[i],counters[i]);
-  exit(ret);
+ register char a0 asm("a0");
+       asm volatile ("li t1, 0x11200" "\n\t" //The base address of UART config registers
+           		  	"uart_statusr: lb t2, 40(t1)" "\n\t"
+    				"andi t2, t2, 0x1" "\n\t"
+	    			"beqz t2, uart_statusr" "\n\t"
+                    "lb a0, 0(t1)"  "\n\t"      //The base address of UART data register
+                    :  
+                    :  
+                    :"a0","t1","t2","cc","memory");
+   return a0;
 }
+*/
+
+
+
 
 
 void printhex(uint64_t x)
