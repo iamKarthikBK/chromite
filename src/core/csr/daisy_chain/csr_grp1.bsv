@@ -567,7 +567,7 @@ package csr_grp1;
                     lv_misa_s & rg_stip, lv_misa_n & rg_utip, lv_misa_s & rg_msip, hsip,
                     lv_misa_s & rg_ssip, lv_misa_n & rg_usip};
 
-    let lv_csr_mie= { `ifdef debug 2'd0, `endif rg_mcounterie, 4'd0,
+    let lv_csr_mie= { rg_mcounterie, 4'd0,
                       rg_meie, heie, rg_seie, rg_ueie, rg_mtie, htie, rg_stie, rg_utie, rg_msie,
                        hsie, rg_ssie, rg_usie};
   `ifdef supervisor

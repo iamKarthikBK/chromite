@@ -157,7 +157,7 @@ package decoder;
   (*noinline*)
 	function Tuple3#(Bit#(`causesize), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(XLEN) mstatus,
       Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) mip, 
-      Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) mie 
+      Bit#(17) mie 
       `ifdef non_m_traps , Bit#(12) mideleg `endif
       `ifdef supervisor
         ,Bit#(12) sip, Bit#(12) sie `ifdef usertraps , Bit#(12) sideleg `endif
@@ -178,7 +178,7 @@ package decoder;
     Bool resume_wfi= unpack(|( mie&truncate(mip))); // should halt interrupt on wfi cause
 
   `ifdef debug
-    Bit#(19) debug_interrupts = { mip[18],mip[17],13'd0};
+    Bit#(19) debug_interrupts = { mip[18],mip[17],17'd0};
     Bool d_enabled = debug.debugger_available && debug.core_debugenable;
   `endif
 

@@ -141,7 +141,7 @@ package common_types;
   typedef struct{
     Privilege_mode prv;
     Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) csr_mip;
-    Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) csr_mie;
+    Bit#(17) csr_mie;
   `ifdef non_m_traps
     Bit#(12) csr_mideleg;
   `endif
