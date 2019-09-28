@@ -2,6 +2,11 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2019-09-28
+## Added
+- scripts and edits to collect coverage from verilator sim
+
+
 ## [1.2.3] - 2019-09-27
 ## Fixed
 - mie and mip widths fixed when compiling with debug mode enabled. refer to issue #144.
