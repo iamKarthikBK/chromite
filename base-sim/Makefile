@@ -462,6 +462,14 @@ patch:
 unpatch:
 	@cd $(SHAKTI_HOME)/verification/riscv-tests/env && git apply -R $(SHAKTI_HOME)/verification/patches/riscv-tests-shakti-signature.patch
 
+.PHONY: merge_cov
+merge_cov:
+	cd $(SHAKTI_HOME)/verification/workdir && ln -s $(SHAKTI_HOME)/verilog verilog
+	verilator_coverage --write merged.dat $(SHAKTI_HOME)/verification/workdir/*/*/*/coverage.dat	
+	verilator_coverage --annotate logs merged.dat
+	verilator_coverage --rank $(SHAKTI_HOME)/verification/workdir/*/*/*/coverage.dat	
+	rm -rf $(SHAKTI_HOME)/verification/workdir/*/*/*/coverage.dat	
+
 .PHONY: yml
 yml:
 	@SHAKTI_HOME=$$PWD python3 $(SHAKTI_HOME)/verification/verif-scripts/gen_yml.py $(opts)
