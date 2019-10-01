@@ -295,7 +295,7 @@ package riscv;
    //stage 3 reading value of csr arith_excep register//
    `ifdef arith_trap
     rule arith_exception_en;
-      stage3.ma_arith_trap_en(stage5.arith_excep);
+      stage3.ma_arith_trap_en(stage5.mv_arith_excep);
     endrule
    `endif
 
