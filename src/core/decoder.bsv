@@ -536,7 +536,7 @@ package decoder;
               `endif
                  else if(inst[31:20]=='h302 && inst[19:15]==0 && inst[11:7]==0 && csrs.prv==Machine)
                         inst_type=SYSTEM_INSTR;
-                 else if(inst[31:20]=='h105 && inst[19:15]==0 && inst[11:7]==0 && csrs.prv==Machine)
+                 else if(inst[31:20]=='h105 && inst[19:15]==0 && inst[11:7]==0 )
                         inst_type=WFI;
               `ifdef supervisor
                  else if(inst[31:25]=='b0001001 && inst[11:7]==0 && csrs.csr_mstatus[20]==0) inst_type=MEMORY; // SFENCE

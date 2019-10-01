@@ -2,6 +2,11 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2019-10-01
+## Fixed
+- compile issues with arith_trap enabled fixed
+- decoding for WFI fixed.
+
 ## [1.2.4] - 2019-09-28
 ## Added
 - scripts and edits to collect coverage from verilator sim

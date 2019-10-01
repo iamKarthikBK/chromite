@@ -613,7 +613,7 @@ module mkfpu(Ifc_fpu);
     if(wr_arith_en==1'b1) begin
       if(res_.fflags!=0) begin
           res_.trap = True;
-
+      end
       if (res_.fflags[4]==1)
         res_.cause =`FP_invalid; //Invalid
       else if (res_.fflags[3]==1)
