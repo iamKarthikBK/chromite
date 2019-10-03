@@ -84,11 +84,16 @@ The following hooks only come in to effect when `M` is present in the `ISA` vari
 * __DBLOCKS__: An integer value indicating the number of the words in a block. Please note, in order to prevent aliasing in the caches the following should hold: `DSETS`x`DWORDS`x`DBLOCK`<=4096. `DBLOCKs` should not be less than 8. See issue#70 for more details on this constraint.
 * __DWAYS__: An integer value >0 indicating the number of ways in the I-cache.
 * __DFBSIZE__: An integer value >1 indicating the number of entries in the Fill-buffer of the D-cache. 
-* __DFBSIZE__: An integer value >1 indicating the number of entries in the store-buffer of the D-cache. 
+* __DSBSIZE__: An integer value >1 indicating the number of entries in the store-buffer of the D-cache. 
 * __DESIZE__: Should always be set to 1 for all configs.
 * __DRESET__: Can be either 0 or 1. A value of 0 indicates that the D-cache, though instantiated in HW, will be disabled and has to be enabled thorugh software. A value of 1 indicates that the D-cache is available immediately after reset.
 * __DDBANKS__: The number of banks that data-rams of the D-cache should be split into.
 * __DTBANKS__: The number of banks that tag-rams of the D-cache should be split into.
+
+## Enable ECC in caches
+* __ECC__: Valid options:
+    * `enable`: will enable ECC based SEC-DED support on instruction and data caches both
+    * `disable`: no ECC support.
 
 ## Configuring Physical Memory Protection.
 * __PMP__: Valid options

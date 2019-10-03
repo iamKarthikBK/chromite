@@ -194,7 +194,7 @@ Come back to the folder c-class/base-sim:
 cd c-class/base-sim
 cp $SHAKTI_LINUX/work/riscv-pk/bbl ./bin/
 cd bin
-elf2hex 8 4194304 add.elf 2147483648 > code.mem
+elf2hex 8 4194304 bbl 2147483648 > code.mem
 ./out
 ```
 
@@ -223,6 +223,6 @@ Come back to the folder for c-class/base-sim/:
 cd c-class/base-sim
 cp FreeRTOS/FreeRTOS-RISCV/Demo/shakti/frtos-shakti.elf ./bin
 cd bin
-elf2hex 8 4194304 add.elf 2147483648 > code.mem
+elf2hex 8 4194304 frtos-shakti.elf 2147483648 > code.mem
 ./out
 ```

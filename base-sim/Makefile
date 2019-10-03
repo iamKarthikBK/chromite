@@ -93,6 +93,9 @@ endif
 ifeq ($(DCACHE), enable)
   override define_macros += -D dcache=True
 endif
+ifeq ($(ECC), enable)
+  override define_macros += -D ECC=True
+endif
 ifeq ($(PMP), enable)
 	override define_macros += -D pmp=True
 endif
@@ -114,6 +117,7 @@ ifeq ($(ICACHE), enable)
 else ifneq ($(PREDICTOR), none)
 	override define_macros += -D ifence=True
 endif
+
 
 ifneq ($(TRIGGERS), 0)
 	override define_macros += -D triggers=True -D trigger_num=$(TRIGGERS)
@@ -137,10 +141,6 @@ endif
 
 ifeq ($(TRACE), enable)
   trace := --trace
-endif
-
-ifeq ($(VERILATESIM), fast)
-	verilate_fast := -CFLAGS -O3
 endif
 
 VCS_MACROS =  +define+BSV_RESET_FIFO_HEAD=True +define+BSV_RESET_FIFO_ARRAY=True
@@ -210,10 +210,13 @@ BSVINCDIR := $(shell echo $(VARIABLE) | sed 's/ //g' )
 # ------------------------------------------------------------------------------------------------ #
 
 # ----------------- Setting up flags for verilator ----------------------------------------------- #
-VERILATOR_FLAGS += --stats -O3 $(verilate_fast) -LDFLAGS "-static" --x-assign fast --x-initial fast \
+ifeq ($(VERILATESIM), fast)
+	verilate_fast := OPT_SLOW="-O3" OPT_FAST="-O3"
+endif
+VERILATOR_FLAGS += -O3 -LDFLAGS "-static" --x-assign fast --x-initial fast \
 --noassert sim_main.cpp --bbox-sys -Wno-STMTDLY -Wno-UNOPTFLAT -Wno-WIDTH \
 -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY --autoflush $(coverage) $(trace) --threads $(THREADS) \
--DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY
+-DBSV_RESET_FIFO_HEAD -DBSV_RESET_FIFO_ARRAY --output-split 20000 --output-split-ctrace 10000
 # ------------------------------------------------------------------------------------------------ #
 
 # ---------------- Setting the variables for bluespec compile  --------------------------------- #
@@ -383,9 +386,9 @@ link_verilator: ## Generate simulation executable using Verilator
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > sim_main.h
 	@echo '#include "V$(TOP_MODULE).h"' >> sim_main.h
 	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v -y $(VERILOGDIR) -y common_verilog --exe
-	@ln -f -s sim_main.cpp obj_dir/sim_main.cpp
-	@ln -f -s sim_main.h obj_dir/sim_main.h
-	@make -j8 -C obj_dir -f V$(TOP_MODULE).mk
+	@ln -f -s ../sim_main.cpp obj_dir/sim_main.cpp
+	@ln -f -s ../sim_main.h obj_dir/sim_main.h
+	make $(verilate_fast) VM_PARALLEL_BUILDS=1 -j8 -C obj_dir -f V$(TOP_MODULE).mk
 	@cp obj_dir/V$(TOP_MODULE) $(BSVOUTDIR)/out
 
 
@@ -401,11 +404,11 @@ link_verilator_gdb: ## Generate simulation executable using Verilator and VPI fo
 	      tmp1.v                         > $(VERILOGDIR)/$(TOP_MODULE)_edited.v
 	@rm   -f  tmp1.v
 	verilator --threads-dpi all --cc $(TOP_MODULE)_edited.v --exe sim_main.cpp devices/jtagdtm/RBB_Shakti.c -y $(VERILOGDIR) $(VERILATOR_FLAGS)
-	@ln -f -s sim_main.cpp obj_dir/sim_main.cpp
-	@ln -f -s sim_main.h obj_dir/sim_main.h
+	@ln -f -s ../sim_main.cpp obj_dir/sim_main.cpp
+	@ln -f -s ../sim_main.h obj_dir/sim_main.h
 	@ln -f -s ./devices/jtagdtm/RBB_Shakti.c obj_dir/RBB_Shakti.c
 	@echo "INFO: Linking verilated files"
-	@make -j8 -C obj_dir -f V$(TOP_MODULE)_edited.mk
+	make $(verilate_fast) VM_PARALLEL_BUILDS=1 -j8 -C obj_dir -f V$(TOP_MODULE).mk
 	@cp obj_dir/V$(TOP_MODULE)_edited bin/out
 	@cp gdb_setup/code.mem* ./bin/
 	@echo Linking finished

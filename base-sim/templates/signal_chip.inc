@@ -1,4 +1,4 @@
-ISA=RV32IMAC
+ISA=RV32IMC
 
 # User mode related settings
 USERTRAPS=disable
@@ -26,7 +26,7 @@ RASDEPTH=8
 ECC=disable
 
 # configuring the Instruction cache
-ICACHE=enable
+ICACHE=disable
 ISETS=64
 IWORDS=4
 IBLOCKS=16
@@ -39,7 +39,7 @@ IDBANKS=1
 ITBANKS=1
 
 # configuring the Data cache
-DCACHE=enable
+DCACHE=disable
 DESIZE=1
 DSETS=64
 DWORDS=4
@@ -72,11 +72,11 @@ TRACE=disable
 THREADS=1
 VERILATESIM=fast
 VERBOSITY=disable
-RTLDUMP=enable
-ASSERTIONS=enable
+RTLDUMP=disable
+ASSERTIONS=disable
 
 # miscellaneous configs
-SYNTH=SIM
+SYNTH=ASIC
 ARITH_TRAP=disable
 RESETPC=4096
 PADDR=32
@@ -88,7 +88,7 @@ CAUSESIZE=6
 # Counter config for daisy-chain
 CSRTYPE=daisy
 CSR_LATENCY=low
-COUNTERS_GRP4=2
+COUNTERS_GRP4=0
 COUNTERS_GRP5=0
 COUNTERS_GRP6=0
 COUNTERS_GRP7=0

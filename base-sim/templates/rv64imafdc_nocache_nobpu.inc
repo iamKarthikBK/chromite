@@ -22,6 +22,9 @@ HISTLEN=8
 EXTRAHIST=3
 RASDEPTH=8
 
+# ECC support in caches
+ECC=disable
+
 # configuring the Instruction cache
 ICACHE=disable
 ISETS=64

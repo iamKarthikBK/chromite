@@ -7,7 +7,10 @@ src/core/csr
 src/core/csr/daisy_chain
 base-sim/fabrics/axi4
 base-sim/fabrics/axi4lite
-base-sim/caches_mmu/src
+base-sim/caches_mmu/src/icache
+base-sim/caches_mmu/src/dcache
+base-sim/caches_mmu/src/tlbs
+base-sim/caches_mmu/src/
 base-sim/devices/bootrom
 base-sim/devices/pwm
 base-sim/devices/uart
