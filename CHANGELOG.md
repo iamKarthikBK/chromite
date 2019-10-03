@@ -1,6 +1,14 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.3.0] - 2019-10-03
+## Added
+- bumped to caches with ECC support. Added corresponding hooks and details in readme as well.
+
+## Fixed
+- typos in readme fixed #138
+- improved verilator build speed.
+
 
 ## [1.2.5] - 2019-10-01
 ## Fixed
