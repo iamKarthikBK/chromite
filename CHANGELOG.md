@@ -1,6 +1,11 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.3.1] - 2019-10-04
+## Fixed
+- Traps for floating point ops with ARITH_TRAP enabled but disabled through csr no longer generates
+  traps. Close #147
+
 ## [1.3.0] - 2019-10-03
 ## Added
 - bumped to caches with ECC support. Added corresponding hooks and details in readme as well.

@@ -80,6 +80,7 @@ ASSERTIONS=enable
 # miscellaneous configs
 SYNTH=SIM
 ARITH_TRAP=disable
+
 RESETPC=4096
 PADDR=32
 COREFABRIC=AXI4
