@@ -293,6 +293,9 @@ package alu;
   `ifdef arith_trap
     method  Action ma_arith_trap_en(Bit#(1) en);
       mbox.ma_arith_trap_en(en);
+    `ifdef spfpu
+      fpu.rd_arith_excep_en(en);
+    `endif
     endmethod
   `endif
   endmodule: mkmulticycle_alu
