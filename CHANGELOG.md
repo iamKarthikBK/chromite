@@ -1,9 +1,14 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.3.3] - 2019-10-08
+## Fixed
+- Illegal encoding were being treated as FCVT.D.S and FCVT.S.D. This has been fixed. Close #149
+
 ## [1.3.2] - 2019-10-04
 ## Fixed
 - Passing arith_en to FPU which enables arith_traps Close #147
+
 ## [1.3.1] - 2019-10-04
 ## Fixed
 - Traps for floating point ops with ARITH_TRAP enabled but disabled through csr no longer generates

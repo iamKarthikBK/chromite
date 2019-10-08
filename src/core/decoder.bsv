@@ -468,7 +468,7 @@ package decoder;
     'b11110: (inst[24:20]==0 && funct3==0); // FMV.D.X
     'b11100: (inst[24:20]==0 && funct3==0); // FMV.X.D
   `endif
-    'b01000: (inst[24:21]=='b0 && valid_rounding); // FCVT.S.D
+    'b01000: (inst[24:21]=='b0 && valid_rounding && inst[25] == ~inst[20]); // FCVT.S.D
     default: False;
   endcase;
 	Bool address_is_valid=address_valid(inst[31:20],csrs.csr_misa);
