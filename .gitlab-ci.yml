@@ -27,8 +27,8 @@ c-class:
       - make regress opts='--list=csmith.list --final'
       - make regress opts="--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=120s'" CONFIG_ISA=RV64IMAFDC
       - make clean_verif
-      - make torture opts='--config=all --parallel=10'
-      - make regress opts='--list=riscv-torture.list --test_opts='--timeout=15m' --parallel=20 --sub' CONFIG_ISA=RV64IMAFDC
+      - make torture opts='--config=all --debug'
+      - make regress opts='--list=riscv-torture.list --test_opts='--timeout=30m' --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--list=riscv-torture.list --final'
       - make restore
     only:
