@@ -1,8 +1,7 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [1.3.3] - 2019-10-16
+## [1.3.4] - 2019-10-16
 ## Fixed
 - Illegal instruction generation script. Close #151
 - 
