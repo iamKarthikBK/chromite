@@ -67,10 +67,10 @@ OPENOCD=disable
 SUPPRESSWARNINGS=none
 
 # Simulation configurations and env settings
-COVERAGE=all
+COVERAGE=line
 TRACE=disable
-THREADS=1
-VERILATESIM=slow
+THREADS=4
+VERILATESIM=fast
 VERBOSITY=disable
 RTLDUMP=enable
 ASSERTIONS=enable
