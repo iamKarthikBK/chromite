@@ -1,6 +1,10 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.3.6] - 2019-10-16
+## Added
+- Micro Arch ppt of the core pipeline.
+
 ## [1.3.5] - 2019-10-16
 ## Fixed
 - verification update for csmith path fix. Close #152
