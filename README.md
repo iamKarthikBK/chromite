@@ -2,8 +2,7 @@
 [![pipeline status](https://gitlab.com/shaktiproject/cores/c-class/badges/master/pipeline.svg)](https://gitlab.com/shaktiproject/cores/c-class/commits/master)
 # SHAKTI C-CLASS Core
 ---------------------
-This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http://shakti.org.in/) Processor family. The design here is an upgraded version of the previous design found on [bitbucket](https://bitbucket.org/casl/c-class). Once a few critical features have been fixed/integrated the bitbucket repo will be made obsolete.
-
+This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http://shakti.org.in/) Processor family. 
 ## Guide
 - [SHAKTI C-CLASS Core](#shakti-c-class-core)
   * [Guide](#guide)
@@ -14,6 +13,7 @@ This is the [RISC-V](https://riscv.org) based C-Class core of the [SHAKTI](http:
   * [Directory Structure](#directory-structure)
   * [Block Diagram](#block-diagram)
   * [Overview of C-CLASS](#overview-of-c-class)
+  * [Micro-Architecture](./docs/micro_arch.pdf)
   * [Configuring the Core](./docs/configuring_core.md)
   * [Compiling and Simulating the the Core](#compiling-and-simulating-the-the-core)
   * [Custom CSRS](./docs/custom_csrs.md)
@@ -61,12 +61,12 @@ sudo make install NO_PYTHON=1 PREFIX=/usr/
 
 This an overview of the c-class core. More detail documents commenting about the micro-arch will be uploaded soon.
 
-![](https://i.imgur.com/Elf1NQl.png)
+![](https://imgur.com/OOV6KPc)
 
 ## Overview of C-CLASS
 
 * 5-stage 64/32-bit pipelined core.
-* Supports ISA=RV64IMAFDC based on riscv-spec-2.2 and privilege-spec-1.10.
+* Supports ISA=RV64IMAFDCSUN based on riscv-spec-2.2 and privilege-spec-1.10.
 * Parameterized blocking Instruction and Data cache.
 * Serialized Single and Double Precision Floating Point Units.
 * Early out multiplier and a restoring divider.
