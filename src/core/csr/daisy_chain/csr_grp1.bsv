@@ -124,6 +124,9 @@ package csr_grp1;
 		//           check the value of rg_mpp, required in method upd_on_trap at top module"*)
 		method Bit#(2) mv_mpp; //tested
 
+		/*doc:method: This method indicates if the hart should resume from a WFI*/
+		method Bool mv_resume_wfi ();
+
 	`ifdef supervisor
 		(*always_ready, always_enabled*)
 		//(*doc = "the method is internal to the entire CSR files, used by top module mk_csr_daisy, to \
@@ -241,12 +244,12 @@ package csr_grp1;
     Reg#(Bit#(1)) rg_mprv <- mkReg(0);
   `ifdef supervisor
   	(*doc = "reg : Trap-SRET, if rg_tsr = 1, SRET instruction raises exception"*)
-    Reg#(Bit#(1)) rg_tsr	  <-mkReg(0);// TODO add functionality
+    Reg#(Bit#(1)) rg_tsr	  <-mkReg(0);
     (*doc = "reg : Time-out Wait, bit for supporting interception by WFI instruction"*)
-    Reg#(Bit#(1)) rg_tw	  <-mkReg(0);// TODO add functionality
+    Reg#(Bit#(1)) rg_tw	  <-mkReg(0);
     (*doc = "reg : Trap virtual Memory, bit for supporting interception of supervisor \
              virtual memory management operations"*)
-    Reg#(Bit#(1)) rg_tvm	  <-mkReg(0);// TODO add functionality
+    Reg#(Bit#(1)) rg_tvm	  <-mkReg(0);
     (*doc = "reg : Make eXecutable Readable, modifies the privilege with which loads access \
              vitual memory"*)
     Reg#(Bit#(1)) rg_mxr   <-mkReg(0);//
@@ -1237,6 +1240,11 @@ package csr_grp1;
 		method Bit#(2) mv_mpp;
 			Bit#(2) mpp_val = rg_mpp;
 			return mpp_val;
+		endmethod
+
+		/*doc:method: */
+		method Bool mv_resume_wfi ();
+  		return unpack( |(lv_csr_mip[11:0]&lv_csr_mie[11:0]) );
 		endmethod
 
   `ifdef non_m_traps

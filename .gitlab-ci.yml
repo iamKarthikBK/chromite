@@ -14,7 +14,7 @@ c-class:
       - ./manager.sh update_deps
       - make restore
       - make patch
-      - make CONFIG=templates/rv64imafdc.inc
+      - make CONFIG=templates/rv64imafdc.inc SUPPRESSWARNINGS=all
       - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--filter=rv64 --final'
       - make clean_verif
@@ -48,7 +48,7 @@ for-merge:
       - ./manager.sh update_deps
       - make restore
       - make patch
-      - make CONFIG=templates/rv64imafdc.inc VERILATESIM=slow
+      - make CONFIG=templates/rv64imafdc.inc SUPPRESSWARNINGS=all
       - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
       - make regress opts='--filter=rv64 --final'
       - make restore

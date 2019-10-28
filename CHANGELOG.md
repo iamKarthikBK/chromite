@@ -1,7 +1,21 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-## [1.3.6] - 2019-10-16
+## [1.4.0] - 2019-10-28
+## Added
+- support for WFI
+- support for illegal trapping when tvm, tw and tsr registers are set in supervisor mode
+
+## Fixed
+- made ADDR_SPACE as a variable in config file
+- fixed paramaters for linux template
+- bumped verification version to 3.2.4
+- access to csr 0x321 and 0x322 now generates trap
+- bumping devices to 5.0.0 with new uart features.
+- fixed verilator setup for gdb as well
+- added suppresswarnings as part of the gitlab ci/cd
+
+## [1.3.6] - 2019-10-22
 ## Added
 - Micro Arch ppt of the core pipeline.
 

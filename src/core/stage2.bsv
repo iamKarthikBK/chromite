@@ -136,6 +136,10 @@ package stage2;
     /*doc:method method to update epochs on redirection from write - back stage*/
 		method Action update_wEpoch;
 
+		(*always_ready*)
+		/*doc:method: method to indicate if the hart whould resume from a WFI*/
+		method Action ma_resume_wfi (Bool w);
+
   `ifdef debug
     /*doc:method: interface to interact with debugger*/
     method ActionValue#(Bit#(XLEN)) debug_access_gprs(AbstractRegOp cmd);
@@ -191,6 +195,10 @@ package stage2;
       this register when True indicates the current stage is waiting for interrupts before
       sending any new info to the next stage*/
     Reg#(Bool) rg_wfi   <- mkReg(False);
+
+    /*doc:wire: This wire indicates if any locally enabled interrupt is pending irrespective of the
+    * global status of interrupt-enable or delegation. It simply carries mie&mip*/
+    Wire#(Bool) wr_resume_wfi <- mkDWire(False);
 
     /*doc:reg:
       This register when set to true indicates that the current instruction being processed will
@@ -248,7 +256,7 @@ package stage2;
     // Implicit Conditions : rx.notEmpty and all tx fifos are not full
     // Description : This rule decodes the current fetched instruction, fetches the operands from the
     // registerfile and sends the required struct to the next stage.
-    rule decode_and_opfetch(!rg_stall && rx.u.notEmpty && tx_mtval.u.notFull);
+    rule decode_and_opfetch(!rg_stall && rx.u.notEmpty && tx_mtval.u.notFull && !rg_wfi);
 
       // --- extract the fields from the packet received from the stage1 ---- //
 	    let pc = rx.u.first.program_counter;
@@ -301,7 +309,18 @@ package stage2;
         `logLevel( stage2, 1, $format("core:%2d ",hartid,"STAGE2: BadAddress(MTVAL): %h", mtval))
       // ---------------------------------------------------------------------------------------- //
 
-      if(instrType != WFI && {eEpoch, wEpoch}==epochs)begin
+      if({eEpoch, wEpoch} != epochs)begin
+        `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2 : Dropping Instruction due to epoch mis - match"))
+      end
+      else if (instrType == WFI) begin
+        if(!wr_flush_from_exe && !wr_flush_from_wb) begin
+          `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2 : Encountered WFI"))
+          rg_wfi <= True;
+        end
+        else
+          `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2 : Dropping WFI"))
+      end
+      else begin
 
       // The following logic is used to ensure correct step functionality. When the core is halted
       // or free-running rg_step_done is set to false. When the step bit in dcsr is set and resume
@@ -386,13 +405,16 @@ package stage2;
         `logLevel( stage2, 1, $format("core:%2d ",hartid,"STAGE2: ",fshow(stage3meta)))
 
       end
-      else begin
-        `logLevel( stage2, 0, $format("core:%2d ",hartid,"STAGE2 : Dropping Instruction due to epoch mis - match"))
-      end
       rx.u.deq;
     `ifdef rtldump
       rxinst.u.deq;
     `endif
+    endrule
+
+    /*doc:rule: */
+    rule rl_wait_for_interrupt(rg_wfi);
+      if(wr_resume_wfi || wr_flush_from_wb || wr_flush_from_exe)
+        rg_wfi <= False;
     endrule
 
 
@@ -461,6 +483,11 @@ package stage2;
         rg_stall <= False;
         rg_rerun <= False;
       end
+    endmethod
+
+    /*doc:method: */
+    method Action ma_resume_wfi (Bool w);
+      wr_resume_wfi <= w;
     endmethod
 
   `ifdef debug

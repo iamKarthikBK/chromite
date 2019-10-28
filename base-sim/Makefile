@@ -10,15 +10,6 @@ CONFIG?=soc_config.inc
 
 include $(CONFIG)
 
-ifeq ($(define_macros),)
-	define_macros+= -D Addr_space=25
-else
-ifneq (,$(findstring Addr_space,$(define_macros)))
-else
-	override define_macros+= -D Addr_space=25
-endif
-endif
-
 SHAKTI_HOME=$(PWD)
 export SHAKTI_HOME
 
@@ -143,6 +134,12 @@ ifeq ($(TRACE), enable)
   trace := --trace
 endif
 
+ifeq ($(SUPPRESSWARNINGS),all)
+	suppresswarn = -suppress-warnings G0010:T0054:G0020:G0024:G0023:G0096:G0036:G0117:G0015
+else ifneq ($(SUPPRESSWARNINGS), none)
+	suppresswarn = -suppress-warnings $(SUPPRESSWARNINGS)
+endif
+
 VCS_MACROS =  +define+BSV_RESET_FIFO_HEAD=True +define+BSV_RESET_FIFO_ARRAY=True
 
 ifeq (enable,$(VERBOSITY))
@@ -187,7 +184,7 @@ endif
 override define_macros += -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
 								 -D DIVSTAGES=$(DIVSTAGES) -D counters_grp4=$(COUNTERS_GRP4)\
 								 -D counters_grp5=$(COUNTERS_GRP5) -D counters_grp6=$(COUNTERS_GRP6)\
-								 -D counters_grp7=$(COUNTERS_GRP7)\
+								 -D counters_grp7=$(COUNTERS_GRP7) -D Addr_space=$(ADDR_SPACE)\
 								 -D iwords=$(IWORDS) -D iblocks=$(IBLOCKS) -D iways=$(IWAYS) -D isets=$(ISETS) \
 								 -D ifbsize=$(IFBSIZE) -D irepl=$(IREPL) -D icachereset=$(IRESET) -D iesize=$(IESIZE) \
 								 -D idbanks=$(IDBANKS) -D itbanks=$(ITBANKS) -D ddbanks=$(DDBANKS) -D dtbanks=$(DTBANKS) \
@@ -408,7 +405,7 @@ link_verilator_gdb: ## Generate simulation executable using Verilator and VPI fo
 	@ln -f -s ../sim_main.h obj_dir/sim_main.h
 	@ln -f -s ./devices/jtagdtm/RBB_Shakti.c obj_dir/RBB_Shakti.c
 	@echo "INFO: Linking verilated files"
-	make $(verilate_fast) VM_PARALLEL_BUILDS=1 -j8 -C obj_dir -f V$(TOP_MODULE).mk
+	make $(verilate_fast) VM_PARALLEL_BUILDS=1 -j8 -C obj_dir -f V$(TOP_MODULE)_edited.mk
 	@cp obj_dir/V$(TOP_MODULE)_edited bin/out
 	@cp gdb_setup/code.mem* ./bin/
 	@echo Linking finished

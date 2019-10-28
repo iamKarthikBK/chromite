@@ -52,8 +52,6 @@ DRESET=1
 DDBANKS=1
 DTBANKS=1
 
-ECC=disable
-
 # Configuring the PMP CONFIG
 PMP=disable
 PMPSIZE=0
@@ -80,10 +78,10 @@ ASSERTIONS=enable
 # miscellaneous configs
 SYNTH=SIM
 ARITH_TRAP=disable
-
 RESETPC=4096
 PADDR=32
 COREFABRIC=AXI4
+ADDR_SPACE=25
 
 # Do not change
 CAUSESIZE=6

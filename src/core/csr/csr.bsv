@@ -54,6 +54,8 @@ package csr;
   	//(*doc = "method : response from the CSRs forwarded to the core"*)
   	method CSRResponse mv_resp_to_core;
     method CSRtoDecode mv_csrs_to_decode;
+		/*doc:method: This method indicates if the hart should resume from a WFI*/
+		method Bool mv_resume_wfi ();
     method ActionValue#(Bit#(`vaddr)) take_trap(Bit#(`causesize) type_cause, Bit#(`vaddr) pc, Bit#(`vaddr) badaddr);
 	  method Action ma_clint_msip(Bit#(1) intrpt);
 		method Action ma_clint_mtip(Bit#(1) intrpt);
@@ -177,6 +179,7 @@ package csr;
 	  method ma_clint_mtip = csrfile.ma_clint_mtip;
 	  method ma_clint_mtime = csrfile.ma_clint_mtime;
     method ma_incr_minstret = csrfile.ma_incr_minstret;
+    method mv_resume_wfi = csrfile.mv_resume_wfi;
 		`ifdef supervisor
 			method mv_csr_satp = csrfile.mv_csr_satp;
 		`endif
