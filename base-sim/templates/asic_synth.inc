@@ -71,9 +71,9 @@ COVERAGE=none
 TRACE=disable
 THREADS=1
 VERILATESIM=fast
-VERBOSITY=disable
-RTLDUMP=disable
-ASSERTIONS=disable
+VERBOSITY=enable
+RTLDUMP=enable
+ASSERTIONS=enable
 
 # miscellaneous configs
 SYNTH=ASIC
@@ -81,7 +81,7 @@ ARITH_TRAP=disable
 RESETPC=4096
 PADDR=32
 COREFABRIC=AXI4
-ADDR_SPACE=25
+ADDR_SPACE=28
 
 # Do not change
 CAUSESIZE=6

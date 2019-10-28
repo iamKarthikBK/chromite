@@ -225,14 +225,14 @@ BSVLINKOPTS:=-parallel-sim-link 8 -keep-fires
 VERILOGDIR:=./verilog/
 BSVBUILDDIR:=./bsv_build/
 BSVOUTDIR:=./bin
-ifeq (, $(wildcard ${TOOLS_DIR}/shakti-tools/insert_license.sh))
+ifeq (, $(wildcard ${TOOLS_DIR}/insert_license.sh))
   VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout \
 									 -verilog-filter ./rename_translate.sh
 else
   VERILOG_FILTER:= -verilog-filter ${BLUESPECDIR}/bin/basicinout \
-									 -verilog-filter ${TOOLS_DIR}/shakti-tools/insert_license.sh \
+									 -verilog-filter ${TOOLS_DIR}/insert_license.sh \
 									 -verilog-filter ./rename_translate.sh
-	VERILOGLICENSE:= cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt ${VERILOGDIR}/LICENSE.txt
+	VERILOGLICENSE:= cp ${TOOLS_DIR}/IITM_LICENSE.txt ${VERILOGDIR}/IITM_LICENSE.txt
 endif
 # ------------------------------------------------------------------------------------------------ #
 
@@ -420,7 +420,7 @@ release-verilog-artifacts: generate_verilog generate_boot_files link_verilator
 	@cp -r benchmarks verilog-artifacts/
 	@cp ${BSVOUTDIR}/boot.* verilog-artifacts/sim
 	@cp ${BSVOUTDIR}/out verilog-artifacts/sim/cclass
-	@cp ${TOOLS_DIR}/shakti-tools/IITM_LICENSE.txt verilog-artifacts/LICENSE.txt
+	@cp ${TOOLS_DIR}/IITM_LICENSE.txt verilog-artifacts/LICENSE.txt
 	@mv verilog-artifacts ../
 
 .PHONY: regress
