@@ -146,3 +146,4 @@ The following hooks only come in to effect when `M` is present in the `ISA` vari
     * `sim`: Setting this variable to `sim` will enable the `simulate` macro during bluesim compilation which enable a few simulation logic in the hardware. Eg,: if the MUL variable is set to `fpga` and `SYNTH` is set to `sim` then a naive bluespec model which mimics DSP multiplier in functionality will be used to simulation. The `sim` setting should only be used for simulations. 
     * `asic`: This should be set to generate a verilog for synthesis and will not include any simulation models.
 * __ARITH_TRAP__: Valid values are `enable` or `disable`. When enabled, the core will treat some arithmetic operations as traps. More details of the behavior area available [here](../docs/arithmetic_trap.md)
+* __ADDR_SPACE__: An integer to indicate the amount of testbench memory to be instantiated. Memory size = `2^ADDR_SPACE` bytes

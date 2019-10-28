@@ -101,7 +101,6 @@ package common_types;
     Access_type memaccess;      // memory access type
     Bit#(32) immediate;         // immediate fields
     Bit#(7) funct;              // concatenation of f3 and fn fields
-    Bool    resume_wfi;         // indicates if core should resume from wfi
     Bool    rerun;              // indicates if the current instruction needs to be rerun
   } InstrMeta deriving(Bits, Eq, FShow);
 

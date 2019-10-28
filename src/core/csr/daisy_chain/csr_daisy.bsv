@@ -105,6 +105,8 @@ package csr_daisy;
 
     /*doc:method: returns the current privilege mode of execution*/
     method Bit#(2) mv_curr_priv;
+		/*doc:method: This method indicates if the hart should resume from a WFI*/
+		method Bool mv_resume_wfi ();
 		//-----------------------------------------------------
 		//sideband connections from grp-2 to core--------------
   `ifdef spfpu
@@ -396,6 +398,7 @@ package csr_daisy;
 		method mv_csr_mstatus = mk_grp1.mv_csr_mstatus;
 		method mv_csrs_to_decode = mk_grp1.mv_csrs_to_decode;
 		method mv_curr_priv = pack(rg_prv);
+		method mv_resume_wfi = mk_grp1.mv_resume_wfi;
 
 		//-----------------------------------------------------
 		//sideband connections from grp-2 to core--------------

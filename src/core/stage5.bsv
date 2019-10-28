@@ -80,6 +80,8 @@ package stage5;
     method Bit#(3) mv_cacheenable;
     method Bit#(2) mv_curr_priv;
     method Bit#(XLEN) mv_csr_mstatus;
+		/*doc:method: This method indicates if the hart should resume from a WFI*/
+		method Bool mv_resume_wfi ();
   `ifdef pmp
     method Vector#(`PMPSIZE, Bit#(8)) mv_pmp_cfg;
     method Vector#(`PMPSIZE, Bit#(`paddr )) mv_pmp_addr;
@@ -373,6 +375,7 @@ package stage5;
           let {drain, newpc}<-csr.system_instruction(sys.csraddr, sys.rs1, sys.func3, sys.lpc);
           let dest= csr_dest;
           if(drain || csr_valid) begin
+            wr_increment_minstret<=True;
             jump_address=newpc;
             fl=drain;
             wr_commit <= tagged Valid CommitData{addr: sys.rd, data: zeroExtend(dest)
@@ -454,6 +457,7 @@ package stage5;
 	  method ma_clint_msip = csr.ma_clint_msip;
 		method ma_clint_mtip = csr.ma_clint_mtip;
 		method ma_clint_mtime = csr.ma_clint_mtime;
+		method mv_resume_wfi = csr.mv_resume_wfi;
     `ifdef rtldump
       interface dump = interface Get
         method ActionValue#(DumpType) get ;

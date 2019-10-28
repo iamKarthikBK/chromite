@@ -105,7 +105,8 @@ package decoder;
                       `endif
                       endcase
                   // Machine counter Setup
-                  'h2,'h3: valid=True;
+                  'h2: if(addr[3:0] != 1 && addr[3:0] != 2) valid = True;
+                  'h3: valid=True;
                     // Machine Trap Handling
                   'h4:case(addr[3:0])
                         'h0, 'h1, 'h2, 'h3, 'h4: valid=True;
@@ -148,14 +149,17 @@ package decoder;
   // if the operand is not 0 then the instruction will perform a write on the CSR.
   (*noinline*)
 	function Bool valid_csr_access(Bit#(12) csr_addr, Bit#(5) operand, Bit#(2) operation,
-                                                                              Privilege_mode prv);
-		Bool ret = hasCSRPermission(unpack(csr_addr), (operand != 0 || operation=='b01) ? True:False,
-                                                                                              prv);
+                                  Bit#(1) tvm, Privilege_mode prv);
+		Bool ret = hasCSRPermission(unpack(csr_addr), (operand != 0 || operation=='b01) ? True:False, prv);
+
+    // accessing satp in supervisor mode with tvm=1 should raise an illegal exception
+    if ( ret && csr_addr == 'h180 && tvm == 1 && prv == Supervisor)
+      ret = False;
 		return ret;
 	endfunction
 
   (*noinline*)
-	function Tuple3#(Bit#(`causesize), Bool, Bool) chk_interrupt(Privilege_mode prv, Bit#(XLEN) mstatus,
+	function Tuple2#(Bit#(`causesize), Bool) chk_interrupt(Privilege_mode prv, Bit#(XLEN) mstatus,
       Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) mip, 
       Bit#(17) mie 
       `ifdef non_m_traps , Bit#(12) mideleg `endif
@@ -175,7 +179,6 @@ package decoder;
   `ifdef usertraps
     Bool u_enabled = (mstatus[0]==1 && prv==User);
   `endif
-    Bool resume_wfi= unpack(|( mie&truncate(mip))); // should halt interrupt on wfi cause
 
   `ifdef debug
     Bit#(19) debug_interrupts = { mip[18],mip[17],17'd0};
@@ -244,7 +247,7 @@ package decoder;
   `endif
 
 
-		return tuple3({1'b1,int_cause}, taketrap, resume_wfi);
+		return tuple2({1'b1,int_cause}, taketrap);
 	endfunction
 
   typedef enum {Q0='b00, Q1='b01, Q2='b10} Quadrant deriving(Bits,Eq,FShow);
@@ -472,7 +475,8 @@ package decoder;
     default: False;
   endcase;
 	Bool address_is_valid=address_valid(inst[31:20],csrs.csr_misa);
-	Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12], csrs.prv);
+	Bool access_is_valid=valid_csr_access(inst[31:20],inst[19:15], inst[13:12],
+                                        	csrs.csr_mstatus[20], csrs.prv);
   Instruction_type inst_type = TRAP;
   case (opcode[4:3])
     'b00: case(opcode[2:0])
@@ -528,18 +532,26 @@ package decoder;
                   `endif
                     trapcause = `Breakpoint;
                  end
+                 // URET op
                  else if(inst[31:20]=='h002 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[13]==1) inst_type=SYSTEM_INSTR;
               `ifdef supervisor
+                // SRET
                  else if(inst[31:20]=='h102 && inst[19:15]==0 && inst[11:7]==0 && csrs.csr_misa[18]==1 &&
                         csrs.prv!=User && (csrs.prv==Machine || (csrs.prv==Supervisor &&
                         csrs.csr_mstatus[22]==0))) inst_type=SYSTEM_INSTR;
               `endif
-                 else if(inst[31:20]=='h302 && inst[19:15]==0 && inst[11:7]==0 && csrs.prv==Machine)
+                // MRET
+                else if(inst[31:20]=='h302 && inst[19:15]==0 && inst[11:7]==0 && csrs.prv==Machine)
                         inst_type=SYSTEM_INSTR;
-                 else if(inst[31:20]=='h105 && inst[19:15]==0 && inst[11:7]==0 )
-                        inst_type=WFI;
+                else if(inst[31:20]=='h105 && inst[19:15]==0 && inst[11:7]==0 ) begin
+                   if(csrs.csr_mstatus[21] == 0 || csrs.prv == Machine)
+                      inst_type=WFI;
+                end
               `ifdef supervisor
-                 else if(inst[31:25]=='b0001001 && inst[11:7]==0 && csrs.csr_mstatus[20]==0) inst_type=MEMORY; // SFENCE
+                else if(inst[31:25]=='b0001001 && inst[11:7]==0)begin
+                  if(csrs.csr_mstatus[20]==0 || csrs.prv == Machine) 
+                    inst_type=MEMORY; // SFENCE
+                end
               `endif
           default: if(funct3!=0 && funct3!=4 && access_is_valid && address_is_valid)
                     inst_type=SYSTEM_INSTR;
@@ -624,7 +636,7 @@ package decoder;
     let op_type = OpType{rs1type: rs1type, rs2type:rs2type
           `ifdef spfpu ,rs3type: rs3type, rdtype: rdtype `endif };
     let instr_meta = InstrMeta{inst_type: inst_type, memaccess: mem_access,funct:temp1,
-                              immediate: immediate_value, resume_wfi:False, rerun:rerun};
+                              immediate: immediate_value, rerun:rerun};
     return DecodeOut{op_addr:op_addr, op_type:op_type, meta:instr_meta
                     `ifdef compressed , compressed:False `endif };
 
@@ -659,7 +671,7 @@ package decoder;
                 Bool rerun_fencei `ifdef supervisor ,Bool rerun_sfence `endif
                 `ifdef debug , DebugStatus debug, Bool step_done `endif ) =  actionvalue
       DecodeOut result_decode = decoder_func_32(inst, csrs `ifdef compressed ,compressed `endif );
-      let {icause, takeinterrupt, resume_wfi} = chk_interrupt( csrs.prv, csrs.csr_mstatus,
+      let {icause, takeinterrupt} = chk_interrupt( csrs.prv, csrs.csr_mstatus,
           csrs.csr_mip, csrs.csr_mie `ifdef non_m_traps ,csrs.csr_mideleg `endif
         `ifdef supervisor
           ,csrs.csr_sip, csrs.csr_sie `ifdef usertraps ,csrs.csr_sideleg `endif
@@ -707,7 +719,6 @@ package decoder;
       result_decode.op_type.rs2type=x_rs2type;
       result_decode.op_addr.rs1addr=x_rs1addr;
       result_decode.op_addr.rs2addr=x_rs2addr;
-      result_decode.meta.resume_wfi=resume_wfi;
       return result_decode;
 
   endactionvalue;

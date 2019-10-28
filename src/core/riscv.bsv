@@ -319,6 +319,7 @@ package riscv;
     endrule
     rule connect_csrs;
       stage2.csrs(stage5.mv_csrs_to_decode);
+      stage2.ma_resume_wfi(stage5.mv_resume_wfi);
       stage1.csr_misa_c(stage5.mv_csr_misa_c);
       stage3.csr_misa_c(stage5.mv_csr_misa_c);
     `ifdef bpu

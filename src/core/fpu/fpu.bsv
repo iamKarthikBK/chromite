@@ -7,7 +7,6 @@ Description:
 TODO
 */
 package fpu;
-`define verbose
 /*==== Project imports ==== */
 `include "common_params.bsv"
 `include "fpu.defines"
