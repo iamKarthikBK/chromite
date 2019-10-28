@@ -112,6 +112,14 @@ The `verilog-artifact/sim` directory includes a simulation model `(cclass)` of t
 
 Simulating core, requires `boot.MSB` and `boot.LSB` files which are also provided in the `verilog-artifact/sim` directory. The executable requires 1 more file `code.mem` the generation of which is described below.
 
+
+The simulation executable: `cclass` can be be used to generate an instruction trace of sort by
+applying the `+rtldump` argument to the executable when simulating.
+
+The executable also has logger support. Specific module and levels of verbosity can be controlled by
+passing argument with `+m<module-name>` and `+l<integer>` to the executable. The `+fullverbose`
+argument will print all the logger statements through out the design.
+
 ### BootRom content
 
 On system-reset the core will always jump to `0x1000` which is mapped to the bootrom. The bootrom is initialized using the files `boot.MSB` and `boot.LSB`. The bootrom immediately causes a re-direction to address `0x80000000` where the main program is expected to lie. It is thus required that all programs are linked with text-section begining at `0x80000000`. The rest of the boot-rom holds a dummy device-tree-string information.
@@ -119,7 +127,8 @@ On system-reset the core will always jump to `0x1000` which is mapped to the boo
 ### Compiling programs
 The directory `verilog-artifact/benchmarks` holds a few basic programs and their compile scripts which can be used as reference to compile the programs using the riscv-gnu-toolchain. Please refer to the `benchmarks/README` for further details. 
 
-**NOTE**: Please note that the bram-based memory in the test-bench can only hold upto 32MB of code.
+**NOTE**: Please note that the bram-based memory in the test-bench can only hold upto 256MB of code.
+Thus the elf2hex arguments will need to applied accordingly.
 
 As shown in the sample examples of the benchmarks folder, for each program 1 file is required: `code.mem`. Copy this file in the `verilog-artifact/sim` folder and then execute the following from the `verilog-artifact/sim` folder
 ```

@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## Added
 - support for WFI
 - support for illegal trapping when tvm, tw and tsr registers are set in supervisor mode
+- verilog artifacts now have rtldump support and logger support.
+- 256MBytes of BRAM for verilog artifact simulation
 
 ## Fixed
 - made ADDR_SPACE as a variable in config file
