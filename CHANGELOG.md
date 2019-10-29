@@ -1,6 +1,10 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.4.1] - 2019-10-29
+## Fixed
+- Makefile to detect tools directory for artifacts release.
+
 ## [1.4.0] - 2019-10-28
 ## Added
 - support for WFI
