@@ -192,7 +192,7 @@ override define_macros += -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
 								 -D dfbsize=$(DFBSIZE) -D drepl=$(DREPL) -D dcachereset=$(DRESET) -D desize=$(DESIZE) \
 								 -D dsbsize=$(DSBSIZE) -D ibuswidth=$(IBUSWIDTH) \
 								 -D paddr=$(PADDR) -D vaddr=$(XLEN) -D PMPSIZE=$(PMPSIZE) \
-								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) \
+								 -D resetpc=$(RESETPC) -D asidwidth=$(ASIDWIDTH) -D  DTVEC_BASE=$(DTVEC)  \
 								 -D btbdepth=$(BTBDEPTH) -D bhtdepth=$(BHTDEPTH) -D histlen=$(HISTLEN) \
 								 -D extrahist=$(EXTRAHIST) -D rasdepth=$(RASDEPTH) \
 								 -D bpureset=$(BPURESET) -D causesize=$(CAUSESIZE) -D $(PREDICTOR)=True\

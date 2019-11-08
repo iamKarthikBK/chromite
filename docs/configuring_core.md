@@ -147,3 +147,4 @@ The following hooks only come in to effect when `M` is present in the `ISA` vari
     * `asic`: This should be set to generate a verilog for synthesis and will not include any simulation models.
 * __ARITH_TRAP__: Valid values are `enable` or `disable`. When enabled, the core will treat some arithmetic operations as traps. More details of the behavior area available [here](../docs/arithmetic_trap.md)
 * __ADDR_SPACE__: An integer to indicate the amount of testbench memory to be instantiated. Memory size = `2^ADDR_SPACE` bytes
+* __DTVEC__: reset value for dtvec register in csr
