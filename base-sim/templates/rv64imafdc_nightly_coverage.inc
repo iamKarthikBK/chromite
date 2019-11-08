@@ -1,6 +1,6 @@
-ISA=RV64IMAFDC
 
-# User mode related settings
+
+
 USERTRAPS=disable
 USER=enable
 
@@ -79,6 +79,7 @@ ASSERTIONS=enable
 SYNTH=SIM
 ARITH_TRAP=disable
 RESETPC=4096
+DTVEC=0000
 PADDR=32
 COREFABRIC=AXI4
 ADDR_SPACE=25

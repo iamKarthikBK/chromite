@@ -603,7 +603,7 @@ package csrfile;
     Reg#(Bit#(XLEN))  rg_csr_dscratch     <- mkReg(0);
     // Shakti Debug DtVec - a machine mode accesabvle csr register. This will define where the
     // self-loop is
-    Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dtvec <- mkReg(0); // Place debug loop at zero for starters
+    Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dtvec <- mkReg(`DTVEC_BASE); // Place debug loop at dtvec_base for starters
     Reg#(Bit#(1)) rg_csr_denable <- mkReg(1);
 
     // Part of shakti specific debug registers for control flow

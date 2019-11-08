@@ -1,6 +1,13 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+
+## [1.4.2] - 2019-11-08
+## Added
+- macro for reset value of dtvec csr
+- updated doc and template with the macro
+
 ## [1.4.1] - 2019-10-29
 ## Fixed
 - Makefile to detect tools directory for artifacts release.

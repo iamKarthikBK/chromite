@@ -375,7 +375,7 @@ package csr_grp3;
 
 
     (*doc = "reg : contains debug trap vector configuration, part of dtvec register"*)
-    Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dtvec <- mkReg(0); // Place debug loop at zero for starters
+    Reg#(Bit#(TSub#(`vaddr, 1))) rg_csr_dtvec <- mkReg(`DTVEC_BASE); // Place debug loop at dtvec_base for starters
     //DENABLE
     (*doc = "reg : Debug Enable register"*)
     Reg#(Bit#(1)) rg_csr_denable <- mkReg(1);

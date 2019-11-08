@@ -77,6 +77,7 @@ ASSERTIONS=enable
 
 # miscellaneous configs
 SYNTH=ASIC
+DTVEC=0000
 ARITH_TRAP=disable
 RESETPC=4096
 PADDR=32
