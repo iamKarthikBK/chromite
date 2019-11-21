@@ -57,6 +57,18 @@ PMP=disable
 PMPSIZE=0
 ASIDWIDTH=9
 
+# data tightly integrated memory
+DTIM=enable
+DTIMWAYS=1
+DTIMBASE=1879048192
+DTIMBOUND=1879052288
+
+# instruction tightly integrated memory
+ITIM=enable
+ITIMWAYS=1
+ITIMBASE=268435456
+ITIMBOUND=268439552
+
 # Configuring Debug and Trigger Setup
 TRIGGERS=0
 DEBUG=disable
@@ -90,7 +102,7 @@ CAUSESIZE=6
 # Counter config for daisy-chain
 CSRTYPE=daisy
 CSR_LATENCY=low
-COUNTERS_GRP4=0
-COUNTERS_GRP5=0
-COUNTERS_GRP6=0
-COUNTERS_GRP7=0
+COUNTERS_GRP4=7
+COUNTERS_GRP5=7
+COUNTERS_GRP6=7
+COUNTERS_GRP7=8
