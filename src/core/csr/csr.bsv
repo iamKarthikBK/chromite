@@ -120,6 +120,18 @@ package csr;
  			method Action ma_events_grp7(Bit#(SizeOf#(Events_grp7)) e);
  		`endif
  	`endif
+	`ifdef dtim
+	  /*doc:method: */
+	  method Bit#(XLEN) mv_csr_dtim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_dtim_bound ();
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_bound ();
+  `endif
   endinterface : Ifc_csr
 
 
@@ -239,5 +251,17 @@ package csr;
  			method ma_events_grp7 = csrfile.ma_events_grp7;
  		`endif
 	`endif
+	`ifdef dtim
+	  /*doc:method: */
+	  method  mv_csr_dtim_base = csrfile.mv_csr_dtim_base;
+    /*doc:method: */
+    method  mv_csr_dtim_bound  = csrfile.mv_csr_dtim_bound;
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method mv_csr_itim_base  = csrfile.mv_csr_itim_base;
+    /*doc:method: */
+    method mv_csr_itim_bound = csrfile.mv_csr_itim_bound;
+  `endif
   endmodule
 endpackage

@@ -102,6 +102,18 @@ package riscv;
     method Action ma_itlb_counters (Bit#(1) i);
   `endif
 `endif
+	`ifdef dtim
+	  /*doc:method: */
+	  method Bit#(XLEN) mv_csr_dtim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_dtim_bound ();
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_bound ();
+  `endif
   endinterface
 
   (*synthesize*)
@@ -475,6 +487,18 @@ package riscv;
       wr_itlb_counters <= i;
     endmethod
   `endif
+  `endif
+	`ifdef dtim
+	  /*doc:method: */
+	  method  mv_csr_dtim_base = stage5.mv_csr_dtim_base;
+    /*doc:method: */
+    method  mv_csr_dtim_bound  = stage5.mv_csr_dtim_bound;
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method mv_csr_itim_base  = stage5.mv_csr_itim_base;
+    /*doc:method: */
+    method mv_csr_itim_bound = stage5.mv_csr_itim_bound;
   `endif
   endmodule
 

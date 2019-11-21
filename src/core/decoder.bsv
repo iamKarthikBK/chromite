@@ -134,6 +134,12 @@ package decoder;
                 `ifdef triggers
                   if( addr[7:4] == 'hA && addr[3:0] < 4) valid = True;
                 `endif
+                `ifdef dtim
+                  if( addr[7:0] == 'hC3 || addr[7:0]== 'hC4) valid = True;
+                `endif
+                `ifdef itim
+                  if( addr[7:0] == 'hC5 || addr[7:0]== 'hC6) valid = True;
+                `endif
             end
           endcase
     endcase
@@ -201,7 +207,7 @@ package decoder;
   `endif
 
     Bit#(TAdd#(17, `ifdef debug 2 `else 0 `endif )) pending_interrupts = 
-              `ifdef debug d_enabled? debug_interrupts:0 | `endif
+              `ifdef debug (d_enabled? debug_interrupts:0) | `endif
                            (m_enabled?zeroExtend(m_interrupts):0)
       `ifdef supervisor |  (s_enabled?zeroExtend(s_interrupts):0) `endif
       `ifdef usertraps  |  (u_enabled?zeroExtend(u_interrupts):0) `endif ;

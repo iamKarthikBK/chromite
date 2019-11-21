@@ -206,6 +206,18 @@ package csr_daisy;
   	//           NOT BE USED IN ACTUAL DESIGN, only for testing purpose"*)
   	//method Action test_upd_privilege(Privilege_mode prv_val);//testing purpose
   	//-----------------------------------------------------
+	`ifdef dtim
+	  /*doc:method: */
+	  method Bit#(XLEN) mv_csr_dtim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_dtim_bound ();
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_bound ();
+  `endif
 
   endinterface
 
@@ -603,6 +615,18 @@ package csr_daisy;
         return x;
       end
     endmethod
+	`ifdef dtim
+	  /*doc:method: */
+	  method  mv_csr_dtim_base = mk_grp3.mv_csr_dtim_base;
+    /*doc:method: */
+    method  mv_csr_dtim_bound  = mk_grp3.mv_csr_dtim_bound;
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method mv_csr_itim_base  = mk_grp3.mv_csr_itim_base;
+    /*doc:method: */
+    method mv_csr_itim_bound = mk_grp3.mv_csr_itim_bound;
+  `endif
 
   endmodule : mk_csr_daisy
 endpackage : csr_daisy

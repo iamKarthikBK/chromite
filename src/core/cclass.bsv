@@ -99,6 +99,10 @@ package cclass;
     (*preempts="dtlb_req_to_ptwalk, itlb_req_to_ptwalk"*)
     (*preempts="core_req_to_dmem, ptwalk_request_to_dcache"*)
   `endif
+  `ifdef itim
+    (*conflict_free="handle_dmem_itim_read_response,handle_dmem_nc_read_response"*)
+    (*conflict_free="handle_itim_write_resp, handle_nc_write_resp"*)
+  `endif
   module mkcclass_axi4#(Bit#(`vaddr) resetpc, parameter Bit#(XLEN) hartid)(Ifc_cclass_axi4);
     String core = "";
     let vaddr = valueOf(`vaddr);
@@ -227,6 +231,18 @@ package cclass;
       `logLevel( core, 1, $format("CORE : Sending Request to DMEM:", fshow(req)))
     endrule
 	  mkConnection(dmem.core_resp, riscv.memory_response); // dmem integration
+	`ifdef dtim
+	  /*doc:rule: */
+	  rule rl_connect_dtim_memorymap_csrs;
+	    dmem.ma_dtim_memory_map(truncate(riscv.mv_csr_dtim_base), truncate(riscv.mv_csr_dtim_bound));
+	  endrule
+	`endif
+	`ifdef itim
+	  /*doc:rule: */
+	  rule rl_connect_itim_memorymap_csrs;
+	    imem.ma_itim_memory_map(truncate(riscv.mv_csr_itim_base), truncate(riscv.mv_csr_itim_bound));
+	  endrule
+	`endif
   `ifdef supervisor
     rule dtlb_csr_info;
       dmem.ma_satp_from_csr(riscv.mv_csr_satp);
@@ -390,13 +406,32 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
   `ifdef dcache
     rule handle_dmem_nc_request;
 	  	let req <- dmem.nc_read_req.get;
-	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr : truncate(req.address),
+	  `ifdef itim
+    	if(req.address >= truncate(riscv.mv_csr_itim_base) && req.address < truncate(riscv.mv_csr_itim_bound)) begin
+    	  imem.mem_itim_req.put(ITIM_mem_req{address: req.address, data:?, size:req.burst_size, access:0});
+        `logLevel( core, 1, $format("CORE : DMEM ITIM - Read Requesting "))
+  	  end
+  	  else 
+  	`endif
+  	  begin
+  	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr : truncate(req.address),
                     aruser: ?, arlen : 0, arsize : zeroExtend(req.burst_size[1 : 0]),
                     arburst : 'b01, arid : 2, arprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
-	    io_xactor.i_rd_addr.enq(dmem_request);
-			rg_io_dmem_lower_addr_bits<= truncate(req.address);
-      `logLevel( core, 1, $format("CORE : DMEM IO - Read Requesting ", fshow(dmem_request)))
+	      io_xactor.i_rd_addr.enq(dmem_request);
+		  	rg_io_dmem_lower_addr_bits<= truncate(req.address);
+        `logLevel( core, 1, $format("CORE : DMEM IO - Read Requesting ", fshow(dmem_request)))
+      end
 	  endrule
+  `ifdef itim 
+    rule handle_dmem_itim_read_response;
+	  	let response <- imem.mem_read_itim_resp.get;
+	  	Bool bus_error = response.err;
+      dmem.nc_read_resp.put(DCache_mem_readresp{data:zeroExtend(response.data),
+                                                last:True,
+                                                err :bus_error});
+      `logLevel( core, 1, $format("CORE : DMEM ITIM Response ", fshow(response)))
+	  endrule
+  `endif
 
     rule handle_dmem_nc_read_response(wr_io_read_response.rid == 2);
 	  	Bool bus_error = !(wr_io_read_response.rresp == AXI4_OKAY);
@@ -408,29 +443,46 @@ rg_shift_amount:%d", req.data, rg_burst_count, last, rg_shift_amount))
 
     rule handle_dmem_nc_write_request;
       let req <- dmem.nc_write_req.get;
-      if(req.burst_size == 0)
-        req.data = duplicate(req.data[7 : 0]);
-      else if(req.burst_size == 1)
-        req.data = duplicate(req.data[15 : 0]);
-      else if(req.burst_size == 2)
-        req.data = duplicate(req.data[31 : 0]);
-  	  Bit#(TDiv#(ELEN, 8)) write_strobe = req.burst_size == 0?'b1 :
-                                          req.burst_size == 1?'b11 :
-                                          req.burst_size == 2?'hf : '1;
+    `ifdef itim
+      if(req.address >= truncate(riscv.mv_csr_itim_base) && req.address < truncate(riscv.mv_csr_itim_bound))begin
+    	  imem.mem_itim_req.put(ITIM_mem_req{address: req.address, data:truncate(req.data), size:req.burst_size, access:1});
+        `logLevel( core, 1, $format("CORE : DMEM ITIM - Write Requesting "))
+      end
+      else
+    `endif
+      begin
+        if(req.burst_size == 0)
+          req.data = duplicate(req.data[7 : 0]);
+        else if(req.burst_size == 1)
+          req.data = duplicate(req.data[15 : 0]);
+        else if(req.burst_size == 2)
+          req.data = duplicate(req.data[31 : 0]);
+  	    Bit#(TDiv#(ELEN, 8)) write_strobe = req.burst_size == 0?'b1 :
+                                            req.burst_size == 1?'b11 :
+                                            req.burst_size == 2?'hf : '1;
 
-      Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(req.address);
-  	  if(req.burst_size != 3)// 8 - bit write;
-  	  	write_strobe = write_strobe<<byte_offset;
-		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(req.address), awuser : 0,
-          awlen : 0, awsize : zeroExtend(req.burst_size[1 : 0]), awburst : 'b01,
-          awid : `IO_master_num, awprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
+        Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(req.address);
+  	    if(req.burst_size != 3)// 8 - bit write;
+  	    	write_strobe = write_strobe<<byte_offset;
+		    AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(req.address), awuser : 0,
+            awlen : 0, awsize : zeroExtend(req.burst_size[1 : 0]), awburst : 'b01,
+            awid : `IO_master_num, awprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 
-  	  let w  = AXI4_Wr_Data {wdata : req.data, wstrb : write_strobe, wlast : True, wid : `Mem_master_num};
-      `logLevel( core, 1, $format("CORE : IO Memory write Request ", fshow(aw)))
-      `logLevel( core, 1, $format("CORE : IO Memory write Request ", fshow(w)))
-	    io_xactor.i_wr_addr.enq(aw);
-		  io_xactor.i_wr_data.enq(w);
+  	    let w  = AXI4_Wr_Data {wdata : req.data, wstrb : write_strobe, wlast : True, wid : `Mem_master_num};
+        `logLevel( core, 1, $format("CORE : IO Memory write Request ", fshow(aw)))
+        `logLevel( core, 1, $format("CORE : IO Memory write Request ", fshow(w)))
+	      io_xactor.i_wr_addr.enq(aw);
+		    io_xactor.i_wr_data.enq(w);
+		  end
     endrule
+  `ifdef itim
+    rule handle_itim_write_resp;
+	  	let response <- imem.mem_write_itim_resp.get;
+	  	Bool bus_error = response;
+	  	riscv.write_resp(tagged Valid tuple2(pack(bus_error),?));
+      `logLevel( core, 1, $format("CORE : ITIM Memory Write Response ", fshow(response)))
+    endrule
+  `endif
     rule handle_nc_write_resp;
       let response <- pop_o(io_xactor.o_wr_resp);
 	  	let bus_error = !(response.bresp == AXI4_OKAY);

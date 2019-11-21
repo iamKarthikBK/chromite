@@ -567,7 +567,7 @@ package csr_grp1;
 										wr_halt_int&~wr_core_halted, `endif       //side band connections to grp3
                     `ifdef perfmonitors |wr_counter_interrupts, `else 1'b0, `endif 4'd0, 
                     rg_meip, heip, lv_misa_s & rg_seip, lv_misa_n & rg_ueip, rg_mtip, htip,
-                    lv_misa_s & rg_stip, lv_misa_n & rg_utip, lv_misa_s & rg_msip, hsip,
+                    lv_misa_s & rg_stip, lv_misa_n & rg_utip, rg_msip, hsip,
                     lv_misa_s & rg_ssip, lv_misa_n & rg_usip};
 
     let lv_csr_mie= { rg_mcounterie, 4'd0,
