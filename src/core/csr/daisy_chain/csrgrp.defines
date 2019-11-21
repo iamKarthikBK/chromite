@@ -93,6 +93,10 @@
 `define DTVEC 12'h7C0           // Debug trap vector
 `define DENABLE 12'h7C1         // Debug enable register
 `define MHPMINTERRUPTEN 12'h7C2 // interrupt enable for mhpm counters
+`define DTIM_BASE 12'h7c3
+`define DTIM_BOUND 12'h7c4
+`define ITIM_BASE 12'h7c5
+`define ITIM_BOUND 12'h7c6
 `define TINFO 12'h7a4
 `define TCONTROL 12'h7a5
 `define TMCONTEXT 12'h7a8

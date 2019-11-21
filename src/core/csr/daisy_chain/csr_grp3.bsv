@@ -271,6 +271,19 @@ package csr_grp3;
 		//(*doc = "method: fetch from core the prvilege mode*)
 		method Action ma_upd_privilege (Privilege_mode prv);
 
+	`ifdef dtim
+	  /*doc:method: */
+	  method Bit#(XLEN) mv_csr_dtim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_dtim_bound ();
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_bound ();
+  `endif
+
 	endinterface
 
 	(*noinline*)
@@ -559,7 +572,19 @@ package csr_grp3;
 		(*doc = "reg : regsiter to store the timer value, updated by the core on sideband access"*)
 		Reg#(Bit#(64)) rg_clint_mtime <- mkReg(0);
    	////////////////////////////////////////////////////////////////////////////////////////////////
-
+   	///////////////////////////// CUSTOM CSRS //////////////////////////////////////////////////////
+  `ifdef dtim
+   	/*doc:reg: */
+   	Reg#(Bit#(XLEN)) rg_dtim_base <- mkRegA(`dtimbase);
+   	/*doc:reg: */
+   	Reg#(Bit#(XLEN)) rg_dtim_bound <- mkRegA(`dtimbound);
+  `endif
+  `ifdef itim
+   	/*doc:reg: */
+   	Reg#(Bit#(XLEN)) rg_itim_base <- mkRegA(`itimbase);
+   	/*doc:reg: */
+    Reg#(Bit#(XLEN)) rg_itim_bound <- mkRegA(`itimbound);
+  `endif
    	//rules //check once with debug spec.
    	(*doc = "rule : the rule increments the cycle counter"*)
    	rule increment_cycle_counter;
@@ -876,6 +901,42 @@ package csr_grp3;
  				end
  			`endif
  		`endif
+ 		  `ifdef dtim
+ 		    `DTIM_BASE: begin
+        	rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(rg_dtim_base)};
+        	Bit#(XLEN) readdata = (zeroExtend(rg_dtim_base));
+        	//form the new value to be written and write
+        	let word <- csr_op.func(req.writedata,readdata,op);
+
+        	rg_dtim_base <= truncate(word);
+ 		    end
+ 		    `DTIM_BOUND: begin
+        	rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(rg_dtim_bound)};
+        	Bit#(XLEN) readdata = (zeroExtend(rg_dtim_bound));
+        	//form the new value to be written and write
+        	let word <- csr_op.func(req.writedata,readdata,op);
+
+        	rg_dtim_bound <= truncate(word);
+ 		    end
+ 		  `endif
+ 		  `ifdef itim
+ 		    `ITIM_BASE: begin
+        	rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(rg_itim_base)};
+        	Bit#(XLEN) readdata = (zeroExtend(rg_itim_base));
+        	//form the new value to be written and write
+        	let word <- csr_op.func(req.writedata,readdata,op);
+
+        	rg_itim_base <= truncate(word);
+ 		    end
+ 		    `ITIM_BOUND: begin
+        	rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(rg_itim_bound)};
+        	Bit#(XLEN) readdata = (zeroExtend(rg_itim_bound));
+        	//form the new value to be written and write
+        	let word <- csr_op.func(req.writedata,readdata,op);
+
+        	rg_itim_bound <= truncate(word);
+ 		    end
+ 		  `endif
  				default : begin
  				`ifdef csr_grp4
           ff_fwd_request.enq(req);
@@ -1010,6 +1071,18 @@ package csr_grp3;
     method Action ma_upd_privilege (Privilege_mode prv);
     	wr_prv <= prv;
     endmethod
+	`ifdef dtim
+	  /*doc:method: */
+	  method mv_csr_dtim_base = rg_dtim_base;
+    /*doc:method: */
+    method mv_csr_dtim_bound = rg_dtim_bound;
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method mv_csr_itim_base = rg_itim_base;
+    /*doc:method: */
+    method mv_csr_itim_bound = rg_itim_bound;
+  `endif
 
 	endmodule : mk_csr_grp3
 endpackage : csr_grp3

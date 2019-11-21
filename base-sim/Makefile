@@ -90,6 +90,12 @@ endif
 ifeq ($(PMP), enable)
 	override define_macros += -D pmp=True
 endif
+ifeq ($(DTIM), enable)
+	override define_macros += -D dtim
+endif
+ifeq ($(ITIM), enable)
+	override define_macros += -D itim
+endif
 ifneq ($(PREDICTOR), none)
 	override define_macros += -D bpu=True
 endif
@@ -196,8 +202,9 @@ override define_macros += -D CORE_$(COREFABRIC)=True -D MULSTAGES=$(MULSTAGES) \
 								 -D btbdepth=$(BTBDEPTH) -D bhtdepth=$(BHTDEPTH) -D histlen=$(HISTLEN) \
 								 -D extrahist=$(EXTRAHIST) -D rasdepth=$(RASDEPTH) \
 								 -D bpureset=$(BPURESET) -D causesize=$(CAUSESIZE) -D $(PREDICTOR)=True\
-								 -D itlbsize=$(ITLBSIZE) -D dtlbsize=$(DTLBSIZE)
-
+								 -D itlbsize=$(ITLBSIZE) -D dtlbsize=$(DTLBSIZE)\
+								 -D dtim_banks=$(DTIMWAYS) -D itim_banks=$(ITIMWAYS)\
+                 -D dtimbase=$(DTIMBASE) -D dtimbound=$(DTIMBOUND) -D itimbase=$(ITIMBASE) -D itimbound=$(ITIMBOUND)
 
 # ------------------------------------------------------------------------------------------------ #
 # ------------------ Include directories for bsv compilation ------------------------------------- #

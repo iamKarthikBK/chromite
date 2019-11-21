@@ -2,6 +2,16 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2019-11-21
+## Added
+- added support for ITIM and DTIM
+- new csrs to define the address map of the ITIM and DTIM
+- directed tests for performance counters and Tightly-integrated memories
+- doc update for custom csrs of c-class done.
+
+## Fixed
+- interrupt mask when debbuger is enabled has been fixed.
+
 
 ## [1.4.2] - 2019-11-08
 ## Added

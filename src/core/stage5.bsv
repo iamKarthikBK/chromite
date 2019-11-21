@@ -130,6 +130,18 @@ package stage5;
    		method Bit#(1) mv_count_interrupts;
    		method Bit#(1) mv_count_csrops;
  	`endif
+	`ifdef dtim
+	  /*doc:method: */
+	  method Bit#(XLEN) mv_csr_dtim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_dtim_bound ();
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_base ();
+    /*doc:method: */
+    method Bit#(XLEN) mv_csr_itim_bound ();
+  `endif
   endinterface
 
   (*synthesize*)
@@ -524,6 +536,18 @@ package stage5;
    		method mv_count_interrupts = wr_count_interrupts;
    		method mv_count_csrops = wr_count_csrops;
 	`endif
+	`ifdef dtim
+	  /*doc:method: */
+	  method  mv_csr_dtim_base = csr.mv_csr_dtim_base;
+    /*doc:method: */
+    method  mv_csr_dtim_bound  = csr.mv_csr_dtim_bound;
+  `endif
+  `ifdef itim
+    /*doc:method: */
+    method mv_csr_itim_base  = csr.mv_csr_itim_base;
+    /*doc:method: */
+    method mv_csr_itim_bound = csr.mv_csr_itim_bound;
+  `endif
 
   endmodule
 endpackage

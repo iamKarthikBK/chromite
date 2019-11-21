@@ -57,6 +57,18 @@ PMP=disable
 PMPSIZE=0
 ASIDWIDTH=9
 
+# data tightly integrated memory
+DTIM=enable
+DTIMWAYS=1
+DTIMBASE=1879048192
+DTIMBOUND=1879052288
+
+# instruction tightly integrated memory
+ITIM=enable
+ITIMWAYS=1
+ITIMBASE=268435456
+ITIMBOUND=268439552
+
 # Configuring Debug and Trigger Setup
 TRIGGERS=0
 DEBUG=disable
@@ -71,7 +83,7 @@ COVERAGE=none
 TRACE=disable
 THREADS=1
 VERILATESIM=fast
-VERBOSITY=disable
+VERBOSITY=enable
 RTLDUMP=enable
 ASSERTIONS=enable
 
