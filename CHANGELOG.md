@@ -1,7 +1,11 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
+## [1.6.0] - 2019-11-21
+## Fixed
+- upstream verification with virtual mode runs
+- updated ci
+ 
 ## [1.5.0] - 2019-11-21
 ## Added
 - added support for ITIM and DTIM

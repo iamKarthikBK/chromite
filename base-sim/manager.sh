@@ -21,7 +21,7 @@ branch_list=(
   5.0.1
   1.1.0
   master
-  3.2.5
+  3.2.8
   master
   )
 COUNT=${#repo_list[*]}
