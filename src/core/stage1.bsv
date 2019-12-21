@@ -276,6 +276,7 @@ package stage1;
         rg_action <= None;
         enque_instruction = False;
         `logLevel( stage1, 1,$format("core:%2d ",hartid,"STAGE1 : Dropping Instruction"))
+        rg_receiving_upper <= False;
       end
     `ifdef compressed
       else if(rg_action == CheckPrev && rg_prev.epochs == curr_epoch)begin
@@ -362,6 +363,7 @@ package stage1;
         `ifdef bpu
           // check if prediction was for lower-16 else reset btbresponse before forwarding.
           rg_action <= (!btbresponse.hi && btbresponse.prediction > 1) ? None: CheckPrev;
+          rg_receiving_upper <= !(!btbresponse.hi && btbresponse.prediction > 1);
           if(btbresponse.hi)begin
             btbresponse.btbhit= False;
             btbresponse.prediction = 1;
@@ -370,6 +372,7 @@ package stage1;
           lv_prev.btbresponse = stage0pc.btbresponse;
         `else
           rg_action <= CheckPrev;
+          rg_receiving_upper <= True;
         `endif
         end
       `endif
