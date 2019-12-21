@@ -1,6 +1,11 @@
 # CHANGELOG
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.6.1] - 2019-11-21
+## Fixed
+- The indication of whether a instruction-page-fault was due to the lower-16 bits or the upper-16
+  bits has been fixed.
+ 
 ## [1.6.0] - 2019-11-21
 ## Fixed
 - upstream verification with virtual mode runs
