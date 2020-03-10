@@ -125,14 +125,18 @@ To install riscv-gnu-toolchain:
   $ ./configure --prefix=$RISCV --with-arch=rv32gc --with-abi=ilp32d # for  32-bit toolchain
   $ make
 
-Now install riscv-isa-sim: 
+Now install our modified riscv-isa-sim: 
 
 .. code-block:: bash
 
+  $ git clone https://gitlab.com/shaktiproject/tools/mod-spike.git
+  $ cd mode-spike
+  $ git checkout bump-to-latest
   $ git clone https://github.com/riscv/riscv-isa-sim.git
   $ cd riscv-isa-sim
   $ git checkout 6d15c93fd75db322981fe58ea1db13035e0f7add
-  $ git apply  </your download path>/c-class/configure/spike.patch
+  $ git apply  ../spike.patch
+  $ export RISCV=/path/to/install/riscv/toolchain # same path as riscv-gnu-toolchain 
   $ mkdir build
   $ cd build
   $ ../configure --prefix=$RISCV

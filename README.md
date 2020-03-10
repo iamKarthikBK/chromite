@@ -40,5 +40,4 @@ continous support in maintaining and supporting this repository.
 1. InCore Semiconductors Pvt. Ltd.
 2. Silint Consulting Pvt. Ltd.
 
-## Extended Documentation
-All of our documentation is maintained on the read-the-docs: [here](https://c-class.readthedocs.io/)
+## [Get Started](https://c-class.readthedocs.io/)
