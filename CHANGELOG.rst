@@ -10,6 +10,7 @@ This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.htm
 Fixed
 ^^^^^
 * Doc updates
+* Use v7.0.1 of the caches with new bram interfaces
 
 [1.7.0] - 2020-03-02
 --------------------
