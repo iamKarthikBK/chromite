@@ -249,7 +249,8 @@ package stage5;
       Bit#(`vaddr) jump_address=?;
       Bool fl = False;
       `ifdef rtldump
-        `logLevel( stage5, 0, $format("[%2d]STAGE5: PC: %h: inst: %h commit: ",hartid,simpc,inst,fshow(commit)))
+        `logLevel( stage5, 0, $format("[%2d]STAGE5: PC: %h: inst: %h epoch:%b rg_epoch:%b commit: ",hartid,
+                simpc,inst,epoch,rg_epoch,fshow(commit)))
       `endif
       if(rg_epoch==epoch)begin
       `ifdef triggers
@@ -428,14 +429,20 @@ package stage5;
         end
       end
       else begin
-          `logLevel( stage5, 0, $format("[%2d]STAGE5: Dropping instruction",hartid))
-          if(commit matches tagged STORE .s)
+        `logLevel( stage5, 0, $format("[%2d]STAGE5: Dropping instruction",hartid))
+        Bool _fwd = True;
+        if(commit matches tagged STORE .s) begin
+          if(wr_cache_ready)
             wr_initiate_store<=tuple2(unpack(rg_epoch),True);
-        // TODO if the instruction is a Store we need to deque that entry from the store buffer.
-        rx.u.deq;
-      `ifdef rtldump
-        rxinst.u.deq;
-      `endif
+          else
+            _fwd = False;
+        end
+        if(_fwd) begin
+          rx.u.deq;
+        `ifdef rtldump
+          rxinst.u.deq;
+        `endif
+        end
       end
     endrule
 
