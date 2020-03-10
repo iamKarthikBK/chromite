@@ -11,6 +11,7 @@ Fixed
 ^^^^^
 * Doc updates
 * Use v7.0.1 of the caches with new bram interfaces
+* Store being dropped in the commit stage should wait for the cache to be ready.
 
 [1.7.0] - 2020-03-02
 --------------------
