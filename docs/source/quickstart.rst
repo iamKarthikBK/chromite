@@ -16,29 +16,54 @@ Install Open Bluespec Compiler
 An open source version of the Bluespec Compiler is available `here
 <https://github.com/B-Lang-org/bsc>`_. 
 
+
 .. code-block:: bash
 
-  $ sudo apt-get install  ghc libghc-regex-compat-dev  libghc-syb-dev  libghc-old-time-dev libfontconfig1-dev  libx11-dev  libxft-dev flex  bison
+  $ sudo apt-get install ghc libghc-regex-compat-dev libghc-syb-dev \
+    libghc-old-time-dev libfontconfig1-dev libx11-dev libxft-dev flex bison \
+    tcl-dev tk-dev libfontconfig1-dev libx11-dev libxft-dev gperf iverilog \
+    libghc-split-dev
+
+For Debian 8, Debian 9, Ubuntu 16.04, and Ubuntu 18.04 version 3.4 install the following:
+
+.. code-block:: bash
+
+  $ sudo apt-get install itcl3-dev itk3-dev
+  
+For Debian 10 and later, and Ubuntu 19.04 
+
+.. code-block:: bash
+
+  $ sudo apt-get install tk-itcl4-dev tk-itk4-dev
+  
+Clone and install BSC
+
+.. code-block:: bash
+  
   $ git clone --recursive  https://github.com/B-Lang-org/bsc
   $ cd bsc
   $ make PREFIX=</path/to/install>
 
-After you have done the above, add the path you have installed the ``bsc``
-compiler to your ``$PATH`` in the `.bashrc` or `.cshrc`
-Typing `bsc` in your terminal should display the following help options:
+After you have done the above, add the path you have installed the bsc compiler to your $PATH in the .bashrc or .cshrc 
 
 .. code-block:: bash
 
+  $ export PATH=$(pwd)/inst/bin:$PATH
+
+Typing bsc in your terminal should display the following help options:
+
+.. code-block:: yaml
+
   Usage:
-    bsc -help                                to get help
-    bsc [flags] file.bsv                     to partially compile a Bluespec file
-    bsc [flags] -verilog -g mod file.bsv     to compile a module to Verilog
-    bsc [flags] -verilog -g mod -u file.bsv  to recursively compile modules to Verilog
-    bsc [flags] -verilog -e topmodule        to link Verilog into a simulation model
-    bsc [flags] -sim -g mod file.bsv         to compile to a Bluesim object
-    bsc [flags] -sim -g mod -u file.bsv      to recursively compile to Bluesim objects
-    bsc [flags] -sim -e topmodule            to link objects into a Bluesim binary
-    bsc [flags] -systemc -e topmodule        to link objects into a SystemC model
+   bsc -help                                to get help
+   bsc [flags] file.bsv                     to partially compile a Bluespec file
+   bsc [flags] -verilog -g mod file.bsv     to compile a module to Verilog
+   bsc [flags] -verilog -g mod -u file.bsv  to recursively compile modules to Verilog
+   bsc [flags] -verilog -e topmodule        to link Verilog into a simulation model
+   bsc [flags] -sim -g mod file.bsv         to compile to a Bluesim object
+   bsc [flags] -sim -g mod -u file.bsv      to recursively compile to Bluesim objects
+   bsc [flags] -sim -e topmodule            to link objects into a Bluesim binary
+   bsc [flags] -systemc -e topmodule        to link objects into a SystemC model
 
 **Note**: The latest compiler has been tested and known to work for Ubuntu
 18.04. Also a binary built on 16.04 will not work on 18.04 due to libgc version mismatch. It is
@@ -130,12 +155,12 @@ Now install our modified riscv-isa-sim:
 .. code-block:: bash
 
   $ git clone https://gitlab.com/shaktiproject/tools/mod-spike.git
-  $ cd mode-spike
+  $ cd mod-spike
   $ git checkout bump-to-latest
   $ git clone https://github.com/riscv/riscv-isa-sim.git
   $ cd riscv-isa-sim
   $ git checkout 6d15c93fd75db322981fe58ea1db13035e0f7add
-  $ git apply  ../spike.patch
+  $ git apply  ../shakti.patch
   $ export RISCV=/path/to/install/riscv/toolchain # same path as riscv-gnu-toolchain 
   $ mkdir build
   $ cd build
