@@ -4,6 +4,14 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[1.7.2] - 2020-03-23
+--------------------
+
+Fixed
+^^^^^
+* fixed steps for bsc install in quickstart
+
+
 [1.7.1] - 2020-03-10
 --------------------
 
