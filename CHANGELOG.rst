@@ -4,6 +4,13 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[1.7.3] - 2020-03-24
+--------------------
+
+Added
+^^^^^
+* note to install and follow steps available on the original repositories for all external tools
+
 [1.7.2] - 2020-03-23
 --------------------
 
