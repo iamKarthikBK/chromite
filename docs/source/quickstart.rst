@@ -1,15 +1,24 @@
-############
+###########
 Quick Start
-############
+###########
 
-Checkout the code
------------------
-The code is hosted on Gitlab and can be checked out using the following
-command:
 
-.. code-block:: bash
+For this quick-start you will need the following tools:
 
-  $ git clone https://gitlab.com/shaktiproject/cores/c-class.git
+* `Bluespec Compiler <https://github.com/B-Lang-org/bsc>`__
+* `Verilator <https://www.veripool.org/projects/verilator/wiki/Installing>`__
+* `RISC-V GNU ToolChain <https://github.com/riscv/riscv-gnu-toolchain>`__
+* `RISC-V ISA Sim <https://gitlab.com/shaktiproject/tools/mod-spike.git>`__
+* `RISC-V OpenOCD <https://github.com/riscv/riscv-openocd>`__
+* DTC 1.4.7: see dtc_
+* Python 3.7.0: see python_
+
+**IMPORTANT**: *The following few sections are a quick copy-paste of the steps to install the above tools. However,
+it is possible that these steps are outdated as either the repository has shifted or the master of
+the respective repositories now have moved forward with new dependencies or installation procedures.
+We thereby suggest refering to the original repositories of the above tools to install them.*
+
+If you already have the above tools installed you can directly jump to building your core: build_
 
 Install Open Bluespec Compiler
 ------------------------------
@@ -69,6 +78,8 @@ Typing bsc in your terminal should display the following help options:
 18.04. Also a binary built on 16.04 will not work on 18.04 due to libgc version mismatch. It is
 suggested you do a fresh install for 16.04.
 
+.. _python:
+
 Install Python Dependencies
 ---------------------------
 
@@ -76,7 +87,16 @@ The core generator requires ``pip`` and ``python`` (>=3.7) to be available on
 your system. If you have issues installing, either of these, directly on your system we
 suggest using a virtual environment like `pyenv` to make things easy.
 
-Install `pyenv`
+
+First Install the required libraries/dependencies:
+
+.. code-block:: bash
+
+    $ sudo apt-get install -y make build-essential libssl-dev zlib1g-dev libbz2-dev \
+        libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
+        xz-utils tk-dev libffi-dev liblzma-dev python-openssl git
+
+Next, install `pyenv`
 
 .. code-block:: bash
 
@@ -173,6 +193,7 @@ Now install riscv-openocd
 .. code-block:: bash
 
   $ git clone https://github.com/riscv/riscv-openocd --recursive
+  $ ./bootstrap
   $ ./configure --enable-jlink --enable-remote-bitbang --enable-jtag_vpi --enable-ftdi --prefix=$RISCV
   $ make
   $ make install
@@ -180,6 +201,7 @@ Now install riscv-openocd
 Make sure to add the /path/to/install/riscv/toolchain/bin to your ``$PATH`` in
 the `.bashrc` or `.cshrc`
 
+.. _dtc:
 
 Install DTC (device tree compiler)
 ----------------------------------
@@ -195,8 +217,20 @@ To install DTC follow the below commands:
   sudo make NO_PYTHON=1 PREFIX=/usr/                                                                  
   sudo make install NO_PYTHON=1 PREFIX=/usr/                                                          
 
+
+.. _build:
+
 Building the Core
 -----------------
+
+
+The code is hosted on Gitlab and can be checked out using the following
+command:
+
+.. code-block:: bash
+
+  $ git clone https://gitlab.com/shaktiproject/cores/c-class.git
+
 The C-class core generator takes a specific :ref:`YAML<configure-core-label>` format as input. It makes specific checks to
 validate if the user has entered valid data and none of the parameters conflict with each other.
 For e.g., mentioning the 'D' extension without the 'F' will get captured by the generator as an
