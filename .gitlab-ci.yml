@@ -24,10 +24,10 @@ c-class:
         - make regress opts='--list=csmith.list --final'
         - make regress opts="--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=120s'" CONFIG_ISA=RV64IMAFDC
         - make clean_verif
-        - make torture opts='--config=bringup --test_count=1'
-        - make torture opts='--config=all --debug' CONFIG_ISA=RV64IMAFDC
-        - make regress opts='--list=riscv-torture.list --test_opts='--timeout=30m' --sub' CONFIG_ISA=RV64IMAFDC
-        - make regress opts='--list=riscv-torture.list --final'
+        # - make torture opts='--config=bringup --test_count=1'
+        # - make torture opts='--config=all --debug' CONFIG_ISA=RV64IMAFDC
+        # - make regress opts='--list=riscv-torture.list --test_opts='--timeout=30m' --sub' CONFIG_ISA=RV64IMAFDC
+        # - make regress opts='--list=riscv-torture.list --final'
         - make restore
         - python -m configure.main --clean
     only:
@@ -60,11 +60,10 @@ check-mr-compliance:
     except: 
         - schedules
     script:
-        - if [[ $(git diff master -- CHANGELOG.rst) ]]; then echo "CHANGELOG.rst updated"; else\
-          echo "Please update CHANGELOG.rst";  exit 1; fi
         - export NEWVER=$(grep -P "^\[.*?\]" CHANGELOG.rst -m1 | awk '{print $1}' | sed 's/[][]//g');
         - export CURVER=$(git describe --tags| cut -f1 -d"-")
-        - if [ "$CURRVER" = "$CHNGVER" ]; then  echo "Version of CHANGELOG matches CURRENT VERSION version and needs to be updated"; exit 1;  else  echo "Versions have been updated and ready for push";  fi
+        - echo $NEWVER
+        - echo $CURVER        
         - CURVER=${CURVER//./ }
         - NEWVER=${NEWVER//./ }
         - curpatch=$(echo $CURVER | awk '{print $3}')
@@ -73,27 +72,14 @@ check-mr-compliance:
         - newpatch=$(echo $NEWVER | awk '{print $3}')
         - newminor=$(echo $NEWVER | awk '{print $2}')
         - newmajor=$(echo $NEWVER | awk '{print $1}')
-        - if [ $newmajor = $curmajor ]; then\
-            if [ $newminor = $curminor ]; then\
-              if [ $newpatch -gt $curpatch ]; then echo "Version Check OK";\
-              else echo "Please check Patch Version";\
-              fi\
-            else\
-              if [ $newminor -gt $curminor ]; then\
-                if [ $newpatch = 0 ]; then echo "Version Check OK";\
-                else echo "For Minor changes the patches should be 0";\
-                fi\
-              else echo "Please check Minor Version";\
-              fi\
-            fi\
-          else\
-            if [ $newmajor -gt $curmajor ]; then\
-              if [ $newminor = 0 ] && [ $newpatch = 0 ]; then echo "Version Check OK";\
-              else echo "For Major changes the minor and patches should be 0";\
-              fi\
-            else echo "Please check Major Version";\
-            fi\
-          fi
+        - if [ $newmajor = $curmajor ] && [ $newminor = $curminor ] && [ $newpatch -gt $curpatch ]; then echo "Patch Update Accepted OK"; fi
+        - if [ $newmajor = $curmajor ] && [ $newminor = $curminor ] && [ $newpatch -le $curpatch ]; then echo "Revise Patch Atleast!"; exit 1; fi
+        - if [ $newmajor = $curmajor ] && [ $newminor -gt $curminor ] && [ $newpatch = 0 ]; then echo "Minor Update Accepted OK!"; exit 0; fi
+        - if [ $newmajor = $curmajor ] && [ $newminor -gt $curminor ] && [ $newpatch != 0 ]; then echo "For Minor changes the patches should be 0"; exit 1; fi
+        - if [ $newmajor = $curmajor ] && [ $newminor -lt $curminor ]; then echo "Minor version should greater than previuos"; exit 1; fi
+        - if [ $newmajor -gt $curmajor ] && [ $newminor = 0 ] && [ $newpatch = 0 ]; then echo "Major Updated Accepted OK"; exit 0; fi
+        - echo  "For Major updates Minor and Patches should be 0"
+        - exit 1
 
     only:
         - merge_requests
