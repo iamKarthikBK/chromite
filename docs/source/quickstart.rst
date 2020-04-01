@@ -13,10 +13,10 @@ For this quick-start you will need the following tools:
 * DTC 1.4.7: see dtc_
 * Python 3.7.0: see python_
 
-**IMPORTANT**: *The following few sections are a quick copy-paste of the steps to install the above tools. However,
-it is possible that these steps are outdated as either the repository has shifted or the master of
-the respective repositories now have moved forward with new dependencies or installation procedures.
-We thereby suggest refering to the original repositories of the above tools to install them.*
+.. warning:: The following few sections are a quick copy-paste of the steps to install the above tools. 
+   However,it is possible that these steps are outdated as either the repository has shifted or the master of
+   the respective repositories now have moved forward with new dependencies or installation procedures.
+   We thereby suggest refering to the original repositories of the above tools to install them.
 
 If you already have the above tools installed you can directly jump to building your core: build_
 
@@ -74,9 +74,9 @@ Typing bsc in your terminal should display the following help options:
    bsc [flags] -sim -e topmodule            to link objects into a Bluesim binary
    bsc [flags] -systemc -e topmodule        to link objects into a SystemC model
 
-**Note**: The latest compiler has been tested and known to work for Ubuntu
-18.04. Also a binary built on 16.04 will not work on 18.04 due to libgc version mismatch. It is
-suggested you do a fresh install for 16.04.
+.. note:: The latest compiler has been tested and known to work for Ubuntu
+   18.04. Also a binary built on 16.04 will not work on 18.04 due to libgc version mismatch. It is
+   suggested you do a fresh install for 16.04.
 
 .. _python:
 

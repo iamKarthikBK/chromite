@@ -70,10 +70,10 @@ Single-Ported RAMs (1RW)
    edge of clock the value at ``dina`` is written onto the address ``addr``. Also, a new write
    operation can be initiated at every clock edge.
 
- - **Note**:
-     1. The single-ported rams follow a ``no-change`` model, where the output ``douta`` remains
-        unchanged on write-operations and will always hold the data of the previous read operation.
-     2. The single-ported rams assume the outputs are registered for reads.
+.. note::
+   1. The single-ported rams follow a ``no-change`` model, where the output ``douta`` remains
+      unchanged on write-operations and will always hold the data of the previous read operation.
+   2. The single-ported rams assume the outputs are registered for reads.
 
 Dual-Ported RAMs (1R + 1W)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -133,10 +133,10 @@ Dual-Ported RAMs (1R + 1W)
  - **Read Write Conflicts**: In case of a read and write occurring to the same ``address`` at the
    same time, the writes are guaranteed while the reads need **not** be.
 
- - **Note**
-     1. Here port A is used for write, and port B is used for read operations. Also, the various
-        enable and write enable signals are active high signals.
-     2. The dual-ported rams assume the outputs are registered for reads.
+.. note::
+   1. Here port A is used for write, and port B is used for read operations. Also, the various
+      enable and write enable signals are active high signals.
+   2. The dual-ported rams assume the outputs are registered for reads.
 
 Synthesis
 ---------
