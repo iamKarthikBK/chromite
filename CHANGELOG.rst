@@ -4,6 +4,16 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[1.8.0] - 2020-04-01
+--------------------
+
+Added
+^^^^^
+* integration with optimized 1rw dcache and icache
+* support for ecc on both caches
+* suppot for dual ported-rams in dcache
+
+
 [1.7.3] - 2020-03-24
 --------------------
 

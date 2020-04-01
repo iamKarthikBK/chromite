@@ -10,7 +10,7 @@ benchmarks/
 fabrics/axi4
 fabrics/axi4lite
 caches_mmu/src/icache_1rw
-caches_mmu/src/dcache_1rw
+caches_mmu/src/dcache
 caches_mmu/src/tlbs
 devices/bootrom
 devices/uart
