@@ -1,59 +1,102 @@
 stages:
-    - build
+    - pre-merge
+    - post-merge
     - release
 
 c-class:
-    stage: build
+    stage: post-merge
     except:
-      - schedules
-    variables:
-        GIT_SUBMODULE_STRATEGY: recursive
+        - schedules
     script:
-      - source /tools/setup.sh
-      - python -m configure.main -ispec sample_config/default.yaml
-      - make restore
-      - make
-      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
-      - make regress opts='--filter=rv64 --final'
-      - make clean_verif
-      - make aapg opts='--config=rv64imafdc* --test_count=10 --parallel=30' CONFIG_ISA=RV64IMAFDC
-      - make regress opts='--list=aapg.list --sub --test_opts='--timeout=15m' --parallel=30' CONFIG_ISA=RV64IMAFDC
-      - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
-      - make clean_verif
-      - make csmith opts='--test_count=30 --parallel=30' CONFIG_ISA=RV64IMAFDC
-      - make regress opts='--list=csmith.list --parallel=30 --sub'  CONFIG_ISA=RV64IMAFDC
-      - make regress opts='--list=csmith.list --final'
-      - make regress opts="--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=120s'" CONFIG_ISA=RV64IMAFDC
-      - make clean_verif
-      - make torture opts='--config=bringup --test_count=1'
-      - make torture opts='--config=all --debug' CONFIG_ISA=RV64IMAFDC
-      - make regress opts='--list=riscv-torture.list --test_opts='--timeout=30m' --sub' CONFIG_ISA=RV64IMAFDC
-      - make regress opts='--list=riscv-torture.list --final'
-      - make restore
-      - python -m configure.main --clean
+        - source /tools/setup.sh
+        - python -m configure.main -ispec sample_config/default.yaml
+        - make restore
+        - make
+        - make regress opts='--filter=rv64 --parallel=50 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
+        - make regress opts='--filter=rv64 --final'
+        - make clean_verif
+        - make aapg opts='--config=rv64imafdc* --test_count=10 --parallel=30' CONFIG_ISA=RV64IMAFDC
+        - make regress opts='--list=aapg.list --sub --test_opts='--timeout=15m' --parallel=30' CONFIG_ISA=RV64IMAFDC
+        - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
+        - make clean_verif
+        - make csmith opts='--test_count=30 --parallel=30' CONFIG_ISA=RV64IMAFDC
+        - make regress opts='--list=csmith.list --parallel=30 --sub'  CONFIG_ISA=RV64IMAFDC
+        - make regress opts='--list=csmith.list --final'
+        - make regress opts="--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=120s'" CONFIG_ISA=RV64IMAFDC
+        - make clean_verif
+        - make torture opts='--config=bringup --test_count=1'
+        - make torture opts='--config=all --debug' CONFIG_ISA=RV64IMAFDC
+        - make regress opts='--list=riscv-torture.list --test_opts='--timeout=30m' --sub' CONFIG_ISA=RV64IMAFDC
+        - make regress opts='--list=riscv-torture.list --final'
+        - make restore
+        - python -m configure.main --clean
     only:
         - master
     tags:
         - core-runner
 
-for-merge:
-    stage: build
+check-mr-build:
+    stage: pre-merge
     except:
-      - schedules
-    variables:
-        GIT_SUBMODULE_STRATEGY: recursive
+        - schedules
     script:
-      - source /tools/setup.sh
-      - python -m configure.main -ispec sample_config/default.yaml
-      - make restore
-      - make
-      - make regress opts='--filter=rv64 --parallel=30 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
-      - make regress opts='--filter=rv64 --final'
-      - make restore
-      - python -m configure.main --clean
+        - source /tools/setup.sh
+        - python -m configure.main --clean
+        - python -m configure.main -ispec sample_config/default.yaml
+        - make
+        - make regress opts='--filter=rv64 --parallel=30 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
+        - make regress opts='--filter=rv64 --final'
+        - make restore
+        - python -m configure.main --clean
     only:
         - merge_requests
     when: manual
+    tags:
+        - core-runner
+
+# checks if the changelog has been updated and the version has also been upgraded
+check-mr-compliance:
+    stage: pre-merge
+    except: 
+        - schedules
+    script:
+        - if [[ $(git diff master -- CHANGELOG.rst) ]]; then echo "CHANGELOG.rst updated"; else\
+          echo "Please update CHANGELOG.rst";  exit 1; fi
+        - export NEWVER=$(grep -P "^\[.*?\]" CHANGELOG.rst -m1 | awk '{print $1}' | sed 's/[][]//g');
+        - export CURVER=$(git describe --tags| cut -f1 -d"-")
+        - if [ "$CURRVER" = "$CHNGVER" ]; then  echo "Version of CHANGELOG matches CURRENT VERSION version and needs to be updated"; exit 1;  else  echo "Versions have been updated and ready for push";  fi
+        - CURVER=${CURVER//./ }
+        - NEWVER=${NEWVER//./ }
+        - curpatch=$(echo $CURVER | awk '{print $3}')
+        - curminor=$(echo $CURVER | awk '{print $2}')
+        - curmajor=$(echo $CURVER | awk '{print $1}')
+        - newpatch=$(echo $NEWVER | awk '{print $3}')
+        - newminor=$(echo $NEWVER | awk '{print $2}')
+        - newmajor=$(echo $NEWVER | awk '{print $1}')
+        - if [ $newmajor = $curmajor ]; then\
+            if [ $newminor = $curminor ]; then\
+              if [ $newpatch -gt $curpatch ]; then echo "Version Check OK";\
+              else echo "Please check Patch Version";\
+              fi\
+            else\
+              if [ $newminor -gt $curminor ]; then\
+                if [ $newpatch = 0 ]; then echo "Version Check OK";\
+                else echo "For Minor changes the patches should be 0";\
+                fi\
+              else echo "Please check Minor Version";\
+              fi\
+            fi\
+          else\
+            if [ $newmajor -gt $curmajor ]; then\
+              if [ $newminor = 0 ] && [ $newpatch = 0 ]; then echo "Version Check OK";\
+              else echo "For Major changes the minor and patches should be 0";\
+              fi\
+            else echo "Please check Major Version";\
+            fi\
+          fi
+
+    only:
+        - merge_requests
     tags:
         - core-runner
 
@@ -67,74 +110,4 @@ release:
     tags:
         - core-runner
     except:
-      - schedules
-#c-class-rv32-nightly:
-#    only:
-#      - schedules
-#    variables:
-#        GIT_SUBMODULE_STRATEGY: recursive
-#    script:
-#      - source /tools/setup.sh
-#      - cd base-sim/
-#      - ./manager.sh update_deps
-#      - make patch
-#      - make restore
-#      - make CONFIG=templates/rv32imafc.inc
-#      - make regress opts='--filter=rv32[^!si][^!ud] --test_opts='--timeout=30s' --parallel=90 --sub' CONFIG_ISA=RV32IMAFC
-#      - make regress opts='--filter=rv32[^!si][^!ud] --final' CONFIG_ISA=RV32IMAFC
-#      - make regress opts='--filter=rv32si --test_opts='--timeout=30s' --parallel=90 --sub' CONFIG_ISA=RV32IMAFC
-#      - make regress opts='--filter=rv32si --final' CONFIG_ISA=RV32IMAFC
-#      - make aapg opts='--config=rv32imafc_bringup --test_count=30 --aapg_opts='--arch=rv32''
-#      - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV32IMAFC
-#      - make regress opts='--list=aapg.list --final'
-#      - make restore clean_verif
-#      - make CONFIG=templates/rv32imafc_nocache_nobpu.inc
-#      - make regress opts='--filter=rv32[^!si][^!ud].*p --test_opts='--timeout=30s' --parallel=90 --sub' CONFIG_ISA=RV32IMAFC
-#      - make regress opts='--filter=rv32[^!si][^!ud].*p --final' CONFIG_ISA=RV32IMAFC
-#      - make regress opts='--filter=rv32si --test_opts='--timeout=30s' --parallel=90 --sub' CONFIG_ISA=RV32IMAFC
-#      - make regress opts='--filter=rv32si --final' CONFIG_ISA=RV32IMAFC
-#      - make aapg opts='--config=rv32imafc_bringup --test_count=30  --aapg_opts='--arch=rv32''
-#      - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV32IMAFC
-#      - make regress opts='--list=aapg.list --final'
-#      - make restore clean_verif
-#      - make CONFIG=templates/rv32imac.inc
-#      - make aapg opts='--config=rv32imac_bringup --test_count=30  --aapg_opts='--arch=rv32''
-#      - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV32IMAC
-#      - make regress opts='--list=aapg.list --final'
-#      - make restore clean_verif
-#    tags:
-#        - core-runner
-#
-#c-class-rv64-nightly:
-#    only:
-#      - schedules
-#    variables:
-#        GIT_SUBMODULE_STRATEGY: recursive
-#    script:
-#      - source /tools/setup.sh
-#      - cd base-sim/
-#      - ./manager.sh update_deps
-#      - make restore clean_verif
-#      - make patch
-#      - make CONFIG=templates/rv64imafdc.inc
-#      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub'
-#      - make regress opts='--filter=rv64 --final'
-#      - make aapg opts='--config=rv64imafdc_bringup --test_count=30'
-#      - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV64IMAFDC
-#      - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
-#      - make restore clean_verif
-#      - make CONFIG=templates/rv64imac.inc
-#      - make aapg opts='--config=rv64imac_bringup --test_count=30'
-#      - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV64IMAC
-#      - make regress opts='--list=aapg.list --final'
-#      - make restore clean_verif
-#      - make CONFIG=templates/rv64imafdc_nocache_nobpu.inc
-#      - make regress opts='--filter=rv64 --parallel=90 --test_opts='--timeout=30s' --sub'
-#      - make regress opts='--filter=rv64 --final'
-#      - make aapg opts='--config=rv64imafdc_bringup --test_count=30'
-#      - make regress opts='--list=aapg.list --test_opts='--timeout=3m' --sub --parallel=100' CONFIG_ISA=RV64IMAFDC
-#      - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
-#      - make restore clean_verif
-#
-#    tags:
-#        - core-runner
+        - schedules

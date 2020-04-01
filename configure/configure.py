@@ -187,8 +187,12 @@ def capture_compile_cmd(foo):
     macros += ' -D iways='+str(foo['icache_configuration']['ways'])
     macros += ' -D isets='+str(foo['icache_configuration']['sets'])
     macros += ' -D ifbsize='+str(foo['icache_configuration']['fb_size'])
-    macros += ' -D itbanks='+str(foo['icache_configuration']['tag_banks'])
-    macros += ' -D idbanks='+str(foo['icache_configuration']['data_banks'])
+    if foo['icache_configuration']['one_hot_select']:
+        macros += ' -D icache_onehot=1'
+    else:
+        macros += ' -D icache_onehot=0'
+    if( foo['icache_configuration']['ecc_enable']):
+        macros += ' -D icache_ecc'
     if foo['icache_configuration']['instantiate']:
         macros += ' -D icache'
         if foo['icache_configuration']['on_reset']:
@@ -211,8 +215,14 @@ def capture_compile_cmd(foo):
     macros += ' -D dsets='+str(foo['dcache_configuration']['sets'])
     macros += ' -D dfbsize='+str(foo['dcache_configuration']['fb_size'])
     macros += ' -D dsbsize='+str(foo['dcache_configuration']['sb_size'])
-    macros += ' -D dtbanks='+str(foo['dcache_configuration']['tag_banks'])
-    macros += ' -D ddbanks='+str(foo['dcache_configuration']['data_banks'])
+    if foo['dcache_configuration']['rwports'] == 2:
+        macros += ' -D dcache_dualport'
+    if foo['dcache_configuration']['one_hot_select']:
+        macros += ' -D dcache_onehot=1'
+    else:
+        macros += ' -D dcache_onehot=0'
+    if( foo['dcache_configuration']['ecc_enable']):
+        macros += ' -D dcache_ecc'
     if foo['dcache_configuration']['instantiate']:
         macros += ' -D dcache'
         if foo['dcache_configuration']['on_reset']:

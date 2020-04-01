@@ -247,8 +247,11 @@ branch_predictor:
 #    - ``fb_size``: integer indicating the number of fill-buffer entries in the cache
 #    - ``replacement``: strings indicating the replacement policy. Valid values are:
 #      ["PLRU", "RR", "Random"]
-#    - ``data_banks``: integer indicating the number of banks used in the data array
-#    - ``tag_banks``:  integer indicating the number of banks used in the tag array
+#    - ``ecc_enable``: boolean field indicating if ECC should be enabled on the
+#      cache.
+#    - ``one_hot_select``: boolean value indicating if the bsv one-hot selection
+#      funcion should be used of conventional for-loops to choose amongst
+#      lines/fb-lines. Choice of this has no affect on the functionality
 #
 #  If supervisor is enabled then the max size of a single way should not exceed
 #  4Kilo Bytes
@@ -266,8 +269,8 @@ branch_predictor:
 #      ways: 4
 #      fb_size: 4
 #      replacement: "PLRU"
-#      tag_banks: 1
-#      data_banks: 1
+#      ecc_enable: false
+#      one_hot_select: false
 
 icache_configuration:
   type: dict
@@ -291,10 +294,10 @@ icache_configuration:
     replacement:
       type: string
       allowed: ["PLRU", "RR", "Random"]
-    data_banks:
-      type: integer
-    tag_banks:
-      type: integer
+    ecc_enable:
+      type: boolean
+    one_hot_select:
+      type: boolean
   default:
     instantiate: True
     on_reset: "enable"
@@ -304,8 +307,8 @@ icache_configuration:
     ways: 4
     fb_size: 4
     replacement: "PLRU"
-    tag_banks: 1
-    data_banks: 1
+    ecc_enable: false
+    one_hot_select: false
 
 ###
 #dcache_configuration
@@ -325,8 +328,13 @@ icache_configuration:
 #    - ``sb_size``: integer indicating the number of store-buffer entries in the cache. Fixed to 2
 #    - ``replacement``: strings indicating the replacement policy. Valid values are:
 #      ["PLRU", "RR", "Random"]
-#    - ``data_banks``: integer indicating the number of banks used in the data array
-#    - ``tag_banks``:  integer indicating the number of banks used in the tag array
+#    - ``ecc_enable``: boolean field indicating if ECC should be enabled on the
+#      cache.
+#    - ``one_hot_select``: boolean value indicating if the bsv one-hot selection
+#      funcion should be used of conventional for-loops to choose amongst
+#      lines/fb-lines. Choice of this has no affect on the functionality
+#    - ``rwports``: number of read-write ports available on the brams. Allowed
+#      values are 1 and 2. Default value is 1
 #
 #  If supervisor is enabled then the max size of a single way should not exceed
 #  4Kilo Bytes
@@ -345,8 +353,9 @@ icache_configuration:
 #      fb_size: 4
 #      sb_size: 2
 #      replacement: "PLRU"
-#      tag_banks: 1
-#      data_banks: 1
+#      ecc_enable: false
+#      one_hot_select: false
+#      rwports: 1
 
 dcache_configuration:
   type: dict
@@ -372,10 +381,13 @@ dcache_configuration:
     replacement:
       type: string
       allowed: ["PLRU", "RR", "Random"]
-    data_banks:
+    ecc_enable:
+      type: boolean
+    one_hot_select:
+      type: boolean
+    rwports:
       type: integer
-    tag_banks:
-      type: integer
+      allowed: [1,2]
   default:
     instantiate: True
     on_reset: "enable"
@@ -388,6 +400,9 @@ dcache_configuration:
     replacement: "PLRU"
     tag_banks: 1
     data_banks: 1
+    ecc_enable: false
+    one_hot_select: false
+    rwports: 1
 
 ###
 #reset_pc
