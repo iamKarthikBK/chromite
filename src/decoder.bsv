@@ -96,7 +96,7 @@ package decoder;
                         'h0, 'h2 `ifdef RV32 ,'h1,'h3 `endif : valid=True;
                       endcase
                     // PMP ADDR registers
-                  'hB: if((`PMPSIZE!=0 ) && addr[3:0]<=fromInteger(valueOf(TSub#(`PMPSIZE,1) ))) valid=True;
+                  'hB: if(`pmpsize!=0 ) valid=True;
                 `endif
                   endcase
               // Machine Counter/Timers

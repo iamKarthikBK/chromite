@@ -2,6 +2,9 @@
 Introduction
 ######################
 
+.. image:: pipeline.png
+   :align: center
+   :alt: pipeline
 
 What is C-Class 
 ---------------
@@ -31,7 +34,7 @@ verilog compatible for FPGA and ASIC targets.
 License
 -------
 All of the source code available in this repository is under the BSD license. 
-Please refer to LICENSE.iitm for more details.
+Please refer to LICENSE.* files for more details.
 
 Commercial Adoption
 -------------------

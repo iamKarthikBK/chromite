@@ -1,5 +1,6 @@
 # See LICENSE.incore for license details
 ###
+#
 #ISA
 #---
 #
@@ -115,23 +116,44 @@ s_extension:
     asid_width: 9
 
 ###
-#pmp_size
-#--------
+#.. _schema_pmp:
 #
-#  **Description**: An integer describing the numbers of regions in the physical 
-#  memory protection. Max allowed value is 16
+#pmp
+#---
+#
+#  **Description**: Defines the pmp configuration
+#
+#    - ``enable``: boolean value indicating if pmp support should be enabled.
+#    - ``entries``: number of pmp regions to be supported. Max value of 16.
+#      Minimum value of 1
+#    - ``granularity``: granularity of protection in terms of bytes. Minimum is
+#      8 bytes for a 64-bit core and 4 bytes for a 32-bit core
 #
 #  **Examples**:
 #
 #  .. code-block:: yaml
 #
-#    pmp_size : 8
+#    pmp:
+#      enable: true
+#      entries: 2
+#      granularity: 8
 
-pmp_size:
-  type: integer
-  min: 0
-  max: 16
-  default: 0
+pmp:
+  type: dict
+  schema:
+    enable:
+      type: boolean
+    entries: 
+      type: integer
+      max: 16
+      min: 1
+    granularity:
+      type: integer
+      min: 4
+  default:
+    boolean: true
+    entries: 2
+    granularity: 8
 
 ###
 #m_extension
@@ -667,8 +689,10 @@ bsc_compile_options:
       allowed: ['sim', 'asic', 'fpga']
       default: 'sim'
     suppress_warnings:
-      type: string
-      allowed: ["none", "all", "G0010","T0054","G0020","G0024","G0023","G0096","G0036","G0117","G0015"]
+      type: list
+      schema:
+        type: string
+        allowed: ["none", "all", "G0010","T0054","G0020","G0024","G0023","G0096","G0036","G0117","G0015"]
     verilog_dir:
       type: string
     open_ocd:

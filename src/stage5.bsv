@@ -63,8 +63,8 @@ package stage5;
 		/*doc:method: This method indicates if the hart should resume from a WFI*/
 		method Bool mv_resume_wfi ();
   `ifdef pmp
-    method Vector#(`PMPSIZE, Bit#(8)) mv_pmp_cfg;
-    method Vector#(`PMPSIZE, Bit#(`paddr )) mv_pmp_addr;
+    method Vector#(`pmpsize, Bit#(8)) mv_pmp_cfg;
+    method Vector#(`pmpsize, Bit#(TSub#(`paddr, `pmp_grainbits) )) mv_pmp_addr;
   `endif
   `ifdef debug
     method Action ma_debug_access_csrs(AbstractRegOp cmd);
@@ -492,8 +492,8 @@ package stage5;
     method mv_curr_priv = csr.mv_curr_priv;
     method mv_csr_mstatus= csr.mv_csr_mstatus;
   `ifdef pmp
-    method pmp_cfg=csr.mv_pmp_cfg;
-    method pmp_addr=csr.mv_pmp_addr;
+    method mv_pmp_cfg=csr.mv_pmp_cfg;
+    method mv_pmp_addr=csr.mv_pmp_addr;
   `endif
   `ifdef debug
     method ma_debug_access_csrs = csr.ma_debug_access_csrs;

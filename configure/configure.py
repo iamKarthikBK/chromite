@@ -8,6 +8,7 @@ from configure.consts import *
 import os
 import logging
 import sys
+import math
 from click.testing import CliRunner
 from repomanager.rpm import rpm
 
@@ -36,7 +37,7 @@ def specific_checks(foo):
         if foo[field] > (max_value-1):
             logger.error('Default Value of ' + field + ' exceeds the max\
  allowed value')
-            sys.exit(0)
+            sys.exit(1)
 
     # check s_extension
     s_mode = foo['s_extension']['mode']
@@ -46,16 +47,16 @@ def specific_checks(foo):
     if 'S' in foo['ISA']:
         if xlen is 32 and s_mode != 'sv32' :
             logger.error('Only sv32 supported in RV32')
-            sys.exit(0)
+            sys.exit(1)
         if xlen is 64 and s_mode not in ['sv48', 'sv39'] :
             logger.error('Only sv39/sv48 supported in RV64')
-            sys.exit(0)
+            sys.exit(1)
         if xlen is 32 and s_asid_width > 9:
             logger.error('in RV32 ASID cannot be greater than 9')
-            sys.exit(0)
+            sys.exit(1)
         if xlen is 64 and s_asid_width > 16:
             logger.error('in RV32 ASID cannot be greater than 16')
-            sys.exit(0)
+            sys.exit(1)
 
     # check m_extension
     m_mulstages = foo['m_extension']['mul_stages']
@@ -63,10 +64,10 @@ def specific_checks(foo):
     if 'M' in foo['ISA']:
         if m_mulstages > xlen:
             logger.error('Multiplication stages cannot exceed XLEN')
-            sys.exit(0)
+            sys.exit(1)
         if m_divstages > xlen:
             logger.error('Division stages cannot exceed XLEN')
-            sys.exit(0)
+            sys.exit(1)
 
     # check icache
     icache_enable = foo['icache_configuration']['instantiate']
@@ -78,7 +79,7 @@ def specific_checks(foo):
         if i_words*i_sets*i_blocks > 4096:
             logger.error('Since Supervisor is enabled, each way of I-Cache\
  should be less than 4096 Bytes')
-            sys.exit(0)
+            sys.exit(1)
     
     # check dcache
     dcache_enable = foo['dcache_configuration']['instantiate']
@@ -94,10 +95,10 @@ def specific_checks(foo):
         if i_words*i_sets*i_blocks > 4096:
             logger.error('Since Supervisor is enabled, each way of D-Cache\
  should be less than 4096 Bytes')
-            sys.exit(0)
+            sys.exit(1)
         if d_words * 8 != xlen:
             logger.error('D-Cache d_words should be ' + str(xlen/8))
-            sys.exit(0)
+            sys.exit(1)
 
 def capture_compile_cmd(foo):
     global bsc_cmd
@@ -165,8 +166,14 @@ def capture_compile_cmd(foo):
         macros += ' -D itlbsize='+str(s_itlbsize)
         macros += ' -D dtlbsize='+str(s_dtlbsize)
         macros += ' -D '+str(s_mode)
-    if foo['pmp_size'] > 0:
-        macros += ' -D pmp -D pmpsize='+str(foo['pmp_size'])
+    if foo['pmp']['enable']:
+        grainbits = int(math.log2(foo['pmp']['granularity']))
+        if xlen == 64 and grainbits < 3:
+            logger.error('PMP Granularity for a 64-bit core has to be minimum \
+8 bytes')
+            sys.exit(1)
+        macros += ' -D pmp -D pmpsize='+str(foo['pmp']['entries']) +\
+                ' -D pmp_grainbits='+str(grainbits)
     if foo['branch_predictor']['instantiate']:
         macros += ' -D bpu'
         macros += ' -D '+foo['branch_predictor']['predictor']

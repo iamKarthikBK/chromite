@@ -68,10 +68,10 @@ package csr_grp2;
 	  method Bit#(1) mv_csr_misa_c;
 
 	`ifdef pmp
-		///*doc = "method : returns the vector of values stored in PMPCFG registers"*/
-    method Vector#(`PMPSIZE, Bit#(8)) mv_pmp_cfg;
-    ///*doc = "method : returns the vector of values stored in PMPADDR registers"*/
-    method Vector#(`PMPSIZE, Bit#(`paddr )) mv_pmp_addr;
+		//(*doc = "method : returns the vector of values stored in PMPCFG registers in grp-2"*)
+    method Vector#(`pmpsize, Bit#(8)) mv_pmp_cfg; //tested
+    //(*doc = "method : returns the vector of values stored in PMPADDR registers in grp-2"*)
+    method Vector#(`pmpsize, Bit#(TSub#(`paddr, `pmp_grainbits ))) mv_pmp_addr; //tested
   `endif
 
   endinterface
@@ -190,14 +190,14 @@ package csr_grp2;
     `ifdef pmp
     	///*doc = " reg : Vector to hold all the PMPCFG - Physical Memory Protection ConFiGuration \
     	//          registers"*/
-      Vector#(`PMPSIZE, Reg#(Bit#(8))) v_pmp_cfg <- replicateM(mkReg(0));
+      Vector#(`pmpsize, Reg#(Bit#(8))) v_pmp_cfg <- replicateM(mkReg(0));
       ///*doc = " reg : Vector to hold all the PMPADDR - Physical Memory Protection ADDRess \
     	//          registers"*/
-      Vector#(`PMPSIZE, Reg#(Bit#(`paddr ))) v_pmp_addr <- replicateM(mkReg(0));
+      Vector#(`pmpsize, Reg#(Bit#(XLEN))) v_pmp_addr <- replicateM(mkReg(0));
     `ifdef RV64
       Bit#(XLEN) lv_csr_pmpcfg0 = 0;
       Bit#(XLEN) lv_csr_pmpcfg2 = 0;
-      for(Integer i = 0;i<`PMPSIZE ;i = i+1)begin
+      for(Integer i = 0;i<`pmpsize ;i = i+1)begin
         if(i<8)
           lv_csr_pmpcfg0[i * 8+7 : i*8] = v_pmp_cfg[i];
         else
@@ -209,7 +209,7 @@ package csr_grp2;
       Bit#(XLEN) lv_csr_pmpcfg1 = 0;
       Bit#(XLEN) lv_csr_pmpcfg2 = 0;
       Bit#(XLEN) lv_csr_pmpcfg3 = 0;
-      for(Integer i = 0;i<`PMPSIZE ;i = i+1)begin
+      for(Integer i = 0;i<`pmpsize ;i = i+1)begin
         if(i<4)
           lv_csr_pmpcfg0[i * 8+7 : i*8] = v_pmp_cfg[i];
         else if(i<8)
@@ -349,88 +349,114 @@ package csr_grp2;
  					let word <- csr_op.func(req.writedata,readdata,op);
  					rg_mscratch <= word;
 				end
-
-			`ifdef pmp
-				`PMPCFG0 : begin
-					//read previous value
+    `ifdef pmp
+			`ifdef RV64
+			  `PMPCFG0: begin
+          Bit#(XLEN) readdata = lv_csr_pmpcfg0;
  					rg_resp_to_core <= CSRResponse{ hit : True, data : lv_csr_pmpcfg0};
- 					Bit#(XLEN) readdata = lv_csr_pmpcfg0;
- 					//form the new value to be written and write
- 					let word <- csr_op.func(req.writedata,readdata,op);
-
- 				`ifdef RV64
- 					for (Integer i = 0;i<`PMPSIZE && i<8 ; i = i+1) begin
-          	if(v_pmp_cfg[i][7] == 0) begin
-            	v_pmp_cfg[i] <= word[i * 8+7 : i*8];
-            end
-          end
- 				`elsif RV32
- 					for (Integer i = 0;i<`PMPSIZE && i<4 ; i = i+1) begin
-          	if(v_pmp_cfg[i][7] == 0) begin
-            	v_pmp_cfg[i] <= word[i * 8+7 : i*8];
-            end
-         	end
- 				`endif
-				end
-
-			`ifdef RV32
-				`PMPCFG1 : begin
-					//read previous value
- 					rg_resp_to_core <= CSRResponse{ hit : True, data : lv_csr_pmpcfg1};
- 					Bit#(XLEN) readdata =lv_csr_pmpcfg1;
- 					//form the new value to be written and write
- 					let word <- csr_op.func(req.writedata,readdata,op);
-
- 					for(Integer i = 4;i<`PMPSIZE && i<8 ; i = i+1) begin
-          	if(v_pmp_cfg[i][7] == 0) begin
-            	v_pmp_cfg[i] <= word[(i - 4) * 8+7 : (i - 4) * 8];
-            end
-          end
-				end
+ 					let word <- csr_op.func(req.writedata, readdata, op);
+ 					Vector#(8, Bit#(8)) _temp;
+ 					Vector#(8, Bool) _valid = replicate(False);
+ 					for (Integer i = 0; i< 8; i = i + 1) begin
+ 					  _temp[i] = word[i*8 + 7: i*8 ];
+ 					  if(_temp[i][1:0] != 'b10 && (`pmp_grainbits > 2 && _temp[i][4:3] != 2))
+ 					    _valid[i] = True;
+ 					end
+ 					for (Integer i = 0; i<8 && i < `pmpsize ; i = i + 1) begin
+          	if(v_pmp_cfg[i][7] == 0 && _valid[i])
+            	v_pmp_cfg[i] <= _temp[i];
+ 					end
+			  end
+			  `PMPCFG2: begin
+          Bit#(XLEN) readdata = lv_csr_pmpcfg2;
+ 					rg_resp_to_core <= CSRResponse{ hit : True, data : lv_csr_pmpcfg2};
+ 					let word <- csr_op.func(req.writedata, readdata, op);
+ 					Vector#(8, Bit#(8)) _temp;
+ 					Vector#(8, Bool) _valid = replicate(False);
+ 					for (Integer i = 0; i< 8; i = i + 1) begin
+ 					  _temp[i] = word[i*8 + 7: i*8 ];
+ 					  if(_temp[i][1:0] != 'b10 && (`pmp_grainbits > 2 && _temp[i][4:3] != 2))
+ 					    _valid[i] = True;
+ 					end
+ 					for (Integer i = 8; i<16 && i < `pmpsize ; i = i + 1) begin
+          	if(v_pmp_cfg[i][7] == 0 && _valid[i-8]) 
+            	v_pmp_cfg[i] <= _temp[i-8];
+ 					end
+			  end
 			`endif
 
-				`PMPCFG2 : begin
-					//read previous value
- 					rg_resp_to_core <= CSRResponse{ hit : True, data : lv_csr_pmpcfg2};
- 					Bit#(XLEN) readdata = lv_csr_pmpcfg2;
- 					//form the new value to be written and write
- 					let word <- csr_op.func(req.writedata,readdata,op);
-
- 				`ifdef RV64
- 					for (Integer i = 8;i<`PMPSIZE && i<16 ; i = i+1) begin
-          	if(v_pmp_cfg[i][7] == 0) begin
-            	v_pmp_cfg[i] <= word[(i - 8) * 8+7 : (i - 8) * 8];
-            end
-          end
- 				`elsif RV32
- 					for (Integer i = 8;i<`PMPSIZE && i<12 ; i = i+1) begin
-          	if(v_pmp_cfg[i][7] == 0) begin
-            	v_pmp_cfg[i] <= word[(i - 8) * 8+7 : (i - 8) * 8];
-            end
-          end
- 				`endif
-				end
-
 			`ifdef RV32
-				`PMPCFG3 : begin
-					//read previous value
+			  `PMPCFG0: begin
+          Bit#(XLEN) readdata = lv_csr_pmpcfg0;
+ 					rg_resp_to_core <= CSRResponse{ hit : True, data : lv_csr_pmpcfg0};
+ 					let word <- csr_op.func(req.writedata, readdata, op);
+ 					Vector#(4, Bit#(8)) _temp;
+ 					Vector#(4, Bool) _valid = replicate(False);
+ 					for (Integer i = 0; i< 4; i = i + 1) begin
+ 					  _temp[i] = word[i*8 + 7: i*8 ];
+ 					  if(_temp[i][1:0] != 'b10 && (`pmp_grainbits > 2 && _temp[i][4:3] != 2))
+ 					    _valid[i] = True;
+ 					end
+ 					for (Integer i = 0; i<4 && i < `pmpsize ; i = i + 1) begin
+          	if(v_pmp_cfg[i][7] == 0 && _valid[i]) 
+            	v_pmp_cfg[i] <= _temp[i];
+ 					end
+			  end
+			  `PMPCFG1: begin
+          Bit#(XLEN) readdata = lv_csr_pmpcfg1;
+ 					rg_resp_to_core <= CSRResponse{ hit : True, data : lv_csr_pmpcfg1};
+ 					let word <- csr_op.func(req.writedata, readdata, op);
+ 					Vector#(4, Bit#(8)) _temp;
+ 					Vector#(4, Bool) _valid = replicate(False);
+ 					for (Integer i = 0; i< 4; i = i + 1) begin
+ 					  _temp[i] = word[i*8 + 7: i*8 ];
+ 					  if(_temp[i][1:0] != 'b10 && (`pmp_grainbits > 2 && _temp[i][4:3] != 2) )
+ 					    _valid[i] = True;
+ 					end
+ 					for (Integer i = 4; i<8 && i < `pmpsize ; i = i + 1) begin
+          	if(v_pmp_cfg[i][7] == 0 && _valid[i-4]) 
+            	v_pmp_cfg[i] <= _temp[i-4];
+ 					end
+			  end
+			  `PMPCFG2: begin
+          Bit#(XLEN) readdata = lv_csr_pmpcfg2;
+ 					rg_resp_to_core <= CSRResponse{ hit : True, data : lv_csr_pmpcfg2};
+ 					let word <- csr_op.func(req.writedata, readdata, op);
+ 					Vector#(4, Bit#(8)) _temp;
+ 					Vector#(4, Bool) _valid = replicate(False);
+ 					for (Integer i = 0; i< 4; i = i + 1) begin
+ 					  _temp[i] = word[i*8 + 7: i*8 ];
+ 					  if(_temp[i][1:0] != 'b10 && (`pmp_grainbits > 2 && _temp[i][4:3] != 2) )
+ 					    _valid[i] = True;
+ 					end
+ 					for (Integer i = 8; i<12 && i < `pmpsize ; i = i + 1) begin
+          	if(v_pmp_cfg[i][7] == 0 && _valid[i-8]) 
+            	v_pmp_cfg[i] <= _temp[i-8];
+ 					end
+			  end
+			  `PMPCFG3: begin
+          Bit#(XLEN) readdata = lv_csr_pmpcfg3;
  					rg_resp_to_core <= CSRResponse{ hit : True, data : lv_csr_pmpcfg3};
- 					Bit#(XLEN) readdata = lv_csr_pmpcfg3;
- 					//form the new value to be written and write
- 					let word <- csr_op.func(req.writedata,readdata,op);
- 					for(Integer i = 12;i<`PMPSIZE && i<16 ; i = i+1) begin
-          	if(v_pmp_cfg[i][7] == 0) begin
-            	v_pmp_cfg[i] <= word[(i - 12) * 8+7 : (i - 12) * 8];
-            end
-          end
-				end
+ 					let word <- csr_op.func(req.writedata, readdata, op);
+ 					Vector#(4, Bit#(8)) _temp;
+ 					Vector#(4, Bool) _valid = replicate(False);
+ 					for (Integer i = 0; i< 4; i = i + 1) begin
+ 					  _temp[i] = word[i*8 + 7: i*8 ];
+ 					  if(_temp[i][1:0] != 'b10 && (`pmp_grainbits > 2 && _temp[i][4:3] != 2) )
+ 					    _valid[i] = True;
+ 					end
+ 					for (Integer i = 12; i<16 && i < `pmpsize ; i = i + 1) begin
+          	if(v_pmp_cfg[i][7] == 0 && _valid[i-12]) 
+            	v_pmp_cfg[i] <= _temp[i-12];
+ 					end
+			  end
 			`endif
 
 				`PMPADDR0 : begin
-					if (`PMPSIZE > 0) begin
+					if (`pmpsize > 0) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[0])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[0]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[0];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[0][7] == 0) begin
@@ -440,10 +466,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR1 : begin
-					if(`PMPSIZE > 1) begin
+					if(`pmpsize > 1) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[1])};
- 						Bit#(XLEN) readdata = (zeroExtend(v_pmp_addr[1]));
+ 						Bit#(XLEN) readdata = v_pmp_addr[1];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[1][7] == 0) begin
@@ -453,10 +479,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR2 : begin
-					if(`PMPSIZE > 2) begin
+					if(`pmpsize > 2) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[2])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[2]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[2];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[2][7] == 0) begin
@@ -466,10 +492,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR3 : begin
-					if(`PMPSIZE > 3) begin
+					if(`pmpsize > 3) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[3])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[3]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[3];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[3][7] == 0) begin
@@ -479,10 +505,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR4 : begin
-					if(`PMPSIZE > 4) begin
+					if(`pmpsize > 4) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[4])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[4]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[4];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[4][7] == 0) begin
@@ -492,10 +518,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR5 : begin
-					if(`PMPSIZE > 5) begin
+					if(`pmpsize > 5) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[5])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[5]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[5];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[5][7] == 0) begin
@@ -505,10 +531,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR6 : begin
-					if(`PMPSIZE > 6) begin
+					if(`pmpsize > 6) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[6])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[6]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[6];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[6][7] == 0) begin
@@ -518,10 +544,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR7 : begin
-					if(`PMPSIZE > 7) begin
+					if(`pmpsize > 7) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[7])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[7]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[7];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[7][7] == 0) begin
@@ -531,10 +557,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR8 : begin
-					if(`PMPSIZE > 8) begin
+					if(`pmpsize > 8) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[8])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[8]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[8];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[8][7] == 0) begin
@@ -544,10 +570,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR9 : begin
-					if(`PMPSIZE > 9) begin
+					if(`pmpsize > 9) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[9])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[9]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[9];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[9][7] == 0) begin
@@ -557,10 +583,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR10 : begin
-					if(`PMPSIZE > 10) begin
+					if(`pmpsize > 10) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[10])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[10]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[10];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[10][7] == 0) begin
@@ -570,10 +596,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR11 : begin
-					if(`PMPSIZE > 11) begin
+					if(`pmpsize > 11) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[11])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[11]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[11];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[11][7] == 0) begin
@@ -583,10 +609,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR12 : begin
-					if(`PMPSIZE > 12) begin
+					if(`pmpsize > 12) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[12])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[12]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[12];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[12][7] == 0) begin
@@ -596,10 +622,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR13 : begin
-					if(`PMPSIZE > 13) begin
+					if(`pmpsize > 13) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[13])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[13]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[13];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[13][7] == 0) begin
@@ -609,10 +635,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR14 : begin
-					if(`PMPSIZE > 14) begin
+					if(`pmpsize > 14) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[14])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[14]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[14];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[14][7] == 0) begin
@@ -622,10 +648,10 @@ package csr_grp2;
 				end
 
 				`PMPADDR15 : begin
-					if(`PMPSIZE > 15) begin
+					if(`pmpsize > 15) begin
 						//read previous value
- 						rg_resp_to_core <= CSRResponse{ hit : True, data : zeroExtend(v_pmp_addr[15])};
- 						Bit#(XLEN) readdata = zeroExtend(v_pmp_addr[15]);
+ 						Bit#(XLEN) readdata = v_pmp_addr[15];
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
  						//form the new value to be written and write
  						let word <- csr_op.func(req.writedata,readdata,op);
  						if(v_pmp_cfg[15][7] == 0) begin
@@ -633,7 +659,7 @@ package csr_grp2;
  						end
  					end
  				end
-			`endif
+  		`endif
 
 			`ifdef supervisor
 				`SSCRATCH : begin
@@ -766,7 +792,13 @@ package csr_grp2;
 
 	`ifdef pmp
     method mv_pmp_cfg = readVReg(v_pmp_cfg);
-    method mv_pmp_addr = readVReg(v_pmp_addr);
+    method Vector#(`pmpsize, Bit#(TSub#(`paddr, `pmp_grainbits ))) mv_pmp_addr;
+      Vector#(`pmpsize, Bit#(TSub#(`paddr, `pmp_grainbits))) _t;
+      for (Integer i = 0; i<`pmpsize; i = i + 1) begin
+        _t[i] = truncate(v_pmp_addr[i] >> (`pmp_grainbits -2 ));
+      end
+      return _t;
+    endmethod
   `endif
 
   endmodule : mk_csr_grp2
