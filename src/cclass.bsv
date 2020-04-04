@@ -100,8 +100,11 @@ package cclass;
 	  Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_fetch_lower_addr_bits <- mkReg(tagged Invalid);
 	  Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_memory_lower_addr_bits <- mkReg(tagged Invalid);
 
-	  Ifc_imem imem <- mkimem(truncate(hartid));
-	  Ifc_dmem dmem <- mkdmem(truncate(hartid));
+	  let lv_pmp_cfg = riscv.mv_pmp_cfg;
+	  let lv_pmp_adr = riscv.mv_pmp_addr;
+
+	  Ifc_imem imem <- mkimem(truncate(hartid) `ifdef pmp ,lv_pmp_cfg, lv_pmp_adr `endif );
+	  Ifc_dmem dmem <- mkdmem(truncate(hartid) `ifdef pmp ,lv_pmp_cfg, lv_pmp_adr `endif );
 
 	  mkConnection(imem.get_core_resp, riscv.inst_response); // imem integration
 	  mkConnection(imem.put_core_req , riscv.instr_req);
@@ -317,17 +320,11 @@ rg_shift_amount:%d",hartid, req.data, rg_burst_count, last, rg_shift_amount))
     endrule
   `endif
 `endif
-  `ifdef pmp
-    mkConnection(imem.ma_pmp_cfg, riscv.mv_pmp_cfg);
-    mkConnection(imem.ma_pmp_addr, riscv.mv_pmp_addr);
-    mkConnection(dmem.ma_pmp_cfg, riscv.mv_pmp_cfg);
-    mkConnection(dmem.ma_pmp_addr, riscv.mv_pmp_addr);
-  `endif
+	  mkConnection(imem.ma_curr_priv, curr_priv);
+	  mkConnection(dmem.ma_curr_priv, curr_priv);
   `ifdef supervisor
 	  mkConnection(imem.ma_satp_from_csr,riscv.mv_csr_satp);
-	  mkConnection(imem.ma_curr_priv,curr_priv);
 	  mkConnection(dmem.ma_satp_from_csr, riscv.mv_csr_satp);
-	  mkConnection(dmem.ma_curr_priv, curr_priv);
 	  mkConnection(dmem.ma_mstatus_from_csr, riscv.mv_csr_mstatus);
     mkConnection(ptwalk.ma_satp_from_csr,riscv.mv_csr_satp);
     mkConnection(ptwalk.ma_curr_priv, curr_priv);

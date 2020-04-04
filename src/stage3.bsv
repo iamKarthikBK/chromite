@@ -249,7 +249,8 @@ package stage3;
     // ---------------------- End local function definitions ------------------//
     Bool rule_condition = wr_cache_avail `ifdef multicycle && !rg_stall `endif ;
 
-    rule rl_capture_memory_stalls(rx_meta.u.notEmpty && !wr_cache_avail && !rg_stall);
+    rule rl_capture_memory_stalls(rx_meta.u.notEmpty && !wr_cache_avail 
+                    `ifdef multicycle && !rg_stall `endif );
       `logLevel( stage3, 2, $format("[%2d]STAGE3: DCACHE is busy",hartid))
     endrule
 

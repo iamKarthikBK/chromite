@@ -46,7 +46,7 @@ XLEN:={12}
 dependency_yaml='''
 caches_mmu:
   repo: https://gitlab.com/shaktiproject/uncore/caches_mmu
-  checkout: 8.1.0
+  checkout: 8.2.0
   commitid:   
   patch:
 common_bsv:

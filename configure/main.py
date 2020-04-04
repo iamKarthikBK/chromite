@@ -25,7 +25,9 @@ def main():
     logger.addHandler(ch)
 
     logger.info('************ C-Class Core Generator ************ ')
-    logger.info('           Available under BSD License\n\n')
+    logger.info('----------- Copyright (c) IIT Madras ----------- ')
+    logger.info('---------- Available under BSD License---------- ')
+    logger.info('\n\n')
 
     if args.ispec is None:
         update_dep = False

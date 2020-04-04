@@ -4,6 +4,33 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[1.9.0] - 2020-04-03
+--------------------
+
+
+Added
+^^^^^
+* pmp support fixed
+* pmp support enabled in config
+* adding iitm copyright in configure log
+* adding pmp support documentation
+* adding pipeline image in introduction
+
+Changed
+^^^^^^^
+* changed schema of warnings to be a list
+* defaulting to suppress all warnings
+* removing old storebuffer module
+* moving micro arch related chapters under a single micro-arch-notes chapter
+
+Fixed
+^^^^^
+* adding dummy arprot field to remove warning
+* rg_stall available only under multicycle macro
+* corrected conditions under which pmpcfg and pmpaddr can be written
+* fixed logic for pmp access permissions in decoder
+
+
 [1.8.0] - 2020-04-01
 --------------------
 

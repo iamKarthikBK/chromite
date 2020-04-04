@@ -104,7 +104,7 @@ package sign_dump;
     rule send_request(rg_start);
       if(rg_start_address<rg_end_address) begin
   			AXI4_Rd_Addr#(`paddr, 0) read_request = AXI4_Rd_Addr {araddr: rg_start_address, aruser: ?, 
-          arlen:0, arsize: 2, arburst: 'b01, arid:2}; // arburst: 00-FIXED 01-INCR 10-WRAP
+          arlen:0, arsize: 2, arburst: 'b01, arid:2, arprot: ?}; // arburst: 00-FIXED 01-INCR 10-WRAP
   			m_xactor.i_rd_addr.enq(read_request);	
         rg_start_address<=rg_start_address+4;
         ff_lower_order_bits.enq(truncate(rg_start_address));

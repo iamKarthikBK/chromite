@@ -64,8 +64,8 @@ package riscv;
 		method Bit#(XLEN) mv_csr_satp;
 	`endif
   `ifdef pmp
-    method Vector#(`PMPSIZE, Bit#(8)) mv_pmp_cfg;
-    method Vector#(`PMPSIZE, Bit#(`paddr )) mv_pmp_addr;
+    method Vector#(`pmpsize, Bit#(8)) mv_pmp_cfg;
+    method Vector#(`pmpsize, Bit#(TSub#(`paddr,`pmp_grainbits))) mv_pmp_addr;
   `endif
 
   `ifdef debug

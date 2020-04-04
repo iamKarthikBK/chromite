@@ -18,10 +18,8 @@ Table of Contents:
   test-soc
   simulating
   benchmarking
-  custom_csrs
-  performance_cntrs
+  micro-arch-notes
   developers
-  ram_structures
   changelog
 
 Indices and tables
