@@ -463,6 +463,8 @@ package csr_grp2;
  							v_pmp_addr[0] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR1 : begin
@@ -476,6 +478,8 @@ package csr_grp2;
  							v_pmp_addr[1] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR2 : begin
@@ -489,6 +493,8 @@ package csr_grp2;
  							v_pmp_addr[2] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR3 : begin
@@ -502,6 +508,8 @@ package csr_grp2;
  							v_pmp_addr[3] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR4 : begin
@@ -515,6 +523,8 @@ package csr_grp2;
  							v_pmp_addr[4] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR5 : begin
@@ -528,6 +538,8 @@ package csr_grp2;
  							v_pmp_addr[5] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR6 : begin
@@ -541,6 +553,8 @@ package csr_grp2;
  							v_pmp_addr[6] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR7 : begin
@@ -554,6 +568,8 @@ package csr_grp2;
  							v_pmp_addr[7] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR8 : begin
@@ -567,6 +583,8 @@ package csr_grp2;
  							v_pmp_addr[8] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR9 : begin
@@ -580,6 +598,8 @@ package csr_grp2;
  							v_pmp_addr[9] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR10 : begin
@@ -593,6 +613,8 @@ package csr_grp2;
  							v_pmp_addr[10] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR11 : begin
@@ -606,6 +628,8 @@ package csr_grp2;
  							v_pmp_addr[11] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR12 : begin
@@ -619,6 +643,8 @@ package csr_grp2;
  							v_pmp_addr[12] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR13 : begin
@@ -632,6 +658,8 @@ package csr_grp2;
  							v_pmp_addr[13] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR14 : begin
@@ -645,6 +673,8 @@ package csr_grp2;
  							v_pmp_addr[14] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
 				end
 
 				`PMPADDR15 : begin
@@ -658,6 +688,8 @@ package csr_grp2;
  							v_pmp_addr[15] <= truncate(word);
  						end
  					end
+ 					else
+ 						rg_resp_to_core <= CSRResponse{ hit : True, data : 0};
  				end
   		`endif
 

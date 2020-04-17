@@ -143,7 +143,9 @@ def capture_compile_cmd(foo):
 
     if foo['bsc_compile_options']['compile_target'] == 'sim':
         macros += ' -D simulate'
-
+    if foo['bsc_compile_options']['open_ocd']:
+        macros += ' -D openocd'
+    
     if 'A' in foo['ISA']:
         macros += ' -D atomic'
     if 'F' in foo['ISA']:
@@ -249,15 +251,21 @@ def capture_compile_cmd(foo):
     if foo['debugger_support']:
         macros += ' -D debug'
 
-    macros += ' -D csr_low_latency'
+#    macros += ' -D csr_low_latency'
+    total_counters = foo['csr_configuration']['counters_in_grp4'] +\
+        foo['csr_configuration']['counters_in_grp5'] +\
+        foo['csr_configuration']['counters_in_grp6'] +\
+        foo['csr_configuration']['counters_in_grp7']
+    if total_counters > 0:
+        macros += ' -D perfmonitors'
     if foo['csr_configuration']['counters_in_grp4'] >0 :
-        macros += ' -D csr_grp4 -D perfmonitors'
+        macros += ' -D csr_grp4'
         if foo['csr_configuration']['counters_in_grp5'] >0 :
-            macros += ' -D csr_grp5 -D perfmonitors'
+            macros += ' -D csr_grp5'
             if foo['csr_configuration']['counters_in_grp6'] >0 :
-                macros += ' -D csr_grp6 -D perfmonitors'
+                macros += ' -D csr_grp6'
                 if foo['csr_configuration']['counters_in_grp7'] >0 :
-                    macros += ' -D csr_grp7 -D perfmonitors'
+                    macros += ' -D csr_grp7'
     macros += ' -D counters_grp4='+\
             str(foo['csr_configuration']['counters_in_grp4'])+\
             ' -D counters_grp5='+str(foo['csr_configuration']['counters_in_grp5'])+\

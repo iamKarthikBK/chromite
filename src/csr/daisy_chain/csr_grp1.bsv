@@ -165,6 +165,7 @@ package csr_grp1;
 	         access"*)
 	(*synthesize*)
 	(*mutually_exclusive="mav_upd_on_ret, ma_core_req"*)
+	(*mutually_exclusive="mav_upd_on_trap, ma_core_req"*)
 	module mk_csr_grp1 (Ifc_csr_grp1);
 
     // common registers
@@ -179,7 +180,7 @@ package csr_grp1;
 	`endif
     (* doc = "fifo : fifo to forward the core - request to the next group on a miss in the \
                      current group" *)
-    FIFOF#(CSRReq) ff_fwd_request <- mkLFIFOF();
+    FIFOF#(CSRReq) ff_fwd_request <- mkSizedFIFOF(2);
 
     (* doc = "wire : to hold the current misa value from the other group MISA-s,u,n,c utilised"*)
     Wire#(Bit#(XLEN)) wr_csr_misa <- mkWire();

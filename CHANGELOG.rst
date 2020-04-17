@@ -4,6 +4,30 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[1.9.1] - 2020-04-07
+--------------------
+
+Fixed
+^^^^^
+- when pmps are not implemented then return 0 instead
+- bug fixed in csr trap handler logic when only usertraps enabled without supervisor
+- enable openocd macros in configure and clean up performance counter macro generation
+- link verilator target for gdb compile fixed
+- exit ci for patch updates
+- adding missing supervisor and user macros in decoder to enable correct debug functionality
+- 32-bit default config updated to new schema
+
+Changed
+^^^^^^^
+- updated method and rule attributes related to csrs for cleaner compile
+- using SizedFIFO instead of LFIFO to avoid unwanted scheduling
+
+Removed
+^^^^^^^
+- removing old msb lsb files and replacing with a single file
+- adding sections in ci file
+
+
 [1.9.0] - 2020-04-03
 --------------------
 

@@ -46,6 +46,7 @@ package riscv;
     method Action write_resp(Maybe#(Tuple2#(Bit#(1), Bit#(`vaddr))) r);
     (*always_enabled*)
     method Action storebuffer_empty(Bool e);
+    (*always_enabled*)
     method Action store_is_cached(Bool c);
     method Action ma_cache_ready(Bool r);
     (*always_enabled*)
