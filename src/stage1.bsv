@@ -106,7 +106,7 @@ package stage1;
     RX#(Stage0PC#(`vaddr)) rx_fromstage0 <- mkRX;
 
     // FIFO to interface with the next pipeline stage
-		TX#(PIPE1) tx <- mkTX;
+		TX#(PIPE1) tx_tostage2 <- mkTX;
 
   `ifdef rtldump
 		TX#(Bit#(32)) tx_inst <- mkTX;
@@ -228,7 +228,7 @@ package stage1;
     // rg_instruction and send to the next, and also store the upper 16 - bits of the response into
     // rg_instruction. rg_Action in this case will remain CheckPrev so that the upper bits of this
     // repsonse are probed in the next cycle.
-    rule process_instruction(rx_fromstage0.u.notEmpty);
+    rule process_instruction(rx_fromstage0.u.notEmpty && tx_tostage2.u.notFull);
       let stage0pc = rx_fromstage0.u.first;
       `logLevel( stage1, 1, $format("[%2d]STAGE1 : Prediction: ",hartid, fshow(stage0pc)))
     `ifdef bpu
@@ -397,7 +397,7 @@ package stage1;
       `ifdef rtldump
         tx_inst.u.enq(inst);
       `endif
-        tx.u.enq(pipedata);
+        tx_tostage2.u.enq(pipedata);
         `logLevel( stage1, 0,$format("[%2d]STAGE1 : Enquing: ",hartid,fshow(pipedata)))
       end
     endrule
@@ -433,7 +433,7 @@ package stage1;
     // Explicit Conditions : None
     // Implicit Conditions : tx is not empty.
     // Description : This method will transmit the instruction to the next stage.
-		interface tx_to_stage2 = tx.e;
+		interface tx_to_stage2 = tx_tostage2.e;
   `ifdef rtldump
 		interface tx_to_stage2_inst = tx_inst.e;
   `endif

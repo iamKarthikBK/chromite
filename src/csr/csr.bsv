@@ -115,14 +115,14 @@ package csr;
 
 
   (*synthesize*)
-  (*conflict_free="system_instruction, take_trap"*)
+  (*mutually_exclusive="system_instruction, take_trap"*)
   (*conflict_free="system_instruction, ma_set_external_interrupt"*)
-  (*conflict_free="system_instruction,mv_resp_to_core"*)
-  (*conflict_free="take_trap,mv_resp_to_core"*)
+  (*mutually_exclusive="system_instruction,mv_resp_to_core"*)
+  (*mutually_exclusive="take_trap,mv_resp_to_core"*)
   (*conflict_free="take_trap, ma_set_external_interrupt"*)
 `ifdef debug
-  (*conflict_free="take_trap, ma_debug_access_csrs"*)
-  (*conflict_free="system_instruction, ma_debug_access_csrs"*)
+  (*preempts="ma_debug_access_csrs, take_trap"*)
+  (*preempts="ma_debug_access_csrs,system_instruction"*)
 `endif
   module mkcsr#(parameter Bit#(XLEN) hartid) (Ifc_csr);
 

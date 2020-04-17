@@ -129,7 +129,7 @@ package stage5;
   (*conflict_free="instruction_commit,increment_instruction_counter"*)
   (*conflict_free="ma_set_external_interrupt,instruction_commit"*)
 `ifdef debug
-  (*conflict_free="ma_debug_access_csrs,instruction_commit"*)
+  (*preempts="ma_debug_access_csrs,instruction_commit"*)
 `endif
   module mkstage5#(parameter Bit#(XLEN) hartid) (Ifc_stage5);
 

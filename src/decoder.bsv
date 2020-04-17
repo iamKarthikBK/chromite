@@ -510,8 +510,9 @@ package decoder;
                                               `Ecall_from_machine;
                   else if(inst[31:7]=='h2000) begin
                   `ifdef debug
-                    if( (ebreakm && csrs.prv == Machine) || (ebreaks && csrs.prv == Supervisor) ||
-                        (ebreaku && csrs.prv == User)) begin
+                    if(                   (ebreakm && csrs.prv == Machine) 
+                      `ifdef supervisor || (ebreaks && csrs.prv == Supervisor) `endif 
+                      `ifdef user       || (ebreaku && csrs.prv == User)    `endif ) begin
                       trapcause = `HaltEbreak;
                       trapcause[`causesize - 1] = 1;
                     end

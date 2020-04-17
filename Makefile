@@ -33,6 +33,27 @@ link_verilator: ## Generate simulation executable using Verilator
 	make $(VERILATOR_SPEED) VM_PARALLEL_BUILDS=1 -j8 -C obj_dir -f V$(TOP_MODULE).mk
 	@cp obj_dir/V$(TOP_MODULE) $(BSVOUTDIR)/out
 
+.PHONY: link_verilator_gdb
+link_verilator_gdb: ## Generate simulation executable using Verilator and VPI for GDB
+	@echo "Linking Verilator With the Shakti RBB Vpi"
+	@mkdir -p $(BSVOUTDIR) obj_dir
+	@echo "#define TOPMODULE V$(TOP_MODULE)_edited" >sim_main.h
+	@echo '#include "V$(TOP_MODULE)_edited.h"' >> sim_main.h
+	@sed  -f devices/jtagdtm/sed_script.txt  $(VERILOGDIR)/$(TOP_MODULE).v > tmp1.v
+	@cat  devices/jtagdtm/verilator_config.vlt \
+	      devices/jtagdtm/vpi_sv.v \
+	      tmp1.v                         > $(VERILOGDIR)/$(TOP_MODULE)_edited.v
+	@rm   -f  tmp1.v
+	verilator $(VERILATOR_FLAGS) --threads-dpi all --cc $(TOP_MODULE)_edited.v --exe sim_main.cpp devices/jtagdtm/RBB_Shakti.c -y $(VERILOGDIR) -y $(BS_VERILOG_LIB) -y common_verilog 
+	@ln -f -s ../test_soc/sim_main.cpp obj_dir/sim_main.cpp
+	@ln -f -s ../sim_main.h obj_dir/sim_main.h
+	@ln -f -s ./devices/jtagdtm/RBB_Shakti.c obj_dir/RBB_Shakti.c
+	@echo "INFO: Linking verilated files"
+	make $(VERILATOR_SPEED) VM_PARALLEL_BUILDS=1 -j8 -C obj_dir -f V$(TOP_MODULE)_edited.mk
+	@cp obj_dir/V$(TOP_MODULE)_edited $(BSVOUTDIR)/out
+	@cp test_soc/gdb_setup/code.mem$(XLEN) $(BSVOUTDIR)/
+	@echo Linking finished
+
 
 .PHONY: update_xlen
 update_xlen:
@@ -110,27 +131,6 @@ link_msim: ## Generate simulation executable using Mentor's ModelSim tool
 	mv work ./$(BSVOUTDIR)
 	echo 'vsim -quiet -novopt -lib work -do "run -all; quit" -c main' > $(BSVOUTDIR)/out
 	@chmod +x $(BSVOUTDIR)/out
-	@echo Linking finished
-
-.PHONY: link_verilator_gdb
-link_verilator_gdb: ## Generate simulation executable using Verilator and VPI for GDB
-	@echo "Linking Verilator With the Shakti RBB Vpi"
-	@mkdir -p bin
-	@echo "#define TOPMODULE V$(TOP_MODULE)_edited" >sim_main.h
-	@echo '#include "V$(TOP_MODULE)_edited.h"' >> sim_main.h
-	@sed  -f devices/jtagdtm/sed_script.txt  $(VERILOGDIR)/$(TOP_MODULE).v > tmp1.v
-	@cat  devices/jtagdtm/verilator_config.vlt \
-	      devices/jtagdtm/vpi_sv.v \
-	      tmp1.v                         > $(VERILOGDIR)/$(TOP_MODULE)_edited.v
-	@rm   -f  tmp1.v
-	verilator --threads-dpi all --cc $(TOP_MODULE)_edited.v --exe sim_main.cpp devices/jtagdtm/RBB_Shakti.c -y $(VERILOGDIR) $(VERILATOR_FLAGS)
-	@ln -f -s ../sim_main.cpp obj_dir/sim_main.cpp
-	@ln -f -s ../sim_main.h obj_dir/sim_main.h
-	@ln -f -s ./devices/jtagdtm/RBB_Shakti.c obj_dir/RBB_Shakti.c
-	@echo "INFO: Linking verilated files"
-	make $(VERILATOR_SPEED) VM_PARALLEL_BUILDS=1 -j8 -C obj_dir -f V$(TOP_MODULE)_edited.mk
-	@cp obj_dir/V$(TOP_MODULE)_edited bin/out
-	@cp gdb_setup/code.mem* ./bin/
 	@echo Linking finished
 
 .PHONY: release-verilog-artifacts

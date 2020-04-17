@@ -129,6 +129,9 @@ package stage2;
 	endinterface : Ifc_stage2
 
   (*synthesize*)
+`ifdef debug
+  (*conflict_free="commit_rd, debug_access_gprs"*)
+`endif
   module mkstage2#(parameter Bit#(XLEN) hartid) (Ifc_stage2);
 
     String stage2=""; // defined for logger

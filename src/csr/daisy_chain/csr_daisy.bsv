@@ -198,8 +198,12 @@ package csr_daisy;
   //(*preempts="rl_fwd_to_grp2, update_fflags"*)
   //(*mutually_exclusive = "test_upd_privilege,mav_upd_on_ret"*) //test purpose only
   (*synthesize*)
+	(*mutually_exclusive="mav_upd_on_ret, ma_core_req"*)
+	(*mutually_exclusive="mav_upd_on_trap, ma_core_req"*)
+	(*mutually_exclusive="mav_upd_on_trap, mav_upd_on_ret"*)
   (*conflict_free="ma_core_req,mv_resp_to_core"*)
   (*conflict_free="mav_upd_on_trap,mv_resp_to_core"*)
+  (*conflict_free="mav_upd_on_ret,mv_resp_to_core"*)
   (*doc = "module : provides interface for all core-to-CSRs side-band accesses and a method to \
            perform regular CSR read-write operations, with access to registers being in a \
            daisy-chain manner."*)
@@ -281,8 +285,8 @@ package csr_daisy;
   	//         only one of them must fire in a cycle. This ensures that to a request, either \
   	//         the current group holding the request responds, or forwards it, to be handled by the\
   	//         next group.
-  	mkConnection(mk_grp1.mav_fwd_req, mk_grp2.ma_core_req);
-  	mkConnection(mk_grp2.mav_fwd_req, mk_grp3.ma_core_req);
+  	let m1 <- mkConnection(mk_grp1.mav_fwd_req, mk_grp2.ma_core_req);
+  	let m2 <- mkConnection(mk_grp2.mav_fwd_req, mk_grp3.ma_core_req);
 
   `ifdef perfmonitors
     `ifdef csr_grp4
@@ -313,10 +317,10 @@ package csr_daisy;
   	mkConnection(mk_grp2.mv_frm, mk_grp1.ma_frm);
   `ifdef debug
   	//grp3 to grp1 sideband connections
-  	mkConnection(mk_grp3.mv_csr_dcsr, mk_grp1.ma_csr_dcsr);
-  	mkConnection(mk_grp3.mv_resume_int, mk_grp1.ma_resume_int);
-  	mkConnection(mk_grp3.mv_core_halted, mk_grp1.ma_core_halted);
-  	mkConnection(mk_grp3.mv_halt_int, mk_grp1.ma_halt_int);
+  	let x1 <- mkConnection(mk_grp3.mv_csr_dcsr, mk_grp1.ma_csr_dcsr);
+  	let x2 <- mkConnection(mk_grp3.mv_resume_int, mk_grp1.ma_resume_int);
+  	let x3 <- mkConnection(mk_grp3.mv_core_halted, mk_grp1.ma_core_halted);
+  	let x4 <- mkConnection(mk_grp3.mv_halt_int, mk_grp1.ma_halt_int);
 
   	//grp3 to grps 4,5,6,7 sideband connections
   	`ifdef perfmonitors
@@ -497,7 +501,7 @@ package csr_daisy;
           prv = User;
       `endif
     `elsif usertraps
-      else if(delegateM && rg_prv == User && lv_misa_n == 1)
+      if(delegateM && rg_prv == User && lv_misa_n == 1)
         prv = User;
     `endif
   `endif
