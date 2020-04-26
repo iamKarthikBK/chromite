@@ -12,8 +12,8 @@ TODO
 */
 
 package fpu_sqrt;
-`include "cclass_params.defines"	
-import cclass_types::*;
+`include "ccore_params.defines"	
+import ccore_types::*;
 `include "fpu.defines"
 import RegFile::*;
 import FIFO::*;

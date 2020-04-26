@@ -9,10 +9,10 @@ TODO
 */
 package fpu;
 /*==== Project imports ==== */
-`include "cclass_params.defines"
+`include "ccore_params.defines"
 `include "fpu.defines"
 `include "Logger.bsv"
-import cclass_types::*;
+import ccore_types::*;
 import fpu_compare_min_max::*;
 import fpu_int_to_sp::*;
 import fpu_sign_injection::*;

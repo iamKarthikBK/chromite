@@ -10,8 +10,8 @@ Details:
 package csrfile;
 
   // project related imports
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
   `include "csr.defines"
   `include "Logger.bsv"
   import ConcatReg::*;

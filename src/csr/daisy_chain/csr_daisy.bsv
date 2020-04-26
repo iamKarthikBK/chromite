@@ -11,8 +11,8 @@ Details:
 package csr_daisy;
 
 	//library and project related imports
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
   `include "csrgrp.defines"
   `include "Logger.bsv"
   import ConcatReg::*;

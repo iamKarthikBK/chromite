@@ -71,7 +71,7 @@ common_verilog:
   patch:
 verification:
   repo: https://gitlab.com/shaktiproject/verification_environment/verification
-  checkout: 3.2.8
+  checkout: 3.2.11
   commitid:
   patch:
     - [riscv-tests/env , verification/patches/riscv-tests-shakti-signature.patch]

@@ -11,8 +11,8 @@ Trap handling and Updating the CSRs for system - instruction
 
 package csr;
   // project related imports
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
   import ConcatReg::*;
 //  import csrfile::*;
   import csr_daisy :: * ;

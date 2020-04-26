@@ -26,11 +26,11 @@ package riscv;
   import stage3::*;
   import stage4::*;
   import stage5::*;
-  import cclass_types::*;
+  import ccore_types::*;
   import CustomFIFOs::*;
   import icache_types ::*;
   import dcache_types :: * ;
-  `include "cclass_params.defines"
+  `include "ccore_params.defines"
 
 `ifdef debug
   import debug_types ::*;

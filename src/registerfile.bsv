@@ -21,8 +21,8 @@ however cannot read the values in the initialization phase.
 */
 package registerfile;
 	/*==== Project Imports === */
-	import cclass_types::*;
-	`include "cclass_params.defines"
+	import ccore_types::*;
+	`include "ccore_params.defines"
 	/*======================== */
 	/*===== Package Imports ==== */
 	import RegFile::*;

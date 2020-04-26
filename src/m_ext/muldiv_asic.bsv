@@ -7,8 +7,8 @@ package muldiv_asic;
 	import SpecialFIFOs::*;
 	import UniqueWrappers::*;
 	/*==== Project Import=== */
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
   `include "Logger.bsv"
 	/*====================== */
 

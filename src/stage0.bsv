@@ -53,8 +53,8 @@ package stage0;
 
   // -- project imports
   `include "Logger.bsv"
-  `include "cclass_params.defines"
-  import cclass_types :: * ;
+  `include "ccore_params.defines"
+  import ccore_types :: * ;
 `ifdef bpu
   import gshare_fa :: * ;
 `endif

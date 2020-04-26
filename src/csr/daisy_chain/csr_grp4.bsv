@@ -19,9 +19,9 @@ package csr_grp4;
 
   //project imports
   `include "csrgrp.defines"
-  `include "cclass_params.defines"
+  `include "ccore_params.defines"
   `include "Logger.bsv"
-	import cclass_types :: * ;
+	import ccore_types :: * ;
 
 
 	//typedef struct{

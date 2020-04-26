@@ -10,8 +10,8 @@ Details:
 package stage5;
   import TxRx::*;
   import GetPut::*;
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
   `include "Logger.bsv"
   import ConfigReg::*;
 

@@ -7,15 +7,15 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package cclass;
+package ccore;
 
-  //=================== Interface and module for a cclass - master on the AXI4 fabric ============= //
+  //=================== Interface and module for a ccore - master on the AXI4 fabric ============= //
   // project related imports
 	import Semi_FIFOF:: *;
 	import AXI4_Types:: *;
 	import AXI4_Fabric:: *;
   import riscv:: * ;
-  import cclass_types:: * ;
+  import ccore_types:: * ;
   import FIFOF::*;
   import dcache_types :: *;
   import icache_types :: * ;
@@ -29,7 +29,7 @@ package cclass;
     import ptwalk_rv32::*;
   `endif
 `endif
-  `include "cclass_params.defines"
+  `include "ccore_params.defines"
   `include "Logger.bsv"
 
   `define Mem_master_num 0
@@ -48,7 +48,7 @@ package cclass;
 `endif
   typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
 
-  interface Ifc_cclass_axi4;
+  interface Ifc_ccore_axi4;
 		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_d;
 		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_i;
     interface Put#(Bit#(1)) sb_clint_msip;
@@ -61,7 +61,7 @@ package cclass;
   `ifdef debug
     interface Hart_Debug_Ifc debug_server;
   `endif
-  endinterface : Ifc_cclass_axi4
+  endinterface : Ifc_ccore_axi4
 
   (*synthesize*)
   `ifdef supervisor
@@ -71,7 +71,7 @@ package cclass;
   `ifdef itim
     (*conflict_free="handle_itim_write_resp, handle_nc_write_resp"*)
   `endif
-  module mkcclass_axi4#(Bit#(`vaddr) resetpc, parameter Bit#(XLEN) hartid)(Ifc_cclass_axi4);
+  module mkccore_axi4#(Bit#(`vaddr) resetpc, parameter Bit#(XLEN) hartid)(Ifc_ccore_axi4);
     String core = "";
     let vaddr = valueOf(`vaddr);
     let paddr = valueOf(`paddr);
@@ -449,6 +449,6 @@ rg_shift_amount:%d",hartid, req.data, rg_burst_count, last, rg_shift_amount))
       endmethod
     endinterface;
   `endif
-  endmodule : mkcclass_axi4
+  endmodule : mkccore_axi4
 
 endpackage

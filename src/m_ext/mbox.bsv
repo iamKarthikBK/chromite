@@ -9,8 +9,8 @@ Details:
 */
 package mbox;
 
-  import cclass_types :: *;
-  `include "cclass_params.defines"
+  import ccore_types :: *;
+  `include "ccore_params.defines"
   `include "Logger.bsv"
 
   import combo :: * ;

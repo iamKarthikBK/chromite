@@ -9,9 +9,9 @@ TODO
 */
 package fpu_divider;
     import DReg::*;
-    import cclass_types::*;                              //contains typedef of exceptions which are generated here
+    import ccore_types::*;                              //contains typedef of exceptions which are generated here
     import integer_divider::*;               //divider module
-    `include "cclass_params.defines"	
+    `include "ccore_params.defines"	
     `include "fpu.defines"
     import RegFile::*;
 

@@ -7,8 +7,8 @@ package muldiv_asic_32bit;
 	import SpecialFIFOs::*;
 	import UniqueWrappers::*;
 	/*==== Project Import=== */
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
 	/*====================== */
 
 	`define UnrollMul 4 // this means the number of bits being analysed simultaneously

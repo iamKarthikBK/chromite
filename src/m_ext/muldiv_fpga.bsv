@@ -12,8 +12,8 @@ package muldiv_fpga;
   import multiplier::*;
   `endif
   import restoring_div::*;
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
 
 	interface Ifc_muldiv;
 		method ActionValue#(ALU_OUT) get_inputs(Bit#(XLEN) operand1, Bit#(XLEN) operand2, 

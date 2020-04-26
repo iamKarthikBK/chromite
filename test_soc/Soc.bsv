@@ -12,10 +12,10 @@ package Soc;
 	import Semi_FIFOF:: *;
 	import AXI4_Types:: *;
 	import AXI4_Fabric:: *;
-  import cclass:: * ;
-  import cclass_types:: * ;
+  import ccore:: * ;
+  import ccore_types:: * ;
   import Clocks :: *;
-  `include "cclass_params.defines"
+  `include "ccore_params.defines"
   `include "Soc.defines"
 
   // peripheral imports
@@ -92,7 +92,7 @@ package Soc;
     AXI4_Fabric_IFC #(Num_Masters, `Num_Slaves, `paddr, ELEN, USERSPACE) 
                                                     fabric <- mkAXI4_Fabric(fn_slave_map);
 
-    Ifc_cclass_axi4 cclass <- mkcclass_axi4(`resetpc, 0);
+    Ifc_ccore_axi4 ccore <- mkccore_axi4(`resetpc, 0);
     Ifc_sign_dump signature<- mksign_dump();
   `ifdef debug
     Ifc_debug_halt_loop_axi4#(`paddr, ELEN, USERSPACE) debug_memory <- mkdebug_halt_loop_axi4;
@@ -153,15 +153,15 @@ package Soc;
       jtag_tap.response_from_dm(sync_response_from_dm.first);                                       
     endrule                                                                                         
                                                                                                     
-    mkConnection (cclass.debug_server ,debug_module.hart);
+    mkConnection (ccore.debug_server ,debug_module.hart);
   `endif
       
     // ------------------------------------------------------------------------------------------//
   `ifdef debug
     mkConnection (debug_module.debug_master,fabric.v_from_masters[valueOf(Debug_master_num)]);
   `endif
-   	mkConnection(cclass.master_d,	fabric.v_from_masters[valueOf(Mem_master_num)]);
-   	mkConnection(cclass.master_i, fabric.v_from_masters[valueOf(Fetch_master_num)]);
+   	mkConnection(ccore.master_d,	fabric.v_from_masters[valueOf(Mem_master_num)]);
+   	mkConnection(ccore.master_i, fabric.v_from_masters[valueOf(Fetch_master_num)]);
    	mkConnection(signature.master, fabric.v_from_masters[valueOf(Sign_master_num) ]);
 
  	  mkConnection (fabric.v_to_slaves [`Uart_slave_num ],uart.slave);
@@ -173,12 +173,12 @@ package Soc;
   `endif
 
     // sideband connection
-    mkConnection(cclass.sb_clint_msip,clint.sb_clint_msip);
-    mkConnection(cclass.sb_clint_mtip,clint.sb_clint_mtip);
-    mkConnection(cclass.sb_clint_mtime,clint.sb_clint_mtime);
+    mkConnection(ccore.sb_clint_msip,clint.sb_clint_msip);
+    mkConnection(ccore.sb_clint_mtip,clint.sb_clint_mtip);
+    mkConnection(ccore.sb_clint_mtime,clint.sb_clint_mtime);
 
     `ifdef rtldump
-      interface io_dump= cclass.io_dump;
+      interface io_dump= ccore.io_dump;
     `endif
     interface uart_io=uart.io;
     interface main_mem_master = fabric.v_to_slaves[`Memory_slave_num] ;

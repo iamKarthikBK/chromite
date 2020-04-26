@@ -20,8 +20,8 @@ package stage1;
 
   // -- project imports --//
 	import TxRx	::*;            // for interstage buffer connection
-  import cclass_types::*;     // for pipe - line types
-  `include "cclass_params.defines"// for core parameters
+  import ccore_types::*;     // for pipe - line types
+  `include "ccore_params.defines"// for core parameters
   `include "Logger.bsv"       // for logging display statements.
   import icache_types::*;          // for global interface definitions
 `ifdef compressed

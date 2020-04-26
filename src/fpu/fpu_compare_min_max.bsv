@@ -10,8 +10,8 @@ TODO
 
 
 package fpu_compare_min_max;
-import cclass_types::*;
-`include "cclass_params.defines"
+import ccore_types::*;
+`include "ccore_params.defines"
 `include "fpu.defines"
 
 interface Ifc_fpu_compare_min_max#(numeric type fpinp, numeric type fpman, numeric type fpexp);

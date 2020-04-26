@@ -8,9 +8,9 @@ TODO
 */
 
 package fpu_sp_to_int;
-import cclass_types::*;
+import ccore_types::*;
 import UniqueWrappers::*;
-`include "cclass_params.defines"
+`include "ccore_params.defines"
 `include "fpu.defines"
 interface Ifc_fpu_sp_to_int;
 	method ActionValue#(Floating_output#(ELEN)) _start(Bit#(1) sign,Bit#(8) exponent, Bit#(23) mantissa,  bit convert_unsigned, bit convert_long, Bit#(3) rounding_mode, Bit#(5) flags);
