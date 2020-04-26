@@ -15,7 +15,7 @@ The Test-SoC has the following structure (defined to a max of 4 levels of depth)
       X[mkTbSoC] --> A(mkSoC)
       X --> B(mkbram)
       X --> C(mkbootrom)
-      A --> D(mkcclass_axi4)
+      A --> D(mkccore_axi4)
       A --> E(mkuart)
       A --> F(mkclint)
       A --> G(mksignature_dump)
@@ -37,7 +37,7 @@ Description of the above modules:
   | mkimem             | The instruction memory subsystem. Includes the           |
   |                    | instruction-cache and the instruction-tlbs               |
   +--------------------+----------------------------------------------------------+
-  | mkcclass_axi4      | Contains the above modules and the integrations across   |
+  | mkccore_axi4      | Contains the above modules and the integrations across   |
   |                    | them. Also provides 3 AXI-4 interfaces to be connected to| 
   |                    | the Cross-bar fabric                                     |
   +--------------------+----------------------------------------------------------+
@@ -97,7 +97,7 @@ The rest of the boot-rom holds a dummy device-tree-string information.
 Synthesis of Core
 -----------------
 
-When synthesizing for an FPGA/ASIC, the top module should be ``mkcclass_axi4 (mkcclass_axi4.v)`` 
+When synthesizing for an FPGA/ASIC, the top module should be ``mkccore_axi4 (mkccore_axi4.v)`` 
 as the top module. 
 
 The ``mkimem`` and ``mkdmem`` module include SRAM instances which implement the respective data 

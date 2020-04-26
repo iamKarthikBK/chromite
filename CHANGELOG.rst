@@ -4,6 +4,19 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[1.9.2] - 2020-04-26
+--------------------
+
+Fixed
+^^^^^
+- [docs] move pip install requirements to building core section
+- updating verification repo version to avoid dirname error
+
+Changed
+^^^^^^^
+- renamed cclass to ccore at all instances
+
+
 [1.9.1] - 2020-04-07
 --------------------
 

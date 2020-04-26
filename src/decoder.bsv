@@ -18,9 +18,9 @@ The decoder outputs minimal data required to peform operand fetch and executions
 package decoder;
 
   // pacakge imports from project
-  import cclass_types::*;
+  import ccore_types::*;
   import BUtils::*;
-  `include "cclass_params.defines"
+  `include "ccore_params.defines"
   (*noinline*)
   function Bool address_valid(Bit#(12) addr, Bit#(26) misa);
     Bool valid=False;

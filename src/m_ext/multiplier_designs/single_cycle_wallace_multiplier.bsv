@@ -5,7 +5,7 @@ package single_cycle_wallace_multiplier;
 	import Vector :: *;
 	import Randomizable:: *;
 
-  import cclass_types :: * ;
+  import ccore_types :: * ;
   `include "Logger.bsv"
 
 	`define num 32

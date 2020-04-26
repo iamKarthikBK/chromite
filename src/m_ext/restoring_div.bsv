@@ -9,8 +9,8 @@ Details:
 */
 package restoring_div;
 
-  import cclass_types :: *;
-  `include "cclass_params.defines"
+  import ccore_types :: *;
+  `include "ccore_params.defines"
   `include "Logger.bsv"
   import Assert::*;
   import DReg :: * ;

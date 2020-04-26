@@ -10,8 +10,8 @@ Details:
 package tb_csr_grp_4_5_6_7_daisy;
 
 //library and project related imports
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
   `include "csrgrp.defines"
   `include "Logger.bsv"
   import ConcatReg::*;

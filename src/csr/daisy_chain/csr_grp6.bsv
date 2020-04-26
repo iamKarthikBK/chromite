@@ -18,8 +18,8 @@ package csr_grp6;
   import Assert :: *;
   //project imports
   `include "csrgrp.defines"
-  `include "cclass_params.defines"
-	import cclass_types :: * ;
+  `include "ccore_params.defines"
+	import ccore_types :: * ;
 
 	
 	//typedef struct{

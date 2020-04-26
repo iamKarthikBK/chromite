@@ -7,8 +7,8 @@ Details:
 
 --------------------------------------------------------------------------------------------------
 */
-package cclass_types;
-  `include "cclass_params.defines"
+package ccore_types;
+  `include "ccore_params.defines"
 
   `ifdef RV64
   	typedef 64 XLEN;

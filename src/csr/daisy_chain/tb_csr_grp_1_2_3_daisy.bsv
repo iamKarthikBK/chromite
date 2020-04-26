@@ -11,8 +11,8 @@ Details:
 package tb_csr_grp_1_2_3_daisy;
 
 	//library and project related imports
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
   `include "csrgrp.defines"
   `include "Logger.bsv"
   import ConcatReg::*;

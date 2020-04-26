@@ -15,8 +15,8 @@ FSGNJX : Operation bit - 010, The final result is same as that of operand 1 but 
 
 package fpu_sign_injection;
 
-import cclass_types::*;
-`include "cclass_params.defines"
+import ccore_types::*;
+`include "ccore_params.defines"
 `include "fpu.defines"
 
 interface Ifc_fpu_sign_injection#(numeric type fpinp, numeric type fpman, numeric type fpexp);

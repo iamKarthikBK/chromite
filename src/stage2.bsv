@@ -56,8 +56,8 @@ package stage2;
   // -- project imports --//
 	import registerfile::*;       // for instantiating the registerfile
 	import decoder::*;            // for the decode functions.
-  import cclass_types::*;       // for pipe - line types
-  `include "cclass_params.defines"  // for core parameters
+  import ccore_types::*;       // for pipe - line types
+  `include "ccore_params.defines"  // for core parameters
   `include "Logger.bsv"         // for logging display statements.
 `ifdef debug
   import debug_types :: *; // for importing the debug abstract interface

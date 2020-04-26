@@ -14,8 +14,8 @@ package TbSoc;
 	import AXI4_Types:: *;
 	import AXI4_Fabric:: *;
   import uart::*;
-	import cclass_types::*;
-  `include "cclass_params.defines"
+	import ccore_types::*;
+  `include "ccore_params.defines"
   `include "Logger.bsv"
   `include "Soc.defines"
   import device_common::*;

@@ -9,9 +9,9 @@ TODO
 */
 package fpu_convert_sp_dp;
 `define verbose
-import cclass_types::*;
+import ccore_types::*;
 import UniqueWrappers::*;
-`include "cclass_params.defines"
+`include "ccore_params.defines"
 `include "fpu.defines"
 interface Ifc_fpu_convert_sp_dp;
 	method ActionValue#(Floating_output#(64))_start(Bit#(1) sign, Bit#(8) exponent, Bit#(23) mantissa, Bit#(3) rounding_mode, Bit#(5) flags);

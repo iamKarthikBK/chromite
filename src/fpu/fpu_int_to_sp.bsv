@@ -9,9 +9,9 @@ TODO
 */
 package fpu_int_to_sp;
 
-import cclass_types ::*;
+import ccore_types ::*;
 import UniqueWrappers::*;
-`include "cclass_params.defines"	
+`include "ccore_params.defines"	
 `include "fpu.defines"
 interface Ifc_fpu_int_to_sp;
     method ActionValue#(Floating_output#(32)) _start(Bit#(64) inp_int, Bit#(1) unsigned_bit, Bit#(1) long, Bit#(3) rounding_mode);

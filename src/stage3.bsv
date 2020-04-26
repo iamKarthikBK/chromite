@@ -21,8 +21,8 @@ package stage3;
   // -- project imports --//
   import alu::*;                // implements the ALU function
   import fwding::*;       // provides the operand bypassing logic
-  import cclass_types::*;       // for pipe - line types
-  `include "cclass_params.defines"  // for core parameters
+  import ccore_types::*;       // for pipe - line types
+  `include "ccore_params.defines"  // for core parameters
   `include "Logger.bsv"         // for logging display statements.
   import dcache_types :: *;          // for dmem request types
 

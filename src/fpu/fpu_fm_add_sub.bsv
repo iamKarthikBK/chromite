@@ -11,10 +11,10 @@ TODO
 
 package fpu_fm_add_sub;
 import DReg::*;
-import cclass_types::*;
+import ccore_types::*;
 import RegFile::*;
 import UniqueWrappers::*;
-`include "cclass_params.defines"	
+`include "ccore_params.defines"	
 `include "fpu.defines"
 import ConfigReg::*;
 

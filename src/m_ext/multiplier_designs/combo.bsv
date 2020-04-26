@@ -18,9 +18,9 @@ package combo;
 
   import signedmul:: *;
   import DReg :: *;
-  import cclass_types :: *;
+  import ccore_types :: *;
   import Vector :: * ;
-  `include "cclass_params.defines"
+  `include "ccore_params.defines"
   `include "Logger.bsv"
 
   interface Ifc_combo_mul;

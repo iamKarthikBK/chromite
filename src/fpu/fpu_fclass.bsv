@@ -62,8 +62,8 @@ Sign	Exponent (e)	Fraction (f)	Value
 
 package fpu_fclass;
 
-import cclass_types::*;
-`include "cclass_params.defines"	
+import ccore_types::*;
+`include "ccore_params.defines"	
 `include "fpu.defines"	
 
 interface Ifc_fpu_fclass#(numeric type fpinp, numeric type fpman, numeric type fpexp);

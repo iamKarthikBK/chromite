@@ -19,8 +19,8 @@ package csr_grp1;
 
 	//project imports and includes
 	`include "csrgrp.defines"
-  `include "cclass_params.defines"
-	import cclass_types :: * ;
+  `include "ccore_params.defines"
+	import ccore_types :: * ;
 
 	interface Ifc_csr_grp1;
 

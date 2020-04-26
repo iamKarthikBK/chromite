@@ -4,8 +4,8 @@ package four_plus_multiplier;
 
 import Vector :: *;
 import Randomizable:: *;
-import cclass_types :: * ;
-`include "cclass_params.defines"
+import ccore_types :: * ;
+`include "ccore_params.defines"
 `include "Logger.bsv"
 import DReg :: *;
 

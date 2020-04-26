@@ -8,9 +8,9 @@ Description:
 TODO
 */
 package fpu_int_to_dp;
-import cclass_types ::*;
+import ccore_types ::*;
 import UniqueWrappers::*;
-`include "cclass_params.defines"	
+`include "ccore_params.defines"	
 `include "fpu.defines"
 //TODO Rework and optimize
 function Bit#(m) zeroExtendLSB(Bit#(n) value)

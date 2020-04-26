@@ -26,9 +26,9 @@ package alu;
   import fpu::*;
 `endif
 
-  import cclass_types::*;
+  import ccore_types::*;
   import BUtils :: * ;
-  `include "cclass_params.defines"
+  `include "ccore_params.defines"
 
 `ifdef triggers
   function Tuple2#(Bool, Bit#(`causesize)) check_for_triggers(

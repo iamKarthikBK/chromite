@@ -36,8 +36,8 @@ package sign_dump;
   import BRAMCore::*;
   import FIFO::*;
 
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
 	import AXI4_Types:: *;
 	import AXI4_Fabric:: *;
 	import Semi_FIFOF:: *;

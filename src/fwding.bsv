@@ -8,8 +8,8 @@ Details:
 --------------------------------------------------------------------------------------------------
 */
 package fwding;
-  import cclass_types::*;
-  `include "cclass_params.defines"
+  import ccore_types::*;
+  `include "ccore_params.defines"
   import GetPut::*;
   import BUtils::*;
   `include "Logger.bsv"

@@ -19,8 +19,8 @@ package csr_grp7;
   
   //project imports
   `include "csrgrp.defines"
-  `include "cclass_params.defines"
-	import cclass_types :: * ;
+  `include "ccore_params.defines"
+	import ccore_types :: * ;
 	
 	//typedef struct{
   	//Bit#(12) csr_address;
