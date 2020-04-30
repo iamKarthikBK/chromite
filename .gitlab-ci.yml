@@ -3,70 +3,6 @@ stages:
     - post-merge
     - release
 
-c-class:
-    stage: post-merge
-    except:
-        - schedules
-    script:
-        - echo -e "section_start:`date +%s`:source_tools\r\e[0KSetup Initialization"
-        - source /tools/setup.sh
-        - python -m configure.main -ispec sample_config/default.yaml
-        - make restore
-        - echo -e "section_end:`date +%s`:source_tools\r\e[0Ksection_start:`date +%s`:generate_verilog\r\e[0KGenerate Verilog and Verilate"
-        - make
-        - echo -e "section_end:`date +%s`:generate_verilog\r\e[0Ksection_start:`date +%s`:riscv-test\r\e[0KRISC-V Tests Regression"
-        - make regress opts='--filter=rv64 --parallel=50 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
-        - make regress opts='--filter=rv64 --final'
-        - make clean_verif
-        - echo -e "section_end:`date +%s`:riscv-test\r\e[0Ksection_start:`date +%s`:aapg\r\e[0KAAPG Regression"
-        - make aapg opts='--config=rv64imafdc* --test_count=10 --parallel=30' CONFIG_ISA=RV64IMAFDC
-        - make regress opts='--list=aapg.list --sub --test_opts='--timeout=15m' --parallel=30' CONFIG_ISA=RV64IMAFDC
-        - make regress opts='--list=aapg.list --final' CONFIG_ISA=RV64IMAFDC
-        - make clean_verif
-        - echo -e "section_end:`date +%s`:aapg\r\e[0Ksection_start:`date +%s`:csmith\r\e[0KCSMITH Regression"
-        - make csmith opts='--test_count=30 --parallel=30' CONFIG_ISA=RV64IMAFDC
-        - make regress opts='--list=csmith.list --parallel=30 --sub'  CONFIG_ISA=RV64IMAFDC
-        - make regress opts='--list=csmith.list --final'
-        - echo -e "section_end:`date +%s`:csmith\r\e[0Ksection_start:`date +%s`:benchmarks\r\e[0KBenchmarks Regression"
-        - make regress opts="--list=cclass-benchmark-tests.list --sub --test_opts='--nospike --timeout=120s'" CONFIG_ISA=RV64IMAFDC
-        - echo -e "section_end:`date +%s`:benchmarks\r\e[0Ksection_start:`date +%s`:cleanup\r\e[0KCleanup"
-        - make clean_verif
-        # - make torture opts='--config=bringup --test_count=1'
-        # - make torture opts='--config=all --debug' CONFIG_ISA=RV64IMAFDC
-        # - make regress opts='--list=riscv-torture.list --test_opts='--timeout=30m' --sub' CONFIG_ISA=RV64IMAFDC
-        # - make regress opts='--list=riscv-torture.list --final'
-        - make restore
-        - python -m configure.main --clean
-        - echo -e "section_end:`date +%s`:cleanup\r\e[0K"
-    only:
-        - master
-    tags:
-        - core-runner
-
-check-mr-build:
-    stage: pre-merge
-    except:
-        - schedules
-    script:
-        - echo -e "section_start:`date +%s`:source_tools\r\e[0KSetup Initialization"
-        - source /tools/setup.sh
-        - python -m configure.main --clean
-        - python -m configure.main -ispec sample_config/default.yaml
-        - echo -e "section_end:`date +%s`:source_tools\r\e[0Ksection_start:`date +%s`:generate_verilog\r\e[0KGenerate Verilog and Verilate"
-        - make
-        - echo -e "section_end:`date +%s`:generate_verilog\r\e[0Ksection_start:`date +%s`:sim_out\r\e[0KRISC-V Tests Regression"
-        - make regress opts='--filter=rv64 --parallel=30 --test_opts='--timeout=120s' --sub' CONFIG_ISA=RV64IMAFDC
-        - make regress opts='--filter=rv64 --final'
-        - echo -e "section_end:`date +%s`:sim_out\r\e[0Ksection_start:`date +%s`:cleanup\r\e[0KCleanup"
-        - make restore
-        - python -m configure.main --clean
-        - echo -e "section_end:`date +%s`:cleanup\r\e[0K"
-    only:
-        - merge_requests
-    when: manual
-    tags:
-        - core-runner
-
 # checks if the changelog has been updated and the version has also been upgraded
 check-mr-compliance:
     stage: pre-merge
@@ -97,16 +33,37 @@ check-mr-compliance:
     only:
         - merge_requests
     tags:
-        - core-runner
+        - incore-group
 
 release:
     stage: release
     script:
+        - echo -e "section_start:`date +%s`:source_tools\r\e[0KSetup Initialization"
+        - export PATH="/home/gitlab-runner/.pyenv/bin:$PATH"
+        - eval "$(pyenv init -)"
+        - eval "$(pyenv virtualenv-init -)"
+        - pyenv activate py36
+        - echo -e "section_end:`date +%s`:source_tools\r\e[0Ksection_start:`date +%s`:interconnect_ip\r\e[0KBuilding Interconnect IP Docs"
+        - cd docs/usage_manual/
+        - pip install -r requirements.txt
+        - make latexpdf
+        - mv build/latex/chromite_userman.pdf ../../
+        - cd ../datasheet/
+        - pip install -r requirements.txt
+        - make latexpdf
+        - mv build/latex/chromite_coregen.pdf ../../
+        - echo -e "section_end:`date +%s`:interconnect_ip\r\e[0Ksection_start:`date +%s`:tag\r\e[0KCreating Tag on Repo"
         - python3 /scratch/version-extract-rst.py
+        - echo -e "section_end:`date +%s`:tag\r\e[0K"
+    artifacts:
+        name: docs
+        paths:
+            - chromite_coregen.pdf
+            - usage_manual.pdf
     only:
         refs:
-            - master
+            - stable
     tags:
-        - core-runner
+        - incore-group
     except:
         - schedules

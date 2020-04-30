@@ -7,7 +7,7 @@ Generate Verilated Executable
 
 .. code-block:: bash
 
-  $ cd c-class
+  $ cd chromite
   $ python -m configure.main -ispec sample_config/default.yaml
   $ make
 
@@ -99,7 +99,7 @@ test-bench
    
    .. code-block:: bash
    
-     $ cd c-class/base-sim/bin/
+     $ cd chromite//bin/
      $ ./out > /dev/null
 
 2. Connect to OpenOCD
@@ -108,7 +108,7 @@ test-bench
    .. code-block:: bash
    
    
-     $ cd c-class/base-sim/gdb_setup/
+     $ cd chromite/test_soc/gdb_setup/
      $ openocd -f shakti_ocd.cfg
 
 3. Connect to GDB
@@ -116,13 +116,53 @@ test-bench
    
    .. code-block:: bash
    
-     $ cd c-class/base-sim/gdb_setup
+     $ cd chromite/test_soc/gdb_setup
      $ riscv64-unknown-elf-gdb -x gdb.script
 
 In this window you can now perform gdb commands like : ``set $pc, i r, etc``
 
-Linux on C-Class
-----------------
+To reset the SoC via the debugger you can execute the following within the gdb shell:
+
+.. code:: bash
+
+  $ monitor reset halt
+  $ monitor gdb_sync
+  $ stepi
+  $ i r
+
+.. note:: The above will not reset memories like caches, brams, etc
+
+Dhrystone on Chromite
+---------------------
+
+The max DMIPS of the Chromite core is **1.72DMIPs/MHz.**
+
+.. code:: bash
+
+  $ git clone https://gitlab.com/incoresemi/core-generators/benchmarks.git
+  $ cd benchmakrs
+  $ make dhrystone ITERATIONS=100000
+
+the ``output`` directory will contain a code.mem file which needs to be copied 
+to the ``bin`` folder within the chromite folder and execute the cclass
+verilated binary:
+
+.. code:: bash
+
+   $ cp benchmarks/output/code.mem chromite/bin # change paths accordingly
+   $ cd chromite/bin
+   $ ./out
+   $ cat app_log
+
+      Microseconds for one run through Dhrystone:     10.0 
+      Dhrystones per Second:                       96613.0
+
+DMIPs/MHz is calculated using the following formula = (96613)/(32 * 1757) = ~1.72DMIPs/MHz
+
+
+
+Linux on Chromite
+-----------------
 
 1. Generate RTL using the default.yaml config as provided in the repo
 
@@ -142,12 +182,12 @@ Linux on C-Class
      $ cd $SHAKTI_LINUX
      $ make -j16 ISA=rv64imafd
 
-3. Come back to the folder c-class/base-sim to simulate the kernel on the
-   C-class executable:
+3. Come back to the folder chromite/ to simulate the kernel on the
+   Chromite executable:
 
    .. code-block:: bash
 
-     $ cd c-class/base-sim
+     $ cd chromite/
      $ cp $SHAKTI_LINUX/work/riscv-pk/bbl ./bin/
      $ cd bin
      $ elf2hex 8 33554432 bbl 2147483648 > code.mem
@@ -155,8 +195,8 @@ Linux on C-Class
 
    Track the ``app_log`` file to see the kernel messages being printed
 
-FreeRTOS on C-class
--------------------
+FreeRTOS on Chromite
+--------------------
 
 1. Generate a 32-bit RTL with the following command:
    
@@ -165,7 +205,7 @@ FreeRTOS on C-class
     $ python -m configure.main -ispec sample_config/freertos.yaml
     $ make # generate executable
 
-2. Download the free-RTOS repository for C-class
+2. Download the free-RTOS repository for Chromite
    
    .. code-block:: bash
 
@@ -173,11 +213,11 @@ FreeRTOS on C-class
     $ cd FreeRTOS/FreeRTOS-RISCV/Demo/shakti/
     $ make
 
-3. Come back to the c-class folder and do the following:
+3. Come back to the chromite folder and do the following:
 
    .. code-block:: bash
 
-     $ cd c-class/base-sim
+     $ cd chromite/
      $ cp FreeRTOS/FreeRTOS-RISCV/Demo/shakti/frtos-shakti.elf ./bin
      $ cd bin
      $ elf2hex 8 4194304 frtos-shakti.elf 2147483648 > code.mem

@@ -18,7 +18,7 @@ import re
 #from mermaid import *
 
 def gen_schema_doc():
-    text = open('../../configure/schema.yaml','r').read()
+    text = open('../../../configure/schema.yaml','r').read()
     rst_file = open('schema_doc.rst','w')
     x = re.findall("^###(?:(?:\r\n|[\r\n]).+$)*",text,re.M|re.U)
     for y in x:
@@ -29,7 +29,7 @@ def gen_schema_doc():
     rst_file.close()
 
 def get_version():
-    changelog = open('../../CHANGELOG.rst','r').read()
+    changelog = open('../../../CHANGELOG.rst','r').read()
     x = re.findall(r'\[(.*?)\]',changelog)[0]
     return str(x)
 
@@ -40,14 +40,16 @@ sys.setrecursionlimit(1500)
 mermaid_pdfcrop = 'pdfcrop'
 # -- Project information -----------------------------------------------------
 
-project = u'C-Class Core Generator'
+project = u'Chromite User Manual'
 copyright = 'IIT Madras, InCore Semiconductors'
 author = ''
 
 version = str(get_version())
 # The full version, including alpha/beta/rc tags
-release =  'beta-'+version
+release =  version
 
+def setup(app):
+        app.add_stylesheet('custom.css')
 
 # -- General configuration ---------------------------------------------------
 
@@ -66,7 +68,8 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinxcontrib.autoyaml',
-    'sphinxcontrib.mermaid'
+    'sphinxcontrib.mermaid',
+    'sphinxcontrib.bibtex'
 ]
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -98,11 +101,12 @@ pygments_style = 'sphinx'
 
 # -- Options for HTML output -------------------------------------------------
 
-github_url = 'https://gitlab.com/shaktiproject/cores/c-class'
+github_url = 'https://gitlab.com/incoresemi/core-generators/chromite'
 html_show_sourcelink = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
+#html_theme = 'bootstrap'
 #html_theme = 'alabaster'
 html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
@@ -172,44 +176,226 @@ html_context = {
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'C-ClassCoreGen'
+htmlhelp_basename = 'ChromiteUserManual'
 
 
 # -- Options for LaTeX output ------------------------------------------------
-
+latex_engine='xelatex'
+numfig = True
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     #
-     'papersize': 'letterpaper',
+    'papersize': 'article',
+    'releasename':"",
+    'extraclassoptions': 'openany, twoside',
 
+    # Sonny, Lenny, Glenn, Conny, Rejne, Bjarne and Bjornstrup
+    #'fncychap': '\\usepackage[Bjornstrup]{fncychap}',
+    'fncychap': '\\usepackage{fancyhdr}',
+    'fontpkg': '\\usepackage{amsmath,amsfonts,amssymb,amsthm}',
+
+    'figure_align':'htbp',
     # The font size ('10pt', '11pt' or '12pt').
     #
      'pointsize': '10pt',
 
     # Additional stuff for the LaTeX preamble.
     #
-     'preamble': '',
+    'preamble': r'''
+        % change the fon to san-serif
+        %\renewcommand{\familydefault}{\sfdefault}
 
+        %%%%%%%%%%%%%%%%%%%% Meher %%%%%%%%%%%%%%%%%%
+        %%%add number to subsubsection 2=subsection, 3=subsubsection
+        %%% below subsubsection is not good idea.
+        \setcounter{secnumdepth}{3}
+        %
+        %%%% Table of content upto 2=subsection, 3=subsubsection
+        \setcounter{tocdepth}{2}
+
+        \usepackage{amsmath,amsfonts,amssymb,amsthm}
+        \usepackage{graphicx}
+        \usepackage{array, caption, tabularx,  ragged2e,  booktabs, longtable}
+        \usepackage{stfloats}
+        \usepackage{multirow}
+        \usepackage{gensymb}
+        \usepackage{fontspec}
+        \setmainfont{Ubuntu Light}
+
+
+
+        %%% reduce spaces for Table of contents, figures and tables
+        %%% it is used "\addtocontents{toc}{\vskip -1.2cm}" etc. in the document
+        \usepackage[notlot,nottoc,notlof]{}
+
+        \usepackage{color}
+        \usepackage{transparent}
+        \usepackage{eso-pic}
+        \usepackage{lipsum}
+
+        \usepackage{footnotebackref} %%link at the footnote to go to the place of footnote in the text
+
+        %% spacing between line
+        \usepackage{setspace}
+        %%%%\onehalfspacing
+        %%%%\doublespacing
+        \singlespacing
+
+
+        %%%%%%%%%%% datetime
+        \usepackage{datetime}
+
+        \newdateformat{MonthYearFormat}{%
+            \monthname[\THEMONTH], \THEYEAR}
+
+
+        %% RO, LE will not work for 'oneside' layout.
+        %% Change oneside to twoside in document class
+        \pagestyle{fancy}
+        \makeatletter
+        \fancypagestyle{normal}{
+            \fancyhf{}
+
+            %%% Alternating Header for oneside
+            %\fancyhead[L]{\ifthenelse{\isodd{\value{page}}}{ \small \nouppercase{\leftmark} }{}}
+            %\fancyhead[R]{\ifthenelse{\isodd{\value{page}}}{}{ \small \nouppercase{\rightmark} }}
+
+            %%% Alternating Header for two side
+            \fancyhead[RO]{\small \nouppercase{\leftmark}}
+            \fancyhead[RE]{\small \nouppercase{\leftmark}}
+            \fancyhead[LE,LO]{\py@HeaderFamily \@title\sphinxheadercomma\py@release}
+            %\fancyhead[RE,RO]{\py@HeaderFamily \c@chapter}
+
+            %% for oneside: change footer at right side. If you want to use Left and right then use same as header defined above.
+            %\fancyfoot[R]{\ifthenelse{\isodd{\value{page}}}{{\tiny Meher Krishna Patel} }{\href{http://pythondsp.readthedocs.io/en/latest/pythondsp/toc.html}{\tiny PythonDSP}}}
+
+            %%% Alternating Footer for two side
+            \fancyfoot[LO, LE]{\small \bf{Copyright \textcopyright InCore Semiconductors Pvt. Ltd.}}
+            %\fancyfoot[LO, LE]{\scriptsize \bf{Chromite Core User Manual}}
+
+            %%% page number
+            \fancyfoot[RO, RE]{\thepage}
+
+            \renewcommand{\headrulewidth}{0.4pt}
+            \renewcommand{\footrulewidth}{0.4pt}
+        }
+        \makeatother
+        \RequirePackage{tocbibind} %%% comment this to remove page number for following
+        \addto\captionsenglish{\renewcommand{\contentsname}{Table of contents}}
+        \addto\captionsenglish{\renewcommand{\listfigurename}{List of figures}}
+        \addto\captionsenglish{\renewcommand{\listtablename}{List of tables}}
+        % \addto\captionsenglish{\renewcommand{\chaptername}{Chapter}}
+
+
+        %%reduce spacing for itemize
+        \usepackage{enumitem}
+        \setlist{nosep}
+
+        %%%%%%%%%%% Quote Styles at the top of chapter
+        \usepackage{epigraph}
+        \setlength{\epigraphwidth}{0.8\columnwidth}
+        \newcommand{\chapterquote}[2]{\epigraphhead[60]{\epigraph{\textit{#1}}{\textbf {\textit{--#2}}}}}
+        %%%%%%%%%%% Quote for all places except Chapter
+        \newcommand{\sectionquote}[2]{{\quote{\textit{``#1''}}{\textbf {\textit{--#2}}}}}
+    ''',
+
+
+    'maketitle': r'''
+        \pagenumbering{Roman} %%% to avoid page 1 conflict with actual page 1
+
+        \begin{titlepage}
+            \centering
+
+            \begin{figure}[!h]
+                \centering
+                \includegraphics[scale=0.2]{incore_logo.png}
+            \end{figure}
+            \vspace*{40mm} %%% * is used to give space from top
+            \textbf{\Huge {Chromite Core User Manual}}
+            \vspace*{40mm} %%% * is used to give space from top
+
+
+            \vspace{10mm}
+            %\Large \textbf{{Release: 1.1.0}}
+            \vspace{10mm}
+
+            Last update on : \today
+
+            \vspace*{0mm}
+            %\small  Last updated : \MonthYearFormat\today
+
+
+            %% \vfill adds at the bottom
+            \vfill
+            Copyright \textcopyright InCore Semiconductors Pvt. Ltd.
+        \end{titlepage}
+        \sloppy
+
+        \clearpage
+%        \pagenumbering{roman}
+        \tableofcontents
+        \clearpage
+        \listoffigures
+        \clearpage
+        \listoftables
+        \clearpage
+        \pagenumbering{arabic}
+        ''',
     # Latex figure (float) alignment
     #
-     'figure_align': 'htbp',
+    # 'figure_align': 'htbp',
+    'sphinxsetup': \
+        'hmargin={0.7in,0.7in}, vmargin={1in,1in}, \
+        verbatimwithframe=true, \
+        TitleColor={rgb}{0,0,0}, \
+        HeaderFamily=\\rmfamily\\bfseries, \
+        InnerLinkColor={rgb}{0,0,1}, \
+        OuterLinkColor={rgb}{0,0,1}',
+
+        'tableofcontents':' ',
+
+
+
 }
+
+#latex_elements = {
+#    # The paper size ('letterpaper' or 'a4paper').
+#    #
+#     'papersize': 'letterpaper',
+#
+#    # The font size ('10pt', '11pt' or '12pt').
+#    #
+#     'pointsize': '10pt',
+#
+#    # Additional stuff for the LaTeX preamble.
+#    #
+#     'preamble': '',
+#
+#    # Latex figure (float) alignment
+#    #
+#     'figure_align': 'htbp',
+#
+#     'atendofbody' : ' InCore Semiconductors Pvt. Ltd.'
+#}
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'cclass_coregen.tex', 'C-Class Core Generator Documentation',
+    (master_doc, 'chromite_userman.tex', 'Chromite User Manual',
      '', 'manual'),
 ]
 
+latex_logo = '_static/incore_logo.png'
+
+latex_show_pagerefs = True
 
 # -- Options for manual page output ------------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'c-class_core_gen', 'C-Class Core Generator Documentation',
+    (master_doc, 'chromite_userman', 'Chromite User Manual',
      [author], 1)
 ]
 
@@ -220,7 +406,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'c-class_core_gen', 'C-Class Core Generator Documentation',
+    (master_doc, 'chromite_userman', 'Chromite User Manual',
      '', 'One line description of project.',
      'Miscellaneous'),
 ]

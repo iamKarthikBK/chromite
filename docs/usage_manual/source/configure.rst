@@ -4,12 +4,12 @@
 Configure the Core
 ##################
 
-The C-class core is highly parameterized and configurable. By changing a single
+The Chromite core is highly parameterized and configurable. By changing a single
 configuration the user can generate a core instance randing in size from
 embedded micro-controllers to Linux capable high-performance cores.
 
 The configuration should be specified by the user in a YAML file. Sample YAML
-files are available in the ``sample_config/`` directory of the c-class
+files are available in the ``sample_config/`` directory of the chromite
 repository. At times it is possible that the user specifies conflicting
 configurations which are illegal and can be detected only at during compile or
 simulation time. To detect them early, the configurator maintains a schema of

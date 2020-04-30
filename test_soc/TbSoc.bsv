@@ -7,22 +7,23 @@ Details:
 --------------------------------------------------------------------------------------------------
 */
 package TbSoc;
-  import Soc:: *;
-  import Clocks::*;
-  import GetPut:: *;
-	import Semi_FIFOF:: *;
-	import AXI4_Types:: *;
-	import AXI4_Fabric:: *;
-  import uart::*;
-	import ccore_types::*;
+  import Soc          :: * ;
+`ifdef debug
+  import DebugSoc     :: * ;
+`endif
+  import Clocks       :: * ;
+  import GetPut       :: * ;
+	import Semi_FIFOF   :: * ;
+	import axi4         :: * ;
+  import uart         :: * ;
+	import ccore_types  :: * ;
+  import DReg         :: * ;
+  import Connectable  :: * ;
+  import DCBus        :: * ;
+  import Vector       :: * ;
   `include "ccore_params.defines"
   `include "Logger.bsv"
   `include "Soc.defines"
-  import device_common::*;
-  import DReg :: *;
-  import bram :: *;
-  import Connectable :: *;
-  import bootrom :: *;
 
 `ifdef openocd
   import "BDPI" function ActionValue #(int) init_rbb_jtag(Bit#(1) dummy);
@@ -37,20 +38,16 @@ package TbSoc;
     MakeClockIfc#(Bit#(1)) tck_clk <-mkUngatedClock(1);
     MakeResetIfc trst <- mkReset(0,False,tck_clk.new_clk);
 
+  `ifdef debug
+    Ifc_DebugSoc soc <- mkDebugSoc(tck_clk.new_clk, trst.new_rst);
+  `else
+    Ifc_Soc soc <- mkSoc();
+  `endif
 
-    Ifc_Soc soc <- mkSoc(tck_clk.new_clk,trst.new_rst);
-
-    UserInterface#(`paddr,XLEN,16) uart <- mkuart_user(5);
+    IWithDCBus#(DCBus#(`paddr,32), RS232#(16)) uart <- mkuart_block(5);
     Reg#(Bool) rg_read_rx<- mkDReg(False);
 
     Reg#(Bit#(5)) rg_cnt <-mkReg(0);
-
-    Ifc_bram_axi4#(`paddr, ELEN, USERSPACE, `Addr_space) main_memory <- mkbram_axi4(`MemoryBase,
-                                                "code.mem", "MainMEM");
-		Ifc_bootrom_axi4#(`paddr, ELEN, USERSPACE, 13) bootrom <-mkbootrom_axi4(`BootRomBase);
-
-  	mkConnection(soc.main_mem_master, main_memory.slave);
-		mkConnection(soc.boot_mem_master, bootrom.slave);
 
     `ifdef simulate
       rule display_eol;
@@ -95,13 +92,13 @@ package TbSoc;
     endrule
 
     rule check_if_character_present(!rg_read_rx);
-      let {data,err}<- uart.read_req('hc,Byte);
+      let {err, data}<- uart.dcbus.read('hc,Sz1);
       if (data[3]==1) // character present
         rg_read_rx<=True;
     endrule
 
     rule write_received_character(rg_cnt>=5 && rg_read_rx);
-      let {data,err}<-uart.read_req('h8,Byte);
+      let {err,data}<-uart.dcbus.read('h8,Sz1);
       $fwrite(dump1,"%c",data);
     endrule
 

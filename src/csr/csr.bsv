@@ -21,7 +21,7 @@ package csr;
   `include "Logger.bsv"
 
 `ifdef debug
-  import debug_types::*;
+  import riscv_debug_types::*;
 `endif
 
   // package imports

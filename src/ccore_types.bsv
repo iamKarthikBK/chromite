@@ -26,6 +26,7 @@ package ccore_types;
   typedef 7 PRFDEPTH;
   typedef 8 RAS_DEPTH;
   typedef 0 USERSPACE ;
+  typedef 1 IDWIDTH ;
   typedef TMax#(XLEN, FLEN) ELEN;
 
   typedef struct{

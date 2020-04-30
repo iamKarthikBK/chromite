@@ -2,7 +2,7 @@
 Test SoC
 ########
 
-The C-class repository also contains a simple test-soc for the purpose of simulating applications
+The Chromite repository also contains a simple test-soc for the purpose of simulating applications
 and verifying the core. More enhanced and open-source SoCs can be found `here <https://gitlab.com/shaktiproject/cores/shakti-soc>`_.
 
 Structure of SoC
@@ -13,17 +13,21 @@ The Test-SoC has the following structure (defined to a max of 4 levels of depth)
 
    graph TD;
       X[mkTbSoC] --> A(mkSoC)
-      X --> B(mkbram)
-      X --> C(mkbootrom)
+      A --> B(mkbram)
+      A --> C(mkbootrom)
       A --> D(mkccore_axi4)
-      A --> E(mkuart)
-      A --> F(mkclint)
-      A --> G(mksignature_dump)
-      D --> H(mkriscv)
-      D --> I(mkdmem)
-      D --> J(mkimem)
+      A --> E(mkaxi2apb_bridge)
+      E --> F(mkuart)
+      E --> G(mkclint)
+      A --> H(mksignature_dump)
+      D --> I(mkriscv)
+      D --> J(mkdmem)
+      D --> K(mkimem)
 
-Description of the above modules:
+
+.. tabularcolumns:: |l|L|
+
+.. table:: Test Soc components
 
   +--------------------+----------------------------------------------------------+
   | Module-Name        | Description                                              |
@@ -37,9 +41,11 @@ Description of the above modules:
   | mkimem             | The instruction memory subsystem. Includes the           |
   |                    | instruction-cache and the instruction-tlbs               |
   +--------------------+----------------------------------------------------------+
-  | mkccore_axi4      | Contains the above modules and the integrations across   |
+  | mkccore_axi4       | Contains the above modules and the integrations across   |
   |                    | them. Also provides 3 AXI-4 interfaces to be connected to| 
   |                    | the Cross-bar fabric                                     |
+  +--------------------+----------------------------------------------------------+
+  | mkaxi2apb          | AXI4 to APB bridge                                       |
   +--------------------+----------------------------------------------------------+
   | mkuart             | UART module                                              |
   +--------------------+----------------------------------------------------------+
@@ -61,10 +67,12 @@ Description of the above modules:
   |                    | with the bootrom and a bram memory                       |
   +--------------------+----------------------------------------------------------+
 
-The details of the devices can be found in `devices <https://gitlab.com/shaktiproject/uncore/devices/>`_
+The details of the devices can be found in `devices <https://gitlab.com/incoresemi/blocks/devices/>`_
 
 Address Map of SoC
 ------------------
+
+.. table:: Address map of test-soc
 
   +----------------+-------------------------+
   | Module         | Address Range           |
@@ -103,4 +111,3 @@ as the top module.
 The ``mkimem`` and ``mkdmem`` module include SRAM instances which implement the respective data 
 and tag arrays. These are implemented as BRAMs and thus require no changes for FPGAs. 
 However for an ASIC flow, it is strictly advised to replace the BRAMs with respective SRAMs. 
-The user should refer to :ref:`RAM Structures<ram-structures-label>` for correctly performing the replacement.

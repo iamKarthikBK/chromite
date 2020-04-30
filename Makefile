@@ -14,10 +14,6 @@ generate_verilog: ## Generete verilog from BSV
 	@echo Compiling $(TOP_MODULE) in verilog ...
 	@mkdir -p $(BSVBUILDDIR) $(VERILOGDIR);
 	$(BSCCMD) -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1)
-	@cp ./common_verilog/bram_1r1w.v ${VERILOGDIR}
-	@cp ./common_verilog/bram_1rw.v ${VERILOGDIR}
-	@cp ./common_verilog/BRAM1Load.v ${VERILOGDIR}
-	@cp ./common_verilog/signedmul.v ${VERILOGDIR}
 	@echo Compilation Successful
 
 .PHONY: link_verilator
@@ -27,15 +23,15 @@ link_verilator: ## Generate simulation executable using Verilator
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > sim_main.h
 	@echo '#include "V$(TOP_MODULE).h"' >> sim_main.h
 	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v -y $(VERILOGDIR) \
-		-y $(BS_VERILOG_LIB) -y common_verilog --exe
+		-y $(BS_VERILOG_LIB) -y bsvwrappers/common_lib/ --exe
 	@ln -f -s ../test_soc/sim_main.cpp obj_dir/sim_main.cpp
 	@ln -f -s ../sim_main.h obj_dir/sim_main.h
-	make $(VERILATOR_SPEED) VM_PARALLEL_BUILDS=1 -j8 -C obj_dir -f V$(TOP_MODULE).mk
+	make $(VERILATOR_SPEED) VM_PARALLEL_BUILDS=1 -j4 -C obj_dir -f V$(TOP_MODULE).mk
 	@cp obj_dir/V$(TOP_MODULE) $(BSVOUTDIR)/out
 
 .PHONY: link_verilator_gdb
 link_verilator_gdb: ## Generate simulation executable using Verilator and VPI for GDB
-	@echo "Linking Verilator With the Shakti RBB Vpi"
+	@echo "Linking Verilator With the remotebitbang Vpi"
 	@mkdir -p $(BSVOUTDIR) obj_dir
 	@echo "#define TOPMODULE V$(TOP_MODULE)_edited" >sim_main.h
 	@echo '#include "V$(TOP_MODULE)_edited.h"' >> sim_main.h
@@ -44,14 +40,14 @@ link_verilator_gdb: ## Generate simulation executable using Verilator and VPI fo
 	      devices/jtagdtm/vpi_sv.v \
 	      tmp1.v                         > $(VERILOGDIR)/$(TOP_MODULE)_edited.v
 	@rm   -f  tmp1.v
-	verilator $(VERILATOR_FLAGS) --threads-dpi all --cc $(TOP_MODULE)_edited.v --exe sim_main.cpp devices/jtagdtm/RBB_Shakti.c -y $(VERILOGDIR) -y $(BS_VERILOG_LIB) -y common_verilog 
+	verilator $(VERILATOR_FLAGS) --threads-dpi all --cc $(TOP_MODULE)_edited.v --exe sim_main.cpp devices/jtagdtm/remotebitbang.c -y $(VERILOGDIR) -y $(BS_VERILOG_LIB) -y bsvwrappers/common_lib/ 
 	@ln -f -s ../test_soc/sim_main.cpp obj_dir/sim_main.cpp
 	@ln -f -s ../sim_main.h obj_dir/sim_main.h
-	@ln -f -s ./devices/jtagdtm/RBB_Shakti.c obj_dir/RBB_Shakti.c
+	@ln -f -s ./devices/jtagdtm/remotebitbang.c obj_dir/remotebitbang.c
 	@echo "INFO: Linking verilated files"
-	make $(VERILATOR_SPEED) VM_PARALLEL_BUILDS=1 -j8 -C obj_dir -f V$(TOP_MODULE)_edited.mk
+	make $(VERILATOR_SPEED) VM_PARALLEL_BUILDS=1 -j4 -C obj_dir -f V$(TOP_MODULE)_edited.mk
 	@cp obj_dir/V$(TOP_MODULE)_edited $(BSVOUTDIR)/out
-	@cp test_soc/gdb_setup/code.mem$(XLEN) $(BSVOUTDIR)/
+	@cp test_soc/gdb_setup/code.mem$(XLEN) $(BSVOUTDIR)/code.mem
 	@echo Linking finished
 
 
@@ -133,57 +129,13 @@ link_msim: ## Generate simulation executable using Mentor's ModelSim tool
 	@chmod +x $(BSVOUTDIR)/out
 	@echo Linking finished
 
-.PHONY: release-verilog-artifacts
-release-verilog-artifacts: ## target to generate verilog artifacts
-release-verilog-artifacts: generate_verilog generate_boot_files link_verilator
-	@mkdir -p verilog-artifacts
-	@mkdir -p verilog-artifacts/sim
-	@cp -r ${VERILOGDIR} verilog-artifacts/
-	@cp ${CONFIG} verilog-artifacts/
-	@cp -r benchmarks verilog-artifacts/
-	@cp ${BSVOUTDIR}/boot.* verilog-artifacts/sim
-	@cp ${BSVOUTDIR}/out verilog-artifacts/sim/ccore
-	@cp ${HWTOOLS_DIR}/IITM_LICENSE.txt verilog-artifacts/LICENSE.txt
-	@mv verilog-artifacts ../
-
-.PHONY: regress
-regress: ## To run regressions on the core.
-	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeRegress.pl $(opts)
-
-.PHONY: test
-test: ## To run a single riscv-test on the core.
-	@SHAKTI_HOME=$$PWD CONFIG_LOG=0 perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeTest.pl $(opts)
-
-.PHONY: torture
-torture: ## To run riscv-tortur on the core.
-	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeTorture.pl $(opts)
-
-.PHONY: aapg
-aapg: ## to generate and run aapf tests
-	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeAapg.pl $(opts)
-
-.PHONY: csmith
-csmith: ## to generate and run csmith tests
-	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeCSmith.pl $(opts)
 
 .PHONY: generate_boot_files
 generate_boot_files: ## to generate boot files for simulation
 generate_boot_files: update_xlen
 	@mkdir -p bin
 	@cd verification/dts/; make;
-	@cut -c1-8 verification/dts/boot.hex > bin/boot.MSB
-	@if [ "$(XLEN)" = "64" ]; then\
-	  cut -c9-16 verification/dts/boot.hex > bin/boot.LSB;\
-    else cp bin/boot.MSB bin/boot.LSB;\
-  fi
-
-.PHONY: merge_cov
-merge_cov:
-	cd $(SHAKTI_HOME)/verification/workdir && ln -s $(SHAKTI_HOME)/verilog verilog
-	verilator_coverage --write merged.dat $(SHAKTI_HOME)/verification/workdir/*/*/*/coverage.dat	
-	verilator_coverage --annotate logs merged.dat
-	verilator_coverage --rank $(SHAKTI_HOME)/verification/workdir/*/*/*/coverage.dat	
-	rm -rf $(SHAKTI_HOME)/verification/workdir/*/*/*/coverage.dat	
+	@cp verification/dts/boot.hex bin/boot.mem
 
 .PHONY: yml
 yml:

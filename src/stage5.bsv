@@ -21,7 +21,7 @@ package stage5;
   import DReg::*;
   import Vector::*;
 `ifdef debug
-  import debug_types::*;
+  import riscv_debug_types::*;
 `endif
 
 
