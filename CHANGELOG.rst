@@ -4,7 +4,7 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-[0.9.0] - 2020-04-30
+[0.9.0] - 2020-05-01
 --------------------
 
 - snapshot the c-class with changes in mostly the top-level modules and scripts to accommodate for
