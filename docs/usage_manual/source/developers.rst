@@ -12,7 +12,7 @@ Directory Structure
 
 :: 
 
- c-class
+ chromite
   ├── bsvpath               # file listing all the directories containing relevant bsv files
   ├── CHANGELOG.rst         # contains the CHANGELOG of versions
   ├── configure             # contains the python configuration scripts
@@ -25,7 +25,7 @@ Directory Structure
   ├── rename_translate.sh   # bash script for manipulating verilog files
   ├── requirements.txt      # list of all python packages required for configuring the core
   ├── sample_config         # sample yaml configuration files
-  ├── src                   # contains bsv source code of the C-class core
+  ├── src                   # contains bsv source code of the Chromite core
   └── test_soc              # contains a sample test-bench for simulation purposes
 
 Upgrading dependencies

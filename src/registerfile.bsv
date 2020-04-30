@@ -30,7 +30,7 @@ package registerfile;
   import GetPut::*;
   `include "Logger.bsv"
 `ifdef debug
-  import debug_types :: *; // for importing the debug abstract interface
+  import riscv_debug_types :: *; // for importing the debug abstract interface
 `endif
 	/*===========================*/
 
@@ -154,6 +154,7 @@ package registerfile;
         `endif
             resultop = integer_rf.sub(truncate(cmd.address));
       end
+      `logLevel( rf, 1, $format("RF: Debugger Access:",fshow(cmd)," Resp:%h",resultop))
       return resultop;
     endmethod
   `endif

@@ -1,14 +1,11 @@
-#####################
 Benchmarking the Core
-#####################
+=====================
 
-The max DMIPS of the C-class core is **1.72DMIPs/MHz.**
+The max DMIPS of the Chromite core is **1.72DMIPs/MHz.**
 
-The C-class core is highly configurable and thus requires a specific kind of tuning to achieve the 
-maximum performance. This document will highlight some of the settings and their respective 
-benchmark numbers.
+Benchmarking Dhrystone
+----------------------
 
-## Benchmarking Dhrystone
 The dhrystone benchmark has been compiled using the following opts:
 
 .. code-block:: bash
@@ -17,13 +14,11 @@ The dhrystone benchmark has been compiled using the following opts:
 
 Where the ISA variable depends on the config as described below for each case.
 
-Without Compressed support
---------------------------
-
 Dhrystone compiled with ``-march=rv64im``.
 
-Config1: GShare (Fully associative)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+GShare (Fully associative)[ Without Compressed enabled in HW]
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 The DMIPs for this config is : **1.72 DMIPs/MHz**
 
 .. code-block:: yaml
@@ -39,49 +34,10 @@ The DMIPs for this config is : **1.72 DMIPs/MHz**
     extra_hist: 3
     ras_depth: 8
 
-Config2: GShare (Direct Mapped)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The DMIPs for this config is : **1.72 DMIPs/MHz**
+GShare (Fully associative)[With Compressed enabled in HW]
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: yaml
-
-  ISA: RV64IM
-  branch_predictor:
-    instantiate: True
-    predictor: gshare
-    on_reset: enable
-    btb_depth: 256
-    bht_depth: 64
-    history_len: 8
-    extra_hist: 3
-    ras_depth: 8
-
-Config3: Bimodal 
-^^^^^^^^^^^^^^^^
-The DMIPs for this config is : **1.70 DMIPs/MHz**
-
-.. code-block:: yaml
-
-  ISA: RV64IM
-  branch_predictor:
-    instantiate: True
-    predictor: bimodal
-    on_reset: enable
-    btb_depth: 512
-    bht_depth: 0
-    history_len: 8
-    extra_hist: 3
-    ras_depth: 8
-
-with ``btb_depth: 256``, DMIPs = **1.66 DMIPs/MHz** with rest of the config being the same.
-
-With Compressed Support
------------------------
-
-Config4: GShare (Fully associative)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Dhrystone compiled with ``march = rv64imc`` and run on C-class with the following config will give a dmips of: **1.70 DMIPs/MHz**
+Dhrystone compiled with ``march = rv64imc`` and run on Chromite with the following config will give a dmips of: **1.70 DMIPs/MHz**
 
 .. code-block:: yaml
 
@@ -96,7 +52,7 @@ Dhrystone compiled with ``march = rv64imc`` and run on C-class with the followin
     extra_hist: 3
     ras_depth: 8
 
-Dhrystone compiled with ``march = rv64im`` and run on C-class with the following config will give a dmips of: **1.72 DMIPs/MHz**
+Dhrystone compiled with ``march = rv64im`` and run on Chromite with the following config will give a dmips of: **1.72 DMIPs/MHz**
 
 .. code-block:: yaml
 
@@ -111,62 +67,8 @@ Dhrystone compiled with ``march = rv64im`` and run on C-class with the following
     extra_hist: 3
     ras_depth: 8
 
-Config5: GShare (Direct-Mapped)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Dhrystone compiled with ``march = rv64imc`` and run on C-class with the following config will give a dmips of: **1.70 DMIPs/MHz**
-
-.. code-block:: yaml
-
-  ISA: RV64IMC
-  branch_predictor:
-    instantiate: True
-    predictor: gshare
-    on_reset: enable
-    btb_depth: 512
-    bht_depth: 128
-    history_len: 7
-    extra_hist: 3
-    ras_depth: 8
-
-Dhrystone compiled with ``march = rv64im`` and run on C-class with the following config will give a dmips of: **1.70 DMIPs/MHz**
-
-.. code-block:: yaml
-
-  ISA: RV64IMC
-  branch_predictor:
-    instantiate: True
-    predictor: gshare
-    on_reset: enable
-    btb_depth: 512
-    bht_depth: 64
-    history_len: 7
-    extra_hist: 3
-    ras_depth: 8
-
-Config6: Bimodal
-^^^^^^^^^^^^^^^^
-
-Dhrystone compiled with ``march = rv64imc`` and run on C-class with the following config will give a dmips of: **1.67 DMIPs/MHz**
-
-.. code-block:: yaml
-
-  ISA: RV64IMC
-  branch_predictor:
-    instantiate: True
-    predictor: bimodal
-    on_reset: enable
-    btb_depth: 512
-    bht_depth: 0
-    history_len: 0
-    extra_hist: 0
-    ras_depth: 8
-
-Dhrystone compiled with ``march = rv64im`` and run on C-class with the above config will give a dmips of: **1.66 DMIPs/MHz**
-
-
-Why Compressed reduces performance on C-Class?
-----------------------------------------------
+Why Compressed reduces performance on Chromite?
+-----------------------------------------------
 
 If you have observed the numbers above, it is evident that for the same configuration of the branch-predictor compressed provides a slight reduction in the performance of DMIPs. 
 This is because how the fetch-stage (stage1) has been designed. 

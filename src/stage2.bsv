@@ -60,7 +60,7 @@ package stage2;
   `include "ccore_params.defines"  // for core parameters
   `include "Logger.bsv"         // for logging display statements.
 `ifdef debug
-  import debug_types :: *; // for importing the debug abstract interface
+  import riscv_debug_types :: *; // for importing the debug abstract interface
 `endif
 
 

@@ -11,17 +11,16 @@ package ccore;
 
   //=================== Interface and module for a ccore - master on the AXI4 fabric ============= //
   // project related imports
-	import Semi_FIFOF:: *;
-	import AXI4_Types:: *;
-	import AXI4_Fabric:: *;
-  import riscv:: * ;
-  import ccore_types:: * ;
-  import FIFOF::*;
-  import dcache_types :: *;
+	import Semi_FIFOF   :: * ;
+	import axi4         :: * ;
+  import riscv        :: * ;
+  import ccore_types  :: * ;
+  import FIFOF        :: * ;
+  import dcache_types :: * ;
   import icache_types :: * ;
-  import Assert ::*;
-  import imem::*;
-  import dmem::*;
+  import Assert       :: * ;
+  import imem         :: * ;
+  import dmem         :: * ;
 `ifdef supervisor
   `ifdef RV64
     import ptwalk_rv64::*;
@@ -35,12 +34,12 @@ package ccore;
   `define Mem_master_num 0
 
   // package imports
-	import Connectable 				:: *;
-  import GetPut:: *;
-  import BUtils::*;
+	import Connectable 	:: *;
+  import GetPut       :: *;
+  import BUtils       :: *;
 
 `ifdef debug
-  import debug_types::*;
+  import riscv_debug_types::*;
 `endif
 
 `ifdef supervisor
@@ -49,17 +48,17 @@ package ccore;
   typedef enum {Request, Response} TxnState deriving(Bits, Eq, FShow);
 
   interface Ifc_ccore_axi4;
-		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_d;
-		interface AXI4_Master_IFC#(`paddr, ELEN, USERSPACE) master_i;
-    interface Put#(Bit#(1)) sb_clint_msip;
-    interface Put#(Bit#(1)) sb_clint_mtip;
-    interface Put#(Bit#(64)) sb_clint_mtime;
+		interface Ifc_axi4_master#(IDWIDTH, `paddr, ELEN, USERSPACE) master_d;
+		interface Ifc_axi4_master#(IDWIDTH, `paddr, ELEN, USERSPACE) master_i;
+    method Action sb_clint_msip (Bit#(1) m) ;
+    method Action sb_clint_mtip (Bit#(1) m) ;
+    method Action sb_clint_mtime(Bit#(64) m);
     interface Put#(Bit#(1)) sb_externalinterrupt;
   `ifdef rtldump
     interface Get#(DumpType) io_dump;
   `endif
   `ifdef debug
-    interface Hart_Debug_Ifc debug_server;
+    interface Ifc_hart_to_debug debug_server;
   `endif
   endinterface : Ifc_ccore_axi4
 
@@ -84,8 +83,8 @@ package ccore;
   `endif
     Reg#(PTWState) rg_ptw_state <- mkReg(None);
 `endif
-		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) fetch_xactor <- mkAXI4_Master_Xactor;
-		AXI4_Master_Xactor_IFC #(`paddr, ELEN, USERSPACE) memory_xactor <- mkAXI4_Master_Xactor;
+    Ifc_axi4_master_xactor #(IDWIDTH, `paddr, ELEN, USERSPACE) fetch_xactor  <- mkaxi4_master_xactor_2;
+    Ifc_axi4_master_xactor #(IDWIDTH, `paddr, ELEN, USERSPACE) memory_xactor <- mkaxi4_master_xactor_2;
   `ifdef dcache
     Reg#(Bit#(8)) rg_burst_count <- mkReg(0);
     Reg#(Bit#(TLog#(TMul#(TMul#(`dwords, 8), `dblocks)))) rg_shift_amount <- mkReg(`dwords * 8 );
@@ -94,6 +93,7 @@ package ccore;
   `ifdef debug
     Reg#(Maybe#(Bit#(DXLEN))) rg_abst_response <- mkReg(tagged Invalid); // registered container for responses
     Reg#(Bool) rg_debug_waitcsr <- mkReg(False);
+    Reg#(Bit#(1)) rg_has_reset <- mkReg(0);
     let csr_response = riscv.mv_resp_to_core;
   `endif
 
@@ -118,10 +118,11 @@ package ccore;
 	`endif
 	  rule rl_handle_imem_line_request;
 	  	let request <- imem.get_read_mem_req.get;
-	  	AXI4_Rd_Addr#(`paddr, 0) imem_request = AXI4_Rd_Addr {araddr : truncate(request.address),
-        aruser: ?, arlen : request.burst_len, arsize : request.burst_size, arburst : 'b10,
-        arid : 0, arprot:{1'b1, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
-	    fetch_xactor.i_rd_addr.enq(imem_request);
+	  	Axi4_rd_addr#(IDWIDTH, `paddr, 0) imem_request = Axi4_rd_addr 
+	  	    {araddr : truncate(request.address), aruser: ?, arlen : request.burst_len, 
+	  	     arsize : request.burst_size, arburst : axburst_wrap, 
+	  	     arid : 0, arprot:{1'b1, 1'b0, curr_priv[1]} }; 
+	    fetch_xactor.fifo_side.i_rd_addr.enq(imem_request);
 			if(request.burst_len == 0)
 				rg_fetch_lower_addr_bits<= tagged Valid truncate(request.address);
 			else
@@ -130,8 +131,8 @@ package ccore;
 	  endrule
 
 	  rule rl_handle_imem_line_resp;
-	    let fab_resp <- pop_o (fetch_xactor.o_rd_data);
-	  	Bool bus_error = !(fab_resp.rresp == AXI4_OKAY);
+	    let fab_resp <- pop_o (fetch_xactor.fifo_side.o_rd_data);
+	  	Bool bus_error = !(fab_resp.rresp == axi4_resp_okay);
 			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= fromMaybe('d0, rg_fetch_lower_addr_bits);
 			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits,3'd0};
 			let lv_data= fab_resp.rdata >> lv_shift;
@@ -166,7 +167,7 @@ package ccore;
       dmem.ma_perform_store(pack(tpl_1(riscv.initiate_store)));
     endrule
 
-    Reg#(Maybe#(AXI4_Rd_Addr#(`paddr, 0))) rg_read_line_req <- mkReg(tagged Invalid);
+    Reg#(Maybe#(Axi4_rd_addr#(IDWIDTH, `paddr, 0))) rg_read_line_req <- mkReg(tagged Invalid);
     Reg#(Maybe#(Bit#(`paddr))) wr_write_req <- mkReg(tagged Invalid);
 
     // Currently it is possible that the cache can generate a write - request followed by a
@@ -179,8 +180,8 @@ package ccore;
     rule rl_handle_dmem_line_read_request(rg_read_line_req matches tagged Invalid);
       Bool perform_req = True;
 	  	let req <- dmem.get_read_mem_req.get;
-	  	AXI4_Rd_Addr#(`paddr, 0) dmem_request = AXI4_Rd_Addr {araddr : truncate(req.address), aruser: ?,
-        arlen : req.burst_len, arsize : req.burst_size, arburst : 'b10, // arburst : 00 - FIXED 01 - INCR 10 - WRAP
+	  	Axi4_rd_addr#(IDWIDTH, `paddr, 0) dmem_request = Axi4_rd_addr{araddr : truncate(req.address), aruser: ?,
+        arlen : req.burst_len, arsize : req.burst_size, arburst : axburst_wrap, // arburst : 00 - FIXED 01 - INCR 10 - WRAP
         arid : zeroExtend(pack(req.io)) ,arprot:{1'b0, 1'b0, curr_priv[1]} }; 
     `ifdef dcache
       if(wr_write_req matches tagged Valid .waddr) begin
@@ -192,7 +193,7 @@ package ccore;
       end
     `endif
       if(perform_req)  begin
-   	    memory_xactor.i_rd_addr.enq(dmem_request);
+   	    memory_xactor.fifo_side.i_rd_addr.enq(dmem_request);
 				if(req.burst_len == 0)
 					rg_memory_lower_addr_bits<= tagged Valid truncate(req.address);
 				else
@@ -204,7 +205,7 @@ package ccore;
   `ifdef dcache
     rule rl_handle_delayed_read(rg_read_line_req matches tagged Valid .r &&& 
                                   wr_write_req matches tagged Invalid);
-  	  memory_xactor.i_rd_addr.enq(r);
+  	  memory_xactor.fifo_side.i_rd_addr.enq(r);
 			if(r.arlen == 0)
 				rg_memory_lower_addr_bits<= tagged Valid truncate(r.araddr);
 			else
@@ -215,11 +216,11 @@ package ccore;
   `endif
 
 	  rule rl_handle_dmem_line_resp;
-	    let fab_resp <- pop_o (memory_xactor.o_rd_data);
+	    let fab_resp <- pop_o (memory_xactor.fifo_side.o_rd_data);
 			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= fromMaybe('d0, rg_memory_lower_addr_bits);
 			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits, 3'd0};
 			let lv_data= fab_resp.rdata >> lv_shift;
-	  	Bool bus_error = !(fab_resp.rresp == AXI4_OKAY);
+	  	Bool bus_error = !(fab_resp.rresp == axi4_resp_okay);
       dmem.put_read_mem_resp.put(DCache_mem_readresp{data:truncate(lv_data),
                                                  last:fab_resp.rlast,
                                                  err :bus_error});
@@ -252,15 +253,14 @@ package ccore;
       dmem.ma_write_mem_req_deq;
     `endif
 
-		  AXI4_Wr_Addr#(`paddr, 0) aw = AXI4_Wr_Addr {awaddr : truncate(req.address), awuser : 0,
-        awlen : req.burst_len, awsize : zeroExtend(req.burst_size[1 : 0]), awburst : 'b01,
+		  Axi4_wr_addr#(IDWIDTH, `paddr, 0) aw = Axi4_wr_addr{awaddr : truncate(req.address), awuser : 0,
+        awlen : req.burst_len, awsize : zeroExtend(req.burst_size[1 : 0]), awburst : axburst_wrap,
         awid : zeroExtend(pack(req.io)), awprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 
-  	  let w  = AXI4_Wr_Data {wdata : truncate(req.data), wstrb : write_strobe,
-                             wlast : req.burst_len == 0, 
-                             wid : zeroExtend(pack(req.io))};
-	    memory_xactor.i_wr_addr.enq(aw);
-		  memory_xactor.i_wr_data.enq(w);
+  	  let w  = Axi4_wr_data{wdata : truncate(req.data), wstrb : write_strobe,
+                             wlast : req.burst_len == 0, wuser: 0};
+	    memory_xactor.fifo_side.i_wr_addr.enq(aw);
+		  memory_xactor.fifo_side.i_wr_data.enq(w);
       `logLevel( core, 1, $format("[%2d]CORE : DMEM Line Write Addr : Request ",hartid, fshow(aw)))
       if(req.burst_len != 0 )
         wr_write_req <= tagged Valid req.address;
@@ -271,8 +271,7 @@ package ccore;
       Bool last = rg_burst_count == fromInteger(`dblocks - 1 );
       let req = dmem.mv_write_mem_req_rd;
       req.data = req.data >> rg_shift_amount;
-  	  let w  = AXI4_Wr_Data {wdata : truncate(req.data), wstrb : '1, wlast : last,
-                             wid : zeroExtend(pack(req.io))};
+  	  let w  = Axi4_wr_data {wdata : truncate(req.data), wstrb : '1, wlast : last, wuser:0};
       Bit#(TAdd#(TAdd#(TLog#(`dwords), 1), 3)) shift = {`dwords, 3'b0};
       if(last) begin
         rg_burst_count <= 0;
@@ -284,15 +283,15 @@ package ccore;
         rg_shift_amount <= rg_shift_amount + (`dwords * 8);
         rg_burst_count <= rg_burst_count + 1;
       end
-		  memory_xactor.i_wr_data.enq(w);
+		  memory_xactor.fifo_side.i_wr_data.enq(w);
       `logLevel( core, 1, $format("[%2d]CORE : DMEM Write Data: %h rg_burst_count: %d last: %b \
 rg_shift_amount:%d",hartid, req.data, rg_burst_count, last, rg_shift_amount))
     endrule
   `endif
 
     rule handle_dmem_line_write_resp;
-      let response <- pop_o(memory_xactor.o_wr_resp);
-	  	let bus_error = !(response.bresp == AXI4_OKAY);
+      let response <- pop_o(memory_xactor.fifo_side.o_wr_resp);
+	  	let bus_error = !(response.bresp == axi4_resp_okay);
     `ifdef dcache
       if (response.bid == 0)
   	  	dmem.put_write_mem_resp.put(bus_error);
@@ -377,35 +376,26 @@ rg_shift_amount:%d",hartid, req.data, rg_burst_count, last, rg_shift_amount))
       else
         rg_debug_waitcsr <= True;
     endrule
+    rule rl_indicate_has_reset;
+      rg_has_reset <= 1;
+    endrule
   `endif
 
-    interface sb_clint_msip = interface Put
-  	  method Action put(Bit#(1) intrpt);
-        riscv.ma_clint_msip(intrpt);
-      endmethod
-    endinterface;
-    interface sb_clint_mtip = interface Put
-      method Action put(Bit#(1) intrpt);
-        riscv.ma_clint_mtip(intrpt);
-      endmethod
-    endinterface;
-    interface sb_clint_mtime = interface Put
-  		method Action put (Bit#(64) c_mtime);
-        riscv.ma_clint_mtime(c_mtime);
-      endmethod
-    endinterface;
+    method sb_clint_msip = riscv.ma_clint_msip;
+    method sb_clint_mtip = riscv.ma_clint_mtip; 
+    method sb_clint_mtime = riscv.ma_clint_mtime;
     interface sb_externalinterrupt = interface Put
       method Action put(Bit#(1) intrpt);
         riscv.ma_set_external_interrupt(intrpt);
       endmethod
     endinterface;
-		interface master_i = fetch_xactor.axi_side;
-		interface master_d = memory_xactor.axi_side;
+		interface master_i = fetch_xactor.axi4_side;
+		interface master_d = memory_xactor.axi4_side;
     `ifdef rtldump
       interface io_dump = riscv.dump;
     `endif
   `ifdef debug
-    interface debug_server = interface Hart_Debug_Ifc
+    interface debug_server = interface Ifc_hart_to_debug
 
       method Action   abstractOperation(AbstractRegOp cmd)if (!(isValid(rg_abst_response)) 
                                                               && !rg_debug_waitcsr );
@@ -438,14 +428,14 @@ rg_shift_amount:%d",hartid, req.data, rg_burst_count, last, rg_shift_amount))
 
       method is_halted = riscv.mv_core_is_halted();
 
-      method is_unavailable = ~riscv.mv_core_debugenable;
+      method is_unavailable = ~(riscv.mv_core_debugenable & rg_has_reset);
 
       method Action hartReset(Bit#(1) hart_reset_v); // Change to reset type // Signal TO Reset HART -Active HIGH
         noAction;
       endmethod
 
       method Bit#(1) has_reset;
-        return 1;
+        return rg_has_reset;
       endmethod
     endinterface;
   `endif

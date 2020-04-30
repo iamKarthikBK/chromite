@@ -1,6 +1,4 @@
-caches_mmu
 common_bsv
-common_verilog
 devices
 fabrics
 bsv_build/
@@ -38,3 +36,7 @@ makefile.inc
 _pycache_
 run.log
 .python-version
+
+bsvwrappers/
+
+cache_subsystem/

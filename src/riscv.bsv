@@ -27,13 +27,12 @@ package riscv;
   import stage4::*;
   import stage5::*;
   import ccore_types::*;
-  import CustomFIFOs::*;
   import icache_types ::*;
   import dcache_types :: * ;
   `include "ccore_params.defines"
 
 `ifdef debug
-  import debug_types ::*;
+  import riscv_debug_types ::*;
 `endif
 
   interface Ifc_riscv;
