@@ -4,7 +4,7 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-[0.9.0] - 2020-04-30
+[0.9.0] - 2020-05-01
 --------------------
 
 - snapshot the c-class with changes in mostly the top-level modules and scripts to accommodate for
@@ -18,4 +18,7 @@ This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.htm
 - the debug module in the test-soc is now always enabled irrespective of the debug being enabled or
   not
 - adding steps in the docs on how to reset the debugger
+- updated Soc.defines to relocate debug loop at 0x100
+- updated dtvec_base in both all the sample yamls
+- dtvec_base should be stored without the LSB (alignment constraints)
 

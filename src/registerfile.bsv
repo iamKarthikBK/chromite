@@ -154,7 +154,6 @@ package registerfile;
         `endif
             resultop = integer_rf.sub(truncate(cmd.address));
       end
-      `logLevel( rf, 1, $format("RF: Debugger Access:",fshow(cmd)," Resp:%h",resultop))
       return resultop;
     endmethod
   `endif
