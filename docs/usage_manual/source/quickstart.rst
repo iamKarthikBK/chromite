@@ -135,7 +135,7 @@ are heavily driven by Verilator, and suggest you install verilator as well.
   $ sudo apt-get install git make autoconf g++ flex bison
   $ git clone https://git.veripool.org/git/verilator
   $ cd verilator
-  $ git checkout stable
+  $ git checkout master
   $ autoconf
   $ ./configure
   $ make

@@ -65,7 +65,7 @@ release:
             - chromite_userman.pdf
     only:
         refs:
-            - stable
+            - master
     tags:
         - incore-group
     except:
