@@ -15,10 +15,6 @@ This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.htm
 - adding pre-requisite checks in configure
 - default.yaml is picked up as default if no argument given to -ispec
 - split interface of seip and meip. Both can now be driven by plic independently. Also led to removal of unwanted attributes.
-
-[0.9.0] - 2020-05-01
---------------------
-
 - snapshot the c-class with changes in mostly the top-level modules and scripts to accommodate for
   incore developed IPs and fabrics.
 - fixed reset logic handling in ccore.bsv to support reset by debugger.
