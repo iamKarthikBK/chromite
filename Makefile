@@ -3,18 +3,15 @@ include ./makefile.inc
 # ------------------------------------- Makefile TARGETS ----------------------------------------- #
 default: generate_verilog link_verilator generate_boot_files
 gdb: generate_verilog link_verilator_gdb generate_boot_files
+MOREDEFINES=$(addprefix -D , $(BSC_DEFINES))
 
-
-.PHONY: help
-help: ## This help dialog.
-	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//' | column	-c2 -t -s :
+%.bo:
+	$(info building $@)
+	@$(BSCCMD) $(MOREDEFINES) -p $(BSVINCDIR) $<
 
 .PHONY: generate_verilog
-generate_verilog: ## Generete verilog from BSV
-	@echo Compiling $(TOP_MODULE) in verilog ...
-	@mkdir -p $(BSVBUILDDIR) $(VERILOGDIR);
-	$(BSCCMD) -p $(BSVINCDIR) -g $(TOP_MODULE) $(TOP_DIR)/$(TOP_FILE)  || (echo "BSC COMPILE ERROR"; exit 1)
-	@echo Compilation Successful
+generate_verilog: $(BSVBUILDDIR)/$(TOP_BIN)
+
 
 .PHONY: link_verilator
 link_verilator: ## Generate simulation executable using Verilator
@@ -129,6 +126,25 @@ link_msim: ## Generate simulation executable using Mentor's ModelSim tool
 	@chmod +x $(BSVOUTDIR)/out
 	@echo Linking finished
 
+.PHONY: regress
+regress: ## To run regressions on the core.
+	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeRegress.pl $(opts)
+
+.PHONY: test
+test: ## To run a single riscv-test on the core.
+	@SHAKTI_HOME=$$PWD CONFIG_LOG=0 perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeTest.pl $(opts)
+
+.PHONY: torture
+torture: ## To run riscv-tortur on the core.
+	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeTorture.pl $(opts)
+
+.PHONY: aapg
+aapg: ## to generate and run aapf tests
+	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeAapg.pl $(opts)
+
+.PHONY: csmith
+csmith: ## to generate and run csmith tests
+	@SHAKTI_HOME=$$PWD perl -I$(SHAKTI_HOME)/verification/verif-scripts $(SHAKTI_HOME)/verification/verif-scripts/makeCSmith.pl $(opts)
 
 .PHONY: generate_boot_files
 generate_boot_files: ## to generate boot files for simulation
@@ -143,16 +159,8 @@ yml:
 
 .PHONY: clean
 clean:
-	rm -rf $(BSVBUILDDIR) *.log $(BSVOUTDIR) obj_dir
+	rm -rf $(BSVBUILDDIR)/* *.log $(BSVOUTDIR)/* obj_dir $(VERILOGDIR)/*
 	rm -f *.jou rm *.log *.mem log sim_main.h cds.lib hdl.var
-
-clean_verilog: clean
-	rm -rf $(VERILOGDIR)
-	rm -rf fpga/
-	rm -rf INCA*
-	rm -rf work
-	rm -f ./ncvlog.*
-	rm -f irun.*
 
 clean_verif:
 	rm -rf verification/workdir/*

@@ -587,10 +587,12 @@ package stage3;
         `logLevel( stage3, 1, $format("[%2d]STAGE3: Enquing Delayed Result ",hartid))
         rg_stall <= False;
       end
-    `ifdef perfmonitors
-      else
+      else begin
+        `logLevel( stage3, 4, $format("MULDELAYED"))
+      `ifdef perfmonitors
         wr_count_exestalls <= 1;
-    `endif
+      `endif
+      end
     endrule
   `endif
 
