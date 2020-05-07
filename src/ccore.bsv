@@ -53,7 +53,13 @@ package ccore;
     method Action sb_clint_msip (Bit#(1) m) ;
     method Action sb_clint_mtip (Bit#(1) m) ;
     method Action sb_clint_mtime(Bit#(64) m);
-    interface Put#(Bit#(1)) sb_externalinterrupt;
+  	method Action sb_plic_meip(Bit#(1) ex_i);
+  `ifdef supervisor
+  	method Action sb_plic_seip(Bit#(1) ex_i);
+  `endif
+  `ifdef usertraps
+  	method Action sb_plic_ueip(Bit#(1) ex_i);
+  `endif
   `ifdef rtldump
     interface Get#(DumpType) io_dump;
   `endif
@@ -97,9 +103,6 @@ package ccore;
     let csr_response = riscv.mv_resp_to_core;
   `endif
 
-	  Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_fetch_lower_addr_bits <- mkReg(tagged Invalid);
-	  Reg#(Maybe#(Bit#(TLog#(TDiv#(ELEN,8))))) rg_memory_lower_addr_bits <- mkReg(tagged Invalid);
-
 	  let lv_pmp_cfg = riscv.mv_pmp_cfg;
 	  let lv_pmp_adr = riscv.mv_pmp_addr;
 
@@ -121,22 +124,15 @@ package ccore;
 	  	Axi4_rd_addr#(IDWIDTH, `paddr, 0) imem_request = Axi4_rd_addr 
 	  	    {araddr : truncate(request.address), aruser: ?, arlen : request.burst_len, 
 	  	     arsize : request.burst_size, arburst : axburst_wrap, 
-	  	     arid : 0, arprot:{1'b1, 1'b0, curr_priv[1]} }; 
+	  	     arid : zeroExtend(pack(request.io)), arprot:{1'b1, 1'b0, curr_priv[1]} }; 
 	    fetch_xactor.fifo_side.i_rd_addr.enq(imem_request);
-			if(request.burst_len == 0)
-				rg_fetch_lower_addr_bits<= tagged Valid truncate(request.address);
-			else
-				rg_fetch_lower_addr_bits<= tagged Invalid;
 	  	`logLevel( core, 1, $format("[%2d]CORE : IMEM Line Requesting ",hartid, fshow(imem_request)))
 	  endrule
 
 	  rule rl_handle_imem_line_resp;
 	    let fab_resp <- pop_o (fetch_xactor.fifo_side.o_rd_data);
 	  	Bool bus_error = !(fab_resp.rresp == axi4_resp_okay);
-			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= fromMaybe('d0, rg_fetch_lower_addr_bits);
-			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits,3'd0};
-			let lv_data= fab_resp.rdata >> lv_shift;
-      imem.put_read_mem_resp.put(ICache_mem_readresp{data   : truncate(lv_data),
+      imem.put_read_mem_resp.put(ICache_mem_readresp{data   : truncate(fab_resp.rdata),
                                                  last   : fab_resp.rlast,
                                                  err    : bus_error});
 	  	`logLevel( core, 1, $format("[%2d]CORE : IMEM Line Response ",hartid, fshow(fab_resp)))
@@ -194,10 +190,6 @@ package ccore;
     `endif
       if(perform_req)  begin
    	    memory_xactor.fifo_side.i_rd_addr.enq(dmem_request);
-				if(req.burst_len == 0)
-					rg_memory_lower_addr_bits<= tagged Valid truncate(req.address);
-				else
-					rg_memory_lower_addr_bits<= tagged Invalid;
         `logLevel( core, 1, $format("[%2d]CORE : DMEM Line Requesting ",hartid, fshow(dmem_request)))
       end
 	  endrule
@@ -206,10 +198,6 @@ package ccore;
     rule rl_handle_delayed_read(rg_read_line_req matches tagged Valid .r &&& 
                                   wr_write_req matches tagged Invalid);
   	  memory_xactor.fifo_side.i_rd_addr.enq(r);
-			if(r.arlen == 0)
-				rg_memory_lower_addr_bits<= tagged Valid truncate(r.araddr);
-			else
-				rg_memory_lower_addr_bits<= tagged Invalid;
       `logLevel( core, 1, $format("[%2d]CORE : DMEM Delayed Line Requesting ",hartid, fshow(r)))
       rg_read_line_req <= tagged Invalid;
     endrule
@@ -217,9 +205,7 @@ package ccore;
 
 	  rule rl_handle_dmem_line_resp;
 	    let fab_resp <- pop_o (memory_xactor.fifo_side.o_rd_data);
-			Bit#(TLog#(TDiv#(ELEN,8))) lower_addr_bits= fromMaybe('d0, rg_memory_lower_addr_bits);
-			Bit#(TAdd#(TLog#(TDiv#(ELEN,8)),3)) lv_shift = {lower_addr_bits, 3'd0};
-			let lv_data= fab_resp.rdata >> lv_shift;
+			let lv_data = fab_resp.rdata;
 	  	Bool bus_error = !(fab_resp.rresp == axi4_resp_okay);
       dmem.put_read_mem_resp.put(DCache_mem_readresp{data:truncate(lv_data),
                                                  last:fab_resp.rlast,
@@ -384,11 +370,13 @@ rg_shift_amount:%d",hartid, req.data, rg_burst_count, last, rg_shift_amount))
     method sb_clint_msip = riscv.ma_clint_msip;
     method sb_clint_mtip = riscv.ma_clint_mtip; 
     method sb_clint_mtime = riscv.ma_clint_mtime;
-    interface sb_externalinterrupt = interface Put
-      method Action put(Bit#(1) intrpt);
-        riscv.ma_set_external_interrupt(intrpt);
-      endmethod
-    endinterface;
+  	method sb_plic_meip  = riscv.ma_set_meip;
+  `ifdef supervisor
+  	method sb_plic_seip = riscv.ma_set_seip;
+  `endif
+  `ifdef usertraps
+  	method sb_plic_ueip = riscv.ma_set_ueip;
+  `endif
 		interface master_i = fetch_xactor.axi4_side;
 		interface master_d = memory_xactor.axi4_side;
     `ifdef rtldump
@@ -434,9 +422,7 @@ rg_shift_amount:%d",hartid, req.data, rg_burst_count, last, rg_shift_amount))
         noAction;
       endmethod
 
-      method Bit#(1) has_reset;
-        return rg_has_reset;
-      endmethod
+      method has_reset = rg_has_reset;
     endinterface;
   `endif
   endmodule : mkccore_axi4

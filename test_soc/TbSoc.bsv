@@ -30,7 +30,8 @@ package TbSoc;
   import "BDPI" function ActionValue #(Bit #(8))get_frame(int client_fd);
   import "BDPI" function Action send_tdo(Bit #(1) tdo , int client_fd);
 `endif
-  module mkTbSoc(Empty);
+  (*synthesize*)
+  module [Module] mkTbSoc(Empty);
 
     let def_clk <- exposeCurrentClock;
     let def_rst <- exposeCurrentReset;

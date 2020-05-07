@@ -8,6 +8,8 @@ bsc_cmd = '''bsc -u -verilog -elab -vdir {0} -bdir {1} -info-dir {1} \
 -remove-starved-rules -remove-dollar -unspecified-to X -show-schedule \
 -show-module-use {2}'''
 
+bsc_defines = ''
+
 verilator_cmd = ''' -O3 -LDFLAGS "-static" --x-assign fast \
  --x-initial fast --noassert sim_main.cpp --bbox-sys -Wno-STMTDLY \
  -Wno-UNOPTFLAT -Wno-WIDTH -Wno-lint -Wno-COMBDLY -Wno-INITIALDLY \
@@ -24,29 +26,33 @@ BSVOUTDIR:={2}
 
 BSCCMD:={3}
 
-BSVINCDIR:=.:%/Libraries{4}
+BSC_DEFINES:={4}
 
-TOP_MODULE:={5}
+BSVINCDIR:={5}
 
-TOP_DIR:={6}
+BS_VERILOG_LIB:={6}lib/Verilog/
 
-TOP_FILE:={7}
+TOP_MODULE:={7}
 
-VERILATOR_FLAGS:={8}
+TOP_DIR:={8}
 
-VERILATOR_SPEED:={9}
+TOP_FILE:={9}
 
-BS_VERILOG_LIB:={10}/../lib/Verilog/
+VERILATOR_FLAGS:={10}
 
-SHAKTI_HOME:={11}
+VERILATOR_SPEED:={11}
 
 XLEN:={12}
+
+TOP_BIN={13}
+
+include depends.mk
 '''
 
 dependency_yaml='''
 cache_subsystem:
   repo: https://gitlab.com/incoresemi/blocks/cache_subsystem
-  checkout: master
+  checkout: 1.0.0
   commitid:   
   patch:
 common_bsv:
@@ -66,51 +72,13 @@ bsvwrappers:
   patch:
 devices:
   repo: https://gitlab.com/incoresemi/blocks/devices
-  checkout: master
+  checkout: 1.0.0
   commitid:
   patch:
+verification:
+  repo: https://gitlab.com/shaktiproject/verification_environment/verification
+  checkout: 4.0.0
+  commitid:
+  patch:
+    - [riscv-tests/env , verification/patches/riscv-tests-shakti-signature.patch]
 '''
-prelude = [
-    'Connectable',
-    'FIFOF',
-    'BUtils',
-    'GetPut',
-    'FIFO',
-    'SpecialFIFOs',
-    'Clocks',
-    'DReg',
-    'FIFOLevel',
-    'Vector',
-    'Counter',
-    'ConfigReg',
-    'Assert',
-    'BRAMCore',
-    'BRAM',
-    'RegFile',
-    'UniqueWrappers',
-    'LFSR',
-    'Randomizable',
-    'StmtFSM',
-    'List',
-    'ClientServer',
-    'Probe',
-    'OVLAssertions',
-    'CBus',
-    'ModuleCollect',
-    'RevertReg',
-    'MIMO',
-    'List',
-    'OInt',
-    'Memory',
-    'Cntrs',
-    'GrayCounter',
-    'CompletionBuffer',
-    'DefaultValue',
-    'TieOff',
-    'ZBus',
-    'CRC',
-    'Real',
-    'Gearbox',
-    'AlignedFIFOs'
-]
-

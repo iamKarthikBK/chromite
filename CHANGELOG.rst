@@ -4,6 +4,18 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.9.1] - 2020-05-01
+--------------------
+
+- parallel build using bluetcl is enabled
+- remove re-alignment of bytes in ccore for I$ and D$ reads. This now is handled within the caches
+- bumped version of the caches
+- gitignore updated
+- fixed and cleaned up the interrupt and delegation logic
+- adding pre-requisite checks in configure
+- default.yaml is picked up as default if no argument given to -ispec
+- split interface of seip and meip. Both can now be driven by plic independently. Also led to removal of unwanted attributes.
+
 [0.9.0] - 2020-05-01
 --------------------
 
