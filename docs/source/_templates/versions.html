@@ -5,4 +5,21 @@
       v: {{ current_version }}
       <span class="fa fa-caret-down"></span>
     </span>
+    <div class="rst-other-versions">
+      <dl>
+        <dt>{{ _('Release Versions') }}</dt>
+        {% for slug, url in versions %}
+          <dd><a href="{{ url }}">{{ slug }}</a></dd>
+        {% endfor %}
+      </dl>
+      <dl>
+        <dt>{{ _('Quick Links') }}</dt>
+          <dd>
+            <a href="https://gitlab.com/incoresemi/core-generators/chromite">Project Home</a>
+          </dd>
+          <dd>
+            <a href="https://gitlab.com/incoresemi/core-generators/chromite/-/releases">Releases</a>
+          </dd>
+      </dl>
+    </div>
   </div>
