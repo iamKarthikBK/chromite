@@ -4,6 +4,27 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.9.2] - 2020-05-01
+--------------------
+
+- removed the concept of extra history bits from gshare_fa.
+- added history_bits as a new parameter to indicate the size of bits used from the ghr for indexing.
+- reduced tick resolution in test_soc.
+- updated the 2 bit counter increment scheme to account for hysterisis bit separately.
+- updated the gshare has function for improved collisions.
+- updated repomanager to 1.2.0.
+- merged usermanual and datahseet into a single doc.
+- added chromite specific device-tree-string.
+- documentation of the pipeline added.
+- made the size of the test-soc BRAM memory configurable through YAML.
+- the core now re-aligns data and write-strobes on the AXI4 write channel for io requests.
+- renamed the everilated binary from "out" to "chromite_core"
+- added a local boot-code and respective build files
+- added missing 'ifdef pmp' in ccore.bsv
+- minor style fixes in TbSoc
+ 
+
+
 [0.9.1] - 2020-05-01
 --------------------
 

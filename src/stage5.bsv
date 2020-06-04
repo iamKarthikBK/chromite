@@ -291,6 +291,9 @@ package stage5;
             else
               wr_count_exceptions <= 1;
           `endif
+          `ifdef rtldump
+            dump_ff.enq(tuple6(prv, signExtend(t.pc), inst, 0, 0, IRF));
+          `endif
           end
           rx.u.deq;
           `ifdef rtldump

@@ -50,16 +50,14 @@ package TbSoc;
 
     Reg#(Bit#(5)) rg_cnt <-mkReg(0);
 
-    `ifdef simulate
-      rule display_eol;
-	      let timeval <- $time;
-        `logLevel( tb, 0, $format("\n[%10d]", timeval))
-      endrule
-    `endif
+    rule display_eol;
+	    let timeval <- $time;
+      `logLevel( tb, 0, $format("\n[%10d]", timeval))
+    endrule:display_eol
 
   `ifdef rtldump
  	  let dump <- mkReg(InvalidFile) ;
-    rule open_file_rtldump(rg_cnt<5);
+    rule rl_open_file_rtldump(rg_cnt<1);
       let generate_dump <- $test$plusargs("rtldump");
       if(generate_dump) begin
         String dumpFile = "rtl.dump" ;
@@ -70,11 +68,11 @@ package TbSoc;
     	  end
     	  dump <= lfh ;
       end
-    endrule
+    endrule:rl_open_file_rtldump
   `endif
 
  	  let dump1 <- mkReg(InvalidFile) ;
-    rule open_file_app(rg_cnt<5);
+    rule rl_open_file_app(rg_cnt<1);
       String dumpFile1 = "app_log" ;
     	File lfh1 <- $fopen( dumpFile1, "w" ) ;
     	if (lfh1==InvalidFile )begin
@@ -83,28 +81,30 @@ package TbSoc;
     	end
       dump1 <= lfh1;
     	rg_cnt <= rg_cnt+1 ;
-    endrule
+    endrule:rl_open_file_app
 
-    rule connect_uart_out;
+    rule rl_connect_uart_out;
       soc.uart_io.sin(uart.io.sout);
-    endrule
-    rule connect_uart_in;
-      uart.io.sin(soc.uart_io.sout);
-    endrule
+    endrule:rl_connect_uart_out
 
-    rule check_if_character_present(!rg_read_rx);
+    rule rl_connect_uart_in;
+      uart.io.sin(soc.uart_io.sout);
+    endrule:rl_connect_uart_in
+
+    rule rl_check_if_character_present(!rg_read_rx);
       let {err, data}<- uart.dcbus.read('hc,Sz1);
       if (data[3]==1) // character present
         rg_read_rx<=True;
-    endrule
+    endrule:rl_check_if_character_present
 
-    rule write_received_character(rg_cnt>=5 && rg_read_rx);
+    rule rl_write_received_character(rg_cnt>=1 && rg_read_rx);
       let {err,data}<-uart.dcbus.read('h8,Sz1);
       $fwrite(dump1,"%c",data);
-    endrule
+    endrule:rl_write_received_character
+
 
   `ifdef rtldump
-    rule write_dump_file(rg_cnt>=5);
+    rule rl_write_dump_file(rg_cnt>=1);
       let generate_dump <- $test$plusargs("rtldump");
       let {prv, pc, instruction, rd, data, rdtype}<- soc.io_dump.get;
     `ifndef openocd
@@ -123,7 +123,7 @@ package TbSoc;
         else if(rdtype == IRF && valueOf(XLEN) == 32)
     	    $fwrite(dump, " x%d", rd, " 0x%8h", data[31:0], "\n");
       end
-    endrule
+    endrule:rl_write_dump_file
   `endif
 
   `ifdef debug

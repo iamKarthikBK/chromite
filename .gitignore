@@ -42,3 +42,9 @@ bsvwrappers/
 cache_subsystem/
 
 depends.mk
+
+boot/boot.hex
+boot/config.chromite
+boot/chromite.dtb
+boot/chromite.dump
+

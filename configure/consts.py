@@ -51,34 +51,27 @@ include depends.mk
 
 dependency_yaml='''
 cache_subsystem:
-  repo: https://gitlab.com/incoresemi/blocks/cache_subsystem
+  url: https://gitlab.com/incoresemi/blocks/cache_subsystem
   checkout: 1.0.0
-  commitid:   
-  patch:
 common_bsv:
-  repo: https://gitlab.com/incoresemi/blocks/common_bsv
+  url: https://gitlab.com/incoresemi/blocks/common_bsv
   checkout: master
-  commitid:
-  patch:
 fabrics:
-  repo: https://gitlab.com/incoresemi/blocks/fabrics
-  checkout: 1.1.1
-  commitid:
-  patch:
+  url: https://gitlab.com/incoresemi/blocks/fabrics
+  checkout: 1.1.4
 bsvwrappers:
-  repo: https://gitlab.com/incoresemi/blocks/bsvwrappers
+  url: https://gitlab.com/incoresemi/blocks/bsvwrappers
   checkout: master
-  commitid:
-  patch:
 devices:
-  repo: https://gitlab.com/incoresemi/blocks/devices
-  checkout: 1.0.0
-  commitid:
-  patch:
+  url: https://gitlab.com/incoresemi/blocks/devices
+  checkout: 1.0.2
 verification:
-  repo: https://gitlab.com/shaktiproject/verification_environment/verification
+  url: https://gitlab.com/shaktiproject/verification_environment/verification
   checkout: 4.0.0
-  commitid:
+  recursive: True
   patch:
     - [riscv-tests/env , verification/patches/riscv-tests-shakti-signature.patch]
+benchmarks:
+  url: https://gitlab.com/incoresemi/core-generators/benchmarks
+  checkout: master
 '''
