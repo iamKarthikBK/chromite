@@ -139,6 +139,10 @@ docs_title = 'Docs / %s' %(version)
 # pixels large.
 html_favicon = '_static/onlyC.png'
 html_context = {
+    'css_files': [
+        '_static/theme_overrides.css',  # override wide tables in RTD theme
+        '_static/custom.css',
+        ],
     'show_license': html_show_license,
     'docs_title': docs_title,
     'is_release': False,
@@ -228,10 +232,10 @@ latex_elements = {
         \usepackage{soul}
         \sethlcolor{light-gray}
         \makeatletter
-        \chardef\xs@NatDel=4095
+        \chardef\xs@NatDel=255
         \XeTeXinterchartoks\xs@lrDel\xs@Classless={\xs@LearnLetter}
-        \XeTeXinterchartoks 4095 \xs@Classless={\xs@LearnLetter}
-        \XeTeXinterchartoks 4095 \xs@lrDel{\xs@EndString}
+        \XeTeXinterchartoks 255 \xs@Classless={\xs@LearnLetter}
+        \XeTeXinterchartoks 255 \xs@lrDel{\xs@EndString}
         \makeatletter
         \SearchList*{list1}{\hl{#1}}{Reserved}
 

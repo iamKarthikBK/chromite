@@ -22,6 +22,6 @@ Please refer to LICENSE.\* files for more details.
 
 ## Documentation
 
-The HTML version of the Manual is hosted: [here](chromite.readthedocs.io)
+The HTML version of the Manual is hosted: [here](https://chromite.readthedocs.io)
 
 The PDF version of the Manual can be downloaded from: [here](https://gitlab.com/incoresemi/core-generators/chromite/-/jobs/artifacts/master/raw/chromite_coregen.pdf?job=release) 
