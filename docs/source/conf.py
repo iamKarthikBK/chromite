@@ -139,10 +139,6 @@ docs_title = 'Docs / %s' %(version)
 # pixels large.
 html_favicon = '_static/onlyC.png'
 html_context = {
-    'css_files': [
-        '_static/theme_overrides.css',  # override wide tables in RTD theme
-        '_static/custom.css',
-        ],
     'show_license': html_show_license,
     'docs_title': docs_title,
     'is_release': False,
