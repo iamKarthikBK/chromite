@@ -4,7 +4,13 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-[0.9.2] - 2020-05-01
+[0.9.3] - 2020-06-04
+  - updated docs for correct tabs redering in getting_started guide
+  - adding links to different versions of docs
+  - using changelog as revisions in docs
+  - changed changelog format
+
+[0.9.2] - 2020-06-04
   - removed the concept of extra history bits from gshare_fa.
   - added history_bits as a new parameter to indicate the size of bits used from the ghr for indexing.
   - reduced tick resolution in test_soc.
