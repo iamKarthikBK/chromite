@@ -72,6 +72,7 @@ release:
         - make latexpdf
         - mv build/latex/chromite_coregen.pdf ../
         - pyenv deactivate
+        - cd ../
         - python3 /scratch/version-extract-rst.py
         - echo -e "section_end:`date +%s`:tag\r\e[0K"
     artifacts:
