@@ -22,6 +22,7 @@ This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.htm
 - added a local boot-code and respective build files
 - added missing 'ifdef pmp' in ccore.bsv
 - minor style fixes in TbSoc
+- updated ci for docs build at pre-merge
  
 
 
