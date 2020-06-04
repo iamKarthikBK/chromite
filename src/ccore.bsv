@@ -103,9 +103,10 @@ package ccore;
     let csr_response = riscv.mv_resp_to_core;
   `endif
 
+  `ifdef pmp
 	  let lv_pmp_cfg = riscv.mv_pmp_cfg;
 	  let lv_pmp_adr = riscv.mv_pmp_addr;
-
+  `endif 
 	  Ifc_imem imem <- mkimem(truncate(hartid) `ifdef pmp ,lv_pmp_cfg, lv_pmp_adr `endif );
 	  Ifc_dmem dmem <- mkdmem(truncate(hartid) `ifdef pmp ,lv_pmp_cfg, lv_pmp_adr `endif );
 
@@ -215,39 +216,38 @@ package ccore;
 
     rule rl_handle_dmem_write_request `ifdef dcache (rg_burst_count == 0) `endif ;
       let req = dmem.mv_write_mem_req_rd;
-    `ifdef dcache
   	  Bit#(TDiv#(ELEN, 8)) write_strobe = '1;
       if(req.burst_len > 0)
         rg_burst_count <= rg_burst_count + 1;
       else begin
         dmem.ma_write_mem_req_deq;
       end
-    `else
-      if(req.burst_size == 0)
-        req.data = duplicate(req.data[7 : 0]);
-      else if(req.burst_size == 1)
-        req.data = duplicate(req.data[15 : 0]);
-      else if(req.burst_size == 2)
-        req.data = duplicate(req. data[31 : 0]);
-  	  Bit#(TDiv#(ELEN, 8)) write_strobe = req.burst_size == 0?'b1 :
-                                          req.burst_size == 1?'b11 :
-                                          req.burst_size == 2?'hf : '1;
+      if(req.io) begin
+        if(req.burst_size == 0)
+          req.data = duplicate(req.data[7 : 0]);
+        else if(req.burst_size == 1)
+          req.data = duplicate(req.data[15 : 0]);
+        else if(req.burst_size == 2)
+          req.data = duplicate(req. data[31 : 0]);
+  	    write_strobe = req.burst_size == 0?'b1 :
+                       req.burst_size == 1?'b11 :
+                       req.burst_size == 2?'hf : '1;
 
-      Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(req.address);
-  	  if(req.burst_size != 3)// 8 - bit write;
-  	  	write_strobe = write_strobe<<byte_offset;
-      dmem.ma_write_mem_req_deq;
-    `endif
+        Bit#(TAdd#(1, TDiv#(ELEN, 32))) byte_offset = truncate(req.address);
+   	    if(req.burst_size != 3)// 8 - bit write;
+ 	      	write_strobe = write_strobe<<byte_offset;
+      end
 
 		  Axi4_wr_addr#(IDWIDTH, `paddr, 0) aw = Axi4_wr_addr{awaddr : truncate(req.address), awuser : 0,
         awlen : req.burst_len, awsize : zeroExtend(req.burst_size[1 : 0]), awburst : axburst_wrap,
         awid : zeroExtend(pack(req.io)), awprot:{1'b0, 1'b0, curr_priv[1]} }; // arburst : 00 - FIXED 01 - INCR 10 - WRAP
 
-  	  let w  = Axi4_wr_data{wdata : truncate(req.data), wstrb : write_strobe,
+	    Axi4_wr_data#(ELEN, 0) w  = Axi4_wr_data{wdata : truncate(req.data), wstrb : write_strobe,
                              wlast : req.burst_len == 0, wuser: 0};
 	    memory_xactor.fifo_side.i_wr_addr.enq(aw);
 		  memory_xactor.fifo_side.i_wr_data.enq(w);
-      `logLevel( core, 1, $format("[%2d]CORE : DMEM Line Write Addr : Request ",hartid, fshow(aw)))
+      `logLevel( core, 1, $format("[%2d]CORE : DMEM Write Addr : Request ",hartid, fshow_axi4_wr_addr(aw)))
+      `logLevel( core, 1, $format("[%2d]CORE : DMEM Write Data : Request ",hartid, fshow_axi4_wr_data(w)))
       if(req.burst_len != 0 )
         wr_write_req <= tagged Valid req.address;
     endrule

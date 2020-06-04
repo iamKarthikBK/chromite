@@ -1,12 +1,18 @@
 ISA: RV32IMACU
+iepoch_size: 2
+depoch_size: 1
+dtvec_base: 256
 s_extension:
   mode: sv32
   itlb_size: 4
   dtlb_size: 4
-  asid_width: 16
-pmp_size: 0
+  asid_width: 9
+pmp: 
+  enable: true
+  entries: 4
+  granularity: 4
 m_extension:
-  mul_stages: 2
+  mul_stages: 1
   div_stages: 32
 branch_predictor:
   instantiate: True
@@ -15,7 +21,7 @@ branch_predictor:
   btb_depth: 32
   bht_depth: 512
   history_len: 8
-  extra_hist: 3
+  history_bits: 5
   ras_depth: 8
 icache_configuration:
   instantiate: true
@@ -25,10 +31,9 @@ icache_configuration:
   block_size: 16
   ways: 4
   fb_size: 4
-  epoch_size: 2
-  replacement: PLRU
-  tag_banks: 1
-  data_banks: 1
+  replacement: RR
+  ecc_enable: false
+  one_hot_select: false
 dcache_configuration:
   instantiate: true
   on_reset: enable
@@ -38,10 +43,10 @@ dcache_configuration:
   ways: 4
   fb_size: 8
   sb_size: 2
-  epoch_size: 1
-  replacement: PLRU
-  tag_banks: 1
-  data_banks: 1
+  replacement: RR
+  ecc_enable: false
+  one_hot_select: false
+  rwports: 1
 reset_pc: 4096
 physical_addr_size: 32
 bus_protocol: AXI4
@@ -58,13 +63,13 @@ bsc_compile_options:
   assertions: true
   trace_dump: true
   compile_target: 'sim'
-  suppress_warnings: none
+  suppress_warnings: ["all"]
   verilog_dir: verilog
   build_dir: bsv_build
   top_module: mkTbSoc
   top_file: TbSoc.bsv
   top_dir: test_soc
-  open_ocd: false
+  open_ocd: False
 verilator_configuration:
   coverage: none
   trace: false

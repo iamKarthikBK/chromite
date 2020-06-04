@@ -1,4 +1,4 @@
-ISA: RV64IMACFDSU
+ISA: RV64IMAFDCSU
 iepoch_size: 2
 depoch_size: 1
 dtvec_base: 256
@@ -12,16 +12,16 @@ pmp:
   entries: 4
   granularity: 8
 m_extension:
-  mul_stages: 2
+  mul_stages: 1
   div_stages: 32
 branch_predictor:
   instantiate: True
   predictor: gshare
   on_reset: enable
   btb_depth: 32
-  bht_depth: 256
+  bht_depth: 512
   history_len: 8
-  extra_hist: 3
+  history_bits: 5
   ras_depth: 8
 icache_configuration:
   instantiate: true
@@ -60,6 +60,7 @@ csr_configuration:
   counters_in_grp6: 7
   counters_in_grp7: 8
 bsc_compile_options:
+  test_memory_size: 33554432
   assertions: true
   trace_dump: true
   compile_target: 'sim'
@@ -69,7 +70,7 @@ bsc_compile_options:
   top_module: mkTbSoc
   top_file: TbSoc.bsv
   top_dir: test_soc
-  open_ocd: false
+  open_ocd: False
 verilator_configuration:
   coverage: none
   trace: false
