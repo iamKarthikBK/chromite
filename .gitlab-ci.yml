@@ -1,7 +1,21 @@
+# If you assign a task to the same stage, they'll run in parallel
 stages:
     - pre-merge
     - post-merge
+    - build
     - release
+
+# This is a gitlabification of  "faster.sh" from: https://gitlab.com/virgohardware/core
+# Expected behavior: this will build Chromite and run benchmarks on it, soon as I press commit. 
+build-chromite:
+    image: registry.gitlab.com/incoresemi/docker-images/chromite
+    stage: build
+    script:
+        - pip install -U -r requirements.txt
+        - python -m configure.main -ispec sample_config/default.yaml
+        - make -j$(nproc) generate_verilog; make generate_boot_files link_verilator 
+        - make dhrystone
+        - make coremark
 
 # checks if the changelog has been updated and the version has also been upgraded
 check-mr-compliance:
