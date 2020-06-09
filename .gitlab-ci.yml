@@ -15,7 +15,7 @@ build-chromite:
         - python -m configure.main -ispec sample_config/default.yaml
         - make -j$(nproc) generate_verilog; make generate_boot_files link_verilator 
         - make dhrystone
-        - make coremark
+        - make coremarks
 
 # checks if the changelog has been updated and the version has also been upgraded
 check-mr-compliance:
