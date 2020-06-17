@@ -64,7 +64,7 @@ bsvwrappers:
   checkout: master
 devices:
   url: https://gitlab.com/incoresemi/blocks/devices
-  checkout: 1.0.2
+  checkout: 1.0.3
 verification:
   url: https://gitlab.com/shaktiproject/verification_environment/verification
   checkout: 4.0.0

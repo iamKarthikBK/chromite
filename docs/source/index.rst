@@ -92,6 +92,8 @@ please refer to the :ref:`Revisions <revisions>` documentation.
 
   overview
   getting_started
+  configure
+  benchmarking
   chromite
   modes
   custom_csrs
@@ -102,7 +104,5 @@ please refer to the :ref:`Revisions <revisions>` documentation.
   interrupts
   debug
   triggers
-  benchmarking
-  configure
   revisions
   licensing

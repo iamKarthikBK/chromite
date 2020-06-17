@@ -1,8 +1,15 @@
-
 CHANGELOG
 =========
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
+
+[0.9.4] - 2020-06-17
+  - updated UART to latest DCBus
+  - bumped devices and common_bsv versions
+  - mie is disabled for all configs on reset.
+  - removed chromitem.yaml from samples
+  - re-arranged docs sections
+  - updated block diagram for core-pipeline.
 
 [0.9.3] - 2020-06-04
   - updated docs for correct tabs redering in getting_started guide
