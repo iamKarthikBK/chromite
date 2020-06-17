@@ -20,8 +20,7 @@ The pipeline diagram is shown in :numref:`chromite_pipeline`
 
 .. _chromite_pipeline:
 
-.. figure:: chromite_pipeline.png
-   :width: 550px
+.. figure:: chromite_pipeline-2.png
    :align: center
 
    Pipeline Diagram

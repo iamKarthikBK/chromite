@@ -183,14 +183,14 @@ package Soc;
     mkConnection (apbfabric.v_to_slaves[`Debug_slave_num ]        , debug_memory.slave);
 
     // sideband connection
-    mkConnection(ccore.sb_clint_msip, clint.io.sb_clint_msip);
-    mkConnection(ccore.sb_clint_mtip, clint.io.sb_clint_mtip);
-    mkConnection(ccore.sb_clint_mtime,clint.io.sb_clint_mtime);
+    mkConnection(ccore.sb_clint_msip, clint.device.sb_clint_msip);
+    mkConnection(ccore.sb_clint_mtip, clint.device.sb_clint_mtip);
+    mkConnection(ccore.sb_clint_mtime,clint.device.sb_clint_mtime);
 
   `ifdef rtldump
     interface io_dump= ccore.io_dump;
   `endif
-    interface uart_io=uart.io;
+    interface uart_io=uart.device.io;
   `ifdef debug
     interface debug_server = ccore.debug_server;
     interface master_debug= axi4fabric.v_from_masters[valueOf(Debug_master_num)];

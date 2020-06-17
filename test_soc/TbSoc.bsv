@@ -45,7 +45,7 @@ package TbSoc;
     Ifc_Soc soc <- mkSoc();
   `endif
 
-    IWithDCBus#(DCBus#(`paddr,32), RS232#(16)) uart <- mkuart_block(5);
+    IWithDCBus#(DCBus#(`paddr,32), Ifc_uart#(16)) uart <- mkuart_block(5);
     Reg#(Bool) rg_read_rx<- mkDReg(False);
 
     Reg#(Bit#(5)) rg_cnt <-mkReg(0);
@@ -84,11 +84,11 @@ package TbSoc;
     endrule:rl_open_file_app
 
     rule rl_connect_uart_out;
-      soc.uart_io.sin(uart.io.sout);
+      soc.uart_io.sin(uart.device.io.sout);
     endrule:rl_connect_uart_out
 
     rule rl_connect_uart_in;
-      uart.io.sin(soc.uart_io.sout);
+      uart.device.io.sin(soc.uart_io.sout);
     endrule:rl_connect_uart_in
 
     rule rl_check_if_character_present(!rg_read_rx);
