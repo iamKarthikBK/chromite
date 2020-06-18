@@ -2,20 +2,26 @@
 stages:
     - pre-merge
     - post-merge
-    - build
     - release
 
 # This is a gitlabification of  "faster.sh" from: https://gitlab.com/virgohardware/core
 # Expected behavior: this will build Chromite and run benchmarks on it, soon as I press commit. 
 build-chromite:
     image: registry.gitlab.com/incoresemi/docker-images/chromite
-    stage: build
+    stage: pre-merge
     script:
         - pip install -U -r requirements.txt
+        - echo -e "section_start:`date +%s`:compile_xlen32\r\e[0KCheck 32 bit compile"
+        - python -m configure.main -ispec sample_config/default32.yaml
+        - make clean
+        - echo -e "section_end:`date +%s`:compile_xlen32\r\e[0Ksection_start:`date +%s`:benchmarking\r\e[0KRun Benchmarks"
         - python -m configure.main -ispec sample_config/default.yaml
         - make -j$(nproc) generate_verilog; make generate_boot_files link_verilator 
         - make dhrystone
         - make coremarks
+        - echo -e "section_end:`date +%s`:benchmarking\r\e[0K"
+    only:
+        - merge_requests
 
 # checks if the changelog has been updated and the version has also been upgraded
 check-mr-compliance:
