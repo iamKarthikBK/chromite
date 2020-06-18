@@ -8,7 +8,7 @@ s_extension:
   dtlb_size: 4
   asid_width: 9
 pmp: 
-  enable: true
+  enable: false
   entries: 4
   granularity: 4
 m_extension:
@@ -60,16 +60,17 @@ csr_configuration:
   counters_in_grp6: 7
   counters_in_grp7: 8
 bsc_compile_options:
+  test_memory_size: 33554432
   assertions: true
   trace_dump: true
   compile_target: 'sim'
   suppress_warnings: ["all"]
-  verilog_dir: verilog
-  build_dir: bsv_build
+  verilog_dir: build/hw/verilog
+  build_dir: build/hw/intermediate
   top_module: mkTbSoc
   top_file: TbSoc.bsv
   top_dir: test_soc
-  open_ocd: False
+  open_ocd: false
 verilator_configuration:
   coverage: none
   trace: false

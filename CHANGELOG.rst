@@ -3,6 +3,11 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.9.5] - 2020-06-18
+  - fixed sample configs and added a chromite equivalent config as well.
+  - removed obsolete remnants of MTIME and MTIMEH from csrs.
+  - adding a docker based ci target on shared runners for running benchmarks
+
 [0.9.4] - 2020-06-17
   - updated UART to latest DCBus
   - bumped devices and common_bsv versions
