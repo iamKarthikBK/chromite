@@ -13,6 +13,7 @@ build-chromite:
         - pip install -U -r requirements.txt
         - echo -e "section_start:`date +%s`:compile_xlen32\r\e[0KCheck 32 bit compile"
         - python -m configure.main -ispec sample_config/default32.yaml
+        - make -j$(nproc) generate_verilog;
         - make clean
         - echo -e "section_end:`date +%s`:compile_xlen32\r\e[0Ksection_start:`date +%s`:benchmarking\r\e[0KRun Benchmarks"
         - python -m configure.main -ispec sample_config/default.yaml
