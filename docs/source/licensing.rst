@@ -2,8 +2,11 @@
 Licensing and Support
 #####################
 
-The IP modules and its components mentioned in this document
-are provided at no cost and available under an Apache License, Version 2.0. 
+The processor and its components mentioned in this document are available under BSD-3 clause
+license. 
+
+Please refer to the LICENSE.* files in the `repository
+<https://gitlab.com/incoresemi/core-generators/chromite>`_ for details on licensing terms.
 
 For more information about support, customization and other IP developments
 please write to info@incoresemi.com.

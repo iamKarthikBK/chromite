@@ -426,7 +426,7 @@ Multiply/Divide Unit
 
 The execution stage utilizes a multi-cycle integer multiply / divide unit to support the M
 extension of RISC-V. The multiplier is implemented as a re-timed module whose latency 
-is 1 cycle(s). Divider on the other hand implements a 
+is 2 cycle(s). Divider on the other hand implements a 
 non-restoring algorithm which produces the output at the end of
 32 cycle. 
 
@@ -520,5 +520,5 @@ are exceptions to this:
 - The Load to use latency is 1, assuming a cache hit
 - All CSR operations occur at the write-back stage. Considering a daisy chain architecture, a CSR
   operation can take anywhere between 1 to 7 cycles depending on the CSR being accessed.
-- All multiplication operations take 1 cycle(s).
+- All multiplication operations take 2 cycle(s).
 - All division operations take 32 cycle(s).

@@ -6,15 +6,15 @@
 
 ## What is Chromite
 
-Chromite is the commerically supported version of the open source [SHAKTI](https://shakti.org.in)
-C-class processor. It is an extremely configurable and commercial-grade 5-stage in-order core 
-supporting the standard RV64GCSUN ISA extensions. The core generator in this repository is capable 
-of configuring the core to generate a wide variety of design instances from the same high-level 
-source code. The design instances can serve domains ranging from embedded systems, motor-control, 
-IoT, storage, industrial applications all the way to low-cost high-performance linux based 
-applications such as networking, gateways etc. The extreme parameterization
-of the design in conjunction with using an HLS like Bluespec, it makes it easy to add new features
-and design points on a continual basis.
+Chromite is an open-source core generator, **based on the** [SHAKTI C Class](https://gitlab.com/shaktiproject/cores/c-class)
+**core developed at PS CDISHA at the Indian Institute of Technology Madras** . The core generator emits synthesizable, production quality RTL
+of processors based on the open [RISC-V ISA](https://riscv.org/). The core generator can produce
+variants of a commercial grade 6-stage in-order core supporting the RV[64/32]GCSUN (or its subsets)
+extensions of the RISC-V ISA, from the same high-level source code. Chromite leverages the high 
+level abstraction offered by [Bluespec System Verilog](https://github.com/B-Lang-org) to build highly parameterized, compact and powerful library components (like 
+arithmetic units, branch predictors, caches, mmu, etc) that can be seamlessly integrated to create a solution catered to
+your needs. 
+
 
 ## License
 All of the source code available in this repository is under the BSD license. 
