@@ -46,7 +46,7 @@ Python
         $ pip3 install --upgrade pip
       
       If you are using Ubuntu 14.04 or 16.04 you need to get python3.6 from a Personal Package Archive 
-      (PPA)::
+      (PPA)
       
       .. code-block:: shell-session
 
@@ -56,7 +56,7 @@ Python
         $ pip3 install --upgrade pip
       
       You should now have 2 binaries: ``python3`` and ``pip3`` available in your $PATH. 
-      You can check the versions as below::
+      You can check the versions as below
       
       .. code-block:: shell-session
 
@@ -68,7 +68,7 @@ Python
    .. tab:: CentOS7
 
       The CentOS 7 Linux distribution includes Python 2 by default. However, as of CentOS 7.7, Python 3 
-      is available in the base package repository which can be installed using the following commands::
+      is available in the base package repository which can be installed using the following commands
       
       .. code-block:: shell-session
 
@@ -77,7 +77,7 @@ Python
         $ pip3 install --upgrade pip
       
       For versions prior to 7.7 you can install python3.6 using third-party repositories, such as the 
-      IUS repository::
+      IUS repository
       
       .. code-block:: shell-session
 
@@ -87,7 +87,7 @@ Python
         $ sudo yum install python36u
         $ pip3 install --upgrade pip
       
-      You can check the versions::
+      You can check the versions
       
       .. code-block:: shell-session
 

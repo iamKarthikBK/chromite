@@ -3,6 +3,10 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.9.6] - 2020-07-03
+  - minor doc updates
+  - fixed errors in license terms in readthedocs version.
+
 [0.9.5] - 2020-06-18
   - fixed sample configs and added a chromite equivalent config as well.
   - removed obsolete remnants of MTIME and MTIMEH from csrs.
