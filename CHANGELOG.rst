@@ -3,6 +3,12 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.9.7] - 2021-03-25
+  - verilator command to use absolute paths instead of relative
+  - fix in decoder for illegal frm values
+  - condition for choosing nextpc and delayed_redirect in stage0 fixed
+  - ignore dumping trap instruction in tracedump
+
 [0.9.6] - 2020-07-03
   - minor doc updates
   - fixed errors in license terms in readthedocs version.
