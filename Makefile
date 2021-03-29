@@ -19,8 +19,8 @@ link_verilator: ## Generate simulation executable using Verilator
 	@mkdir -p $(BSVOUTDIR) obj_dir
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > sim_main.h
 	@echo '#include "V$(TOP_MODULE).h"' >> sim_main.h
-	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v -y $(VERILOGDIR) \
-		-y $(BS_VERILOG_LIB) -y bsvwrappers/common_lib/ --exe
+	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v -y $(PWD)/$(VERILOGDIR) \
+		-y $(BS_VERILOG_LIB) -y $(PWD)/bsvwrappers/common_lib/ --exe
 	@ln -f -s ../test_soc/sim_main.cpp obj_dir/sim_main.cpp
 	@ln -f -s ../sim_main.h obj_dir/sim_main.h
 	make $(VERILATOR_SPEED) VM_PARALLEL_BUILDS=1 -j4 -C obj_dir -f V$(TOP_MODULE).mk
@@ -67,15 +67,16 @@ link_vcs: ## Generate simulation executable using Synopsys VCS
 .PHONY: link_ncverilog
 link_ncverilog: ## Generate simulation executable using Cadence NCVerilog
 	@echo "Linking $(TOP_MODULE) using ncverilog..."
-	@rm -rf work include $(BSVOUTDIR)/work
+	@rm -rf work include $(BSVOUTDIR)/*
 	@mkdir -p $(BSVOUTDIR) work
 	@echo "define work ./work" > cds.lib
 	@echo "define WORK work" > hdl.var
 	@ncvlog -64BIT -sv -cdslib ./cds.lib -hdlvar ./hdl.var +define+TOP=$(TOP_MODULE) $(VCS_MACROS)\
 	${BS_VERILOG_LIB}/main.v \
 	-y $(VERILOGDIR)/ \
+	-y bsvwrappers/common_lib \
 	-y ${BS_VERILOG_LIB}/
-	@ncelab  -cdslib ./cds.lib -hdlvar ./hdl.var work.main -timescale 1ns/1ps
+	@ncelab $(NC_COV_ARGS) -cdslib ./cds.lib -hdlvar ./hdl.var work.main -timescale 1ns/1ps
 	@echo 'ncsim -cdslib ./cds.lib -hdlvar ./hdl.var work.main #> /dev/null' > $(BSVOUTDIR)/chromite_core
 	@mv work cds.lib hdl.var $(BSVOUTDIR)/
 	@chmod +x $(BSVOUTDIR)/chromite_core
@@ -93,6 +94,7 @@ link_ncverilog_openocd: ## Generate simulation executable using Synopsys VCS wit
 	@ncvlog -64BIT -sv -cdslib ./cds.lib -hdlvar ./hdl.var +define+TOP=$(TOP_MODULE) \
 	${BS_VERILOG_LIB}/main.v \
 	-y $(VERILOGDIR)/ \
+	-y bsvwrappers/common_lib \
 	-y ${BS_VERILOG_LIB}/
 	@ncelab -64BIT -cdslib ./cds.lib -hdlvar ./hdl.var work.main -loadvpi rbb_vpi.so: -timescale 1ns/1ps
 	@echo 'ncsim -64BIT -cdslib ./cds.lib -hdlvar ./hdl.var -loadvpi rbb_vpi.so: work.main #> /dev/null' > $(BSVOUTDIR)/chromite_core
@@ -103,9 +105,15 @@ link_ncverilog_openocd: ## Generate simulation executable using Synopsys VCS wit
 
 .PHONY: link_irun
 link_irun:
+	@echo "Linking $(TOP_MODULE) using irun...."
+	@rm -rf work include $(BSVOUTDIR)/*
+	@mkdir -p $(BSVOUTDIR) work
+	@echo "define work ./work" > cds.lib
+	@echo "define WORK work" > hdl.var
 	@irun -define TOP=mkTbSoC -timescale 1ns/1ps $(VERILOGDIR)/main.v \
 	-y $(VERILOGDIR)/ \
-	-y ${BS_VERILOG_LIB}/
+	-y bsvwrappers/common_lib \
+	-y ${BS_VERILOG_LIB}/ +libext+.v 
 
 .PHONY: link_msim
 link_msim: ## Generate simulation executable using Mentor's ModelSim tool
