@@ -81,7 +81,7 @@ release:
         - eval "$(pyenv init -)"
         - eval "$(pyenv virtualenv-init -)"
         - pyenv shell 3.6.10
-        - pip install semver gitlab requests
+        - pip install semver python-gitlab requests
         - python /scratch/version-extract-rst.py
         - echo -e "section_end:`date +%s`:tag\r\e[0K"
     only:
