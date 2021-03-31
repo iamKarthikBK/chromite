@@ -162,8 +162,11 @@ package Soc;
 	  Ifc_axi4_slave #(IDWIDTH,`paddr, ELEN, USERSPACE) axi4_err <- mkaxi4_err_2;
 	  Ifc_apb_slave  #(`paddr, 32, USERSPACE) apb_err <- mkapb_err;
 
-    // -------------------------------- JTAG + Debugger Setup ---------------------------------- //
-      
+  `ifdef supervisor
+    mkConnection(ccore.sb_plic_seip,1'b0);
+  `endif
+    mkConnection(ccore.sb_plic_meip,1'b0);
+
     // ------------------------------------------------------------------------------------------//
    	mkConnection(ccore.master_d,	 axi4fabric.v_from_masters[valueOf(Mem_master_num)]);
    	mkConnection(ccore.master_i,   axi4fabric.v_from_masters[valueOf(Fetch_master_num)]);

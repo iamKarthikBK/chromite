@@ -3,6 +3,9 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.9.8] - 2021-03-30
+  - fix external seip behavior
+
 [0.9.7] - 2021-03-25
   - verilator command to use absolute paths instead of relative
   - fix in decoder for illegal frm values

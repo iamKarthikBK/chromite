@@ -389,11 +389,7 @@ package csr_grp1;
     Reg#(Bit#(1)) rg_soft_seip <- mkReg(0);
     (*doc = "reg : Supervisor External Interrupt Pending register, written over by external \
     				 factors"*)
-    Reg#(Bit#(1)) rg_ext_seip <- mkReg(0);
-    //(*doc = "reg : Supervisor External Interrupt Pending register"*)
-    Reg#(Bit#(1)) rg_seip = extInterruptReg(rg_soft_seip, rg_ext_seip);
-  `else
-    Reg#(Bit#(1)) rg_seip = readOnlyReg(0);
+    Wire#(Bit#(1)) wr_ext_seip <- mkWire();
   `endif
   `ifdef usertraps
   	(*doc = "reg : User External Interrupt Pending register, may be written over by software \
@@ -556,7 +552,7 @@ package csr_grp1;
                             readOnlyReg(4'd0),
                             readOnlyReg(rg_meip),
                             readOnlyReg(1'b0),
-                            rg_seip,
+                            rg_soft_seip,
                             rg_ueip,
                             readOnlyReg(rg_mtip),
                             readOnlyReg(1'd0),
@@ -602,10 +598,10 @@ package csr_grp1;
           rg_usie);
     Reg#(Bit#(XLEN)) rg_csr_sip = concatReg9(
           readOnlyReg(0),
-          readOnlyReg(rg_seip),
+          rg_soft_seip,
           rg_ueip,
           readOnlyReg(2'd0),
-          readOnlyReg(rg_stip),
+          rg_stip,
           rg_utip,
           readOnlyReg(2'd0),
           rg_ssip,
@@ -730,8 +726,8 @@ package csr_grp1;
 
         `MIP : begin
         	//read previous value
-					Bit#(XLEN) readdata = rg_csr_mip & lv_mi_mask;
-        	rg_resp_to_core <= CSRResponse{ hit : True, data :readdata};
+					Bit#(XLEN) readdata = (rg_csr_mip & lv_mi_mask);
+        	rg_resp_to_core <= CSRResponse{ hit : True, data :readdata| {'d0, wr_ext_seip,9'd0}};
 					//form the new value
         	let word <- csr_op.func(req.writedata,readdata,op);
 
@@ -868,7 +864,7 @@ package csr_grp1;
 				`SIP : begin
 					//read previous value
         	Bit#(XLEN) readdata = rg_csr_sip & lv_si_mask;
-          rg_resp_to_core <= CSRResponse{ hit : True, data : readdata};
+          rg_resp_to_core <= CSRResponse{ hit : True, data : readdata| {'d0, wr_ext_seip,9'd0}};
         	//form the new value to be written and write
         	let word <- csr_op.func(req.writedata,readdata,op);
         	rg_csr_sip <= word & lv_si_mask;
@@ -1101,7 +1097,7 @@ package csr_grp1;
 	  endmethod
     `ifdef supervisor
   	method Action ma_set_seip(Bit#(1) ex_i);
-	  		rg_ext_seip <= ex_i;
+	  		wr_ext_seip <= ex_i;
 	  endmethod
     `endif
     `ifdef usertraps
@@ -1131,7 +1127,7 @@ package csr_grp1;
 
     method mv_csrs_to_decode = CSRtoDecode{
         prv : wr_prv,
-        csr_mip : truncate(rg_csr_mip & lv_mi_mask),
+        csr_mip : truncate((rg_csr_mip & lv_mi_mask)| {'d0, wr_ext_seip,9'd0}),
         csr_mie : truncate(rg_csr_mie & lv_mi_mask),
         csr_misa : truncate(wr_csr_misa),
         frm : wr_frm, //sideband connection from grp-2
@@ -1170,7 +1166,7 @@ package csr_grp1;
 
 		/*doc:method: */
 		method Bool mv_resume_wfi ();
-  		return unpack( |(rg_csr_mip&rg_csr_mie) );
+  		return unpack( |( (rg_csr_mip | {'d0, wr_ext_seip,9'd0}) &rg_csr_mie) );
 		endmethod
 
   `ifdef non_m_traps
