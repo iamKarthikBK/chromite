@@ -80,8 +80,9 @@ release:
         - export PATH="/home/gitlab-runner/.pyenv/bin:$PATH"
         - eval "$(pyenv init -)"
         - eval "$(pyenv virtualenv-init -)"
-        - pyenv activate venv
-        - python3 /scratch/version-extract-rst.py
+        - pyenv shell 3.6.10
+        - pip install semver gitlab requests
+        - python /scratch/version-extract-rst.py
         - echo -e "section_end:`date +%s`:tag\r\e[0K"
     only:
         refs:
