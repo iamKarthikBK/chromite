@@ -71,6 +71,20 @@ package gshare_fa;
                                                      valueOf(TLog#(TDiv#(`bhtdepth,`bhtcols)))))
                                    ^ truncateLSB(history);
   endfunction*/
+  /* assume histlen is 8 and the history bits are 5 is 00000[000] at startup. The remaining bits, 
+     indicaed by the square braces do not carry history information. Let us assume the initial PC is xxx0110000001000.
+     The BHT Depth is assumed to be 512 and there is only one bht column, i.e no support for compressed instructions.
+     The Hash function operates as follows, `ignore is 2
+     Bit#(9) pc_hash = (100000010)^(000000001) = 100000011
+     Bit#(5) _h = 00000;
+     Bit#(9) hist_hash = 000000000; // left shifted by 9-5=3;
+     hashed_output = 100000011;
+
+     had the history been 11011111.. the computation would be as follows, 
+     _h = 11011;
+     hist_hash = zeroExtend(11) = 000000011 (only bits 5 and 4 of the ghr are used for hashing in this case)
+     hashed_output = 100000011 ^ 000000011 = 100000000
+  */
   function Bit#(TLog#(TDiv#(`bhtdepth,`bhtcols))) fn_hash (
                                       Bit#(`histlen) history, Bit#(`vaddr) pc);
     
@@ -373,7 +387,7 @@ package gshare_fa;
       let {btbhit, ghr} = g;
       if(btbhit)
         ghr[`histlen-1] = ~ghr[`histlen-1];
-      `logLevel( bpu, 4, $format("[%2d]BPU : Misprediction fired. Restoring ghr:%h",hartid,
+      `logLevel( bpu, 5, $format("[%2d]BPU : Misprediction fired. Restoring ghr:%h",hartid,
                                                                                               ghr))
       rg_ghr[1] <= ghr;
     endmethod
