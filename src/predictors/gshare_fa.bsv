@@ -257,7 +257,7 @@ package gshare_fa;
     method ActionValue#(PredictionResponse) mav_prediction_response (PredictionRequest r)
                                                          `ifdef ifence if(!rg_initialize) `endif ;
       `logLevel( bpu, 0, $format("[%2d]BPU : Received Request: ",hartid, fshow(r),
-                                 " ghr:%h",hartid,rg_ghr[0]))
+                                 " ghr: %b",hartid,rg_ghr[0]))
     `ifdef ifence
       if( r.fence && wr_bpu_enable)
         rg_initialize <= True;
@@ -328,7 +328,7 @@ package gshare_fa;
             if(hit_entry.ci == Branch) begin
               prediction_ = branch_state_[pack(hi)];
               lv_ghr = {prediction_[`statesize - 1], truncateLSB(rg_ghr[0])};
-              `logLevel( bpu, 0, $format("[%2d]BPU : New GHR:%h",hartid, lv_ghr))
+              `logLevel( bpu, 0, $format("[%2d]BPU : New GHR: %b",hartid, lv_ghr))
             end
           end
 
@@ -413,7 +413,7 @@ package gshare_fa;
       let {btbhit, ghr} = g;
       if(btbhit)
         ghr[`histlen-1] = ~ghr[`histlen-1];
-      `logLevel( bpu, 4, $format("[%2d]BPU : Misprediction fired. Restoring ghr:%h",hartid,
+      `logLevel( bpu, 4, $format("[%2d]BPU : Misprediction fired. Restoring ghr: %b",hartid,
                                                                                               ghr))
       rg_ghr[1] <= ghr;
     endmethod
