@@ -169,7 +169,10 @@ package gshare_fa;
   `ifdef ifence
     /*doc : reg : When true this register flushes all the entries and cleans up the btb*/
     ConfigReg#(Bool) rg_initialize <- mkConfigReg(False);
-
+    `ifdef simulate
+    // the follwoing register is used to indicate that a fence instruction was encountered
+      ConfigReg#(Bool) rg_log_vals <- mkConfigReg(False);
+    `endif 
     /*doc : rule : This rule flushes the btb and puts it back to the initial reset state.
     This rule would be called each time a fence.i is being performed. This rule will also reset the
     ghr and rg_allocate register*/
@@ -182,8 +185,31 @@ package gshare_fa;
     `ifdef bpu_ras
       ras_stack.clear;
     `endif
+    `ifdef simulate
+      rg_log_vals <= True;
+      `logLevel( bpu,5, $format(" Fence Encountered, Current vals are"))
+      `logLevel( bpu,5, $format(" rg_allocate -> %h", rg_allocate))
+      for(Integer i = 0; i< `btbdepth; i = i + 1) begin
+        `logLevel( bpu,5, $format( " BTB_entry %2d -> %h  Inst_type -> ",i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
+        `logLevel( bpu,5, $format( " Tag %2d       -> %h   Valid_bit -> %b ",i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
+      end
+      `logLevel( bpu,5, $format(" current_ghr -> %b", rg_ghr[1]))
+      `endif
     endrule
   `endif
+    /* the following block of code helps keep track of the updates to the BTB entries after a fence inst */
+    `ifdef simulate
+      rule rl_post_fence_log (rg_log_vals);
+        rg_log_vals <= False;
+        `logLevel( bpu,5, $format(" Continuing after fence, Current vals are"))
+        `logLevel( bpu,5, $format(" rg_allocate -> %h", rg_allocate))
+        for(Integer i = 0; i< `btbdepth; i = i + 1) begin
+          `logLevel( bpu,5, $format( " BTB_entry %2d -> %h  Inst_type -> ",i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
+          `logLevel( bpu,5, $format( " Tag %2d       -> %h   Valid_bit -> %b ",i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
+        end
+        `logLevel( bpu,5, $format(" current_ghr -> %b", rg_ghr[1]))
+      endrule
+    `endif
 
     /*doc:method: This method provides prediction for a requested PC.
     If a fence.i is requested, then the rg_initialize register is set to true.
@@ -387,7 +413,7 @@ package gshare_fa;
       let {btbhit, ghr} = g;
       if(btbhit)
         ghr[`histlen-1] = ~ghr[`histlen-1];
-      `logLevel( bpu, 5, $format("[%2d]BPU : Misprediction fired. Restoring ghr:%h",hartid,
+      `logLevel( bpu, 4, $format("[%2d]BPU : Misprediction fired. Restoring ghr:%h",hartid,
                                                                                               ghr))
       rg_ghr[1] <= ghr;
     endmethod
