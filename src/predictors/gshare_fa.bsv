@@ -257,7 +257,7 @@ package gshare_fa;
     method ActionValue#(PredictionResponse) mav_prediction_response (PredictionRequest r)
                                                          `ifdef ifence if(!rg_initialize) `endif ;
       `logLevel( bpu, 0, $format("[%2d]BPU : Received Request: ",hartid, fshow(r),
-                                 " ghr: %b",hartid,rg_ghr[0]))
+                                 " ghr: %b",rg_ghr[0]))
     `ifdef ifence
       if( r.fence && wr_bpu_enable)
         rg_initialize <= True;
@@ -308,14 +308,14 @@ package gshare_fa;
         if(True `ifdef compressed && ( hit_entry.hi || !r.discard ) `endif ) begin
           if(hit_entry.ci == Call)begin // push to ras in case of Call instructions
             Bit#(`vaddr) push_pc = r.pc + ras_push_offset;
-            `logLevel( bpu, 1, $format("[%2d]BPU: Pushing into RAS:%h",hartid,(push_pc)))
+            `logLevel( bpu, 1, $format("[%2d]BPU : Pushing into RAS:%h",hartid,(push_pc)))
             ras_stack.push(push_pc);
           end
 
           if(hit_entry.ci == Ret) begin // pop from ras in case of Ret instructions
             target_ = ras_stack.top;
             ras_stack.pop;
-            `logLevel( bpu, 1, $format("[%2d]BPU: Choosing from top RAS:%h",hartid,target_))
+            `logLevel( bpu, 1, $format("[%2d]BPU : Choosing from top RAS:%h",hartid,target_))
           end
           else
         `endif
