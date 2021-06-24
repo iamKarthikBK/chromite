@@ -201,7 +201,7 @@ package gshare_fa;
     `ifdef simulate
       rule rl_post_fence_log (rg_log_vals);
         rg_log_vals <= False;
-        `logLevel( bpu,5, $format("[%2d]BPU : Continuing after fence, Current vals are", hartid))
+        `logLevel( bpu,5, $format("[%2d]BPU : Continuing after fence, Modified/Updated vals are", hartid))
         `logLevel( bpu,5, $format("[%2d]BPU : rg_allocate -> %h", hartid, rg_allocate))
         for(Integer i = 0; i< `btbdepth; i = i + 1) begin
           `logLevel( bpu,5, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
@@ -336,7 +336,7 @@ package gshare_fa;
       `ifdef ifence if(!r.fence) `endif
           rg_ghr[0] <= lv_ghr;
 
-        `logLevel( bpu, 0, $format("[%2d]BPU : BHTindex_:%d Target:%h Pred:%d  ghr: %b",hartid,
+        `logLevel( bpu, 0, $format("[%2d]BPU : BHTindex_:%d Target:%h Pred:%d ghr: %b",hartid,
                                                   bht_index_, target_, prediction_, rg_ghr[0]))
 
         `ifdef ASSERT
