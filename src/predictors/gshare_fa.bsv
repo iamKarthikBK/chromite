@@ -187,13 +187,13 @@ package gshare_fa;
     `endif
     `ifdef simulate
       rg_log_vals <= True;
-      `logLevel( bpu,5, $format(" Fence Encountered, Current vals are"))
-      `logLevel( bpu,5, $format(" rg_allocate -> %h", rg_allocate))
+      `logLevel( bpu,5, $format("[%2d]BPU : Fence Encountered, Current vals are", hartid))
+      `logLevel( bpu,5, $format("[%2d]BPU : rg_allocate -> %h", hartid, rg_allocate))
       for(Integer i = 0; i< `btbdepth; i = i + 1) begin
-        `logLevel( bpu,5, $format( " BTB_entry %2d -> %h  Inst_type -> ",i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
-        `logLevel( bpu,5, $format( " Tag %2d       -> %h   Valid_bit -> %b ",i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
+        `logLevel( bpu,5, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
+        `logLevel( bpu,5, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
       end
-      `logLevel( bpu,5, $format(" current_ghr -> %b", rg_ghr[1]))
+      `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
       `endif
     endrule
   `endif
@@ -201,13 +201,13 @@ package gshare_fa;
     `ifdef simulate
       rule rl_post_fence_log (rg_log_vals);
         rg_log_vals <= False;
-        `logLevel( bpu,5, $format(" Continuing after fence, Current vals are"))
-        `logLevel( bpu,5, $format(" rg_allocate -> %h", rg_allocate))
+        `logLevel( bpu,5, $format("[%2d]BPU : Continuing after fence, Current vals are", hartid))
+        `logLevel( bpu,5, $format("[%2d]BPU : rg_allocate -> %h", hartid, rg_allocate))
         for(Integer i = 0; i< `btbdepth; i = i + 1) begin
-          `logLevel( bpu,5, $format( " BTB_entry %2d -> %h  Inst_type -> ",i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
-          `logLevel( bpu,5, $format( " Tag %2d       -> %h   Valid_bit -> %b ",i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
+          `logLevel( bpu,5, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
+          `logLevel( bpu,5, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
         end
-        `logLevel( bpu,5, $format(" current_ghr -> %b", rg_ghr[1]))
+        `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
       endrule
     `endif
 
