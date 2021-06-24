@@ -308,7 +308,7 @@ package gshare_fa;
         if(True `ifdef compressed && ( hit_entry.hi || !r.discard ) `endif ) begin
           if(hit_entry.ci == Call)begin // push to ras in case of Call instructions
             Bit#(`vaddr) push_pc = r.pc + ras_push_offset;
-            `logLevel( bpu, 1, $format("[%2d]BPU: Pushing1 to RAS:%h",hartid,(push_pc)))
+            `logLevel( bpu, 1, $format("[%2d]BPU: Pushing into RAS:%h",hartid,(push_pc)))
             ras_stack.push(push_pc);
           end
 
@@ -336,8 +336,8 @@ package gshare_fa;
       `ifdef ifence if(!r.fence) `endif
           rg_ghr[0] <= lv_ghr;
 
-        `logLevel( bpu, 0, $format("[%2d]BPU : BHTindex_:%d Target:%h Pred:%d",hartid,
-                                                  bht_index_, target_, prediction_))
+        `logLevel( bpu, 0, $format("[%2d]BPU : BHTindex_:%d Target:%h Pred:%d \t ghr: %b",hartid,
+                                                  bht_index_, target_, prediction_, rg_ghr[0]))
 
         `ifdef ASSERT
           dynamicAssert(countOnes(match_) < 2, "Multiple Matches in BTB");
@@ -383,10 +383,10 @@ package gshare_fa;
       if(hit_index_ matches tagged Valid .h) begin
         v_reg_btb_entry[h] <= BTBEntry{ target : d.target, ci : d.ci
                             `ifdef compressed ,instr16: d.instr16, hi:unpack(d.pc[1]) `endif };
-        `logLevel( bpu, 4, $format("[%2d]BPU : Training existing Entry index: %d",hartid,h))
+        `logLevel( bpu, 4, $format("[%2d]BPU : Training existing Entry index: %d \t ghr: %b",hartid,h, rg_ghr[0]))
       end
       else begin
-        `logLevel( bpu, 4, $format("[%2d]BPU : Allocating new index: %d",hartid,rg_allocate))
+        `logLevel( bpu, 4, $format("[%2d]BPU : Allocating new index: %d ghr: %b",hartid,rg_allocate,rg_ghr[0]))
         v_reg_btb_entry[rg_allocate] <= BTBEntry{ target : d.target, ci : d.ci
                             `ifdef compressed ,instr16: d.instr16, hi:unpack(d.pc[1]) `endif };
         v_reg_btb_tag[rg_allocate] <= BTBTag{tag: truncateLSB(d.pc), valid: True};
@@ -399,8 +399,8 @@ package gshare_fa;
       let bht_index_ = fn_hash(d.history<<1, d.pc);
       if(d.ci == Branch && d.btbhit) begin
         rg_bht_arr[d.pc[1]][bht_index_] <= d.state;
-        `logLevel( bpu, 4, $format("[%2d]BPU : Upd BHT entry: %d with state: %d",hartid,
-                                                                              bht_index_, d.state))
+        `logLevel( bpu, 4, $format("[%2d]BPU : Upd BHT entry: %d with state: %d \t ghr: %b ",hartid,
+                                                                              bht_index_, d.state, rg_ghr[0] ))
       end
     endmethod
 
