@@ -336,7 +336,7 @@ package gshare_fa;
       `ifdef ifence if(!r.fence) `endif
           rg_ghr[0] <= lv_ghr;
 
-        `logLevel( bpu, 0, $format("[%2d]BPU : BHTindex_:%d Target:%h Pred:%d \t ghr: %b",hartid,
+        `logLevel( bpu, 0, $format("[%2d]BPU : BHTindex_:%d Target:%h Pred:%d  ghr: %b",hartid,
                                                   bht_index_, target_, prediction_, rg_ghr[0]))
 
         `ifdef ASSERT
