@@ -190,8 +190,8 @@ package gshare_fa;
       `logLevel( bpu,5, $format("[%2d]BPU : Fence Encountered, Current vals are", hartid))
       `logLevel( bpu,5, $format("[%2d]BPU : rg_allocate -> %h", hartid, rg_allocate))
       for(Integer i = 0; i< `btbdepth; i = i + 1) begin
-        `logLevel( bpu,5, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
-        `logLevel( bpu,5, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
+        `logLevel( bpu,6, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
+        `logLevel( bpu,6, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
       end
       `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
       `endif
@@ -201,11 +201,11 @@ package gshare_fa;
     `ifdef simulate
       rule rl_post_fence_log (rg_log_vals);
         rg_log_vals <= False;
-        `logLevel( bpu,5, $format("[%2d]BPU : Continuing after fence, Modified/Updated vals are", hartid))
+        `logLevel( bpu,6, $format("[%2d]BPU : Continuing after fence, Modified/Updated vals are", hartid))
         `logLevel( bpu,5, $format("[%2d]BPU : rg_allocate -> %h", hartid, rg_allocate))
         for(Integer i = 0; i< `btbdepth; i = i + 1) begin
-          `logLevel( bpu,5, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
-          `logLevel( bpu,5, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
+          `logLevel( bpu,6, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
+          `logLevel( bpu,6, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid)) 
         end
         `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
       endrule
@@ -261,6 +261,13 @@ package gshare_fa;
     `ifdef ifence
       if( r.fence && wr_bpu_enable)
         rg_initialize <= True;
+    `endif
+    
+    `ifdef simulate
+      Bit#(`btbdepth) rg_check_valid = 'b0;  
+      for (Integer i=0; i<`btbdepth;i=i+1) rg_check_valid[i] = pack(v_reg_btb_tag[i].valid);
+      if (rg_log_vals)
+        `logLevel( bpu,5, $format("[%2d]BPU : Fenced, Valid Bits -> %b", hartid, |rg_check_valid))    
     `endif
       let bht_index_ = fn_hash(rg_ghr[0], r.pc);
       Bit#(`statesize) branch_state_ [`bhtcols];
