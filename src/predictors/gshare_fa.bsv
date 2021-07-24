@@ -186,27 +186,32 @@ package gshare_fa;
       ras_stack.clear;
     `endif
     `ifdef simulate
+      // logs when fence is encountered (before fence clears everything)
       rg_log_vals <= True;
       `logLevel( bpu,5, $format("[%2d]BPU : Fence Encountered, Current vals are", hartid))
       `logLevel( bpu,5, $format("[%2d]BPU : rg_allocate -> %h", hartid, rg_allocate))
-      for(Integer i = 0; i< `btbdepth; i = i + 1) begin
+      // this section displays all the entire BTB. commenting as it is not used in check_logs method.
+      /*for(Integer i = 0; i< `btbdepth; i = i + 1) begin
         `logLevel( bpu,6, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
         `logLevel( bpu,6, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
-      end
+      end*/
+      // value of GHR before fencing
       `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
       `endif
     endrule
   `endif
-    /* the following block of code helps keep track of the updates to the BTB entries after a fence inst */
+    // the following block of code helps keep track of the updates to the BTB entries after a fence inst 
     `ifdef simulate
       rule rl_post_fence_log (rg_log_vals);
         rg_log_vals <= False;
         `logLevel( bpu,6, $format("[%2d]BPU : Continuing after fence, Modified/Updated vals are", hartid))
         `logLevel( bpu,5, $format("[%2d]BPU : rg_allocate -> %h", hartid, rg_allocate))
-        for(Integer i = 0; i< `btbdepth; i = i + 1) begin
+        // this section prints all the entire BTB after fence. Commenting as it is not used in Check_logs if uarch_test.
+        /*for(Integer i = 0; i< `btbdepth; i = i + 1) begin
           `logLevel( bpu,6, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
           `logLevel( bpu,6, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid)) 
-        end
+        end*/
+        // value of GHR after fence
         `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
       endrule
     `endif
@@ -264,6 +269,7 @@ package gshare_fa;
     `endif
     
     `ifdef simulate
+    // prints if the valid bits of all the btb_tags are set to 0. Used in Check_logs
       Bit#(`btbdepth) rg_check_valid = 'b0;  
       for (Integer i=0; i<`btbdepth;i=i+1) rg_check_valid[i] = pack(v_reg_btb_tag[i].valid);
       if (rg_log_vals)
