@@ -319,6 +319,9 @@ package stage1;
         else begin
           rg_action <= None;
           compressed = True;
+          `ifdef simulate
+            `logLevel( stage1, 9, $format("imem_resp_word HIGH is %b",imem_resp.word[31:16]))
+          `endif
           final_instruction = zeroExtend(imem_resp.word[31 : 16]);
           trap = imem_resp.trap;
           stage0pc.address[1] = 1;
@@ -337,6 +340,9 @@ package stage1;
         // if instruction from cache is compressed
         else if(wr_csr_misa_c == 1) begin
           compressed = True;
+          `ifdef simulate
+            `logLevel( stage1, 9, $format("imem_resp_word LOW is %b",imem_resp.word[15:00]))
+          `endif
           final_instruction = zeroExtend(imem_resp.word[15 : 0]);
           lv_prev.instruction = truncateLSB(imem_resp.word);
           lv_prev.pc = stage0pc.address;
@@ -369,10 +375,13 @@ package stage1;
         cause = trig_cause;
       end
     `endif
-      Bit#(32) inst = final_instruction;
+      Bit#(32) inst = final_instruction; 
     `ifdef compressed
       if(compressed)
         final_instruction = fn_decompress(truncate(final_instruction));
+        `ifdef simulate
+          `logLevel( stage1, 9, $format("Invoking decompress, final inst is %b",final_instruction))
+        `endif
     `endif
 			let pipedata = PIPE1{program_counter : stage0pc.address,
                     instruction : final_instruction,
