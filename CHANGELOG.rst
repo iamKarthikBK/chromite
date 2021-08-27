@@ -3,7 +3,7 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-[0.9.8] - 2021-08-27
+[0.9.9] - 2021-08-27
   - add logs for gshare_branchpredictor and decompressor.
 
 [0.9.8] - 2021-03-30
