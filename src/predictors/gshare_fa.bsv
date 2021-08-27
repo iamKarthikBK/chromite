@@ -71,6 +71,20 @@ package gshare_fa;
                                                      valueOf(TLog#(TDiv#(`bhtdepth,`bhtcols)))))
                                    ^ truncateLSB(history);
   endfunction*/
+  /* assume histlen is 8 and the history bits are 5 is 00000[000] at startup. The remaining bits, 
+     indicaed by the square braces do not carry history information. Let us assume the initial PC is xxx0110000001000.
+     The BHT Depth is assumed to be 512 and there is only one bht column, i.e no support for compressed instructions.
+     The Hash function operates as follows, `ignore is 2
+     Bit#(9) pc_hash = (100000010)^(000000001) = 100000011
+     Bit#(5) _h = 00000;
+     Bit#(9) hist_hash = 000000000; // left shifted by 9-5=3;
+     hashed_output = 100000011;
+
+     had the history been 11011111.. the computation would be as follows, 
+     _h = 11011;
+     hist_hash = zeroExtend(11) = 000000011 (only bits 5 and 4 of the ghr are used for hashing in this case)
+     hashed_output = 100000011 ^ 000000011 = 100000000
+  */
   function Bit#(TLog#(TDiv#(`bhtdepth,`bhtcols))) fn_hash (
                                       Bit#(`histlen) history, Bit#(`vaddr) pc);
     
@@ -155,7 +169,10 @@ package gshare_fa;
   `ifdef ifence
     /*doc : reg : When true this register flushes all the entries and cleans up the btb*/
     ConfigReg#(Bool) rg_initialize <- mkConfigReg(False);
-
+    `ifdef simulate
+    // the follwoing register is used to indicate that a fence instruction was encountered
+      ConfigReg#(Bool) rg_log_vals <- mkConfigReg(False);
+    `endif 
     /*doc : rule : This rule flushes the btb and puts it back to the initial reset state.
     This rule would be called each time a fence.i is being performed. This rule will also reset the
     ghr and rg_allocate register*/
@@ -168,8 +185,38 @@ package gshare_fa;
     `ifdef bpu_ras
       ras_stack.clear;
     `endif
+    `ifdef simulate
+      // logs when fence is encountered (before fence clears everything)
+      rg_log_vals <= True;
+      `logLevel( bpu,5, $format("rg_initialize is %b, rg_log_vals is %b", rg_initialize,rg_log_vals))
+      `logLevel( bpu,5, $format("[%2d]BPU : Fence Encountered, Current vals are", hartid))
+      `logLevel( bpu,5, $format("[%2d]BPU : rg_allocate -> %h", hartid, rg_allocate))
+      // this section displays all the entire BTB. commenting as it is not used in check_logs method.
+      for(Integer i = 0; i< `btbdepth; i = i + 1) begin
+        `logLevel( bpu,6, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
+        `logLevel( bpu,6, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid))
+      end
+      // value of GHR before fencing
+      `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
+      `endif
     endrule
   `endif
+    // the following block of code helps keep track of the updates to the BTB entries after a fence inst 
+    `ifdef simulate
+      rule rl_post_fence_log (rg_log_vals);
+        rg_log_vals <= False;
+        `logLevel( bpu,5, $format("rg_initialize is %b, rg_log_vals is %b", rg_initialize,rg_log_vals))
+        `logLevel( bpu,6, $format("[%2d]BPU : Continuing after fence, Modified/Updated vals are", hartid))
+        `logLevel( bpu,5, $format("[%2d]BPU : rg_allocate -> %h", hartid, rg_allocate))
+        // this section prints all the entire BTB after fence. Commenting as it is not used in Check_logs if uarch_test.
+        for(Integer i = 0; i< `btbdepth; i = i + 1) begin
+          `logLevel( bpu,6, $format( "[%2d]BPU : BTB_entry %2d -> %h  Inst_type -> ", hartid,i,v_reg_btb_entry[i],fshow((v_reg_btb_entry[i]).ci)))
+          `logLevel( bpu,6, $format( "[%2d]BPU : Tag %2d       -> %h   Valid_bit -> %b ", hartid,i,(v_reg_btb_tag[i]).tag,(v_reg_btb_tag[i]).valid)) 
+        end
+        // value of GHR after fence
+        `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
+      endrule
+    `endif
 
     /*doc:method: This method provides prediction for a requested PC.
     If a fence.i is requested, then the rg_initialize register is set to true.
@@ -217,10 +264,20 @@ package gshare_fa;
     method ActionValue#(PredictionResponse) mav_prediction_response (PredictionRequest r)
                                                          `ifdef ifence if(!rg_initialize) `endif ;
       `logLevel( bpu, 0, $format("[%2d]BPU : Received Request: ",hartid, fshow(r),
-                                 " ghr:%h",hartid,rg_ghr[0]))
+                                 " ghr: %b",rg_ghr[0]))
     `ifdef ifence
       if( r.fence && wr_bpu_enable)
         rg_initialize <= True;
+    `endif
+    
+    `ifdef simulate
+    // prints if the valid bits of all the btb_tags are set to 0. Used in Check_logs
+      if (rg_initialize)
+        `logLevel( bpu,5, $format("rg_initialize has become 1"))
+      Bit#(`btbdepth) rg_check_valid = 'b0;  
+      for (Integer i=0; i<`btbdepth;i=i+1) rg_check_valid[i] = pack(v_reg_btb_tag[i].valid);
+      if (rg_log_vals)
+        `logLevel( bpu,5, $format("[%2d]BPU : Fenced, Valid Bits -> %b", hartid, |rg_check_valid))    
     `endif
       let bht_index_ = fn_hash(rg_ghr[0], r.pc);
       Bit#(`statesize) branch_state_ [`bhtcols];
@@ -268,14 +325,14 @@ package gshare_fa;
         if(True `ifdef compressed && ( hit_entry.hi || !r.discard ) `endif ) begin
           if(hit_entry.ci == Call)begin // push to ras in case of Call instructions
             Bit#(`vaddr) push_pc = r.pc + ras_push_offset;
-            `logLevel( bpu, 1, $format("[%2d]BPU: Pushing1 to RAS:%h",hartid,(push_pc)))
+            `logLevel( bpu, 1, $format("[%2d]BPU : Pushing into RAS:%h",hartid,(push_pc)))
             ras_stack.push(push_pc);
           end
 
           if(hit_entry.ci == Ret) begin // pop from ras in case of Ret instructions
             target_ = ras_stack.top;
             ras_stack.pop;
-            `logLevel( bpu, 1, $format("[%2d]BPU: Choosing from top RAS:%h",hartid,target_))
+            `logLevel( bpu, 1, $format("[%2d]BPU : Choosing from top RAS:%h",hartid,target_))
           end
           else
         `endif
@@ -288,7 +345,7 @@ package gshare_fa;
             if(hit_entry.ci == Branch) begin
               prediction_ = branch_state_[pack(hi)];
               lv_ghr = {prediction_[`statesize - 1], truncateLSB(rg_ghr[0])};
-              `logLevel( bpu, 0, $format("[%2d]BPU : New GHR:%h",hartid, lv_ghr))
+              `logLevel( bpu, 0, $format("[%2d]BPU : New GHR: %b",hartid, lv_ghr))
             end
           end
 
@@ -296,8 +353,8 @@ package gshare_fa;
       `ifdef ifence if(!r.fence) `endif
           rg_ghr[0] <= lv_ghr;
 
-        `logLevel( bpu, 0, $format("[%2d]BPU : BHTindex_:%d Target:%h Pred:%d",hartid,
-                                                  bht_index_, target_, prediction_))
+        `logLevel( bpu, 0, $format("[%2d]BPU : BHTindex_:%d Target:%h Pred:%d ghr: %b",hartid,
+                                                  bht_index_, target_, prediction_, rg_ghr[0]))
 
         `ifdef ASSERT
           dynamicAssert(countOnes(match_) < 2, "Multiple Matches in BTB");
@@ -343,10 +400,10 @@ package gshare_fa;
       if(hit_index_ matches tagged Valid .h) begin
         v_reg_btb_entry[h] <= BTBEntry{ target : d.target, ci : d.ci
                             `ifdef compressed ,instr16: d.instr16, hi:unpack(d.pc[1]) `endif };
-        `logLevel( bpu, 4, $format("[%2d]BPU : Training existing Entry index: %d",hartid,h))
+        `logLevel( bpu, 4, $format("[%2d]BPU : Training existing Entry index: %d \t ghr: %b",hartid,h, rg_ghr[0]))
       end
       else begin
-        `logLevel( bpu, 4, $format("[%2d]BPU : Allocating new index: %d",hartid,rg_allocate))
+        `logLevel( bpu, 4, $format("[%2d]BPU : Allocating new index: %d ghr: %b",hartid,rg_allocate,rg_ghr[0]))
         v_reg_btb_entry[rg_allocate] <= BTBEntry{ target : d.target, ci : d.ci
                             `ifdef compressed ,instr16: d.instr16, hi:unpack(d.pc[1]) `endif };
         v_reg_btb_tag[rg_allocate] <= BTBTag{tag: truncateLSB(d.pc), valid: True};
@@ -359,8 +416,8 @@ package gshare_fa;
       let bht_index_ = fn_hash(d.history<<1, d.pc);
       if(d.ci == Branch && d.btbhit) begin
         rg_bht_arr[d.pc[1]][bht_index_] <= d.state;
-        `logLevel( bpu, 4, $format("[%2d]BPU : Upd BHT entry: %d with state: %d",hartid,
-                                                                              bht_index_, d.state))
+        `logLevel( bpu, 4, $format("[%2d]BPU : Upd BHT entry: %d with state: %d \t ghr: %b ",hartid,
+                                                                              bht_index_, d.state, rg_ghr[0] ))
       end
     endmethod
 
@@ -373,7 +430,7 @@ package gshare_fa;
       let {btbhit, ghr} = g;
       if(btbhit)
         ghr[`histlen-1] = ~ghr[`histlen-1];
-      `logLevel( bpu, 4, $format("[%2d]BPU : Misprediction fired. Restoring ghr:%h",hartid,
+      `logLevel( bpu, 4, $format("[%2d]BPU : Misprediction fired. Restoring ghr: %b",hartid,
                                                                                               ghr))
       rg_ghr[1] <= ghr;
     endmethod
