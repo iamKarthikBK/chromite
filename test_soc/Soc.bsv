@@ -29,6 +29,7 @@ package Soc;
   import sign_dump        :: * ;
   import ram2rw           :: * ;
   import rom              :: * ;
+  import mem_config       :: * ;
 
   import riscv_debug_types::*;                                                                          
   import debug_loop::*;
@@ -128,7 +129,7 @@ package Soc;
   	let clk <-exposeCurrentClock;
   	let reset <-exposeCurrentReset;
     let ifc();
-    mk_ram2rw_axi4#(`MemoryBase, replicate("code.mem"),"nc") _temp(ifc);
+    mk_ram2rw_axi4#(`MemoryBase, replicate(tagged File "code.mem"),"nc") _temp(ifc);
     return ifc;
   endmodule:mkbram
 

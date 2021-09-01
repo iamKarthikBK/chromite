@@ -3,6 +3,11 @@ CHANGELOG
 
 This project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.9.10] - 2021-09-01
+  - wrapping all instances of wr_ext_seip under \`ifdef supervisor
+  - bump versions of devices and cache_subsytem
+  - filename to load in bram must of type LoadFormat from mem_config
+
 [0.9.9] - 2021-08-27
   - add logs for gshare_branchpredictor and decompressor.
 
