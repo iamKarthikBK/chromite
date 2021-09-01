@@ -52,7 +52,7 @@ include depends.mk
 dependency_yaml='''
 cache_subsystem:
   url: https://gitlab.com/incoresemi/blocks/cache_subsystem
-  checkout: 1.0.0
+  checkout: 1.0.2
 common_bsv:
   url: https://gitlab.com/incoresemi/blocks/common_bsv
   checkout: master
@@ -64,7 +64,7 @@ bsvwrappers:
   checkout: master
 devices:
   url: https://gitlab.com/incoresemi/blocks/devices
-  checkout: 1.0.3
+  checkout: 1.5.1
 verification:
   url: https://gitlab.com/shaktiproject/verification_environment/verification
   checkout: 4.0.0
