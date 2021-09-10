@@ -1,12 +1,12 @@
 # See LICENSE.incore for license details
 
-length_check_fields=['reset_pc', 'physical_addr_size']
+length_check_fields=['reset_pc']
 
 bsc_cmd = '''bsc -u -verilog -elab -vdir {0} -bdir {1} -info-dir {1} \
 +RTS -K40000M -RTS -check-assert  -keep-fires \
 -opt-undetermined-vals -remove-false-rules -remove-empty-rules \
 -remove-starved-rules -remove-dollar -unspecified-to X -show-schedule \
--show-module-use {2}'''
+-show-module-use -cross-info {2}'''
 
 bsc_defines = ''
 
@@ -52,7 +52,7 @@ include depends.mk
 dependency_yaml='''
 cache_subsystem:
   url: https://gitlab.com/incoresemi/blocks/cache_subsystem
-  checkout: 1.0.2
+  checkout: 1r1w-dcache-instance
 common_bsv:
   url: https://gitlab.com/incoresemi/blocks/common_bsv
   checkout: master
@@ -67,10 +67,10 @@ devices:
   checkout: 1.5.1
 verification:
   url: https://gitlab.com/shaktiproject/verification_environment/verification
-  checkout: 4.0.0
+  checkout: 59-update-verif-templates
   recursive: True
   patch:
-    - [riscv-tests/env , verification/patches/riscv-tests-shakti-signature.patch]
+    - [riscv-tests/env , verification/patches/riscv-tests-cclass.patch]
 benchmarks:
   url: https://gitlab.com/incoresemi/core-generators/benchmarks
   checkout: master

@@ -1,7 +1,7 @@
 // see LICENSE.incore for more details on licensing terms
 /*
-Author: Neel Gala, neelgala@incoresemi.com
-Created on: Tuesday 28 April 2020 10:06:56 PM IST
+Author: Neel Gala, neelgala@gmail.com
+Created on: Wednesday 29 April 2020 10:09:32 AM IST
 
 */
 package DebugSoc ;
@@ -13,31 +13,41 @@ package DebugSoc ;
   import uart         :: * ;
   import GetPut       :: * ;
   import Connectable  :: * ;
+
+
   import jtagdtm      :: * ;
   import riscv_debug  :: * ;
   import riscv_debug_types :: * ;
   import Clocks       :: * ;
   import ccore_types  :: * ;
+  import csrbox       :: * ;
 
   `include "Logger.bsv"
 
+  `include "Soc.defines"
   interface Ifc_DebugSoc;
     `ifdef rtldump
-      interface Get#(DumpType) io_dump;
+     interface Sbread sbread;
+     method Maybe#(CommitLogPacket) commitlog;
     `endif
     interface RS232#(16) uart_io;
     // ------------- JTAG IOs ----------------------//
-  `ifdef debug
     (*always_enabled,always_ready*)                                                               
     method Action wire_tms(Bit#(1)tms_in);                                                        
     (*always_enabled,always_ready*)                                                               
     method Action wire_tdi(Bit#(1)tdi_in);                                                        
     (*always_enabled,always_ready*)                                                               
     method Bit#(1)wire_tdo;                                                                       
-  `endif
       // ---------------------------------------------//
     interface Reset soc_reset;
   endinterface
+
+  (*synthesize*)
+  module mk_debug(Ifc_debug#(16, 12, `num_harts));
+    let ifc();
+    mkdebug#(defaultValue) _temp(ifc);
+    return (ifc);
+  endmodule
 
   (*synthesize*)
   module mkDebugSoc#(Clock tck_clk, Reset trst)(Ifc_DebugSoc);
@@ -46,9 +56,17 @@ package DebugSoc ;
     let curr_reset<-exposeCurrentReset;
     
     MakeResetIfc ndm_reset <-mkReset(0,False,curr_clk);            // create a new reset for curr_clk
-    Reset derived_reset <- mkResetEither(ndm_reset.new_rst,curr_reset);     // OR default and new_rst
+    Reset system_reset <- mkResetEither(ndm_reset.new_rst,curr_reset);     // OR default and new_rst
+    let debug_module <- mk_debug;
 
-    Ifc_Soc soc <- mkSoc(reset_by derived_reset);
+    Vector#(`num_harts, Reset) hartresets;
+    MakeResetIfc hart_reset[`num_harts];
+    for (Integer i = 0; i<`num_harts; i = i + 1) begin
+      hart_reset[i] <- mkReset(0,False, curr_clk);
+      hartresets[i] = hart_reset[i].new_rst;
+    end
+
+    Ifc_Soc soc <- mkSoc(reset_by system_reset, hartresets);
     // null crossing registers to transfer input signals from current_domain to tck domain
     CrossingReg#(Bit#(1)) tdi<-mkNullCrossingReg(tck_clk,0);                                        
     CrossingReg#(Bit#(1)) tms<-mkNullCrossingReg(tck_clk,0);                                        
@@ -56,16 +74,35 @@ package DebugSoc ;
     CrossingReg#(Bit#(1)) tdo<-mkNullCrossingReg(curr_clk,0,clocked_by tck_clk, reset_by trst);     
                                                                                                     
     Ifc_jtagdtm jtag_tap <- mkjtagdtm(clocked_by tck_clk, reset_by trst);                           
-    Ifc_riscv_debug debug_module <- mkriscv_debug; 
 
     // synFIFOs to transact data between JTAG and debug module                                                                                                    
     SyncFIFOIfc#(Bit#(41)) sync_request_to_dm <-mkSyncFIFOToCC(1,tck_clk,trst);                     
     SyncFIFOIfc#(Bit#(34)) sync_response_from_dm <-mkSyncFIFOFromCC(1,tck_clk);                     
                            
-    mkConnection (soc.debug_server ,debug_module.hart);
-    mkConnection (debug_module.debug_master, soc.master_debug);
+    mkConnection (debug_module.debug_master, soc.to_debug_master);
+    mkConnection (soc.to_debug_slave, debug_module.debug_slave);
 
-    rule rl_generate_ndmreset(debug_module.getNDMReset == 1);
+    for (Integer i = 0; i<`num_harts; i = i + 1) begin
+      rule rl_generate_hartreset(debug_module.hartside.mv_hartreset[i]==1);
+        hart_reset[i].assertReset;
+      endrule:rl_generate_hartreset
+    end
+    /*doc:rule: */
+    rule rl_connect_debug_interrupts;
+      soc.ma_hart_interrupts(debug_module.hartside.mv_harthaltreq);
+    endrule
+
+    /*doc:rule: */
+    rule rl_connect_debug_haveresets;
+      debug_module.hartside.ma_havereset(soc.mv_harts_have_reset);
+    endrule
+    
+    /*doc:rule: */
+    rule rl_connect_debug_enables;
+      debug_module.hartside.ma_debugenable(soc.mv_core_debugenable);
+    endrule
+
+    rule rl_generate_ndmreset(debug_module.mv_ndm_reset== 1);
       ndm_reset.assertReset;
       `logLevel( debugsoc, 0, $format("DebubSoc: Asserting NDM Reset"))
     endrule
@@ -91,12 +128,12 @@ package DebugSoc ;
     endrule                                                                                         
     rule read_synced_request_to_dm;                                                                 
       sync_request_to_dm.deq;                                                                       
-      debug_module.dtm.putCommand.put(sync_request_to_dm.first);                                    
+      debug_module.dtm_access.putCommand.put(sync_request_to_dm.first);                                    
     endrule                                                                                         
 
     // collect debug response into a syncfifo
     rule connect_debug_response_to_syncfifo;                                                        
-      let x <- debug_module.dtm.getResponse.get;                                                    
+      let x <- debug_module.dtm_access.getResponse.get;                                                    
       sync_response_from_dm.enq(x);          
     endrule                                  
 
@@ -115,10 +152,12 @@ package DebugSoc ;
       return tdo.crossed();                                                                       
     endmethod
     `ifdef rtldump
-      interface io_dump = soc.io_dump;
+      interface sbread  =soc.sbread;
+      method commitlog = soc.commitlog;
     `endif
     interface uart_io = soc.uart_io;
-    interface soc_reset = derived_reset;
+
+    interface soc_reset = system_reset;
                                                                                                     
   endmodule:mkDebugSoc
 endpackage: DebugSoc

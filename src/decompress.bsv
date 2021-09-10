@@ -216,12 +216,11 @@ package decompress;
   `define F7_AND      7'b0000000
 
 
+`ifdef decompress_noinline
   (*noinline*)
+`endif
   function Bit#(32) fn_decompress(Bit#(16) inst);
-
     case (inst) matches
-
-
       // ------------------------------ C0 space decode ---------------------------------------- //
       `CADDI4SPN0 : return {`IMM_4SP      , `RS1_SP , `F3_ADDI  , `RD_P   , `OP_IMM     , 2'b11};
       `CADDI4SPN1 : return {`IMM_4SP      , `RS1_SP , `F3_ADDI  , `RD_P   , `OP_IMM     , 2'b11};
@@ -308,9 +307,7 @@ package decompress;
       `CSUB       : return {`F7_SUB   , `RS2_P  , `RS1_P      , `F3_SUB , `RS1_P , `OP_ARITH , 2'b11};
       `CXOR       : return {`F7_XOR   , `RS2_P  , `RS1_P      , `F3_XOR , `RS1_P , `OP_ARITH , 2'b11};
       `COR        : return {`F7_OR    , `RS2_P  , `RS1_P      , `F3_OR  , `RS1_P , `OP_ARITH , 2'b11};
-      `CAND       : begin
-        return {`F7_AND   , `RS2_P  , `RS1_P      , `F3_ANDI, `RS1_P , `OP_ARITH , 2'b11}; 
-      end
+      `CAND       : return {`F7_AND   , `RS2_P  , `RS1_P      , `F3_ANDI, `RS1_P , `OP_ARITH , 2'b11};
     `ifdef RV64
       `CSUBW      : return {`F7_SUB   , `RS2_P  , `RS1_P      , `F3_SUBW, `RS1_P , `OP_ARITHW, 2'b11};
       `CADDW      : return {`F7_ADD   , `RS2_P  , `RS1_P      , `F3_ADDW, `RS1_P , `OP_ARITHW, 2'b11};
@@ -369,7 +366,7 @@ package decompress;
   `else
       `CSDSP      : return {`IMM_MEMDSP_hi , `RS2  ,  `RS1_SP, `F3_SD  ,`IMM_MEMDSP_lo  , `OP_STORES  , 2'b11};
   `endif
-      default: return 0;
+      default: return zeroExtend(inst);
     endcase 
   endfunction
 endpackage

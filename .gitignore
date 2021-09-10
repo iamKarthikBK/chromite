@@ -48,3 +48,5 @@ boot/config.chromite
 boot/chromite.dtb
 boot/chromite.dump
 
+
+csrbox/

@@ -88,8 +88,36 @@ def config_cmdline_args():
     parser.add_argument('-ispec','--ispec',
                         type=str,
                         metavar='YAML',
-                        default='sample_config/default.yaml',
-                        help='The YAML which contains the specs.')
+                        default=None,
+                        help='The YAML which contains the ISA specs.',
+                        required=True)
+    parser.add_argument('-customspec','--customspec',
+                        type=str,
+                        metavar='YAML',
+                        default=None,
+                        help='The YAML which contains the Custom CSR specs.')
+    parser.add_argument('-customattr','--customattr',
+                        type=str,
+                        metavar='YAML',
+                        default=None,
+                        help='The YAML which contains the Custom CSRBOX Attributes specs.')
+    parser.add_argument('-cspec','--cspec',
+                        type=str,
+                        metavar='YAML',
+                        default=None,
+                        required=True,
+                        help='The YAML which contains the CORE specs.')
+    parser.add_argument('-gspec','--gspec',
+                        type=str,
+                        metavar='YAML',
+                        default=None,
+                        help='The YAML which contains the CSR Grouping specs.',
+                        required=True)
+    parser.add_argument('-dspec','--dspec',
+                        type=str,
+                        metavar='YAML',
+                        default=None,
+                        help='The YAML which contains the Debug specs.')
     parser.add_argument('--verbose',
                         action='store',
                         default='info',
