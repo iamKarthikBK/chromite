@@ -1,19 +1,75 @@
 
-
-ISA
-  **Description**: Takes input a string representing the ISA supported by the implementation. All extension names
-  (other than Zext) should be mentioned in upper-case. Z extensions should begin with an upper-case
-  'Z' followed by lower-case extension name (without Camel casing)
-
-  .. note:: Zicsr is enabled by default and cannot be switched off. Zifencei is controlled based on
-    whether the caches are enabled or not
+num_harts
+ **Description**: Total number of harts to be instantiated in the dummy
+ test-soc. Note that these will non-coherent cores simply acting as masters on
+ the fast-bus.
 
   **Examples**:
 
-  .. code-block:: none
+  .. code-block:: yaml
 
-    ISA: RV32IMA
-    ISA: RV64IMAFDCZifencei
+     num_harts: 2
+
+isb_sizes
+ **Description**: A dictionary controlling the size of the inter-stage buffers
+ of the pipeline. The variable isb_s0s1 controls the size of the isb between stage0 and stage1. 
+ Similarly isb_s1s2 dictates the size of the isb between stage1 and stage2 and
+ so on. By increasing isb_s0s1 and isb_s1s2 one can shadow the stalls or
+ latencies in the backend stages of the pipeline by fetching more instructions
+ into the front-end stages of the pipeline.
+
+ There is a restriction however that isb_s2s3 should always be 1. This is
+ because the outputs of register file accessed in stage2 are not buffered and
+ niether is the bypass scheme implemented to handle this scenario.
+
+ One can however increase the number of in-flight instructions by increasing
+ the sizes of isb_s3s4 and isb_s4s5 (increasing isb_s3s4 has a larger impact).
+
+ Also note that if write-after-write stalls are disabled , the size of the
+ wawid is defined by the sum of isb_s3s4 and isb_s4s5. Therefore, increasing
+ in-flight instructions caused a logarithmic increase in the wawid used for
+ maintaining bypass of operands.
+
+
+ **Examples**:
+
+ .. code-block:: yaml
+
+   isb_sizes :
+     isb_s0s1: 2
+     isb_s1s2: 2
+     isb_s2s3: 1
+     isb_s3s4: 2
+     isb_s4s5: 2
+
+merged_rf: 
+ **Description**: Boolean field to indicate if the registerfiles of floating
+ and integer should be implemented as a single extended regfile in hw. This
+ field should be set to true only if 'F/D' support is enabled'
+
+ **Examples**:
+
+ .. code-block:: yaml
+
+   merged_rf: True
+
+total_events
+ **Description**: Total number of events in the system
+
+ **Examples**:
+
+ .. code-block:: yaml
+
+   total_events: 28
+
+waw_stalls
+ **Description**: Indicates if stalls must occur on a WAW hazard
+
+ **Examples**:
+
+ .. code-block:: yaml
+   
+   waw_stalls: False
 
 iepoch_size
  **Description**: integer value indicating the size of the epochs for the
@@ -49,43 +105,30 @@ s_extension
   **Description**: Describes various supervisor and MMU related parameters.
   These parameters only take effect when "S" is present in the ISA field.
 
-    - ``mode``: a string indicating the virtualisation mode to be implemented. Can
-      be one of : sv32, sv39 or sv48. Please note for RV32 only sv32 is supported
-      and for RV64 sv39 and sv48 are supported.
     - ``itlb_size``: integer indicating the size of entries in the Instruction TLB
     - ``dtlb_size``: integer indicating the size of entries in the Data TLB
-    - ``asid_width``: integer indicating the size of the ASID field. For RV32 it can
-      be maximum 9 and for RV64 is can be maximum 16
 
   **Examples**:
 
   .. code-block:: yaml
 
     s_extension:
-      mode: sv39
       itlb_size: 4
       dtlb_size: 4
-      asid_width: 9
 
-.. _schema_pmp:
+a_extension
+  **Description**: Describes various A-extension related parameters. These params take effect only
+  when the "A" extension is enabled in the riscv_config ISA
 
-pmp
-  **Description**: Defines the pmp configuration
-
-    - ``enable``: boolean value indicating if pmp support should be enabled.
-    - ``entries``: number of pmp regions to be supported. Max value of 16.
-      Minimum value of 1
-    - ``granularity``: granularity of protection in terms of bytes. Minimum is
-      8 bytes for a 64-bit core and 4 bytes for a 32-bit core
+     - ``reservation_size``: integer indicate the size of the reservation in terms of bytes.
+       Minimum value is 4 and must be a power of 2.
 
   **Examples**:
 
   .. code-block:: yaml
 
-    pmp:
-      enable: true
-      entries: 2
-      granularity: 8
+     a_extension:
+       reservation_size: 8
 
 m_extension
   **Description**: Describes various M-extension related parameters. These
@@ -112,7 +155,6 @@ branch_predictor
       instantiated
     - ``predictor``: string indicating the type of predictor to be implemented. Valid
       values are: 'gshare'
-    - ``on_reset``: Indicates if the predictor should be enabled on system-reset or
       not. Valid values are : ['enable','disable']
     - ``btb_depth``: integer indicating the size of the branch target buffer
     - ``bht_depth``: integer indicating the size of the bracnh history buffer
@@ -127,7 +169,6 @@ branch_predictor
     branch_predictor:
       instantiate: True
       predictor: gshare
-      on_reset: "enable"
       btb_depth: 32
       bht_depth: 512
       history_len: 8
@@ -139,7 +180,6 @@ icache_configuration
 
     - ``instantiate``: boolean value indicating if the predictor needs to be
       instantiated
-    - ``on_reset``: Indicates if the predictor should be enabled on system-reset or
       not. Valid values are : ['enable','disable']
     - ``sets``: integer indicating the number of sets in the cache
     - ``word_size``: integer indicating the number of bytes in a word. Fixed to 4.
@@ -163,7 +203,6 @@ icache_configuration
 
     icache_configuration:
       instantiate: True
-      on_reset: "enable"
       sets: 4
       word_size: 4
       block_size: 16
@@ -178,7 +217,6 @@ dcache_configuration
 
     - ``instantiate``: boolean value indicating if the predictor needs to be
       instantiated
-    - ``on_reset``: Indicates if the predictor should be enabled on system-reset or
       not. Valid values are : ['enable','disable']
     - ``sets``: integer indicating the number of sets in the cache
     - ``word_size``: integer indicating the number of bytes in a word. Fixed to 4.
@@ -186,6 +224,7 @@ dcache_configuration
     - ``ways``: integer indicating the number of the ways in the cache
     - ``fb_size``: integer indicating the number of fill-buffer entries in the cache
     - ``sb_size``: integer indicating the number of store-buffer entries in the cache. Fixed to 2
+    - ``ib_Size``: integer indicating the number of io-buffer entries in the cache. Default to 2
     - ``replacement``: strings indicating the replacement policy. Valid values are:
       ["PLRU", "RR", "Random"]
     - ``ecc_enable``: boolean field indicating if ECC should be enabled on the
@@ -194,7 +233,7 @@ dcache_configuration
       funcion should be used of conventional for-loops to choose amongst
       lines/fb-lines. Choice of this has no affect on the functionality
     - ``rwports``: number of read-write ports available on the brams. Allowed
-      values are 1 and 2. Default value is 1
+      values are 1rw, 1r1w and 2rw
 
   If supervisor is enabled then the max size of a single way should not exceed
   4Kilo Bytes
@@ -205,17 +244,18 @@ dcache_configuration
 
     dcache_configuration:
       instantiate: True
-      on_reset: "enable"
       sets: 4
       word_size: 4
       block_size: 16
       ways: 4
       fb_size: 4
       sb_size: 2
+      lb_size: 2
+      ib_size: 2
       replacement: "PLRU"
       ecc_enable: false
       one_hot_select: false
-      rwports: 1
+      rwports: 1r1w
 
 reset_pc
   **Description**: Integer value indicating the reset value of program counter
@@ -225,15 +265,6 @@ reset_pc
   .. code-block: yaml
 
     reset_pc: 4096
-
-physical_addr_size
-  **Description**: Integer value indicating the number of physical address bits
-
-  **Examples**:
-
-  .. code-block:: yaml
-
-    physical_addr_size: 32
 
 bus_protocol
   **Description**: bus protocol for the master interfaces of the core. Fixed to
@@ -255,16 +286,6 @@ fpu_trap
 
     fpu_trap: False
 
-debugger_support
-  **Description**: A boolean field indicating if the core should be implemented
-  with debugger support
-
-  **Examples**:
-
-  .. code-block: yaml
-
-    debugger_support : True
-
 no_of_triggers
   **Description**: An integer field indicating the number of triggers to be
   implemented
@@ -274,30 +295,6 @@ no_of_triggers
   .. code-block:: yaml
 
     no_of_triggers: 4
-
-csr_configuration
-  **Description**: Captures various parameters for the csr implementation
-
-    - ``structure``: should be fixed to "Daisy"
-    - ``counters_grp4``: an integer field indicating the number of Counters
-      implemented in this group. Max value is 7
-    - ``counters_grp5``: an integer field indicating the number of Counters
-      implemented in this group. Max value is 7
-    - ``counters_grp6``: an integer field indicating the number of Counters
-      implemented in this group. Max value is 7
-    - ``counters_grp7``: an integer field indicating the number of Counters
-      implemented in this group. Max value is 8
-
-  **Examples**:
-
-  .. code-block:: yaml
-
-    csr_configuration:
-      structure : "daisy"
-      counters_in_grp4: 7
-      counters_in_grp5: 7
-      counters_in_grp6: 7
-      counters_in_grp7: 8
 
 verilator_configuration
   **Description**: describes the various configurations for verilator compilation.
@@ -341,6 +338,9 @@ bsc_compile_options
       of for asic/fpga synthesis. The valid values are: [ 'sim', 'asic', 'fpga' ]
     - ``suppress_warnings``: List of warnings which can be suppressed during
       bluespec compilation. Valid values are: ["none", "all", "G0010", "T0054", "G0020", "G0024", "G0023", "G0096", "G0036", "G0117", "G0015"]
+    - ``ovl_assertions``: boolean value indicating if OVL based assertions must be turned on/off
+    - ``ovl_path``: string indicating the path where the OVL library is installed.
+    - ``sva_assertions``: boolean value indicating if SVA based assertions must be turned on/off
     - ``verilog_dir``: the directory name of where the generated verilog will be
       dumped
     - ``open_ocd``: a boolean field indicating if the test-bench should have an

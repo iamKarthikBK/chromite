@@ -1,6 +1,8 @@
 ###
 #num_harts
-# **Description**: Total number of harts to be instantiated
+# **Description**: Total number of harts to be instantiated in the dummy
+# test-soc. Note that these will non-coherent cores simply acting as masters on
+# the fast-bus.
 #
 #  **Examples**:
 #
@@ -12,7 +14,25 @@ num_harts: {type: integer, default: 1, min: 1, max: 1024}
 
 ###
 #isb_sizes
-# **Description**: A dictionary of what the isbs between stages should be.
+# **Description**: A dictionary controlling the size of the inter-stage buffers
+# of the pipeline. The variable isb_s0s1 controls the size of the isb between stage0 and stage1. 
+# Similarly isb_s1s2 dictates the size of the isb between stage1 and stage2 and
+# so on. By increasing isb_s0s1 and isb_s1s2 one can shadow the stalls or
+# latencies in the backend stages of the pipeline by fetching more instructions
+# into the front-end stages of the pipeline.
+#
+# There is a restriction however that isb_s2s3 should always be 1. This is
+# because the outputs of register file accessed in stage2 are not buffered and
+# niether is the bypass scheme implemented to handle this scenario.
+#
+# One can however increase the number of in-flight instructions by increasing
+# the sizes of isb_s3s4 and isb_s4s5 (increasing isb_s3s4 has a larger impact).
+#
+# Also note that if write-after-write stalls are disabled , the size of the
+# wawid is defined by the sum of isb_s3s4 and isb_s4s5. Therefore, increasing
+# in-flight instructions caused a logarithmic increase in the wawid used for
+# maintaining bypass of operands.
+#
 #
 # **Examples**:
 #
@@ -52,23 +72,12 @@ isb_sizes:
     isb_s4s5: 2
 
 ###
-#fetchbuffer_sz
-# **Description**: Integer indicating the size of the buffer between the fetch stage and the decoder
-# stage
-#
-# **Examples**:
-#
-# .. code-block:: yaml
-#
-#   fetchbuffer_sz : 3
-
-fetchbuffer_sz: {type: integer, default: 3, min: 1}
-
-###
 #merged_rf: 
-# **Description**: Boolean field to indicate if the registerfiles of floating
-# and integer should be implemented as a single extended regfile in hw. This
-# field should be set to true only if 'F/D' support is enabled'
+# **Description**: Boolean field to indicate if the architectural registerfiles for floating
+# and integer should be implemented as a single extended regfile in hw or as
+# separate. This field only makes sense 'F' support is enabled in the ISA string
+# of the input isa yaml. Under certain targets like FPGA or certain technologies
+# maintaining a single registerfile might lead to better area and timing savings.
 #
 # **Examples**:
 #
@@ -80,7 +89,9 @@ merged_rf: {type: boolean, default: True}
 
 ###
 #total_events
-# **Description**: Total number of events in the system
+# **Description**: This field indicates the total number of events that can be used to program the mhpm
+# counters. This field is used to capture the size of the events signals that
+# drives the counters.
 #
 # **Examples**:
 #
@@ -92,7 +103,15 @@ total_events: {type: integer, default: 0}
 
 ###
 #waw_stalls
-# **Description**: Indicates if stalls must occur on a WAW hazard
+# **Description**: Indicates if stalls must occur on a WAW hazard. If you are
+# looking for higher performance set this to False. Setting this to true would
+# lead to instructions stalling in stage3 due to a WAW hazard. 
+#
+# Setting this to false also means the scoreboad will not allocate a unique id
+# to the destination register of every instruction that is offloaded for
+# execution. The size of this id depends on the numbr of in-flight instructions
+# after the execution stage, which in turn depends on the size of the isb_s3s4
+# and isb_s4s5 as defined above.
 #
 # **Examples**:
 #
