@@ -47,6 +47,6 @@ boot/boot.hex
 boot/config.chromite
 boot/chromite.dtb
 boot/chromite.dump
-
+boot/Makefile.inc
 
 csrbox/
