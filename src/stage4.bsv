@@ -47,7 +47,6 @@ endinterface:Ifc_stage4
 // fire which indicates that a stall is observed.
 `ifdef simulate
   (*preempts="rl_capture_muldiv, rl_polling_check"*)
-  (*preempts="rl_drop_bypass, rl_polling_check"*)
   (*preempts="rl_fwd_baseout, rl_polling_check"*)
   (*preempts="rl_fwd_systemout, rl_polling_check"*)
   (*preempts="rl_fwd_trapout, rl_polling_check"*)
@@ -61,7 +60,6 @@ module mkstage4#(parameter Bit#(`xlen) hartid)(Ifc_stage4);
   RX#(SystemOut) rx_systemout <- mkRX;
   RX#(MemoryOut) rx_memoryout <- mkRX;
   RX#(FUid) rx_fuid <- mkRX;
-  RX#(Bool) rx_drop <- mkRX;
 `ifdef rtldump
   RX#(CommitLogPacket) rx_commitlog <- mkRX;
 `endif
@@ -76,7 +74,6 @@ module mkstage4#(parameter Bit#(`xlen) hartid)(Ifc_stage4);
   TX#(BaseOut)   tx_baseout <- mkTX;
   TX#(WBMemop)   tx_memio <- mkTX;
   TX#(CUid)      tx_fuid <- mkTX;
-  TX#(Bool)      tx_drop <- mkTX;
 `ifdef rtldump
   TX#(CommitLogPacket) tx_commitlog <- mkTX;
 `endif
@@ -92,22 +89,6 @@ module mkstage4#(parameter Bit#(`xlen) hartid)(Ifc_stage4);
     `logLevel( stage4, 0, $format("[%2d]STAGE4: Waiting for FUnit:",hartid,fshow(rx_fuid.u.first.insttype)))
   endrule:rl_polling_check
 `endif
-
-  /*doc:rule: This rule will simply bypass the instruction to the write-back stage which was
-   * previously tagged to be dropped for various reasons.*/
-  rule rl_drop_bypass(rx_fuid.u.first.insttype == DROP);
-    tx_drop.u.enq(rx_drop.u.first);
-    tx_fuid.u.enq(fn_fu2cu(rx_fuid.u.first));
-    rx_drop.u.deq;
-    rx_fuid.u.deq;
-  `ifdef rtldump
-    let clogpkt = rx_commitlog.u.first;
-    tx_commitlog.u.enq(clogpkt);
-    rx_commitlog.u.deq;
-  `endif
-    `logLevel( stage4, 0, $format("[%2d]STAGE4: PC:%h",hartid,rx_fuid.u.first.pc))
-    `logLevel( stage4, 0, $format("[%2d]STAGE4: Buffering DROP",hartid))
-  endrule:rl_drop_bypass
 
   /*doc:rule: This rule will simply bypass the results of instructinos which were executed in the
   * previous stage without any alteration*/
@@ -292,7 +273,6 @@ module mkstage4#(parameter Bit#(`xlen) hartid)(Ifc_stage4);
     interface rx_systemout_from_stage3  = rx_systemout.e;
     interface rx_memoryout_from_stage3 = rx_memoryout.e;
     interface rx_fuid_from_stage3 = rx_fuid.e;
-    interface rx_drop_from_stage3 = rx_drop.e;
   `ifdef rtldump
     interface rx_commitlog = rx_commitlog.e;
   `endif
@@ -304,7 +284,6 @@ module mkstage4#(parameter Bit#(`xlen) hartid)(Ifc_stage4);
     interface tx_baseout_to_stage5 = tx_baseout.e;
     interface tx_memio_to_stage5 = tx_memio.e;
     interface tx_fuid_to_stage5 = tx_fuid.e;
-    interface tx_drop_to_stage5 = tx_drop.e;
   `ifdef rtldump
     interface tx_commitlog = tx_commitlog.e;
   `endif

@@ -61,7 +61,6 @@ import OInt         :: * ;
 import registerfile :: * ;        // for instantiating the registerfile
 import decoder      :: * ;        // for the decode functions.
 import ccore_types  :: * ;        // for pipe - line types
-import scoreboard   :: * ;        // to lock rd 
 import pipe_ifcs    :: * ;
 `include "ccore_params.defines"   // for core parameters
 `include "trap.defines"
@@ -330,9 +329,6 @@ module mkstage2#(parameter Bit#(`xlen) hartid) (Ifc_stage2);
     Bit#(`flen) op4 = signExtend(imm);
   `endif
     // -------------------------------------------------------------------------------------- //
-    // The following creates a scoreboard mask. This mask will basically reset the lock on an rd if
-    // the the instruction is the only one in the pipe with this rd value. This prevents the
-    // instruction from stalling on a bypass on itself in the next stage.
     let stage3meta = Stage3Meta{funct : func_cause, memaccess : decoded.meta.memaccess,
                                 pc : pc, epochs : epochs, rd: decoded.op_addr.rd,
                                 is_microtrap: rg_microtrap

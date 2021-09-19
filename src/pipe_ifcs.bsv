@@ -131,8 +131,6 @@ interface Ifc_s3_tx;
   interface TXe#(MemoryOut)           tx_memoryout_to_stage4;
   /*doc:subifc: interface to send common meta information to the memory stage.*/
 	interface TXe#(FUid)        tx_fuid_to_stage4;
-
-	interface TXe#(Bool)        tx_drop_to_stage4;
 `ifdef rtldump
   // interface to send the instruction sequence for the rtl dump feature
   interface TXe#(CommitLogPacket)     tx_commitlog;
@@ -321,8 +319,6 @@ endinterface:Ifc_s2_debug
     interface RXe#(MemoryOut)           rx_memoryout_from_stage3;
     /*doc:subifc: interface from send common meta information from the memory stage.*/
   	interface RXe#(FUid)        rx_fuid_from_stage3;
-
-  	interface RXe#(Bool)        rx_drop_from_stage3;
   `ifdef rtldump
     // interface to send the instruction sequence for the rtl dump feature
     interface RXe#(CommitLogPacket)     rx_commitlog;
@@ -335,7 +331,6 @@ endinterface:Ifc_s2_debug
     interface TXe#(BaseOut)         tx_baseout_to_stage5;
     interface TXe#(WBMemop)         tx_memio_to_stage5;
     interface TXe#(CUid)            tx_fuid_to_stage5;
-    interface TXe#(Bool)            tx_drop_to_stage5;
   `ifdef rtldump
     interface TXe#(CommitLogPacket) tx_commitlog;
   `endif
@@ -359,7 +354,6 @@ interface Ifc_s5_rx;
   interface RXe#(BaseOut)         rx_baseout_from_stage4;
   interface RXe#(WBMemop)         rx_memio_from_stage4;
   interface RXe#(CUid)            rx_fuid_from_stage4;
-  interface RXe#(Bool)            rx_drop_from_stage4;
 `ifdef rtldump
   interface RXe#(CommitLogPacket) rx_commitlog;
 `endif
@@ -495,7 +489,6 @@ endinterface:Ifc_s5_perfmonitors
     FIFOF#(SystemOut)           ff_systemout <- mkSizedFIFOF( `isb_s3s4 );
     FIFOF#(MemoryOut)           ff_memoryout <- mkSizedFIFOF( `isb_s3s4 );
   	FIFOF#(FUid)                ff_fuid <- mkSizedFIFOF( `isb_s3s4 );
-  	FIFOF#(Bool)                ff_drop <- mkSizedFIFOF( `isb_s3s4 );
   `ifdef rtldump
     FIFOF#(CommitLogPacket)     ff_commitlog <- mkSizedFIFOF( `isb_s3s4 );
   `endif
@@ -530,8 +523,6 @@ endinterface:Ifc_s5_perfmonitors
     mkConnection(s3.tx_fuid_to_stage4, ff_fuid);
     mkConnection(ff_fuid, s4.rx_fuid_from_stage3);
     
-    mkConnection(s3.tx_drop_to_stage4, ff_drop);
-    mkConnection(ff_drop, s4.rx_drop_from_stage3);
 
   `ifdef rtldump
     mkConnection(s3.tx_commitlog, ff_commitlog);
@@ -546,7 +537,6 @@ endinterface:Ifc_s5_perfmonitors
     FIFOF#(BaseOut) ff_baseout <- mkSizedFIFOF( `isb_s4s5 );
     FIFOF#(WBMemop) ff_wbmemop <- mkSizedFIFOF( `isb_s4s5 );
     FIFOF#(CUid) ff_fuid <- mkSizedFIFOF( `isb_s4s5 );
-    FIFOF#(Bool) ff_drop <- mkSizedFIFOF( `isb_s4s5 );
   `ifdef rtldump
     FIFOF#(CommitLogPacket) ff_commitlog <- mkSizedFIFOF( `isb_s4s5 );
   `endif
@@ -581,9 +571,6 @@ endinterface:Ifc_s5_perfmonitors
     mkConnection(s4.tx_fuid_to_stage5, ff_fuid);
     mkConnection(ff_fuid, s5.rx_fuid_from_stage4);
     
-    mkConnection(s4.tx_drop_to_stage5, ff_drop);
-    mkConnection(ff_drop, s5.rx_drop_from_stage4);
-
   `ifdef rtldump
     mkConnection(s4.tx_commitlog, ff_commitlog);
     mkConnection(ff_commitlog, s5.rx_commitlog);

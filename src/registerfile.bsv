@@ -19,13 +19,9 @@ compile params affecting this file:
 --------------------------------------------------------------------------------------------------
 */
 package registerfile;
-	/*==== Project Imports === */
 	import ccore_types::*;
-	/*======================== */
-	/*===== Package Imports ==== */
 	import RegFile::*;
   `include "Logger.bsv"
-	/*===========================*/
 
 	interface Ifc_registerfile;
     method ActionValue#(Bit#(`elen)) read_rs1(Bit#(5) addr `ifdef spfpu, RFType rs1type `endif );
@@ -84,7 +80,7 @@ package registerfile;
       `ifdef spfpu
         if(rs1type == FRF) return zeroExtend(frf.sub(addr)); else
       `endif
-      return zeroExtend(xrf.sub(addr)); // zero extend is required when `xlen<ELEN*/
+      return zeroExtend(xrf.sub(addr)); // zero extend is required when `xlen<`elen*/
     `endif
     endmethod
     // This method will read operand2 using rs2addr from the decode stage. If there a commit in the

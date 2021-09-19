@@ -86,13 +86,13 @@ typedef enum {FRF = 1, IRF = 0} RFType deriving(Bits, Eq, FShow);
 
 /*doc:enum: This indicate which ISB after EXE should the result be captured in
  * min size: 2 max size: 3 */
-typedef enum {BASE, SYSTEM, TRAP, MEMORY, DROP
+typedef enum {BASE, SYSTEM, TRAP, MEMORY 
     `ifdef muldiv , MULDIV `endif
     `ifdef spfpu  , FLOAT  `endif } EXEType deriving (Bits, FShow, Eq);
 
 /*doc:enum this indicates which ISB after MEM should the next instruction commit happen from
  * min size: 2 max size: 2 */
-typedef enum {BASE, SYSTEM, TRAP, MEMORY, DROP } CommitType deriving (Bits, FShow, Eq);
+typedef enum {BASE, SYSTEM, TRAP, MEMORY} CommitType deriving (Bits, FShow, Eq);
 
 // -------------------------------------------------------------------------------------
 
@@ -612,7 +612,6 @@ function CUid fn_fu2cu(FUid f);
     SYSTEM: SYSTEM;
     TRAP: TRAP;
     MEMORY: MEMORY;
-    DROP: DROP;
   `ifdef muldiv MULDIV: BASE; `endif 
   `ifdef spfpu FLOAT: BASE; `endif
   endcase;

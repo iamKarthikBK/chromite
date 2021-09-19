@@ -202,7 +202,6 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
   TX#(TrapOut)        tx_trapout <- mkTX;
   TX#(SystemOut)      tx_systemout <- mkTX;
   TX#(MemoryOut)      tx_memoryout <- mkTX;
-  TX#(Bool)           tx_drop <- mkTX;
   TX#(FUid)           tx_fuid <- mkTX;
 
   /*doc:wire: holds value of operand1 after checking the bypass signals from downstream isbs and
@@ -382,14 +381,6 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
   rule rl_drop_instr(!epochs_match);
     deq_rx;
     `logLevel( stage3, 0, $format("[%2d]STAGE3: NOPing instruction - epochs-mismatch",hartid))
-    tx_drop.u.enq(True);
-    let common_pkt = s4common; common_pkt.insttype = DROP;
-    tx_fuid.u.enq(common_pkt);
-  `ifdef rtldump
-    let clogpkt = rx_commitlog.u.first;
-    tx_commitlog.u.enq(clogpkt);
-  `endif
-
   endrule:rl_drop_instr
 
   /*doc:rule: This rule will fire when the epochs match the instruction has been decoded as a
@@ -807,7 +798,6 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
   	interface tx_trapout_to_stage4= tx_trapout.e;
   	interface tx_systemout_to_stage4 = tx_systemout.e;
   	interface tx_memoryout_to_stage4 = tx_memoryout.e;
-  	interface tx_drop_to_stage4 = tx_drop.e;
   `ifdef rtldump
     interface tx_commitlog = tx_commitlog.e;
   `endif
