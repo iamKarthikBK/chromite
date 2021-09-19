@@ -400,6 +400,7 @@ A block diagram of the stage is shown in :numref:`exe_stage3`
 
 .. figure:: exe_stage3.png
    :align: center
+   :scale: 50%
 
    Execution Stage of the pipeline
 
@@ -432,6 +433,7 @@ only the latest value of the operand is picked, else a stall is generated.
 
 .. figure:: scoreboard.png
    :align: center
+   :scale: 60%
 
    Scoreboard Structure for the integer register file.
 
@@ -573,6 +575,7 @@ is quite similar. Thus, this stage also tries to converge the various FUIDs to C
 
 .. figure:: mem_stage4.png
    :align: center
+   :scale: 50%
 
    Memory Stage of the Pipeline
 
@@ -598,6 +601,7 @@ Write Back Stage [stage5.bsv]
 
 .. figure:: wb_stage5.png
    :align: center
+   :scale: 40%
 
    Write Back stage of the pipeline
 
