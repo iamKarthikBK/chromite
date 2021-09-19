@@ -303,3 +303,14 @@ div.numbered-step h2::before {
 .wy-table-responsive td p {
    font-size:100%;
 }
+
+h1  {
+    border-bottom: 4px solid black;
+    width: 100%;
+}
+
+h2  {
+    border-bottom: 2px solid black;
+    width: 50%;
+}
+

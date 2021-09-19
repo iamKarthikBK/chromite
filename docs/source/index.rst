@@ -14,42 +14,42 @@ please refer to the :ref:`Revisions <revisions>` documentation.
        <li class="grid-item">
 	   <a href="overview.html">
           <span class="grid-icon fa fa-info" aria-hidden="true"></span>
-	       <h2>Overview</h2>
+	       <h3>Overview</h3>
 	   </a>
 	   <p>Introducing the Chromite Core Generator: overview, features, and licensing</p>
        </li>
        <li class="grid-item">
 	   <a href="getting_started.html">
                <span class="grid-icon fa fa-angle-double-right" aria-hidden="true"></span>
-	       <h2>Getting Started Guide</h2>
+	       <h3>Getting Started Guide</h3>
 	   </a>
 	   <p>Follow the guide to configure, build and simulate your first Chromite Core</p>
        </li>
        <li class="grid-item">
 	   <a href="chromite.html">
                <span class="grid-icon fa fa-puzzle-piece"></span>
-	       <h2>Core Microarchitecture</h2>
+	       <h3>Core Microarchitecture</h3>
 	   </a>
 	   <p>Read about the various micro-architectural features of the Chromite Cores</p>
        </li>
        <li class="grid-item">
 	   <a href="benchmarking.html">
                <span class="grid-icon fa fa-line-chart"></span>
-	       <h2>Benchmarking</h2>
+	       <h3>Benchmarking</h3>
 	   </a>
 	   <p>Checkout the various benchmark scores of the Chromite Core</p>
        </li>
        <li class="grid-item">
 	   <a href="configure.html">
                <span class="grid-icon fa fa-cogs"></span>
-	       <h2>Configure your Core</h2>
+	       <h3>Configure your Core</h3>
 	   </a>
 	   <p>Learn about the various configuration knobs available for creating your custom Core</p>
        </li>
        <li class="grid-item">
 	   <a href="https://gitlab.com/incoresemi/core-generators/chromite">
                <span class="grid-icon fa fa-gitlab"></span>
-	       <h2>Code Access</h2>
+	       <h3>Code Access</h3>
 	   </a>
 	   <p>The entire Chromite Core is open and available on GitLab</p>
        </li>
@@ -104,5 +104,6 @@ please refer to the :ref:`Revisions <revisions>` documentation.
   interrupts
   debug
   triggers
+  glossary
   revisions
   licensing

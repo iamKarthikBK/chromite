@@ -1,5 +1,8 @@
 ###
+#
 #num_harts
+#^^^^^^^^^
+#
 # **Description**: Total number of harts to be instantiated in the dummy
 # test-soc. Note that these will non-coherent cores simply acting as masters on
 # the fast-bus.
@@ -13,7 +16,10 @@
 num_harts: {type: integer, default: 1, min: 1, max: 1024}
 
 ###
+#
 #isb_sizes
+#^^^^^^^^^
+#
 # **Description**: A dictionary controlling the size of the inter-stage buffers
 # of the pipeline. The variable isb_s0s1 controls the size of the isb between stage0 and stage1. 
 # Similarly isb_s1s2 dictates the size of the isb between stage1 and stage2 and
@@ -72,7 +78,10 @@ isb_sizes:
     isb_s4s5: 2
 
 ###
-#merged_rf: 
+#
+#merged_rf
+#^^^^^^^^^
+#
 # **Description**: Boolean field to indicate if the architectural registerfiles for floating
 # and integer should be implemented as a single extended regfile in hw or as
 # separate. This field only makes sense 'F' support is enabled in the ISA string
@@ -88,7 +97,10 @@ isb_sizes:
 merged_rf: {type: boolean, default: True}
 
 ###
+#
 #total_events
+#^^^^^^^^^^^^
+#
 # **Description**: This field indicates the total number of events that can be used to program the mhpm
 # counters. This field is used to capture the size of the events signals that
 # drives the counters.
@@ -102,7 +114,10 @@ merged_rf: {type: boolean, default: True}
 total_events: {type: integer, default: 0}
 
 ###
+#
 #waw_stalls
+#^^^^^^^^^^
+#
 # **Description**: Indicates if stalls must occur on a WAW hazard. If you are
 # looking for higher performance set this to False. Setting this to true would
 # lead to instructions stalling in stage3 due to a WAW hazard. 
@@ -122,7 +137,10 @@ total_events: {type: integer, default: 0}
 waw_stalls: {type: boolean, default: False}
 
 ###
+#
 #iepoch_size
+#^^^^^^^^^^^
+#
 # **Description**: integer value indicating the size of the epochs for the
 # instruction memory subsystem. Allowed value is 2 only
 #
@@ -137,7 +155,10 @@ iepoch_size:
   allowed: [2]
   default: 2
 ###
+#
 #depoch_size
+#^^^^^^^^^^^
+#
 # **Description**: integer value indicating the size of the epochs for the
 # data memory subsystem. Allowed value is 1 only
 #
@@ -153,7 +174,10 @@ depoch_size:
   default: 1
 
 ###
+#
 #s_extension
+#^^^^^^^^^^^
+#
 #  **Description**: Describes various supervisor and MMU related parameters.
 #  These parameters only take effect when "S" is present in the ISA field.
 #
@@ -180,7 +204,10 @@ s_extension:
     dtlb_size: 4
 
 ###
+#
 #a_extension
+#^^^^^^^^^^^
+#
 #  **Description**: Describes various A-extension related parameters. These params take effect only
 #  when the "A" extension is enabled in the riscv_config ISA
 #
@@ -205,7 +232,10 @@ a_extension:
 
 
 ###
+#
 #m_extension
+#^^^^^^^^^^^
+#
 #  **Description**: Describes various M-extension related parameters. These
 #  parameters take effect only is "M" is present in the ISA field.
 #  The multiplier used in the core is a retimed one. The parameters below indicate the number of
@@ -243,7 +273,10 @@ m_extension:
     div_stages: 32
 
 ###
+#
 #branch_predictor
+#^^^^^^^^^^^^^^^^
+#
 #  **Description**: Describes various branch predictor related parameters. 
 #
 #    - ``instantiate``: boolean value indicating if the predictor needs to be
@@ -298,7 +331,10 @@ branch_predictor:
     ras_depth: 8
 
 ###
+#
 #icache_configuration
+#^^^^^^^^^^^^^^^^^^^^
+#
 #  **Description**: Describes the various instruction cache related features.
 #
 #    - ``instantiate``: boolean value indicating if the predictor needs to be
@@ -371,7 +407,10 @@ icache_configuration:
 
 
 ###
+#
 #dcache_configuration
+#^^^^^^^^^^^^^^^^^^^^
+#
 #  **Description**: Describes the various instruction cache related features.
 #
 #    - ``instantiate``: boolean value indicating if the predictor needs to be
@@ -468,7 +507,10 @@ dcache_configuration:
     rwports: '1r1w'
 
 ###
+#
 #reset_pc
+#^^^^^^^^
+#
 #  **Description**: Integer value indicating the reset value of program counter
 #
 #  **Example**:
@@ -483,7 +525,10 @@ reset_pc:
 
 
 ###
+#
 #bus_protocol
+#^^^^^^^^^^^^
+#
 #  **Description**: bus protocol for the master interfaces of the core. Fixed to
 #  "AXI4"
 #
@@ -499,7 +544,10 @@ bus_protocol:
   allowed: ["AXI4"]
 
 ###
+#
 #verilator_configuration
+#^^^^^^^^^^^^^^^^^^^^^^^
+#
 #  **Description**: describes the various configurations for verilator compilation.
 #
 #    - ``coverage``: indicates the type of coverage that the user would like to
@@ -555,7 +603,10 @@ verilator_configuration:
 
 
 ###
+#
 #bsc_compile_options
+#^^^^^^^^^^^^^^^^^^^
+#
 # **Description**: Describes the various bluespec compile options
 #
 #   - ``test_memory_size``: size of the BRAM memory in the test-SoC in bytes.
@@ -653,7 +704,10 @@ bsc_compile_options:
 
 
 ###
+#
 #noinline_modules
+#^^^^^^^^^^^^^^^^
+#
 # **Description**: This node contains multiple module names which take a boolean value. Setting a
 # module to True would generate a separate verilog file for that module during bluespec compilation.
 # If set to False, then that particular module will be in lined the module  above it in hierarchy in

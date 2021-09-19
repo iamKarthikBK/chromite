@@ -25,14 +25,19 @@ The pipeline diagram is shown in :numref:`chromite_pipeline`
 
    Pipeline Diagram
 
-PC Gen Stage
-============
+PC Gen Stage [stage0.bsv]
+=========================
 
-The PC Gen stage is responsible for generating the next value of the PC to be fetched.
+The PC Gen stage is responsible for generating the next value of the PC to be fetched. Once reset is
+de-asserted and the :numref:`reset_sequence` is complete, the PC register in this module is assigned 
+the value of `reset-pc` (an input to the module). All other functionality only takes action after 
+this initialization is done.
+
 All PCs are virtual/logical addresses. The translation of these into physical addresses is carried
 out by the Translation Lookaside Buffers (TLBs) and Page Table Walk (PTW) units in the 
 Instruction Memory Subsystem (IMS). The translation is
 based on the supervisor spec defined in the *RISC-V Privileged Spec*.
+
 The PC Gen stage also includes, an optional (chosen at design time), Branch Predictor Unit (BPU) for predictive
 conditional/unconditional control instructions for improved performance. The BPU can be enabled/disabled 
 at runtime through the custom control CSR (:numref:`custom_control_csr`). 
@@ -142,6 +147,7 @@ implemented. It consists of a fully-associative Branch
 Target Buffer (BTB) with 32 entries, 
 a 512 entry Branch History Table (BHT) and a
 8 entry Return Address Stack (RAS).
+All of which is configurable at compile time by setting the :ref:`branch_predictor` parameters.
 
 .. note:: Each of the parameters above are configurable at design time.
 
@@ -191,7 +197,7 @@ stage.
 
   The Two bit counter state machine.
 
-The core uses a 8-bit history register (configurable at design time). 
+The core uses a 8-bit history register (configurable at compile time). 
 This register is passed along the pipe upto the execution stage for the purpose of rolling back in case
 of a mis prediction. During the prediction phase, the BHT table is indexed using a hash function of the PC and the
 history register. When the BTB is a hit and the control instruction is of *BRANCH* type, the BHT table entry dictates if the
@@ -211,10 +217,10 @@ bit of the hash function.
 
 
 
-Instruction Fetch Stage (IFS)
-=============================
+Instruction Fetch Stage (IFS) [stage1.bsv]
+==========================================
 
-This stage interacts with PC Gen stage and to send a 32-bit
+This stage interacts with PC Gen stage and the IMS to send a 32-bit
 instruction to the decode stage.
 
 The IFS receives the following information from the PC Gen Stage:
@@ -272,11 +278,11 @@ the instruction.
 Enqueuing Instructions
 ----------------------
 
-The IFS will enqueue an instruction only if the next ISB (Inter Stage Buffer) can accept a new
+The IFS will enqueue an instruction only if the next :term:`ISB` (Inter Stage Buffer) can accept a new
 instruction and a valid instruction is available from the IMS.
 
-Decode Stage
-============
+Decode Stage [stage2.bsv]
+=========================
 
 The decode stage is responsible for decoding the 4-bytes of instruction received from the 
 instruction fetch stage. The decoded information is used to fetch operands from the register-file
@@ -306,26 +312,32 @@ The decoder function primarily extracts the following information from the 4-byt
 Register File
 -------------
 
-The decode stage maintains two register files: one for integer and one for floating-point registers.
-Each of which includes 32 registers. The integer register file has 2 read ports and 1 write port
-while the floating-point register file requires 3 read ports and 1 write port.
-
-When debug support is enabled the register file(s) are provided with an extra read port for the
-debugger to access the registers directly.
+The decode stage maintains two individual register files: one for integer and one for floating-point registers.
+Each of which includes 32 registers. The zeroth register of the integer register file is hardwired
+to zero. The integer register file has 2 read ports and 1 write port
+while the floating-point register file requires 3 read ports and 1 write port for the current set of
+instructions that are supported.
 
 On reset, 32 cycles are used to individually reset each register to 0. During this initialization,
 phase the decode stage does not accept any new instruction bytes from the IFS.
 The initialization of the floating and register files happen in parallel and thus only 32 cycles are
 required to initialize both.
 
+However, if at compile time the `merged_rf` configuration is enabled, then the integer and floating
+point registers are both maintained as a single 64-entry registerfile, with the top 32 registers
+allocated for integer and the bottom 32 for floating point. During read/write the type of
+operand/destination register is used to define the MSB bit of the 6-bit index into the
+merged register file. Additionally, in the merged register file scenario, the reset sequences takes
+64 cycles instead of 32.
+
 Operand Fetch
 -------------
 
-Once the operand indices are available, they are used to fetch the latest value of the operands from
-the respective register files. Based on the operand type fields, the register file values are either
-used or discarded. During simultaneous read-writes to the same register, the register files perform
-a full-bypass, i.e. the value being written in the current cycle is directly consumed by the
-instruction during operand fetch.
+Once the operand indices are available from the decoder, they are used to fetch the latest value of 
+the operands from the respective register files. Based on the operand type fields, the register file 
+values are either used or discarded. During simultaneous read-writes to the same register, the 
+register files perform a full-bypass, i.e. the value being written in the current cycle is 
+directly consumed by the instruction during operand fetch.
 
 Trap Handling
 -------------
@@ -334,15 +346,36 @@ All interrupts to the hart (local or external) are detected in the decode stage.
 traps and traps received from the previous stage are captured here and processed for the
 next stage. 
 
-When a trap is detected, the decode stage is stalled (it will no longer
+When a trap is detected, the decode stage is stalled (i.e. it will no longer
 accept new instructions from the IFS) until a re-direction from the execute-stage or
 the write-back stage is received. This prevents the flooding the pipeline with more instructions when
 a trap re-direction is expected.
 
+Micro Traps
+-----------
+
+The core also supports micro-traps (a.k.a hidden traps) which are used to carry out architecturally 
+hidden actions by leveraing the same TRAP mechanism and artifacts throughout the pipeline. While micro
+traps are detected in the decode stage, their actions may be initiated all the way from the
+write-back stage of the pipeline. The following micro-traps are currently supported:
+
+ - Rerun on CSR: When a csr operation is detected in the decode stage, the subsequent instruction in
+   the decoder stage is tagged with a micro-trap. When this instruction reaches the write-back stage
+   it issues a flush of the pipeline and resets pc to itself. This is done to ensure that the
+   instruction was fetched under the new csr changes.
+ - Rerun on FenceI: Same as above, but the instruction after a FenceI is tagged as a micro-trap. This
+   is because fencing of the IMS only occurs when the `fence.i` instruction reaches the write-back
+   stage and therefore the next fetched instruction must be fetched again.
+ - Rerun on SFence: Same as above, but for `sfence.vma` instruction.
+
+Each type of micro-trap is given a custom cause value. When a micro-trap is detected, the instruction is
+tagged as a TRAP instruction while an additional boolean field is set indicating that the cause must
+interpreted as a micro-trap cause, instead of the regular trap cause.
+
 WFI Handling
 ------------
 
-When a *WFI* (Wait for Interrupt) instruction is detected, the decode stage is stalled from the
+When a `WFI` (Wait for Interrupt) instruction is detected, the decode stage is stalled from the
 subsequent cycle onwards. The stage resumes only when an interrupt (local or external) is
 detected. 
 
@@ -356,45 +389,113 @@ Presently, all CSR operations flush the pipeline, therefore, when a CSR instruct
 the decode stage stalls from the subsequent cycle until a re-direction signal is received from 
 either the execution stage or the write-back stage.
 
-Execution Stage
-===============
+Execution Stage [stage3.bsv]
+============================
 
 This stage encapsulates all the functional units required to initiate/complete the execution of an
-instruction. Operand bypass is also implemented in this stage to feed the latest value of the
-operands to the functional units. 
+instruction. The Scoreboard, used for operand bypass and stalls, is also implemented in this stage. 
+A block diagram of the stage is shown in :numref:`exe_stage3`
 
-.. note:: Even if one of the functional units is busy, then entire stage is stalled in that cycle and
-   no new packets are processed from the decode stage. 
+.. _exe_stage3:
 
-The various functional units (FUs) instantiated in the design can be seen in :numref:`alu_fus`
+.. figure:: exe_stage3.png
+   :align: center
 
-.. _alu_fus:
+   Execution Stage of the pipeline
 
-.. figure:: alu_fu_mu.png
-  :align: center
+.. _scoreboard:
 
-  Execution Stage
-  
+Scoreboard
+----------
+
+This scoreboard in its minimal configuration implements a 32-bit register for each architectural
+register file (integer and/or floating point). Each bit in this register corresponds to a register
+in the respective register file. When a bit is set it indicates that there exists an instruction in
+the further stages of the pipeline which holds an updated value of the register which has not been
+committed to the register file yet. We refer to this bit as the `lock_bit` as shown in
+:numref:`scbd`
+
+When an instruction in the execution stage is dispatched for execution, the lock bit corresponding to the 
+the destination register (except x0 of the integer register file) is set to 1 in the scoreboard.
+The lock bit is reset to 0 only when the instruction with the same destination register is committed 
+in the write-back stage.
+
+When :ref:`waw_stalls` is enabled during compile time, the :ref:`bypass` module (described below) will stall the
+pipeline for the instruction which has an operand whose lock bit in the scoreboard is set.
+
+However, when :ref:`waw_stalls` is disabled during compile time, the scoreboard along with the lock bit
+maintains a `id` field which corresponds to a unique instruction in the pipeline which holds the
+latest value of the register. Thus, when performing bypass, this id is also checked to ensure that
+only the latest value of the operand is picked, else a stall is generated.
+
+.. _scbd:
+
+.. figure:: scoreboard.png
+   :align: center
+
+   Scoreboard Structure for the integer register file.
+
+.. _bypass:
+
 Operand Bypass
 --------------
 
-The stage implements a basic operand bypass mechanism which checks for each operand if any of the 2
-ISBs further in the pipe are likely sources of the latest value. If the
-values are available in the ISBs they are consumed by the bypass logic and fed to the respective
-functional stages, else the execution stage is stalled until all the operands are available.
+The module receives the operands from the registerfile (always holding the latest values as the
+registerfile acts as a bypass-registerfile). The module also has access to the current scoreboard
+which indicates if there exists an instruction in the further stages of the pipeline with a
+potentially new value of the operand.
 
-Arithmetic Ops
---------------
+The sources of the bypass include the head of the :term:`BASE ISB` between EXE-MEM and the head of the ISB 
+between MEM-WB. The third source of the bypass is the registerfile itself. Bypass is performed for 
+rs1 and rs2. It is also done for rs3 when the F/D extensions are enabled.
+
+The bypass module will indicate if the respective operand is available to initiate execution or not.
+When :ref:`waw_stalls` are disabled, then checks on the bypass packets from the ISB will also include
+checking if the bypass register `id` matches the corresponding id from the scoreboard.
+
+Functional Units
+----------------
+
+The execution stage is divided in multiple independently accessed functional units as shown in
+:numref:`exe_stage3`. Each of these functional units perform the execution of a certain subset 
+of the instructions. The following functional units are available in the execution stage:
+
+- ALU: This executes basic arithmetic, logic and shift operations
+- Branch Resolution Unit (BRU): This will handle all the control instructions and the mispredictions if any
+- MBOX : This unit will offload the multiply and divide operations to the mbox module.
+- FBOX : This unit will offload the floating point operations to the fbox module.
+- AGU  : This unit will generate the address of the memory operation and offload it to the DMS.
+
+Based on the decoded information obtained from the head of the DEC-EXE ISB, one of the functionaly
+units is chosen. Only when all operands of the instruction are available is the instruction
+offloaded for execution to the respective functional unit.
+
+Note that the ISBs between EXE and MEM stages is split in to multiple smaller ISBs which hold the
+results of different functional units. For example, the outputs of the ALU and the BRU, after 
+execution are fed in to the :term:`BASE ISB` as shown in :numref:`exe_stage3`. The output of the AGU is 
+sent to the :term:`MEMORY ISB`. System instructions (like CSR ops, xRET, etc) are directly buffered into the
+:term:`SYSTEM ISB`. 
+
+It is possible that the BRU and AGU generate mis-aligned traps, in which case the result is enqued
+into the :term:`TRAP ISB`. All previously decoded traps (from decode and pc-gen stages) are directly
+buffered into the TRAP ISB.
+
+As soon as an instruction is offloaded to the respective functional unit, we enqueue the functional
+unit id into the :term:`FUID ISB`. This buffer basically indicates the order in which the
+instructions in the further pipeline stages must be processed and committed. Simultaneously, the
+scoreboard lock bits are updated for destination registers of that insrtuction.
+
+ALU Functional Unit
+^^^^^^^^^^^^^^^^^^^
 
 All arithmetic and logical ops such as *add, sub, xor, shifts, etc* are implemented as single cycle
 combinational operations in this unit. Once the operands are available, the operation is performed and
-enqueued to the next ISB.
+enqueued to the BASE ISB.
 
-Control Ops
------------
+BRU Functional Unit
+^^^^^^^^^^^^^^^^^^^
 
-Control instruction resolution also occurs in this stage. The comparison logic of the Arithmetic ops 
-is re-used to detect if a branch is taken or not. 
+Control instruction resolution also occurs in this stage. 
 The target address for all control instructions is calculated using a dedicated adder.
 When the branch predictor is enabled, based on the actual outcome of the control instruction 
 the BHT and BTB tables are sent training information which can improve predictions. 
@@ -404,37 +505,40 @@ to the PC of the next instruction. However, if the next instruction has not ente
 yet (possibly due to stalls in the IMS) the execution of the control instruction is stalled as well.
 The re-direction also involves sending the correct target address to the PC Gen stage.
 
-
-Memory Ops
-----------
+AGU Functional Unit
+^^^^^^^^^^^^^^^^^^^
 
 For memory operations, the target address is calculated in this stage (using a dedicated adder) and 
 latched to the data memory subsystem (DMS). For load operations the address is calculated as soon as
 the latest value of *rs1* is obtained, while for stores, the address is calculated only when both *rs1*
-and *rs2* are available.
+and *rs2* are available. The type of memory operation and other information (like size, io, etc) is
+captured and enqueued into the MEMORY ISB.
 
 Trap Handling
--------------
+^^^^^^^^^^^^^
 
 If an incoming decoded instruction is tagged as a trap instruction, it simply bypasses the execution
-stage. On the other hand, the execution stage also detects mis-aligned traps for the memory and
+stage. On the other hand, the execution stage also detects misaligned traps for the memory and
 control instructions based on the target addresses generated.
 
 
-Multiply/Divide Unit
---------------------
+MBOX Functional Unit
+^^^^^^^^^^^^^^^^^^^^
 
 The execution stage utilizes a multi-cycle integer multiply / divide unit to support the M
 extension of RISC-V. The multiplier is implemented as a re-timed module whose latency 
-is 2 cycle(s). Divider on the other hand implements a 
-non-restoring algorithm which produces the output at the end of
-32 cycle. 
+is 2 cycles. (The latency is controlled at compile time using the parameters mentioned in :ref:`m_extension`.)
+Divider on the other hand implements a non-restoring algorithm which produces the output at the end of
+32 cycle (latency controlled at design time). 
 
 .. note:: The core does not flush/retire a divide instruction mid-operation. 
 
+Note, that the mbox provides 2 ready signals one for the multiplier unit and one of the divider unit. 
+This depending on the next instruction to be executed, the relevant ready signal is probed to ensure
+that the execution unit is available for offloading.
 
 Floating Point Unit
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 The optional floating-point unit (FPU), compliant with the IEEE-754 2008 standard is also
 instantiated within the execution stage. The FPU supports single and double precision computations,
@@ -445,55 +549,96 @@ The latency of the pipeline can be configured at design time. When double precis
 the unit itself performs the single-precision operations with additional conversion latencies. 
 The FPU uses variable latency, iterative units to perform division and square-root.
 
-Memory Stage
-============
+Dropping Instructions
+---------------------
 
-The memory-stage bypasses all non-memory instructions, and waits for a response from the DMS for
-memory operations initiated in the execution stage.
-In case of the load instructions, the data-cache in the DMS responds with the loaded value. 
-In case a trap has occurred while performing the memory operation, the DMS response holds the
-virtual address of the memory operation which caused the trap.
-When a store operation is encountered, an entry in the store-buffer is allocated without actually
-performing a store. The actual store is reflected in memory only when the instruction reaches the
-write-back stage.
-
-When a load operation is encountered in the memory-stage it consumes any updated bytes from the
-store-buffer if the requested address match those in the store-buffer.
-
-When the data cache is enabled and a cached store is encountered, the data cache only carries out
-actions to ensure the required line is available in the cache. Non cacheable stores work similarly
-as mentioned above.
-In the case of store operations the data-cache response simply indicates if store can be performed.
+Instructions received from the decode stage whose write-back epochs don't match are dropped in this
+stage, to prevent unnecessary computations and long flush latencies.
 
 
-:numref:`mem_stage` shows the working of the memory-stage.
+Memory Stage [stage4.bsv]
+=========================
 
-.. _mem_stage:
+This pipeline stage acts as the capturing stage of all execution units and forwards them in 
+program order to the write-back stage. The module employs a basic polling technique which is 
+governed by the value at the head of the :term:`FUID ISB`. The FUID indicates which Functional 
+unit - muldiv, float, base-alu, trap, cache, etc - is supposed to provide the next instruction 
+which can be forwarded to the write-back stage.
 
-.. figure:: mem_unit.png
+There can be multiple functional units which can be polled in this stage whose write-back function
+is quite similar. Thus, this stage also tries to converge the various FUIDs to Commit Unit ids
+(:term:`CUID ISB`) as shown in :numref:`mem_stage4`
+
+.. _mem_stage4:
+
+.. figure:: mem_stage4.png
    :align: center
-   :width: 500px
 
-   Memory Stage working
+   Memory Stage of the Pipeline
 
-Write Back Stage
-================
+The system instructions received from the previous stage are simply buffered into the next SYSTEM
+ISB, since these can only be performed in the write-back stage. For all other non-memory operations,
+once the functional unit responds with the correct result, it is enqueued into the `MEM-WB ISB` as
+shown in :numref:`mem_stage4`.
 
-The write-back stage updates the register file, and also handles traps. In case of traps,
-the respective CSRs are updated as described in the privileged RISC-V ISA spec and a re-direction
-to the trap vector is initiated, causing a flush of the pipeline. More details regarding interrupts
-is available in :numref:`interrupts`.
+In case of memory operations, this unit waits for a response from the DMS. If the DMS response
+indicates that a trap occurred, then the instruction is tagged as a TRAP and the virtual address 
+of the operation is captured for the mtval field. In case of cacheable load operations, the result
+from the DMS is directly fed in the MEM-WB ISB and is there on treated similar to the other
+arithmetic instructions.
 
-All CSR operations (read/modify/update) are performed completely in this stage. 
-Since the CSRs are implemented as a daisy chain, some CSR accesses can take multiple cycles.
-More information on the CSR daisy chain is available in :numref:`daisy_chain`.
+However, in case of store ops or non-cacheable ops, the DMS response indicates that a operations has
+been buffered and can only be committed from the write-back stage. In such situations, the
+instruction results are fed in to the :term:`IO-MEMORY ISB` as shown in :numref:`mem_stage4`.
 
-All stores are committed in the write-back stage. A signal is sent to the store buffer from the
-write-back stage to perform the store. 
-When data cache is enabled and the store operation is cached, the write-back stage does not expect
-an acknowledgement. In case of non-cached stores the write-back stage will wait for an
-acknowledgement from the interconnect for fail/success of the store and raise appropriate exceptions
-if required.
+Write Back Stage [stage5.bsv]
+=============================
+
+.. _wb_stage5:
+
+.. figure:: wb_stage5.png
+   :align: center
+
+   Write Back stage of the pipeline
+
+The write-back stage of the pipeline is where all instructions retire. By the time an
+instruction reaches this stage it has been narrowed down via some of the previous stages into one of
+the following categories of operations that can be performed in this stage:
+
+  - SYSTEM: either xRET operations or CSR access operations.
+  - TRAP: The instruction has encountered a trap during its operation in one of the previous stages.
+  - BASEOUT: The instruction retirement includes a simple update to the registerfile
+  - MEMOP: The instruction is either a cached store/atomic operation or an non-cached/IO memory op.
+
+Each of the above have a unique ISB feeding in respective instructions to this module. This module
+uses the CUID from the previous stage,  which maintains the order of instructions to find out which
+ISB must be polled for retiring/committing the next instruction as shown in :numref:`wb_stage5`
+
+Operations which can take multiple cycles in this stage are : CSR operations if daisy-chain is more
+than 1 level deep; IO/non-cached Memory Operations may also take significantly longer in this stage
+to complete.
+
+All other ops will take a single cycle to complete.
+
+This module also instantiates the csrbox module, which hosts all the csrs and also the routines to
+perform a trap or an xRet operation. Certain csr interfaces are simply bypassed along this module so
+that they are exposed at the next hiegher level to rest of the pipeline and design.
+
+Reset Sequence
+==============
+
+The reset sequence of the core is quite simple. Once the core reset has been
+deasserted the following events start:
+  
+  - All sets of the instruction cache are invalidated
+  - All sets of the data cache are invalidated
+  - All the entries in the register file are set to zero
+  - All entries in the bht and btb are reset and invalidated
+
+As part of the reset sequence we ensure that stage-0 of the pipeline only
+generates the first PC when all the above are done. Since the above events
+always take a constant time, we use a counter to count the max number of cycles
+required by the above events, and only then the stage-0 logic is enabled.
 
 Handling Re-directions
 ======================

@@ -1,5 +1,8 @@
 
+
 num_harts
+^^^^^^^^^
+
  **Description**: Total number of harts to be instantiated in the dummy
  test-soc. Note that these will non-coherent cores simply acting as masters on
  the fast-bus.
@@ -10,7 +13,10 @@ num_harts
 
      num_harts: 2
 
+
 isb_sizes
+^^^^^^^^^
+
  **Description**: A dictionary controlling the size of the inter-stage buffers
  of the pipeline. The variable isb_s0s1 controls the size of the isb between stage0 and stage1. 
  Similarly isb_s1s2 dictates the size of the isb between stage1 and stage2 and
@@ -42,10 +48,15 @@ isb_sizes
      isb_s3s4: 2
      isb_s4s5: 2
 
-merged_rf: 
- **Description**: Boolean field to indicate if the registerfiles of floating
- and integer should be implemented as a single extended regfile in hw. This
- field should be set to true only if 'F/D' support is enabled'
+
+merged_rf
+^^^^^^^^^
+
+ **Description**: Boolean field to indicate if the architectural registerfiles for floating
+ and integer should be implemented as a single extended regfile in hw or as
+ separate. This field only makes sense 'F' support is enabled in the ISA string
+ of the input isa yaml. Under certain targets like FPGA or certain technologies
+ maintaining a single registerfile might lead to better area and timing savings.
 
  **Examples**:
 
@@ -53,8 +64,13 @@ merged_rf:
 
    merged_rf: True
 
+
 total_events
- **Description**: Total number of events in the system
+^^^^^^^^^^^^
+
+ **Description**: This field indicates the total number of events that can be used to program the mhpm
+ counters. This field is used to capture the size of the events signals that
+ drives the counters.
 
  **Examples**:
 
@@ -62,8 +78,19 @@ total_events
 
    total_events: 28
 
+
 waw_stalls
- **Description**: Indicates if stalls must occur on a WAW hazard
+^^^^^^^^^^
+
+ **Description**: Indicates if stalls must occur on a WAW hazard. If you are
+ looking for higher performance set this to False. Setting this to true would
+ lead to instructions stalling in stage3 due to a WAW hazard. 
+
+ Setting this to false also means the scoreboad will not allocate a unique id
+ to the destination register of every instruction that is offloaded for
+ execution. The size of this id depends on the numbr of in-flight instructions
+ after the execution stage, which in turn depends on the size of the isb_s3s4
+ and isb_s4s5 as defined above.
 
  **Examples**:
 
@@ -71,7 +98,10 @@ waw_stalls
    
    waw_stalls: False
 
+
 iepoch_size
+^^^^^^^^^^^
+
  **Description**: integer value indicating the size of the epochs for the
  instruction memory subsystem. Allowed value is 2 only
 
@@ -81,7 +111,10 @@ iepoch_size
 
    iepoch_size: 2
 
+
 depoch_size
+^^^^^^^^^^^
+
  **Description**: integer value indicating the size of the epochs for the
  data memory subsystem. Allowed value is 1 only
 
@@ -91,22 +124,15 @@ depoch_size
 
    depoch_size: 1
 
-dtvec_base
-  **Description**: An integer address indicating where the self-loop for the
-  debug module sits
-
-  **Examples**:
-
-  .. code-block:: yaml
-
-    dtvec_base: 0x0
 
 s_extension
+^^^^^^^^^^^
+
   **Description**: Describes various supervisor and MMU related parameters.
   These parameters only take effect when "S" is present in the ISA field.
 
-    - ``itlb_size``: integer indicating the size of entries in the Instruction TLB
-    - ``dtlb_size``: integer indicating the size of entries in the Data TLB
+    - ``itlb_size``: integer indicating the size of entries in the fully-associative Instruction TLB
+    - ``dtlb_size``: integer indicating the size of entries in the fully-associative Data TLB
 
   **Examples**:
 
@@ -116,12 +142,15 @@ s_extension
       itlb_size: 4
       dtlb_size: 4
 
+
 a_extension
+^^^^^^^^^^^
+
   **Description**: Describes various A-extension related parameters. These params take effect only
   when the "A" extension is enabled in the riscv_config ISA
 
      - ``reservation_size``: integer indicate the size of the reservation in terms of bytes.
-       Minimum value is 4 and must be a power of 2.
+       Minimum value is 4 and must be a power of 2. For RV64 system minimum should be 8 bytes.
 
   **Examples**:
 
@@ -130,12 +159,19 @@ a_extension
      a_extension:
        reservation_size: 8
 
+
 m_extension
+^^^^^^^^^^^
+
   **Description**: Describes various M-extension related parameters. These
   parameters take effect only is "M" is present in the ISA field.
+  The multiplier used in the core is a retimed one. The parameters below indicate the number of
+  input and output registers around the combo block to enable retiming.
 
-    - ``mul_stages``: an integer indicating the number of pipeline stages for the
-      integer multiplier. Max value is limited to the XLEN defined in the ISA.
+    - ``mul_stages_out``: Number of stages to be inserted after the multiplier combinational block.
+      Minimum value is 1.
+    - ``mul_stages_in``: Number of stages to be inserted before the multiplier combinational block.
+      Minimum value is 0
     - ``div_stages``: an integer indicating the number of cycles for a single
       division operation. Max value is limited to the XLEN defined in the ISA.
 
@@ -144,18 +180,21 @@ m_extension
   .. code-block:: yaml
 
     m_extension:
-      mul_stages : 2
-      div_stages: 64
+      mul_stages_in  : 2
+      mul_stages_out : 2
+      div_stages: 32
+
 
 
 branch_predictor
+^^^^^^^^^^^^^^^^
+
   **Description**: Describes various branch predictor related parameters. 
 
     - ``instantiate``: boolean value indicating if the predictor needs to be
       instantiated
     - ``predictor``: string indicating the type of predictor to be implemented. Valid
-      values are: 'gshare'
-      not. Valid values are : ['enable','disable']
+      values are: 'gshare' not. Valid values are : ['enable','disable']
     - ``btb_depth``: integer indicating the size of the branch target buffer
     - ``bht_depth``: integer indicating the size of the bracnh history buffer
     - ``history_len``: integer indicating the size of the global history register
@@ -175,7 +214,10 @@ branch_predictor
       history_bits: 5
       ras_depth: 8
 
+
 icache_configuration
+^^^^^^^^^^^^^^^^^^^^
+
   **Description**: Describes the various instruction cache related features.
 
     - ``instantiate``: boolean value indicating if the predictor needs to be
@@ -212,7 +254,10 @@ icache_configuration
       ecc_enable: false
       one_hot_select: false
 
+
 dcache_configuration
+^^^^^^^^^^^^^^^^^^^^
+
   **Description**: Describes the various instruction cache related features.
 
     - ``instantiate``: boolean value indicating if the predictor needs to be
@@ -224,6 +269,8 @@ dcache_configuration
     - ``ways``: integer indicating the number of the ways in the cache
     - ``fb_size``: integer indicating the number of fill-buffer entries in the cache
     - ``sb_size``: integer indicating the number of store-buffer entries in the cache. Fixed to 2
+    - ``lb_size``: integer indicating the number lines to be stored in the store buffer. Applicable
+      only when rwports == 1r1w
     - ``ib_Size``: integer indicating the number of io-buffer entries in the cache. Default to 2
     - ``replacement``: strings indicating the replacement policy. Valid values are:
       ["PLRU", "RR", "Random"]
@@ -257,7 +304,10 @@ dcache_configuration
       one_hot_select: false
       rwports: 1r1w
 
+
 reset_pc
+^^^^^^^^
+
   **Description**: Integer value indicating the reset value of program counter
 
   **Example**:
@@ -266,7 +316,10 @@ reset_pc
 
     reset_pc: 4096
 
+
 bus_protocol
+^^^^^^^^^^^^
+
   **Description**: bus protocol for the master interfaces of the core. Fixed to
   "AXI4"
 
@@ -276,27 +329,10 @@ bus_protocol
 
     bus_protocol: AXI4
 
-fpu_trap
-  **Description**: Boolean value indicating if the core should trap on floating
-  point exception and integer divide-by-zero conditions.
-
-  **Examples**:
-
-  .. code-block:: yaml
-
-    fpu_trap: False
-
-no_of_triggers
-  **Description**: An integer field indicating the number of triggers to be
-  implemented
-
-  **Examples**:
-
-  .. code-block:: yaml
-
-    no_of_triggers: 4
 
 verilator_configuration
+^^^^^^^^^^^^^^^^^^^^^^^
+
   **Description**: describes the various configurations for verilator compilation.
 
     - ``coverage``: indicates the type of coverage that the user would like to
@@ -324,41 +360,66 @@ verilator_configuration
      open_ocd: False
      sim_speed: fast
 
+
 bsc_compile_options
-  **Description**: Describes the various bluespec compile options
+^^^^^^^^^^^^^^^^^^^
 
-    - ``test_memory_size``: size of the BRAM memory in the test-SoC in bytes.
-       Default is 32MB
-    - ``assertions``: boolean value indicating if assertions used in the design
-      should be compiled or not
-    - ``trace_dump``: boolean value indicating if the logic to generate a simple
-      trace should be implemented or not. Note this is only for simulation and not
-      a real trace
-    - ``compile_target``: a string indicating if the bsv files are being compiled for simulation
-      of for asic/fpga synthesis. The valid values are: [ 'sim', 'asic', 'fpga' ]
-    - ``suppress_warnings``: List of warnings which can be suppressed during
-      bluespec compilation. Valid values are: ["none", "all", "G0010", "T0054", "G0020", "G0024", "G0023", "G0096", "G0036", "G0117", "G0015"]
-    - ``ovl_assertions``: boolean value indicating if OVL based assertions must be turned on/off
-    - ``ovl_path``: string indicating the path where the OVL library is installed.
-    - ``sva_assertions``: boolean value indicating if SVA based assertions must be turned on/off
-    - ``verilog_dir``: the directory name of where the generated verilog will be
-      dumped
-    - ``open_ocd``: a boolean field indicating if the test-bench should have an
-      open-ocd vpi enabled.
-    - ``build_dir``: the directory name where the bsv build files will be dumped
-    - ``top_module``: name of the top-level bluespec module to be compiled.
-    - ``top_file``: file containing the top-level module.
-    - ``top_dir``: directory containing the top_file.
+ **Description**: Describes the various bluespec compile options
 
-  **Examples**:
+   - ``test_memory_size``: size of the BRAM memory in the test-SoC in bytes.
+      Default is 32MB
+   - ``assertions``: boolean value indicating if assertions used in the design
+     should be compiled or not
+   - ``trace_dump``: boolean value indicating if the logic to generate a simple
+     trace should be implemented or not. Note this is only for simulation and not
+     a real trace
+   - ``compile_target``: a string indicating if the bsv files are being compiled for simulation
+     of for asic/fpga synthesis. The valid values are: [ 'sim', 'asic', 'fpga' ]
+   - ``suppress_warnings``: List of warnings which can be suppressed during
+     bluespec compilation. Valid values are: ["none", "all", "G0010", "T0054", "G0020", "G0024", "G0023", "G0096", "G0036", "G0117", "G0015"]
+   - ``ovl_assertions``: boolean value indicating if OVL based assertions must be turned on/off
+   - ``ovl_path``: string indicating the path where the OVL library is installed.
+   - ``sva_assertions``: boolean value indicating if SVA based assertions must be turned on/off
+   - ``verilog_dir``: the directory name of where the generated verilog will be
+     dumped
+   - ``open_ocd``: a boolean field indicating if the test-bench should have an
+     open-ocd vpi enabled.
+   - ``build_dir``: the directory name where the bsv build files will be dumped
+   - ``top_module``: name of the top-level bluespec module to be compiled.
+   - ``top_file``: file containing the top-level module.
+   - ``top_dir``: directory containing the top_file.
+   - ``cocotb_sim``: boolean variable. When set the terminating conditions in the test-bench
+     environments are disabled, as the cocotb environment is meant to handle that. When set to
+     false, the bluespect test-bench holds the terminating conditions.
 
-  .. code-block:: yaml
+ **Examples**:
 
-   bsc_compile_options:
-     assertions: True
-     trace_dump: True
-     suppress_warnings: "none"
-     top_module: mkTbSoc
-     top_file: TbSoc
-     top_dir: base_sim
-     out_dir: bin
+ .. code-block:: yaml
+
+  bsc_compile_options:
+    assertions: True
+    trace_dump: True
+    suppress_warnings: "none"
+    top_module: mkTbSoc
+    top_file: TbSoc
+    top_dir: base_sim
+    out_dir: bin
+
+
+noinline_modules
+^^^^^^^^^^^^^^^^
+
+ **Description**: This node contains multiple module names which take a boolean value. Setting a
+ module to True would generate a separate verilog file for that module during bluespec compilation.
+ If set to False, then that particular module will be in lined the module  above it in hierarchy in
+ the generated verilog.
+
+ **Examples**:
+
+ .. code-block:: yaml
+
+   noinline_modules:
+     stage0: False
+     stage1: True
+     stage2: False
+     stage3: False
