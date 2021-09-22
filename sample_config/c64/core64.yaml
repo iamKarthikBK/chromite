@@ -90,3 +90,4 @@ noinline_modules:
   bypass: True
   base_alu: True
   decoder: True
+  decompress: True
