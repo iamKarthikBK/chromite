@@ -178,10 +178,10 @@ package gshare_fa;
   `ifdef ifence
     /*doc : reg : When true this register flushes all the entries and cleans up the btb*/
     ConfigReg#(Bool) rg_initialize <- mkConfigReg(False);
-    `ifdef simulate
+    /*`ifdef simulate : TODO fix checklogs
     // the follwoing register is used to indicate that a fence instruction was encountered
       ConfigReg#(Bool) rg_log_vals <- mkConfigReg(False);
-    `endif 
+    `endif */
     /*doc : rule : This rule flushes the btb and puts it back to the initial reset state.
     This rule would be called each time a fence.i is being performed. This rule will also reset the
     ghr and rg_allocate register*/
@@ -198,7 +198,7 @@ package gshare_fa;
     `ifdef bpu_ras
       ras_stack.clear;
     `endif
-    `ifdef simulate
+    /*`ifdef simulate: TODO check logs
       // logs when fence is encountered (before fence clears everything)
       rg_log_vals <= True;
       `logLevel( bpu,5, $format("rg_initialize is %b, rg_log_vals is %b", rg_initialize,rg_log_vals))
@@ -211,11 +211,11 @@ package gshare_fa;
       end
       // value of GHR before fencing
       `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
-      `endif
+      `endif */
     endrule
   `endif
     // the following block of code helps keep track of the updates to the BTB entries after a fence inst 
-    `ifdef simulate
+    /* `ifdef simulate
       rule rl_post_fence_log (rg_log_vals);
         rg_log_vals <= False;
         `logLevel( bpu,5, $format("rg_initialize is %b, rg_log_vals is %b", rg_initialize,rg_log_vals))
@@ -229,7 +229,7 @@ package gshare_fa;
         // value of GHR after fence
         `logLevel( bpu,5, $format("[%2d]BPU : current_ghr -> %b", hartid, rg_ghr[1]))
       endrule
-    `endif
+    `endif */
 
     /*doc:method: This method provides prediction for a requested PC.
     If a fence.i is requested, then the rg_initialize register is set to true.
@@ -283,7 +283,7 @@ package gshare_fa;
         rg_initialize <= True;
     `endif
     
-    `ifdef simulate
+    /*`ifdef simulate
     // prints if the valid bits of all the btb_tags are set to 0. Used in Check_logs
       if (rg_initialize)
         `logLevel( bpu,5, $format("rg_initialize has become 1"))
@@ -291,7 +291,7 @@ package gshare_fa;
       for (Integer i=0; i<`btbdepth;i=i+1) rg_check_valid[i] = pack(v_reg_btb_tag[i].valid);
       if (rg_log_vals)
         `logLevel( bpu,5, $format("[%2d]BPU : Fenced, Valid Bits -> %b", hartid, |rg_check_valid))    
-    `endif
+    `endif */
       let bht_index_ = fn_hash(rg_ghr[0], r.pc);
       Bit#(`statesize) branch_state_ [`bhtcols];
       for(Integer i = 0; i < `bhtcols ; i = i + 1)
