@@ -2,16 +2,16 @@
 Benchmarking the Core
 #####################
 
-The max DMIPS of the Chromite core is **1.72 DMIPs/MHz.**
+The max DMIPS of the Chromite core is **1.76 DMIPs/MHz.**
 
-The max CoreMarks of the Chromite core is **2.9 CoreMarks/MHz**
+The max CoreMarks of the Chromite core is **3.2 CoreMarks/MHz**
 
 The Chromite core is highly configurable and allows workload specific tuning to achieve the
 maximum performance. This document will highlight some of the settings and their respective
 benchmark numbers. For the following benchmarks the core has been configured using the
 default.yaml available in the ``samples/`` folder.
 
-.. note:: Make sure you are using gcc 9.2.0 or above to replicate the following results.
+.. note:: Make sure you are using gcc 11.1.0 or above to replicate the following results.
 
 Benchmarking Dhrystone
 ======================
@@ -25,16 +25,10 @@ Flags used for compilation::
   -fno-common -fno-builtin-printf -march=rv64$(march) -mabi=lp64d \
   -w -static -nostartfiles -lgcc
 
-When ``$march`` is ``rv64imac`` the DMIPs/MHz is **1.68**::
+When ``$march`` is ``rv64ima``  the DMIPs/MHz is **1.76**::
 
   Microseconds for one run through Dhrystone:     10.0
-  Dhrystones per Second:                       94652.0
-
-
-When ``$march`` is ``rv64ima``  the DMIPs/MHz is **1.72**::
-
-  Microseconds for one run through Dhrystone:     10.0
-  Dhrystones per Second:                       96216.0
+  Dhrystones per Second:                       99046.0
 
 Benchmarking CoreMarks
 ======================
@@ -42,23 +36,16 @@ Benchmarking CoreMarks
 The following numbers have been obtained via simulation where the number of ITERATIONS
 was fixed at 100
 
-Flags used for compilation are available in the logs below: 
-
-When ``$march`` is ``rv64imac`` the CoreMarks/MHz is **2.84**::
+When ``$march`` is ``rv64ima`` the CoreMarks/MHz is **3.2**::
 
   2K performance run parameters for coremark.
   CoreMark Size    : 666
-  Total ticks      : 35205197
-  Total time (secs): 35
-  Iterations/Sec   : 2
+  Total ticks      : 31256616
+  Total time (secs): 31
+  Iterations/Sec   : 3
   Iterations       : 100
-  Compiler version : riscv64-unknown-elf-9.2.0
-  Compiler flags   : -mcmodel=medany -DCUSTOM -DPERFORMANCE_RUN=1 -DMAIN_HAS_NOARGC=1 \
-                     -DHAS_STDIO -DHAS_PRINTF -DHAS_TIME_H -DUSE_CLOCK -DHAS_FLOAT=0 \
-                     -DITERATIONS=10 -O3 -fno-common -funroll-loops -finline-functions \
-                     -fselective-scheduling -falign-functions=16 -falign-jumps=4 \
-                     -falign-loops=4 -finline-limit=1000 -nostartfiles -nostdlib -ffast-math \
-                     -fno-builtin-printf -march=rv64imac -mexplicit-relocs
+  Compiler version : riscv64-unknown-elf-11.1.0
+  Compiler flags   : -mcmodel=medany -DCUSTOM -DPERFORMANCE_RUN=1 -DMAIN_HAS_NOARGC=1 -DHAS_STDIO -DHAS_PRINTF -DHAS_TIME_H -DUSE_CLOCK -DHAS_FLOAT=0 -DITERATIONS=100 -O3 -fno-common -funroll-loops -finline-functions -fselective-scheduling -falign-functions=16 -falign-jumps=4 -falign-loops=4 -finline-limit=1000 -nostartfiles -nostdlib -ffast-math -fno-builtin-printf -march=rv64imfd -mexplicit-relocs -ffreestanding -fno-builtin -mtune=rocket
   Memory location  : STACK
   seedcrc          : 0xe9f5
   [0]crclist       : 0xe714
@@ -66,31 +53,6 @@ When ``$march`` is ``rv64imac`` the CoreMarks/MHz is **2.84**::
   [0]crcstate      : 0x8e3a
   [0]crcfinal      : 0x988c
   Correct operation validated. See README.md for run and reporting rules.
-
-
-When ``$march`` is ``rv64ima`` the CoreMarks/MHz is **2.897**::
-
-  2K performance run parameters for coremark.
-  CoreMark Size    : 666
-  Total ticks      : 34516277
-  Total time (secs): 34
-  Iterations/Sec   : 2
-  Iterations       : 100
-  Compiler version : riscv64-unknown-elf-9.2.0
-  Compiler flags   : -mcmodel=medany -DCUSTOM -DPERFORMANCE_RUN=1 -DMAIN_HAS_NOARGC=1 \
-                     -DHAS_STDIO -DHAS_PRINTF -DHAS_TIME_H -DUSE_CLOCK -DHAS_FLOAT=0 \
-                     -DITERATIONS=100 -O3 -fno-common -funroll-loops -finline-functions \
-                     -fselective-scheduling -falign-functions=16 -falign-jumps=4 \
-                     -falign-loops=4 -finline-limit=1000 -nostartfiles -nostdlib -ffast-math \
-                     -fno-builtin-printf -march=rv64ima -mexplicit-relocs
-  Memory location  : STACK
-  seedcrc          : 0xe9f5
-  [0]crclist       : 0xe714
-  [0]crcmatrix     : 0x1fd7
-  [0]crcstate      : 0x8e3a
-  [0]crcfinal      : 0x988c
-  Correct operation validated. See README.md for run and reporting rules.
-
 
 
 Why Compressed Binaries have reduced performance?
