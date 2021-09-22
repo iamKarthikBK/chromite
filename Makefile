@@ -19,7 +19,7 @@ link_verilator: ## Generate simulation executable using Verilator
 	@mkdir -p $(BSVOUTDIR) obj_dir
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > sim_main.h
 	@echo '#include "V$(TOP_MODULE).h"' >> sim_main.h
-	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v src/fbox/verilog_src/reverse.v \
+	verilator $(VERILATOR_FLAGS) --top-module $(TOP_MODULE) --cc $(TOP_MODULE).v src/fbox/verilog_src/reverse.v \
 		src/fbox/verilog_src/iNFromException.v src/fbox/verilog_src/isSigNaNRecFN.v \
 		src/fbox/verilog_src/recFNToRawFN.v \
 		-y $(PWD)/$(VERILOGDIR) \
