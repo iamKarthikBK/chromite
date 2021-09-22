@@ -263,7 +263,7 @@ Description of the above modules:
 +--------------------+-----------------------------------------------------------+
 | Module-Name        | Description                                               |
 +--------------------+-----------------------------------------------------------+
-| mkriscv            | Contains the 5-stages of the core pipeline including the  | 
+| mkriscv            | Contains the 6-stages of the core pipeline including the  | 
 |                    | execution and only the interface to the memory subsystem  |
 +--------------------+-----------------------------------------------------------+
 | mkdmem             | The Data memory subsystem. Includes the data-cache and    |
