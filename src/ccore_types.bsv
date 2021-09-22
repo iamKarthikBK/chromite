@@ -379,7 +379,7 @@ instance FShow#(Stage3Meta);
   function Fmt fshow(Stage3Meta val);
     Fmt result = $format("Stage3Meta: rd:%d epochs:%b funct:%h",val.rd, val.epochs, val.funct);
   `ifdef spfpu
-    result = result + $format(" rdtype:",fshow(val.rdtype))
+    result = result + $format(" rdtype:",fshow(val.rdtype));
   `endif
   `ifdef compressed
     result = result + $format(" compressed:",fshow(val.compressed));
@@ -389,6 +389,10 @@ instance FShow#(Stage3Meta);
 endinstance
 
 typedef struct {
+`ifdef spfpu
+  RFType  rs3type;
+  Bit#(5) rs3addr;
+`endif
   Op1type rs1type;
   Op2type rs2type;
   Bit#(5) rs1addr;
@@ -409,11 +413,11 @@ typedef struct{
 } RFOp2 deriving(Bits, Eq, FShow);
 
 typedef struct{
-  Bit#(`elen)  data;
 `ifdef spfpu
   Bit#(5)     addr;
   RFType      optype;
 `endif
+  Bit#(`elen)  data;
 } RFOp3 deriving(Bits, Eq, FShow);
 // ------------------------------------------------------------------------------------------
 
@@ -646,7 +650,7 @@ instance FShow#(CommitData);
     Fmt optype = $format("X");
   `ifdef spfpu
     if (val.rdtype == FRF)
-      optype = "F";
+      optype = $format("F");
   `endif
     result = result + optype + $format("[%d] = %h unlock:%b",val.addr,val.data,val.unlock_only);
   `ifdef no_wawstalls

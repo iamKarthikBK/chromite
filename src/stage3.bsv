@@ -87,6 +87,9 @@ import scoreboard     :: * ;      // implements the scoreboard
 `ifdef muldiv
 import mbox           :: * ;
 `endif
+`ifdef spfpu
+import fpu            :: * ;
+`endif
 
 `include "ccore_params.defines"   // for core parameters
 `include "Logger.bsv"             // for logging display statements.
@@ -116,6 +119,10 @@ interface Ifc_stage3;
 `ifdef bpu
   /*doc:subifc: interface to train the branch predictor on branch or jump instruction */
   interface Ifc_s3_bpu bpu;
+`endif
+`ifdef spfpu
+  /*doc:subifc: interface to the multiplication and division unit*/
+  interface Ifc_s3_float float;
 `endif
 `ifdef muldiv
   /*doc:subifc: interface to the multiplication and division unit*/
@@ -149,6 +156,13 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
   /*doc:submodule: instantiating the scoreboard module */
   Ifc_scoreboard sboard <- mkscoreboard(hartid);
 
+`ifdef spfpu
+  /*doc:wire: wire to drive the inputs to the float unit*/
+  Wire#(FBoxIn) wr_float_inputs <- mkWire();
+  /*doc:wire: wire to check if the float unit is ready to accept new inputs*/
+  Wire#(Bool) wr_fbox_ready<- mkWire();
+`endif
+
 `ifdef muldiv
   /*doc:wire: wire to drive the inputs to the mul-div unit*/
   Wire#(MBoxIn) wr_muldiv_inputs <- mkWire();
@@ -169,7 +183,7 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
   /*doc:wire: reads operand-2 from the registerfile which was indexed in the previous cycle*/
   Wire#(FwdType) wr_rf_op2 <- mkWire();
   /*doc:wire: reads operand-3/immediate from the registerfile which was indexed in the previous cycle*/
-  Wire#(RFOp3) wr_op3 <- mkWire();
+  Wire#(FwdType) wr_op3 <- mkWire();
 
   /*doc:wire: The vector of all bypass values coming from varios ISBs. The lower index indicates
   * bypass from the youngest instruction and the highest index indicates bypass from the oldest
@@ -211,7 +225,11 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
   /*doc:wire: holds value of operand2 after checking the bypass signals from downstream isbs and
   * regfile*/
   Wire#(Bit#(`xlen)) wr_fwd_op2 <- mkWire();
-
+`ifdef spfpu
+  /*doc:wire: holds value of operand3 after checking the bypass signals from downstream isbs and
+  * regfile*/
+  Wire#(Bit#(`elen)) wr_fwd_op3 <- mkWire();
+`endif
   /*doc:wire: after checking the bypass signals from downstream ISBs, this wire indicates if the
   * latest value of operand1 is available or not. If not then we need stall on instructions waiting
   * for this value.*/
@@ -224,7 +242,13 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
   * for this value.*/
   Wire#(Bool) wr_op2_avail <- mkWire();
   Probe#(Bool) wr_op2_avail_probe <- mkProbe();
-
+`ifdef spfpu
+  /*doc:wire: after checking the bypass signals from downstream ISBs, this wire indicates if the
+  * latest value of operand3 is available or not. If not then we need stall on instructions waiting
+  * for this value.*/
+  Wire#(Bool) wr_op3_avail <- mkWire();
+  Probe#(Bool) wr_op3_avail_probe <- mkProbe();
+`endif
   // The following registers are use to the maintain epochs from various pipeline stages:
   // writeback and execute stage.
 	Reg#(Bit#(1)) rg_eEpoch <- mkConfigReg(0);
@@ -331,6 +355,7 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
   `ifdef spfpu
     RFType rf1type = `ifdef spfpu opmeta.rs1type == FloatingRF ? FRF : `endif IRF;
     RFType rf2type = `ifdef spfpu opmeta.rs2type == FloatingRF ? FRF : `endif IRF;
+    RFType rf3type = opmeta.rs3type;
   `endif
   `ifdef no_wawstalls
     let sb_rs1id = sboard.mv_board.v_id[{ `ifdef spfpu pack(rf1type==FRF), `endif opmeta.rs1addr}];
@@ -347,10 +372,11 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
                     `ifdef spfpu ,rdtype: rf2type `endif };
     Vector#(TAdd#(`bypass_sources ,1), FwdType) byp1, byp2;
     byp1[0] = wr_bypass[0];
-    byp2[0] = wr_bypass[0];
     byp1[1] = wr_bypass[1];
-    byp2[1] = wr_bypass[1];
     byp1[2] = wr_rf_op1;
+
+    byp2[0] = wr_bypass[0];
+    byp2[1] = wr_bypass[1];
     byp2[2] = wr_rf_op2;
     let {_op1_avail, _fwd_op1} = fn_bypass( req_addr1, byp1);
     let {_op2_avail, _fwd_op2} = fn_bypass( req_addr2, byp2);
@@ -359,6 +385,23 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
 
     wr_op2_avail <= _op2_avail; wr_fwd_op2 <= _fwd_op2;
     wr_op2_avail_probe <= _op1_avail;
+
+  `ifdef spfpu
+    `ifdef no_wawstalls
+    let sb_rs3id = sboard.mv_board.v_id[{ `ifdef spfpu pack(rf3type==FRF), `endif opmeta.rs3addr}];
+    `endif
+    BypassReq req_addr3 = BypassReq{rd:opmeta.rs3addr, epochs: curr_epochs[0]
+                    ,sb_lock: sb_mask[ { 1'b1, opmeta.rs3addr}] 
+                    `ifdef no_wawstalls ,id: sb_rs3id `endif
+                    `ifdef spfpu ,rdtype: rf3type `endif };
+    Vector#(TAdd#(`bypass_sources ,1), FwdType) byp3;
+    byp3[0] = wr_bypass[0];
+    byp3[1] = wr_bypass[1];
+    byp3[2] = wr_op3;
+    let {_op3_avail, _fwd_op3} = fn_bypass( req_addr3, byp3);
+    wr_op3_avail <= (rf3type==IRF || _op3_avail); wr_fwd_op3 <= _fwd_op3;
+    wr_op3_avail_probe <= _op3_avail;
+  `endif
     if (lv_waw_stall)begin
       `logLevel( stage3, stall, $format("[%2d]STAGE3: WAW Stall", hartid))
       `logLevel( stage3, 0, $format("[%2d]STAGE3: ",hartid, fshow(sboard.mv_board)))
@@ -368,6 +411,11 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
           hartid, opmeta.rs1addr, _op1_avail, _fwd_op1))
       `logLevel( stage3, 0, $format("[%2d]STAGE3: Bypass Op2:%2d Op2Avail:%b Op2Val:%h",
           hartid, opmeta.rs2addr, _op2_avail, _fwd_op2))
+    `ifdef spfpu
+      `logLevel( stage3, 0, $format("[%2d]STAGE3: Bypass Op3:%2d Op3Avail:%b Op3Val:%h",
+          hartid, opmeta.rs3addr, _op3_avail, _fwd_op3))
+      `logLevel( stage3, 0, $format("[%2d]STAGE3: imm:",hartid, fshow(wr_op3)))
+    `endif
     end
   endrule:rl_perform_fwding
 
@@ -771,13 +819,58 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
     `endif
     end
     else begin
-      `logLevel( stage3, stall, $format("[%2d]STAGE3: Waiting for operands",hartid))
+      `logLevel( stage3, stall, $format("[%2d]STAGE3: MBOX Waiting for operands",hartid))
       `logLevel( stage3, 4, $format("[%2d]STAGE3: SBD: ",hartid,fshow(sboard.mv_board)))
     `ifdef perfmonitors
       wr_count_rawstalls <= 1;
     `endif
     end
   endrule:rl_mbox
+`endif
+`ifdef spfpu
+
+  /*doc:rule: dummy rule to simply display the ready signals of the multiplication and division
+    * submodules*/
+  rule rl_show_fbox_rdy;
+    `logLevel( fbox, 0, $format("[%2d]FBOX: Rdy:%b",hartid, wr_fbox_ready))
+  endrule:rl_show_fbox_rdy
+
+  /*doc:rule: This rule will fire when the epochs match and when the multiplier/divider are
+  * avaialble based on the current instruction. Both the operands are required for execution to be
+  * offloaded the mbox.*/
+  rule rl_fbox(instr_type == FLOAT && epochs_match && !wr_waw_stall && wr_fbox_ready);
+    let common_pkt = s4common;
+    common_pkt.insttype = FLOAT;
+    `logLevel( stage3, 0, $format("[%2d]STAGE3: FLOAT Op received",hartid))
+    if (wr_op1_avail && wr_op2_avail && wr_op3_avail) begin
+      wr_float_inputs <= FBoxIn{op1: truncate(wr_fwd_op1), op2: truncate(wr_fwd_op2), op3:truncate(wr_fwd_op3),
+                               opcode: (meta.funct[6:3]), f3: truncate(meta.funct), 
+                               f7: wr_op3.data[11:5], imm: wr_op3.data[1:0], fsr: truncate(meta.funct), 
+                               issp: meta.word32 };
+      `logLevel( stage3, 0, $format("[%2d]STAGE3: FLOAT op offloaded",hartid))
+      deq_rx;
+      let _id <- sboard.ma_lock_rd(SBDUpd{rd: meta.rd `ifdef spfpu ,rdtype: meta.rdtype `endif });
+    `ifdef no_wawstalls
+      `logLevel( stage3, 0, $format("[%2d]STAGE3: issuing ID:%2d",hartid,_id))
+      common_pkt.id = _id;
+    `endif
+      tx_fuid.u.enq(common_pkt);
+    `ifdef perfmonitors
+      wr_count_muldiv <= 1;
+    `endif
+    `ifdef rtldump
+      let clogpkt = rx_commitlog.u.first;
+      tx_commitlog.u.enq(clogpkt);
+    `endif
+    end
+    else begin
+      `logLevel( stage3, stall, $format("[%2d]STAGE3: FBOX Waiting for operands",hartid))
+      `logLevel( stage3, 4, $format("[%2d]STAGE3: SBD: ",hartid,fshow(sboard.mv_board)))
+    `ifdef perfmonitors
+      wr_count_rawstalls <= 1;
+    `endif
+    end
+  endrule:rl_fbox
 `endif
   //--------------- interfaces to receive the decoded info from the previous stage. ------------//
   interface rx = interface Ifc_s3_rx
@@ -811,7 +904,7 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
     method Action ma_op2 (FwdType i);
       wr_rf_op2 <= i;
     endmethod
-    method Action ma_op3 (RFOp3 i);
+    method Action ma_op3 (FwdType i);
       wr_op3 <= i;
     endmethod
   endinterface;
@@ -901,6 +994,14 @@ module mkstage3#(parameter Bit#(`xlen) hartid) (Ifc_stage3);
       wr_mul_ready <= rdy.mul;
       wr_div_ready <= rdy.div;
     endmethod: ma_mbox_ready
+  endinterface;
+`endif
+`ifdef spfpu
+  interface float = interface Ifc_s3_float
+    method mv_fbox_inputs = wr_float_inputs;
+    method Action ma_fbox_ready(Bool rdy);
+      wr_fbox_ready <= rdy;
+    endmethod: ma_fbox_ready
   endinterface;
 `endif
 endmodule

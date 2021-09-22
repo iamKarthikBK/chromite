@@ -19,8 +19,12 @@ link_verilator: ## Generate simulation executable using Verilator
 	@mkdir -p $(BSVOUTDIR) obj_dir
 	@echo "#define TOPMODULE V$(TOP_MODULE)" > sim_main.h
 	@echo '#include "V$(TOP_MODULE).h"' >> sim_main.h
-	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v -y $(PWD)/$(VERILOGDIR) \
-		-y $(BS_VERILOG_LIB) -y $(PWD)/bsvwrappers/common_lib/ --exe
+	verilator $(VERILATOR_FLAGS) --cc $(TOP_MODULE).v src/fbox/verilog_src/reverse.v \
+		src/fbox/verilog_src/iNFromException.v src/fbox/verilog_src/isSigNaNRecFN.v \
+		src/fbox/verilog_src/recFNToRawFN.v \
+		-y $(PWD)/$(VERILOGDIR) \
+		-y $(BS_VERILOG_LIB) -y $(PWD)/bsvwrappers/common_lib/ \
+		-y src/fbox/verilog_src/ --exe
 	@ln -f -s ../test_soc/sim_main.cpp obj_dir/sim_main.cpp
 	@ln -f -s ../sim_main.h obj_dir/sim_main.h
 	make $(VERILATOR_SPEED) VM_PARALLEL_BUILDS=1 -j4 -C obj_dir -f V$(TOP_MODULE).mk

@@ -19,6 +19,9 @@ import TxRx         :: * ;
 `ifdef muldiv
 import mbox         :: * ;
 `endif
+`ifdef spfpu
+import fpu          :: * ;
+`endif
 `ifdef rtldump
 import csrbox       :: * ;
 `endif
@@ -146,7 +149,7 @@ interface Ifc_s3_rf;
   method Action ma_op2 (FwdType i);
   /*doc:method: receive op2 and its meta info from previous stage (stage2/decode)*/
   (*always_enabled, always_ready*)
-  method Action ma_op3 (RFOp3 i);
+  method Action ma_op3 (FwdType i);
 endinterface: Ifc_s3_rf
 
 interface Ifc_s3_cache;
@@ -175,6 +178,16 @@ interface Ifc_s3_bpu;
   method Tuple2#(Bool, Bit#(`histlen)) mv_mispredict;
 `endif
 endinterface:Ifc_s3_bpu
+`endif
+`ifdef spfpu
+interface Ifc_s3_float;
+  /*doc:method: this method send out the inputs required to the fbox unit*/
+  method FBoxIn mv_fbox_inputs;
+  
+  (*always_ready, always_enabled*)
+  /*doc:method: This method captures the ready signals from the fbox unit*/
+  method Action ma_fbox_ready(Bool rdy);
+endinterface: Ifc_s3_float
 `endif
 
 `ifdef muldiv
@@ -268,7 +281,7 @@ interface Ifc_s2_rf;
 
   (*always_ready*)
   /*doc:method: Latest value of operand3 from rf*/
-  method RFOp3 mv_op3;
+  method FwdType mv_op3;
 
 endinterface:Ifc_s2_rf
 
@@ -340,6 +353,11 @@ endinterface:Ifc_s2_debug
     // interface to receive the response from dmem memory sub system
     interface Put#(DMem_core_response#(`elen,1)) memory_response;
   endinterface:Ifc_s4_cache
+`ifdef spfpu
+  interface Ifc_s4_float;
+    interface RXe#(Tuple2#(Bit#(`elen), Bit#(5))) rx_fbox_output;
+  endinterface:Ifc_s4_float
+`endif
 
 `ifdef muldiv
   interface Ifc_s4_muldiv;

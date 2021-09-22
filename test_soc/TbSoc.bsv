@@ -160,7 +160,7 @@ package TbSoc;
             if (!d.irf && valueOf(`flen) == 64)
               $fwrite(dump, " f%d", d.rd, " 0x%16h", d.wdata);
             if (!d.irf && valueOf(`flen) == 32)
-              $fwrite(dump, " f%d", d.rd, " 0x%8h", d.wdata);
+              $fwrite(dump, " f%d", d.rd, " 0x%8h", d.wdata[31:0]);
       end
         end
 
@@ -196,7 +196,7 @@ package TbSoc;
             if (!d.irf && valueOf(`flen) == 64 )
               $fwrite(dump, " f%d", d.rd, " 0x%16h", d.commit_data);
             if (!d.irf && valueOf(`flen) == 32 )
-              $fwrite(dump, " f%d", d.rd, " 0x%8h", d.commit_data);
+              $fwrite(dump, " f%d", d.rd, " 0x%8h", d.commit_data[31:0]);
           end
 
           if(valueOf(`xlen) ==64 && d.access != Fence && d.access != FenceI)

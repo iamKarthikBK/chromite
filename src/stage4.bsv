@@ -38,6 +38,9 @@ interface Ifc_stage4;
 `ifdef muldiv
   interface Ifc_s4_muldiv s4_mbox;
 `endif
+`ifdef spfpu
+  interface Ifc_s4_float s4_fbox;
+`endif
 endinterface:Ifc_stage4
 
 `ifdef stage4_noinline
@@ -63,8 +66,11 @@ module mkstage4#(parameter Bit#(`xlen) hartid)(Ifc_stage4);
 `ifdef rtldump
   RX#(CommitLogPacket) rx_commitlog <- mkRX;
 `endif
+`ifdef spfpu
+  RX#(Tuple2#(Bit#(`elen),Bit#(5))) rx_fbox <- mkRX;
+`endif
 `ifdef muldiv
-  RX#(Bit#(`xlen)) rx_mbox <- mkRX;
+  RX#(Bit#(`elen)) rx_mbox <- mkRX;
 `endif
 
   /*doc:submodule: Following are the virtual FIFOs connected to the ISBs feeding into the
@@ -195,7 +201,7 @@ module mkstage4#(parameter Bit#(`xlen) hartid)(Ifc_stage4);
       else if (mem_response.entry_alloc) begin
         let lv_memop = WBMemop{ memaccess: memop.memaccess , io: mem_response.is_io,
             sb_id : mem_response.sb_id
-            `ifdef nanboxing ,nanboxing: memop.nanboxing `endif
+            `ifdef dpfpu ,nanboxing: memop.nanboxing `endif
             `ifdef atomic ,atomic_rd_data: mem_response.word `endif };
         tx_memio.u.enq(lv_memop);
         fuid.insttype = MEMORY;
@@ -267,6 +273,38 @@ module mkstage4#(parameter Bit#(`xlen) hartid)(Ifc_stage4);
   endrule:rl_capture_muldiv
 `endif
 
+`ifdef spfpu
+  /*doc:rule: This rule is fired when the FUid points to the muldiv operations. This rule is fired
+   * when the mbox has a valid output. It is expected that the mbox provides output in the same
+   * order the inputs were provided. 
+   * The outputs from the mbox are transfered to the tx_baseout ISB for a regular commit in the
+   * write-back stage
+  */
+  rule rl_capture_float(rx_fuid.u.first.insttype == FLOAT && rx_fbox.u.notEmpty());
+    let {mbox_result, flags} = rx_fbox.u.first;
+    let fuid = fn_fu2cu(rx_fuid.u.first);
+    rx_fbox.u.deq;
+    tx_baseout.u.enq(BaseOut {rd: rx_fuid.u.first.rd, rdvalue: mbox_result, epochs: fuid.epochs
+          `ifdef no_wawstalls ,id: fuid.id `endif
+          `ifdef spfpu ,fflags: flags, rdtype: fuid.rdtype `endif });
+    fuid.insttype = BASE;
+    tx_fuid.u.enq(fuid);
+    rx_fuid.u.deq;
+    `logLevel( stage4, 0, $format("[%2d]STAGE4: PC:%h",hartid,rx_fuid.u.first.pc))
+    `logLevel( stage4, 0, $format("[%2d]STAGE4: Enquing FLOAT Output: ",hartid, fshow(mbox_result)))
+  `ifdef rtldump
+    let clogpkt = rx_commitlog.u.first;
+    CommitLogReg _pkt =?;
+    if (clogpkt.inst_type matches tagged REG .r)
+      _pkt = r;
+    _pkt.wdata = mbox_result;
+    clogpkt.inst_type = tagged REG _pkt;
+    tx_commitlog.u.enq(clogpkt);
+    rx_commitlog.u.deq;
+  `endif
+  endrule:rl_capture_float
+`endif
+
   interface rx = interface Ifc_s4_rx
     interface rx_baseout_from_stage3 = rx_baseout.e;
     interface rx_trapout_from_stage3 = rx_trapout.e;
@@ -298,6 +336,11 @@ module mkstage4#(parameter Bit#(`xlen) hartid)(Ifc_stage4);
 `ifdef muldiv
   interface s4_mbox = interface Ifc_s4_muldiv
     interface rx_mbox_output = rx_mbox.e;
+  endinterface;
+`endif
+`ifdef spfpu
+  interface s4_fbox = interface Ifc_s4_float
+    interface rx_fbox_output = rx_fbox.e;
   endinterface;
 `endif
 endmodule:mkstage4

@@ -2,7 +2,7 @@ src/
 csrbox/
 src/predictors
 src/mbox
-src/fpu/
+src/fbox/bluespec_src/
 test_soc/
 fabrics/axi4
 fabrics/axi4_lite
