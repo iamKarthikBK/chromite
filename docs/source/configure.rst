@@ -6,7 +6,16 @@ Configure the Core
 The Chromite generator provides the user with a number of customizatio hooks at both the ISA and 
 the micro-architectural levels. By changing a simple configuration file the user can generate an 
 instance of the core ranging in size from embedded micro-controllers to Linux capable 
-high-performance cores or anywhere in between.
+high-performance cores or anywhere in between. The typical flow of configuration is shown 
+in :numref:`configure_diag`.
+
+.. _configure_diag:
+
+.. figure:: configure.png
+   :align: center
+   :scale: 75%
+
+   Configuration Flow
 
 ISA Level Configurations
 ------------------------
