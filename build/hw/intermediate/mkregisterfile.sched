@@ -1,0 +1,28 @@
+=== Generated schedule for mkregisterfile ===
+
+Method schedule
+---------------
+Method: read_rs1
+Ready signal: ! initialize
+Conflict-free: read_rs2, commit_rd
+Conflicts: read_rs1
+ 
+Method: read_rs2
+Ready signal: ! initialize
+Conflict-free: read_rs1, commit_rd
+Conflicts: read_rs2
+ 
+Method: commit_rd
+Ready signal: ! initialize
+Conflict-free: read_rs1, read_rs2
+Conflicts: commit_rd
+ 
+Rule schedule
+-------------
+Rule: initialize_regfile
+Predicate: initialize
+Blocking rules: (none)
+ 
+Logical execution order: read_rs1, read_rs2, commit_rd, initialize_regfile
+
+==============================================

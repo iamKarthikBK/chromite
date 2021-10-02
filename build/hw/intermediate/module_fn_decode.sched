@@ -1,0 +1,11 @@
+=== Generated schedule for module_fn_decode ===
+
+Method schedule
+---------------
+Method: fn_decode
+Ready signal: True
+Conflict-free: fn_decode
+ 
+Logical execution order: fn_decode
+
+================================================

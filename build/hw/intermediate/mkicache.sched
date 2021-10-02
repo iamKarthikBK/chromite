@@ -1,0 +1,211 @@
+=== Generated schedule for mkicache ===
+
+Method schedule
+---------------
+Method: put_core_req_put
+Ready signal: (! ff_core_response_rv.port0__read[42]) && (! rg_fence_stall) &&
+	      (! m_fillbuffer.mv_fbfull) &&
+	      (! rg_performing_replay) &&
+	      wr_cache_enable.whas && ff_core_request.i_notFull
+Conflict-free: get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       put_pa_from_tlb_put,
+	       ma_curr_priv
+Sequenced before (restricted): get_core_resp_get
+Sequenced after: mv_cache_available
+Sequenced after (restricted): ma_cache_enable
+Conflicts: put_core_req_put
+ 
+Method: get_core_resp_get
+Ready signal: ff_core_response_rv.port1__read[42]
+Conflict-free: get_read_mem_req_get
+Sequenced after (restricted): put_core_req_put,
+			      put_read_mem_resp_put,
+			      put_pa_from_tlb_put,
+			      ma_cache_enable,
+			      ma_curr_priv,
+			      mv_cache_available
+Conflicts: get_core_resp_get
+ 
+Method: get_read_mem_req_get
+Ready signal: ff_read_mem_request.i_notEmpty
+Conflict-free: put_core_req_put,
+	       get_core_resp_get,
+	       put_read_mem_resp_put,
+	       put_pa_from_tlb_put,
+	       ma_cache_enable,
+	       ma_curr_priv,
+	       mv_cache_available
+Conflicts: get_read_mem_req_get
+ 
+Method: put_read_mem_resp_put
+Ready signal: ! ff_read_mem_response_rv.port0__read[66]
+Conflict-free: put_core_req_put,
+	       get_read_mem_req_get,
+	       put_pa_from_tlb_put,
+	       ma_cache_enable,
+	       ma_curr_priv,
+	       mv_cache_available
+Sequenced before (restricted): get_core_resp_get
+Conflicts: put_read_mem_resp_put
+ 
+Method: put_pa_from_tlb_put
+Ready signal: ! ff_from_tlb_rv.port0__read[40]
+Conflict-free: put_core_req_put,
+	       get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       ma_cache_enable,
+	       ma_curr_priv,
+	       mv_cache_available
+Sequenced before (restricted): get_core_resp_get
+Conflicts: put_pa_from_tlb_put
+ 
+Method: ma_cache_enable
+Ready signal: True
+Conflict-free: get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       put_pa_from_tlb_put,
+	       ma_curr_priv,
+	       mv_cache_available
+Sequenced before (restricted): put_core_req_put, get_core_resp_get
+Conflicts: ma_cache_enable
+ 
+Method: ma_curr_priv
+Ready signal: True
+Conflict-free: put_core_req_put,
+	       get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       put_pa_from_tlb_put,
+	       ma_cache_enable,
+	       mv_cache_available
+Sequenced before (restricted): get_core_resp_get
+Conflicts: ma_curr_priv
+ 
+Method: mv_cache_available
+Ready signal: True
+Conflict-free: get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       put_pa_from_tlb_put,
+	       ma_cache_enable,
+	       ma_curr_priv,
+	       mv_cache_available
+Sequenced before: put_core_req_put
+Sequenced before (restricted): get_core_resp_get
+ 
+Rule schedule
+-------------
+Rule: replacement_initialize_lfsr
+Predicate: replacement_rg_init
+Blocking rules: (none)
+ 
+Rule: rl_fence_operation
+Predicate: ff_core_request.i_notEmpty &&
+	   ff_core_request.first[2] && rg_fence_stall &&
+	   m_fillbuffer.mv_fbempty &&
+	   (! rg_performing_replay)
+Blocking rules: (none)
+ 
+Rule: rl_ram_check
+Predicate: ff_from_tlb_rv.port1__read[40] &&
+	   ff_core_request.i_notEmpty &&
+	   wr_priv.whas && wr_cache_enable.whas &&
+	   (! ff_core_request.first[2]) && (! rg_handling_miss) &&
+	   (! rg_performing_replay) &&
+	   (! rg_polling_mode) &&
+	   (! m_fillbuffer.mv_fbfull)
+Blocking rules: (none)
+ 
+Rule: rl_fillbuffer_check
+Predicate: ff_from_tlb_rv.port1__read[40] && ff_core_request.i_notEmpty &&
+	   (! ff_core_request.first[2])
+Blocking rules: (none)
+ 
+Rule: rl_response_to_core
+Predicate: ff_core_request.i_notEmpty &&
+	   ff_from_tlb_rv.port1__read[40] &&
+	   (! ff_core_response_rv.port0__read[42]) &&
+	   (! ff_core_request.first[2]) &&
+	   ((wr_fault.whas && wr_fault.wget) ||
+	    ((wr_nc_state.whas
+	      ? wr_nc_state.wget
+	      : 2'd2) ==
+	     2'd1) ||
+	    ((wr_ram_state.whas
+	      ? wr_ram_state.wget
+	      : 2'd2) ==
+	     2'd1) ||
+	    ((wr_fb_state.whas
+	      ? wr_fb_state.wget
+	      : 2'd2) ==
+	     2'd1))
+Blocking rules: (none)
+ 
+Rule: rl_send_memory_request
+Predicate: ff_from_tlb_rv.port1__read[40] &&
+	   wr_cache_enable.whas &&
+	   ff_read_mem_request.i_notFull && ff_core_request.i_notEmpty &&
+	   ((wr_ram_state.whas
+	     ? wr_ram_state.wget
+	     : 2'd2) ==
+	    2'd0) &&
+	   ((wr_fb_state.whas
+	     ? wr_fb_state.wget
+	     : 2'd2) ==
+	    2'd0) &&
+	   (! m_fillbuffer.mv_fbfull) &&
+	   ((! wr_fault.whas) || (! wr_fault.wget)) &&
+	   (! ff_core_request.first[2]) &&
+	   ff_pending_req.i_notFull
+Blocking rules: (none)
+ 
+Rule: rl_fill_from_memory
+Predicate: ff_read_mem_response_rv.port1__read[66] &&
+	   ff_pending_req.i_notEmpty && (! ff_pending_req.first[0])
+Blocking rules: (none)
+ 
+Rule: rl_capture_io_response
+Predicate: ff_read_mem_response_rv.port1__read[66] &&
+	   ff_core_request.i_notEmpty &&
+	   ff_pending_req.i_notEmpty && ff_pending_req.first[0]
+Blocking rules: (none)
+ 
+Rule: rl_perform_replay
+Predicate: rg_performing_replay
+Blocking rules: (none)
+ 
+Rule: rl_release_from_fillbuffer
+Predicate: (! replacement_rg_init) &&
+	   (m_fillbuffer.mv_fbfull || rg_fence_stall ||
+	    ((! ff_core_request.notEmpty) &&
+	     ((! wr_takingrequest.whas) || (! wr_takingrequest.wget)) &&
+	     (! (m_fillbuffer.mv_release_info[12:7] == rg_recent_req)))) &&
+	   (! m_fillbuffer.mv_fbempty) &&
+	   m_fillbuffer.mv_fbhead_valid &&
+	   (! rg_performing_replay)
+Blocking rules: put_core_req_put
+ 
+Rule: __me_check_2
+Predicate: True
+Blocking rules: (none)
+ 
+Logical execution order: get_read_mem_req_get,
+			 put_read_mem_resp_put,
+			 put_pa_from_tlb_put,
+			 ma_cache_enable,
+			 ma_curr_priv,
+			 mv_cache_available,
+			 put_core_req_put,
+			 rl_ram_check,
+			 rl_fillbuffer_check,
+			 rl_fill_from_memory,
+			 rl_capture_io_response,
+			 rl_fence_operation,
+			 rl_response_to_core,
+			 get_core_resp_get,
+			 rl_perform_replay,
+			 rl_send_memory_request,
+			 rl_release_from_fillbuffer,
+			 __me_check_2,
+			 replacement_initialize_lfsr
+
+========================================

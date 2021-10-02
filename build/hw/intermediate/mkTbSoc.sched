@@ -1,0 +1,259 @@
+=== Generated schedule for mkTbSoc ===
+
+Rule schedule
+-------------
+Rule: uart_ifc_uart_baudGen_baud_count_wire
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_baudGen_baud_tick_count_wire
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_baudGen_count_baudtick_16x
+Predicate: uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_baudGen_assert_2x_baud_tick
+Predicate: (uart_ifc_uart_baudGen_rBaudTickCounter.value == 3'd0) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_fifoRecv__updateLevelCounter
+Predicate: (! (uart_ifc_uart_fifoRecv_r_enq.whas ==
+	       uart_ifc_uart_fifoRecv_r_deq.whas)) ||
+	   uart_ifc_uart_fifoRecv_r_clr.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_wr_rx_thld_clear__dreg_update
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_fifoXmit__updateLevelCounter
+Predicate: (! (uart_ifc_uart_fifoXmit_r_enq.whas ==
+	       uart_ifc_uart_fifoXmit_r_deq.whas)) ||
+	   uart_ifc_uart_fifoXmit_r_clr.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_wr_tx_thld_clear__dreg_update
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_baud_generator_clock_enable
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_bit_cell_time_counter
+Predicate: uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_buffer_shift
+Predicate: uart_ifc_uart_pwRecvShiftBuffer.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_bit_counter
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_wait_for_start_bit
+Predicate: (uart_ifc_uart_rRecvState == 3'd0) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_find_center_of_bit_cell
+Predicate: (uart_ifc_uart_rRecvState == 3'd1) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_wait_bit_cell_time_for_sample
+Predicate: (uart_ifc_uart_rRecvState == 3'd2) &&
+	   (uart_ifc_uart_rRecvCellCount == 4'hF) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_sample_pin
+Predicate: (uart_ifc_uart_rRecvState == 3'd3) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_parity_bit
+Predicate: (uart_ifc_uart_rRecvState == 3'd4) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_stop_first_bit
+Predicate: (uart_ifc_uart_rRecvState == 3'd5) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_receive_stop_last_bit
+Predicate: (uart_ifc_uart_rRecvState == 3'd6) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_rl_rx_thld_clear
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_bit_cell_time_counter
+Predicate: uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_bit_counter
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_buffer_load
+Predicate: uart_ifc_uart_fifoXmit.i_notEmpty &&
+	   uart_ifc_uart_pwXmitLoadBuffer.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_buffer_shift
+Predicate: (! uart_ifc_uart_pwXmitLoadBuffer.whas) &&
+	   uart_ifc_uart_pwXmitShiftBuffer.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_wait_for_start_command
+Predicate: (uart_ifc_uart_rXmitState == 3'd0) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_send_start_bit
+Predicate: (uart_ifc_uart_rXmitState == 3'd1) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_wait_1_bit_cell_time
+Predicate: (uart_ifc_uart_rXmitState == 3'd2) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_shift_next_bit
+Predicate: (uart_ifc_uart_rXmitState == 3'd3) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_send_parity_bit
+Predicate: (uart_ifc_uart_rXmitState == 3'd7) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_send_stop_bit
+Predicate: (uart_ifc_uart_rXmitState == 3'd4) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_send_stop_bit1_5
+Predicate: (uart_ifc_uart_rXmitState == 3'd5) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_transmit_send_stop_bit2
+Predicate: (uart_ifc_uart_rXmitState == 3'd6) &&
+	   uart_ifc_uart_baudGen_pwBaudTick16x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_uart_rl_tx_thld_clear
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: uart_ifc_rl_write_tx
+Predicate: uart_ifc_wr_tx_char_x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_rl_clear_status
+Predicate: uart_ifc_wr_clr_sts_x.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_rl_deq_rx
+Predicate: uart_ifc_wr_deq_rx.whas
+Blocking rules: (none)
+ 
+Rule: uart_ifc_rl_connect_status
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: rg_read_rx__dreg_update
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: display_eol
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: rl_open_file_rtldump
+Predicate: rg_cnt == 5'd0
+Blocking rules: (none)
+ 
+Rule: rl_open_file_app
+Predicate: rg_cnt == 5'd0
+Blocking rules: (none)
+ 
+Rule: rl_connect_uart_out
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: rl_connect_uart_in
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: rl_check_if_character_present
+Predicate: ! rg_read_rx
+Blocking rules: (none)
+ 
+Rule: rl_write_received_character
+Predicate: (! (rg_cnt == 5'd0)) && rg_read_rx
+Blocking rules: (none)
+ 
+Rule: rl_write_dump_file
+Predicate: ! (rg_cnt == 5'd0)
+Blocking rules: (none)
+ 
+Logical execution order: display_eol,
+			 rl_open_file_rtldump,
+			 rl_open_file_app,
+			 rl_connect_uart_out,
+			 rl_write_dump_file,
+			 uart_ifc_rl_connect_status,
+			 rl_check_if_character_present,
+			 rl_write_received_character,
+			 uart_ifc_uart_rl_rx_thld_clear,
+			 uart_ifc_uart_rl_tx_thld_clear,
+			 uart_ifc_uart_baudGen_baud_count_wire,
+			 uart_ifc_uart_baud_generator_clock_enable,
+			 uart_ifc_uart_receive_wait_for_start_bit,
+			 uart_ifc_uart_receive_find_center_of_bit_cell,
+			 uart_ifc_uart_receive_wait_bit_cell_time_for_sample,
+			 uart_ifc_uart_receive_sample_pin,
+			 uart_ifc_uart_receive_parity_bit,
+			 uart_ifc_uart_receive_stop_first_bit,
+			 uart_ifc_uart_receive_bit_counter,
+			 uart_ifc_uart_receive_stop_last_bit,
+			 uart_ifc_rl_clear_status,
+			 uart_ifc_rl_deq_rx,
+			 uart_ifc_uart_receive_bit_cell_time_counter,
+			 uart_ifc_uart_receive_buffer_shift,
+			 rl_connect_uart_in,
+			 uart_ifc_uart_transmit_wait_for_start_command,
+			 uart_ifc_rl_write_tx,
+			 uart_ifc_uart_transmit_send_start_bit,
+			 uart_ifc_uart_transmit_wait_1_bit_cell_time,
+			 uart_ifc_uart_transmit_bit_counter,
+			 uart_ifc_uart_transmit_shift_next_bit,
+			 uart_ifc_uart_transmit_buffer_shift,
+			 uart_ifc_uart_transmit_send_parity_bit,
+			 uart_ifc_uart_transmit_buffer_load,
+			 uart_ifc_uart_transmit_send_stop_bit,
+			 uart_ifc_uart_transmit_send_stop_bit1_5,
+			 uart_ifc_uart_transmit_send_stop_bit2,
+			 uart_ifc_uart_transmit_bit_cell_time_counter,
+			 uart_ifc_uart_baudGen_baud_tick_count_wire,
+			 uart_ifc_uart_baudGen_assert_2x_baud_tick,
+			 uart_ifc_uart_baudGen_count_baudtick_16x,
+			 uart_ifc_uart_fifoRecv__updateLevelCounter,
+			 uart_ifc_uart_wr_rx_thld_clear__dreg_update,
+			 uart_ifc_uart_fifoXmit__updateLevelCounter,
+			 uart_ifc_uart_wr_tx_thld_clear__dreg_update,
+			 rg_read_rx__dreg_update
+
+=======================================

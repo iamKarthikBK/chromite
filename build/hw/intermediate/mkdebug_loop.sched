@@ -1,0 +1,77 @@
+=== Generated schedule for mkdebug_loop ===
+
+Method schedule
+---------------
+Method: slave_s_paddr
+Ready signal: True
+Conflict-free: slave_s_pready, slave_s_prdata, slave_s_pslverr, slave_s_puser
+Conflicts: slave_s_paddr
+ 
+Method: slave_s_pready
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser
+ 
+Method: slave_s_prdata
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser
+ 
+Method: slave_s_pslverr
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser
+ 
+Method: slave_s_puser
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser
+ 
+Rule schedule
+-------------
+Rule: debug_loop_s_xactor_rg_pready__dreg_update
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: debug_loop_s_xactor_rl_capture_request
+Predicate: debug_loop_s_xactor_ff_request.i_notFull &&
+	   (! debug_loop_s_xactor_rg_wait) &&
+	   debug_loop_s_xactor_wr_psel.wget &&
+	   (! debug_loop_s_xactor_wr_penable.wget) &&
+	   debug_loop_s_xactor_ff_request.notFull
+Blocking rules: (none)
+ 
+Rule: debug_loop_s_xactor_rl_send_response
+Predicate: debug_loop_s_xactor_ff_response_rv.port1__read[33] &&
+	   debug_loop_s_xactor_rg_wait && debug_loop_s_xactor_wr_psel.wget &&
+	   debug_loop_s_xactor_wr_penable.wget
+Blocking rules: (none)
+ 
+Rule: debug_loop_rl_pop_apb_req
+Predicate: debug_loop_s_xactor_ff_request.i_notEmpty &&
+	   (! debug_loop_s_xactor_ff_response_rv.port0__read[33])
+Blocking rules: (none)
+ 
+Logical execution order: slave_s_paddr,
+			 slave_s_pready,
+			 slave_s_prdata,
+			 slave_s_pslverr,
+			 slave_s_puser,
+			 debug_loop_rl_pop_apb_req,
+			 debug_loop_s_xactor_rl_capture_request,
+			 debug_loop_s_xactor_rl_send_response,
+			 debug_loop_s_xactor_rg_pready__dreg_update
+
+============================================

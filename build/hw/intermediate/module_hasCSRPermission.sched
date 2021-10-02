@@ -1,0 +1,11 @@
+=== Generated schedule for module_hasCSRPermission ===
+
+Method schedule
+---------------
+Method: hasCSRPermission
+Ready signal: True
+Conflict-free: hasCSRPermission
+ 
+Logical execution order: hasCSRPermission
+
+=======================================================

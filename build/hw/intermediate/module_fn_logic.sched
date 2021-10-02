@@ -1,0 +1,11 @@
+=== Generated schedule for module_fn_logic ===
+
+Method schedule
+---------------
+Method: fn_logic
+Ready signal: True
+Conflict-free: fn_logic
+ 
+Logical execution order: fn_logic
+
+===============================================

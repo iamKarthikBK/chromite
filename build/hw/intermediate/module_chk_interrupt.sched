@@ -1,0 +1,11 @@
+=== Generated schedule for module_chk_interrupt ===
+
+Method schedule
+---------------
+Method: chk_interrupt
+Ready signal: True
+Conflict-free: chk_interrupt
+ 
+Logical execution order: chk_interrupt
+
+====================================================

@@ -1,0 +1,11 @@
+=== Generated schedule for module_valid_csr_access ===
+
+Method schedule
+---------------
+Method: valid_csr_access
+Ready signal: True
+Conflict-free: valid_csr_access
+ 
+Logical execution order: valid_csr_access
+
+=======================================================

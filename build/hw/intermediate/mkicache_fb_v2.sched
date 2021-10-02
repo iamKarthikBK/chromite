@@ -1,0 +1,97 @@
+=== Generated schedule for mkicache_fb_v2 ===
+
+Method schedule
+---------------
+Method: mv_fbfull
+Ready signal: True
+Conflict-free: mv_fbfull,
+	       mv_fbempty,
+	       mv_fbhead_valid,
+	       ma_fill_from_memory,
+	       mv_release_info,
+	       mav_polling_response
+Sequenced before: mav_allocate_line, ma_perform_release
+ 
+Method: mv_fbempty
+Ready signal: True
+Conflict-free: mv_fbfull,
+	       mv_fbempty,
+	       mv_fbhead_valid,
+	       ma_fill_from_memory,
+	       mv_release_info,
+	       mav_polling_response
+Sequenced before: mav_allocate_line, ma_perform_release
+ 
+Method: mv_fbhead_valid
+Ready signal: True
+Conflict-free: mv_fbfull,
+	       mv_fbempty,
+	       mv_fbhead_valid,
+	       mav_allocate_line,
+	       ma_fill_from_memory,
+	       mv_release_info,
+	       mav_polling_response
+Sequenced before: ma_perform_release
+ 
+Method: mav_allocate_line
+Ready signal: True
+Conflict-free: mv_fbhead_valid
+Sequenced before: ma_perform_release
+Sequenced after: mv_fbfull,
+		 mv_fbempty,
+		 ma_fill_from_memory,
+		 mv_release_info,
+		 mav_polling_response
+Conflicts: mav_allocate_line
+ 
+Method: ma_fill_from_memory
+Ready signal: True
+Conflict-free: mv_fbfull, mv_fbempty, mv_fbhead_valid, mv_release_info
+Sequenced before: mav_allocate_line, ma_perform_release
+Sequenced after: mav_polling_response
+Conflicts: ma_fill_from_memory
+ 
+Method: mv_release_info
+Ready signal: True
+Conflict-free: mv_fbfull,
+	       mv_fbempty,
+	       mv_fbhead_valid,
+	       ma_fill_from_memory,
+	       mv_release_info,
+	       mav_polling_response
+Sequenced before: mav_allocate_line, ma_perform_release
+ 
+Method: ma_perform_release
+Ready signal: True
+Sequenced after: mv_fbfull,
+		 mv_fbempty,
+		 mv_fbhead_valid,
+		 mav_allocate_line,
+		 ma_fill_from_memory,
+		 mv_release_info,
+		 mav_polling_response
+Conflicts: ma_perform_release
+ 
+Method: mav_polling_response
+Ready signal: True
+Conflict-free: mv_fbfull, mv_fbempty, mv_fbhead_valid, mv_release_info
+Sequenced before: mav_allocate_line, ma_fill_from_memory, ma_perform_release
+Conflicts: mav_polling_response
+ 
+Rule schedule
+-------------
+Rule: rl_print_stats
+Predicate: True
+Blocking rules: (none)
+ 
+Logical execution order: mv_fbfull,
+			 mv_fbempty,
+			 mv_fbhead_valid,
+			 mv_release_info,
+			 mav_polling_response,
+			 ma_fill_from_memory,
+			 rl_print_stats,
+			 mav_allocate_line,
+			 ma_perform_release
+
+==============================================

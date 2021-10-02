@@ -1,0 +1,133 @@
+=== Generated schedule for mkinstance ===
+
+Method schedule
+---------------
+Method: from_tlb_put
+Ready signal: ff_req_queue.i_notFull
+Conflict-free: to_tlb_get,
+	       request_to_cache_get,
+	       response_frm_cache_put,
+	       hold_req_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       ma_curr_priv
+Conflicts: from_tlb_put
+ 
+Method: to_tlb_get
+Ready signal: ff_response.i_notEmpty
+Conflict-free: from_tlb_put,
+	       request_to_cache_get,
+	       response_frm_cache_put,
+	       hold_req_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       ma_curr_priv
+Conflicts: to_tlb_get
+ 
+Method: request_to_cache_get
+Ready signal: ff_memory_req.i_notEmpty
+Conflict-free: from_tlb_put,
+	       to_tlb_get,
+	       response_frm_cache_put,
+	       hold_req_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       ma_curr_priv
+Conflicts: request_to_cache_get
+ 
+Method: response_frm_cache_put
+Ready signal: ff_memory_response.i_notFull
+Conflict-free: from_tlb_put,
+	       to_tlb_get,
+	       request_to_cache_get,
+	       hold_req_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       ma_curr_priv
+Conflicts: response_frm_cache_put
+ 
+Method: hold_req_put
+Ready signal: ff_hold_req.i_notFull
+Conflict-free: from_tlb_put,
+	       to_tlb_get,
+	       request_to_cache_get,
+	       response_frm_cache_put
+Sequenced after (restricted): ma_satp_from_csr,
+			      ma_mstatus_from_csr,
+			      ma_curr_priv
+Conflicts: hold_req_put
+ 
+Method: ma_satp_from_csr
+Ready signal: True
+Conflict-free: from_tlb_put,
+	       to_tlb_get,
+	       request_to_cache_get,
+	       response_frm_cache_put,
+	       ma_mstatus_from_csr,
+	       ma_curr_priv
+Sequenced before (restricted): hold_req_put
+Conflicts: ma_satp_from_csr
+ 
+Method: ma_mstatus_from_csr
+Ready signal: True
+Conflict-free: from_tlb_put,
+	       to_tlb_get,
+	       request_to_cache_get,
+	       response_frm_cache_put,
+	       ma_satp_from_csr,
+	       ma_curr_priv
+Sequenced before (restricted): hold_req_put
+Conflicts: ma_mstatus_from_csr
+ 
+Method: ma_curr_priv
+Ready signal: True
+Conflict-free: from_tlb_put,
+	       to_tlb_get,
+	       request_to_cache_get,
+	       response_frm_cache_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr
+Sequenced before (restricted): hold_req_put
+Conflicts: ma_curr_priv
+ 
+Rule schedule
+-------------
+Rule: resend_core_req_to_cache
+Predicate: ff_hold_req.i_notEmpty &&
+	   ff_memory_req.i_notFull && ff_req_queue.i_notEmpty &&
+	   (rg_state == 2'd0)
+Blocking rules: (none)
+ 
+Rule: deq_holding_fifo
+Predicate: ff_hold_req.i_notEmpty && wr_deq_holding_ff.whas &&
+	   wr_deq_holding_ff.wget
+Blocking rules: (none)
+ 
+Rule: generate_pte
+Predicate: ff_memory_req.i_notFull &&
+	   ff_req_queue.i_notEmpty && wr_satp.whas &&
+	   (rg_state == 2'd2)
+Blocking rules: (none)
+ 
+Rule: check_pte
+Predicate: ff_memory_response.i_notEmpty &&
+	   ff_req_queue.i_notEmpty &&
+	   wr_mstatus.whas && wr_priv.whas &&
+	   wr_satp.whas && ff_response.i_notFull && ff_memory_req.i_notFull &&
+	   (rg_state == 2'd1)
+Blocking rules: (none)
+ 
+Logical execution order: from_tlb_put,
+			 to_tlb_get,
+			 request_to_cache_get,
+			 response_frm_cache_put,
+			 ma_satp_from_csr,
+			 ma_mstatus_from_csr,
+			 ma_curr_priv,
+			 resend_core_req_to_cache,
+			 generate_pte,
+			 check_pte,
+			 hold_req_put,
+			 deq_holding_fifo
+
+==========================================

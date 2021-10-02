@@ -1,0 +1,430 @@
+=== Generated schedule for mkbram ===
+
+Method schedule
+---------------
+Method: slave_m_awvalid
+Ready signal: True
+Conflict-free: slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_buser,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced after: slave_m_awready
+Sequenced after (restricted): slave_m_bvalid,
+			      slave_m_bid,
+			      slave_m_bresp,
+			      slave_m_bready
+Conflicts: slave_m_awvalid
+ 
+Method: slave_m_awready
+Ready signal: True
+Conflict-free: slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_buser,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before: slave_m_awvalid
+Sequenced after (restricted): slave_m_bvalid,
+			      slave_m_bid,
+			      slave_m_bresp,
+			      slave_m_bready
+ 
+Method: slave_m_wvalid
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_buser,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced after: slave_m_wready
+Sequenced after (restricted): slave_m_bvalid,
+			      slave_m_bid,
+			      slave_m_bresp,
+			      slave_m_bready
+Conflicts: slave_m_wvalid
+ 
+Method: slave_m_wready
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wready,
+	       slave_m_buser,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before: slave_m_wvalid
+Sequenced after (restricted): slave_m_bvalid,
+			      slave_m_bid,
+			      slave_m_bresp,
+			      slave_m_bready
+ 
+Method: slave_m_bvalid
+Ready signal: True
+Conflict-free: slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before: slave_m_bready
+Sequenced before (restricted): slave_m_awvalid,
+			       slave_m_awready,
+			       slave_m_wvalid,
+			       slave_m_wready
+ 
+Method: slave_m_bid
+Ready signal: True
+Conflict-free: slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before (restricted): slave_m_awvalid,
+			       slave_m_awready,
+			       slave_m_wvalid,
+			       slave_m_wready
+ 
+Method: slave_m_bresp
+Ready signal: True
+Conflict-free: slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before (restricted): slave_m_awvalid,
+			       slave_m_awready,
+			       slave_m_wvalid,
+			       slave_m_wready
+ 
+Method: slave_m_buser
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+ 
+Method: slave_m_bready
+Ready signal: True
+Conflict-free: slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before (restricted): slave_m_awvalid,
+			       slave_m_awready,
+			       slave_m_wvalid,
+			       slave_m_wready
+Sequenced after: slave_m_bvalid
+Conflicts: slave_m_bready
+ 
+Method: slave_m_arvalid
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_ruser
+Sequenced after: slave_m_arready
+Sequenced after (restricted): slave_m_rvalid,
+			      slave_m_rid,
+			      slave_m_rdata,
+			      slave_m_rresp,
+			      slave_m_rlast,
+			      slave_m_rready
+Conflicts: slave_m_arvalid
+ 
+Method: slave_m_arready
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_arready,
+	       slave_m_ruser
+Sequenced before: slave_m_arvalid
+Sequenced after (restricted): slave_m_rvalid,
+			      slave_m_rid,
+			      slave_m_rdata,
+			      slave_m_rresp,
+			      slave_m_rlast,
+			      slave_m_rready
+ 
+Method: slave_m_rvalid
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser
+Sequenced before: slave_m_rready
+Sequenced before (restricted): slave_m_arvalid, slave_m_arready
+ 
+Method: slave_m_rid
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before (restricted): slave_m_arvalid, slave_m_arready
+ 
+Method: slave_m_rdata
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before (restricted): slave_m_arvalid, slave_m_arready
+ 
+Method: slave_m_rresp
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before (restricted): slave_m_arvalid, slave_m_arready
+ 
+Method: slave_m_rlast
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+Sequenced before (restricted): slave_m_arvalid, slave_m_arready
+ 
+Method: slave_m_ruser
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_arvalid,
+	       slave_m_arready,
+	       slave_m_rvalid,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser,
+	       slave_m_rready
+ 
+Method: slave_m_rready
+Ready signal: True
+Conflict-free: slave_m_awvalid,
+	       slave_m_awready,
+	       slave_m_wvalid,
+	       slave_m_wready,
+	       slave_m_bvalid,
+	       slave_m_bid,
+	       slave_m_bresp,
+	       slave_m_buser,
+	       slave_m_bready,
+	       slave_m_rid,
+	       slave_m_rdata,
+	       slave_m_rresp,
+	       slave_m_rlast,
+	       slave_m_ruser
+Sequenced before (restricted): slave_m_arvalid, slave_m_arready
+Sequenced after: slave_m_rvalid
+Conflicts: slave_m_rready
+ 
+Rule schedule
+-------------
+Rule: rl_read_request
+Predicate: s_xactor_crg_rd_addr_full.port0__read &&
+	   (! rg_rd_state) && (! rg_capture_response.port1__read)
+Blocking rules: (none)
+ 
+Rule: rl_read_request_burst
+Predicate: rg_rd_state && (! rg_capture_response.port1__read)
+Blocking rules: (none)
+ 
+Rule: rl_read_response
+Predicate: (! s_xactor_crg_rd_data_full.port1__read) &&
+	   rg_capture_response.port0__read
+Blocking rules: (none)
+ 
+Rule: rl_write_request
+Predicate: s_xactor_crg_wr_addr_full.port0__read &&
+	   s_xactor_crg_wr_data_full.port0__read &&
+	   (! s_xactor_crg_wr_resp_full.port1__read) &&
+	   (! rg_wr_state)
+Blocking rules: (none)
+ 
+Rule: rl_write_response
+Predicate: s_xactor_crg_wr_data_full.port0__read &&
+	   (! s_xactor_crg_wr_resp_full.port1__read) &&
+	   rg_wr_state
+Blocking rules: (none)
+ 
+Logical execution order: slave_m_bvalid,
+			 slave_m_bid,
+			 slave_m_bresp,
+			 slave_m_buser,
+			 slave_m_bready,
+			 slave_m_rvalid,
+			 slave_m_rid,
+			 slave_m_rdata,
+			 slave_m_rresp,
+			 slave_m_rlast,
+			 slave_m_ruser,
+			 slave_m_rready,
+			 rl_read_response,
+			 rl_read_request,
+			 slave_m_arready,
+			 slave_m_arvalid,
+			 rl_read_request_burst,
+			 rl_write_request,
+			 slave_m_awready,
+			 slave_m_awvalid,
+			 rl_write_response,
+			 slave_m_wready,
+			 slave_m_wvalid
+
+======================================

@@ -1,0 +1,79 @@
+=== Generated schedule for mkiobuffer ===
+
+Method schedule
+---------------
+Method: mv_io_full
+Ready signal: True
+Conflict-free: mv_io_full,
+	       mv_io_empty,
+	       mv_io_head_valid,
+	       ma_commit_io,
+	       mv_io_head
+Sequenced before: ma_increment_head, ma_allocate_io
+ 
+Method: mv_io_empty
+Ready signal: True
+Conflict-free: mv_io_full,
+	       mv_io_empty,
+	       mv_io_head_valid,
+	       ma_commit_io,
+	       mv_io_head
+Sequenced before: ma_increment_head, ma_allocate_io
+ 
+Method: mv_io_head_valid
+Ready signal: True
+Conflict-free: mv_io_full, mv_io_empty, mv_io_head_valid, mv_io_head
+Sequenced before: ma_increment_head, ma_commit_io, ma_allocate_io
+ 
+Method: ma_increment_head
+Ready signal: True
+Sequenced before: ma_allocate_io
+Sequenced after: mv_io_full,
+		 mv_io_empty,
+		 mv_io_head_valid,
+		 ma_commit_io,
+		 mv_io_head
+Conflicts: ma_increment_head
+ 
+Method: ma_commit_io
+Ready signal: True
+Conflict-free: mv_io_full, mv_io_empty, mv_io_head
+Sequenced before: ma_increment_head, ma_allocate_io
+Sequenced before (restricted): ma_commit_io
+Sequenced after: mv_io_head_valid
+ 
+Method: mv_io_head
+Ready signal: True
+Conflict-free: mv_io_full,
+	       mv_io_empty,
+	       mv_io_head_valid,
+	       ma_commit_io,
+	       mv_io_head
+Sequenced before: ma_increment_head, ma_allocate_io
+ 
+Method: ma_allocate_io
+Ready signal: True
+Sequenced after: mv_io_full,
+		 mv_io_empty,
+		 mv_io_head_valid,
+		 ma_increment_head,
+		 ma_commit_io,
+		 mv_io_head
+Conflicts: ma_allocate_io
+ 
+Rule schedule
+-------------
+Rule: rl_print_stats
+Predicate: True
+Blocking rules: (none)
+ 
+Logical execution order: mv_io_full,
+			 mv_io_empty,
+			 mv_io_head_valid,
+			 ma_commit_io,
+			 mv_io_head,
+			 rl_print_stats,
+			 ma_increment_head,
+			 ma_allocate_io
+
+==========================================

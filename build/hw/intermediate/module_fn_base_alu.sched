@@ -1,0 +1,11 @@
+=== Generated schedule for module_fn_base_alu ===
+
+Method schedule
+---------------
+Method: fn_base_alu
+Ready signal: True
+Conflict-free: fn_base_alu
+ 
+Logical execution order: fn_base_alu
+
+==================================================

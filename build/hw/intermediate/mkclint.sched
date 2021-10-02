@@ -1,0 +1,140 @@
+=== Generated schedule for mkclint ===
+
+Method schedule
+---------------
+Method: slave_s_paddr
+Ready signal: True
+Conflict-free: slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser,
+	       device_sb_clint_msip,
+	       device_sb_clint_mtip,
+	       device_sb_clint_mtime
+Conflicts: slave_s_paddr
+ 
+Method: slave_s_pready
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser,
+	       device_sb_clint_msip,
+	       device_sb_clint_mtip,
+	       device_sb_clint_mtime
+ 
+Method: slave_s_prdata
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser,
+	       device_sb_clint_msip,
+	       device_sb_clint_mtip,
+	       device_sb_clint_mtime
+ 
+Method: slave_s_pslverr
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser,
+	       device_sb_clint_msip,
+	       device_sb_clint_mtip,
+	       device_sb_clint_mtime
+ 
+Method: slave_s_puser
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser,
+	       device_sb_clint_msip,
+	       device_sb_clint_mtip,
+	       device_sb_clint_mtime
+ 
+Method: device_sb_clint_msip
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser,
+	       device_sb_clint_msip,
+	       device_sb_clint_mtip,
+	       device_sb_clint_mtime
+ 
+Method: device_sb_clint_mtip
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser,
+	       device_sb_clint_msip,
+	       device_sb_clint_mtip,
+	       device_sb_clint_mtime
+ 
+Method: device_sb_clint_mtime
+Ready signal: True
+Conflict-free: slave_s_paddr,
+	       slave_s_pready,
+	       slave_s_prdata,
+	       slave_s_pslverr,
+	       slave_s_puser,
+	       device_sb_clint_msip,
+	       device_sb_clint_mtip,
+	       device_sb_clint_mtime
+ 
+Rule schedule
+-------------
+Rule: clint_ifc_rl_generate_interrupt
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: clint_ifc_rl_increment_timer
+Predicate: True
+Blocking rules: clint_rl_pop_apb_req
+ 
+Rule: clint_s_xactor_rg_pready__dreg_update
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: clint_s_xactor_rl_capture_request
+Predicate: clint_s_xactor_ff_request.i_notFull &&
+	   (! clint_s_xactor_rg_wait) && clint_s_xactor_wr_psel.wget &&
+	   (! clint_s_xactor_wr_penable.wget) &&
+	   clint_s_xactor_ff_request.notFull
+Blocking rules: (none)
+ 
+Rule: clint_s_xactor_rl_send_response
+Predicate: clint_s_xactor_ff_response_rv.port1__read[33] &&
+	   clint_s_xactor_rg_wait && clint_s_xactor_wr_psel.wget &&
+	   clint_s_xactor_wr_penable.wget
+Blocking rules: (none)
+ 
+Rule: clint_rl_pop_apb_req
+Predicate: clint_s_xactor_ff_request.i_notEmpty &&
+	   (! clint_s_xactor_ff_response_rv.port0__read[33])
+Blocking rules: (none)
+ 
+Logical execution order: slave_s_paddr,
+			 slave_s_pready,
+			 slave_s_prdata,
+			 slave_s_pslverr,
+			 slave_s_puser,
+			 device_sb_clint_msip,
+			 device_sb_clint_mtip,
+			 device_sb_clint_mtime,
+			 clint_ifc_rl_generate_interrupt,
+			 clint_rl_pop_apb_req,
+			 clint_ifc_rl_increment_timer,
+			 clint_s_xactor_rl_capture_request,
+			 clint_s_xactor_rl_send_response,
+			 clint_s_xactor_rg_pready__dreg_update
+
+=======================================

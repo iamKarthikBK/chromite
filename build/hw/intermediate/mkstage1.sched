@@ -1,0 +1,352 @@
+=== Generated schedule for mkstage1 ===
+
+Method schedule
+---------------
+Method: rx_rx_from_stage0_notEmpty
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_first_deq_rdy,
+	       rx_rx_from_stage0_first,
+	       tx_tx_to_stage2_notFull,
+	       tx_tx_to_stage2_enq_rdy,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_rdy,
+	       icache_inst_response_put,
+	       common_ma_csr_misa_c
+Sequenced before (restricted): rx_rx_from_stage0_deq_ena,
+			       tx_tx_to_stage2_enq_ena,
+			       tx_tx_to_stage2_enq_data,
+			       tx_tx_commitlog_enq_ena,
+			       tx_tx_commitlog_enq_data,
+			       common_ma_update_eEpoch,
+			       common_ma_update_wEpoch
+Conflicts: rx_rx_from_stage0_notEmpty
+ 
+Method: rx_rx_from_stage0_first_deq_rdy
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_notEmpty,
+	       rx_rx_from_stage0_first,
+	       tx_tx_to_stage2_notFull,
+	       tx_tx_to_stage2_enq_rdy,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_rdy,
+	       icache_inst_response_put,
+	       common_ma_csr_misa_c
+Sequenced before (restricted): rx_rx_from_stage0_deq_ena,
+			       tx_tx_to_stage2_enq_ena,
+			       tx_tx_to_stage2_enq_data,
+			       tx_tx_commitlog_enq_ena,
+			       tx_tx_commitlog_enq_data,
+			       common_ma_update_eEpoch,
+			       common_ma_update_wEpoch
+Conflicts: rx_rx_from_stage0_first_deq_rdy
+ 
+Method: rx_rx_from_stage0_first
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_notEmpty,
+	       rx_rx_from_stage0_first_deq_rdy,
+	       tx_tx_to_stage2_notFull,
+	       tx_tx_to_stage2_enq_rdy,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_rdy,
+	       icache_inst_response_put,
+	       common_ma_csr_misa_c
+Sequenced before (restricted): rx_rx_from_stage0_deq_ena,
+			       tx_tx_to_stage2_enq_ena,
+			       tx_tx_to_stage2_enq_data,
+			       tx_tx_commitlog_enq_ena,
+			       tx_tx_commitlog_enq_data,
+			       common_ma_update_eEpoch,
+			       common_ma_update_wEpoch
+Conflicts: rx_rx_from_stage0_first
+ 
+Method: rx_rx_from_stage0_deq_ena
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_deq_ena,
+	       tx_tx_to_stage2_enq_ena,
+	       tx_tx_to_stage2_enq_data,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_ena,
+	       tx_tx_commitlog_enq_data,
+	       common_ma_update_eEpoch,
+	       common_ma_update_wEpoch
+Sequenced after (restricted): rx_rx_from_stage0_notEmpty,
+			      rx_rx_from_stage0_first_deq_rdy,
+			      rx_rx_from_stage0_first,
+			      tx_tx_to_stage2_notFull,
+			      tx_tx_to_stage2_enq_rdy,
+			      tx_tx_commitlog_enq_rdy,
+			      icache_inst_response_put,
+			      common_ma_csr_misa_c
+ 
+Method: tx_tx_to_stage2_notFull
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_notEmpty,
+	       rx_rx_from_stage0_first_deq_rdy,
+	       rx_rx_from_stage0_first,
+	       tx_tx_to_stage2_enq_rdy,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_rdy,
+	       icache_inst_response_put,
+	       common_ma_csr_misa_c
+Sequenced before (restricted): rx_rx_from_stage0_deq_ena,
+			       tx_tx_to_stage2_enq_ena,
+			       tx_tx_to_stage2_enq_data,
+			       tx_tx_commitlog_enq_ena,
+			       tx_tx_commitlog_enq_data,
+			       common_ma_update_eEpoch,
+			       common_ma_update_wEpoch
+Conflicts: tx_tx_to_stage2_notFull
+ 
+Method: tx_tx_to_stage2_enq_rdy
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_notEmpty,
+	       rx_rx_from_stage0_first_deq_rdy,
+	       rx_rx_from_stage0_first,
+	       tx_tx_to_stage2_notFull,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_rdy,
+	       icache_inst_response_put,
+	       common_ma_csr_misa_c
+Sequenced before (restricted): rx_rx_from_stage0_deq_ena,
+			       tx_tx_to_stage2_enq_ena,
+			       tx_tx_to_stage2_enq_data,
+			       tx_tx_commitlog_enq_ena,
+			       tx_tx_commitlog_enq_data,
+			       common_ma_update_eEpoch,
+			       common_ma_update_wEpoch
+Conflicts: tx_tx_to_stage2_enq_rdy
+ 
+Method: tx_tx_to_stage2_enq_ena
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_deq_ena,
+	       tx_tx_to_stage2_enq_ena,
+	       tx_tx_to_stage2_enq_data,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_ena,
+	       tx_tx_commitlog_enq_data,
+	       common_ma_update_eEpoch,
+	       common_ma_update_wEpoch
+Sequenced after (restricted): rx_rx_from_stage0_notEmpty,
+			      rx_rx_from_stage0_first_deq_rdy,
+			      rx_rx_from_stage0_first,
+			      tx_tx_to_stage2_notFull,
+			      tx_tx_to_stage2_enq_rdy,
+			      tx_tx_commitlog_enq_rdy,
+			      icache_inst_response_put,
+			      common_ma_csr_misa_c
+ 
+Method: tx_tx_to_stage2_enq_data
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_deq_ena,
+	       tx_tx_to_stage2_enq_ena,
+	       tx_tx_to_stage2_enq_data,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_ena,
+	       tx_tx_commitlog_enq_data,
+	       common_ma_update_eEpoch,
+	       common_ma_update_wEpoch
+Sequenced after (restricted): rx_rx_from_stage0_notEmpty,
+			      rx_rx_from_stage0_first_deq_rdy,
+			      rx_rx_from_stage0_first,
+			      tx_tx_to_stage2_notFull,
+			      tx_tx_to_stage2_enq_rdy,
+			      tx_tx_commitlog_enq_rdy,
+			      icache_inst_response_put,
+			      common_ma_csr_misa_c
+ 
+Method: tx_tx_commitlog_notFull
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_notEmpty,
+	       rx_rx_from_stage0_first_deq_rdy,
+	       rx_rx_from_stage0_first,
+	       rx_rx_from_stage0_deq_ena,
+	       tx_tx_to_stage2_notFull,
+	       tx_tx_to_stage2_enq_rdy,
+	       tx_tx_to_stage2_enq_ena,
+	       tx_tx_to_stage2_enq_data,
+	       tx_tx_commitlog_enq_rdy,
+	       tx_tx_commitlog_enq_ena,
+	       tx_tx_commitlog_enq_data,
+	       icache_inst_response_put,
+	       common_ma_update_eEpoch,
+	       common_ma_update_wEpoch,
+	       common_ma_csr_misa_c
+Conflicts: tx_tx_commitlog_notFull
+ 
+Method: tx_tx_commitlog_enq_rdy
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_notEmpty,
+	       rx_rx_from_stage0_first_deq_rdy,
+	       rx_rx_from_stage0_first,
+	       tx_tx_to_stage2_notFull,
+	       tx_tx_to_stage2_enq_rdy,
+	       tx_tx_commitlog_notFull,
+	       icache_inst_response_put,
+	       common_ma_csr_misa_c
+Sequenced before (restricted): rx_rx_from_stage0_deq_ena,
+			       tx_tx_to_stage2_enq_ena,
+			       tx_tx_to_stage2_enq_data,
+			       tx_tx_commitlog_enq_ena,
+			       tx_tx_commitlog_enq_data,
+			       common_ma_update_eEpoch,
+			       common_ma_update_wEpoch
+Conflicts: tx_tx_commitlog_enq_rdy
+ 
+Method: tx_tx_commitlog_enq_ena
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_deq_ena,
+	       tx_tx_to_stage2_enq_ena,
+	       tx_tx_to_stage2_enq_data,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_ena,
+	       tx_tx_commitlog_enq_data,
+	       common_ma_update_eEpoch,
+	       common_ma_update_wEpoch
+Sequenced after (restricted): rx_rx_from_stage0_notEmpty,
+			      rx_rx_from_stage0_first_deq_rdy,
+			      rx_rx_from_stage0_first,
+			      tx_tx_to_stage2_notFull,
+			      tx_tx_to_stage2_enq_rdy,
+			      tx_tx_commitlog_enq_rdy,
+			      icache_inst_response_put,
+			      common_ma_csr_misa_c
+ 
+Method: tx_tx_commitlog_enq_data
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_deq_ena,
+	       tx_tx_to_stage2_enq_ena,
+	       tx_tx_to_stage2_enq_data,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_ena,
+	       tx_tx_commitlog_enq_data,
+	       common_ma_update_eEpoch,
+	       common_ma_update_wEpoch
+Sequenced after (restricted): rx_rx_from_stage0_notEmpty,
+			      rx_rx_from_stage0_first_deq_rdy,
+			      rx_rx_from_stage0_first,
+			      tx_tx_to_stage2_notFull,
+			      tx_tx_to_stage2_enq_rdy,
+			      tx_tx_commitlog_enq_rdy,
+			      icache_inst_response_put,
+			      common_ma_csr_misa_c
+ 
+Method: icache_inst_response_put
+Ready signal: ff_memory_response_ff.i_notFull
+Conflict-free: rx_rx_from_stage0_notEmpty,
+	       rx_rx_from_stage0_first_deq_rdy,
+	       rx_rx_from_stage0_first,
+	       tx_tx_to_stage2_notFull,
+	       tx_tx_to_stage2_enq_rdy,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_rdy,
+	       common_ma_csr_misa_c
+Sequenced before (restricted): rx_rx_from_stage0_deq_ena,
+			       tx_tx_to_stage2_enq_ena,
+			       tx_tx_to_stage2_enq_data,
+			       tx_tx_commitlog_enq_ena,
+			       tx_tx_commitlog_enq_data,
+			       common_ma_update_eEpoch,
+			       common_ma_update_wEpoch
+Conflicts: icache_inst_response_put
+ 
+Method: common_ma_update_eEpoch
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_deq_ena,
+	       tx_tx_to_stage2_enq_ena,
+	       tx_tx_to_stage2_enq_data,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_ena,
+	       tx_tx_commitlog_enq_data,
+	       common_ma_update_wEpoch
+Sequenced after (restricted): rx_rx_from_stage0_notEmpty,
+			      rx_rx_from_stage0_first_deq_rdy,
+			      rx_rx_from_stage0_first,
+			      tx_tx_to_stage2_notFull,
+			      tx_tx_to_stage2_enq_rdy,
+			      tx_tx_commitlog_enq_rdy,
+			      icache_inst_response_put,
+			      common_ma_csr_misa_c
+Conflicts: common_ma_update_eEpoch
+ 
+Method: common_ma_update_wEpoch
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_deq_ena,
+	       tx_tx_to_stage2_enq_ena,
+	       tx_tx_to_stage2_enq_data,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_ena,
+	       tx_tx_commitlog_enq_data,
+	       common_ma_update_eEpoch
+Sequenced after (restricted): rx_rx_from_stage0_notEmpty,
+			      rx_rx_from_stage0_first_deq_rdy,
+			      rx_rx_from_stage0_first,
+			      tx_tx_to_stage2_notFull,
+			      tx_tx_to_stage2_enq_rdy,
+			      tx_tx_commitlog_enq_rdy,
+			      icache_inst_response_put,
+			      common_ma_csr_misa_c
+Conflicts: common_ma_update_wEpoch
+ 
+Method: common_ma_csr_misa_c
+Ready signal: True
+Conflict-free: rx_rx_from_stage0_notEmpty,
+	       rx_rx_from_stage0_first_deq_rdy,
+	       rx_rx_from_stage0_first,
+	       tx_tx_to_stage2_notFull,
+	       tx_tx_to_stage2_enq_rdy,
+	       tx_tx_commitlog_notFull,
+	       tx_tx_commitlog_enq_rdy,
+	       icache_inst_response_put
+Sequenced before (restricted): rx_rx_from_stage0_deq_ena,
+			       tx_tx_to_stage2_enq_ena,
+			       tx_tx_to_stage2_enq_data,
+			       tx_tx_commitlog_enq_ena,
+			       tx_tx_commitlog_enq_data,
+			       common_ma_update_eEpoch,
+			       common_ma_update_wEpoch
+Conflicts: common_ma_csr_misa_c
+ 
+Rule schedule
+-------------
+Rule: ff_memory_response_enqueue
+Predicate: ff_memory_response_enqw.whas &&
+	   ((! ff_memory_response_dequeueing.whas) ||
+	    ff_memory_response_ff.i_notEmpty)
+Blocking rules: (none)
+ 
+Rule: ff_memory_response_dequeue
+Predicate: ff_memory_response_dequeueing.whas &&
+	   ff_memory_response_ff.i_notEmpty
+Blocking rules: (none)
+ 
+Rule: process_instruction
+Predicate: ff_memory_response_firstValid.read &&
+	   (ff_memory_response_ff.i_notEmpty ||
+	    ff_memory_response_enqw.whas) &&
+	   rx_fromstage0_w_rdy.wget &&
+	   wr_csr_misa_c.whas &&
+	   tx_commitlog_w_rdy.wget && tx_tostage2_w_rdy.wget &&
+	   rx_fromstage0_w_notEmpty.wget && tx_tostage2_w_notFull.wget
+Blocking rules: (none)
+ 
+Logical execution order: rx_rx_from_stage0_notEmpty,
+			 rx_rx_from_stage0_first_deq_rdy,
+			 rx_rx_from_stage0_first,
+			 tx_tx_to_stage2_notFull,
+			 tx_tx_to_stage2_enq_rdy,
+			 tx_tx_commitlog_notFull,
+			 tx_tx_commitlog_enq_rdy,
+			 icache_inst_response_put,
+			 common_ma_csr_misa_c,
+			 process_instruction,
+			 rx_rx_from_stage0_deq_ena,
+			 tx_tx_to_stage2_enq_ena,
+			 tx_tx_to_stage2_enq_data,
+			 tx_tx_commitlog_enq_ena,
+			 common_ma_update_eEpoch,
+			 tx_tx_commitlog_enq_data,
+			 common_ma_update_wEpoch,
+			 ff_memory_response_enqueue,
+			 ff_memory_response_dequeue
+
+========================================

@@ -1,0 +1,11 @@
+=== Generated schedule for module_fn_decode_rs2 ===
+
+Method schedule
+---------------
+Method: fn_decode_rs2
+Ready signal: True
+Conflict-free: fn_decode_rs2
+ 
+Logical execution order: fn_decode_rs2
+
+====================================================

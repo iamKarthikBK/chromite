@@ -1,0 +1,148 @@
+=== Generated schedule for mkimem ===
+
+Method schedule
+---------------
+Method: put_core_req_put
+Ready signal: icache.RDY_put_core_req_put && itlb.RDY_put_core_request_put
+Conflict-free: get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put
+Sequenced before (restricted): get_core_resp_get
+Sequenced after: mv_cache_available
+Sequenced after (restricted): ma_cache_enable, ma_curr_priv, ma_satp_from_csr
+Conflicts: put_core_req_put
+ 
+Method: get_core_resp_get
+Ready signal: icache.RDY_get_core_resp_get
+Conflict-free: get_read_mem_req_get,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr
+Sequenced after (restricted): put_core_req_put,
+			      ma_cache_enable,
+			      put_read_mem_resp_put,
+			      mv_cache_available,
+			      ma_curr_priv
+Conflicts: get_core_resp_get
+ 
+Method: ma_cache_enable
+Ready signal: True
+Conflict-free: get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       mv_cache_available,
+	       ma_curr_priv,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr
+Sequenced before (restricted): put_core_req_put, get_core_resp_get
+Conflicts: ma_cache_enable
+ 
+Method: get_read_mem_req_get
+Ready signal: icache.RDY_get_read_mem_req_get
+Conflict-free: put_core_req_put,
+	       get_core_resp_get,
+	       ma_cache_enable,
+	       put_read_mem_resp_put,
+	       mv_cache_available,
+	       ma_curr_priv,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr
+Conflicts: get_read_mem_req_get
+ 
+Method: put_read_mem_resp_put
+Ready signal: icache.RDY_put_read_mem_resp_put
+Conflict-free: put_core_req_put,
+	       ma_cache_enable,
+	       get_read_mem_req_get,
+	       mv_cache_available,
+	       ma_curr_priv,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr
+Sequenced before (restricted): get_core_resp_get
+Conflicts: put_read_mem_resp_put
+ 
+Method: mv_cache_available
+Ready signal: True
+Conflict-free: ma_cache_enable,
+	       get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       mv_cache_available,
+	       ma_curr_priv,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr
+Sequenced before: put_core_req_put
+Sequenced before (restricted): get_core_resp_get
+ 
+Method: ma_curr_priv
+Ready signal: True
+Conflict-free: ma_cache_enable,
+	       get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       mv_cache_available,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr
+Sequenced before (restricted): put_core_req_put, get_core_resp_get
+Conflicts: ma_curr_priv
+ 
+Method: get_request_to_ptw_get
+Ready signal: itlb.RDY_get_request_to_ptw_get
+Conflict-free: put_core_req_put,
+	       get_core_resp_get,
+	       ma_cache_enable,
+	       get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       mv_cache_available,
+	       ma_curr_priv,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr
+Conflicts: get_request_to_ptw_get
+ 
+Method: put_response_frm_ptw_put
+Ready signal: itlb.RDY_put_response_frm_ptw_put
+Conflict-free: put_core_req_put,
+	       get_core_resp_get,
+	       ma_cache_enable,
+	       get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       mv_cache_available,
+	       ma_curr_priv,
+	       get_request_to_ptw_get
+Sequenced after (restricted): ma_satp_from_csr
+Conflicts: put_response_frm_ptw_put
+ 
+Method: ma_satp_from_csr
+Ready signal: True
+Conflict-free: get_core_resp_get,
+	       ma_cache_enable,
+	       get_read_mem_req_get,
+	       put_read_mem_resp_put,
+	       mv_cache_available,
+	       ma_curr_priv,
+	       get_request_to_ptw_get
+Sequenced before (restricted): put_core_req_put, put_response_frm_ptw_put
+Conflicts: ma_satp_from_csr
+ 
+Rule schedule
+-------------
+Rule: mkConnectionGetPut
+Predicate: icache.RDY_put_pa_from_tlb_put && itlb.RDY_get_core_response_get
+Blocking rules: (none)
+ 
+Logical execution order: ma_cache_enable,
+			 get_read_mem_req_get,
+			 put_read_mem_resp_put,
+			 mv_cache_available,
+			 ma_curr_priv,
+			 get_request_to_ptw_get,
+			 ma_satp_from_csr,
+			 put_core_req_put,
+			 put_response_frm_ptw_put,
+			 mkConnectionGetPut,
+			 get_core_resp_get
+
+======================================

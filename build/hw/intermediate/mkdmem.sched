@@ -1,0 +1,580 @@
+=== Generated schedule for mkdmem ===
+
+Method schedule
+---------------
+Method: receive_core_req_put
+Ready signal: dcache.RDY_receive_core_req_put && dtlb.RDY_put_core_request_put
+Conflict-free: send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       get_hold_req_get
+Sequenced before (restricted): send_core_cache_resp_get,
+			       ma_commit_io,
+			       ma_commit_store,
+			       get_ptw_resp_get
+Sequenced after (restricted): ma_curr_priv,
+			      mv_dmem_available,
+			      ma_cache_enable,
+			      put_resp_from_ptw_put,
+			      ma_satp_from_csr,
+			      ma_mstatus_from_csr
+Conflicts: receive_core_req_put
+ 
+Method: send_core_cache_resp_get
+Ready signal: dcache.RDY_send_core_cache_resp_get
+Conflict-free: send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       ma_satp_from_csr,
+	       get_hold_req_get
+Sequenced after (restricted): receive_core_req_put,
+			      ma_curr_priv,
+			      ma_commit_io,
+			      mv_dmem_available,
+			      receive_mem_rd_resp_put,
+			      ma_commit_store,
+			      ma_cache_enable,
+			      put_resp_from_ptw_put,
+			      ma_mstatus_from_csr
+Conflicts: send_core_cache_resp_get
+ 
+Method: send_core_io_resp
+Ready signal: True
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+ 
+Method: send_mem_io_req_get
+Ready signal: dcache.RDY_send_mem_io_req_get
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+Conflicts: send_mem_io_req_get
+ 
+Method: receive_mem_io_resp_put
+Ready signal: dcache.RDY_receive_mem_io_resp_put
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+Conflicts: receive_mem_io_resp_put
+ 
+Method: ma_curr_priv
+Ready signal: True
+Conflict-free: send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr
+Sequenced before (restricted): receive_core_req_put,
+			       send_core_cache_resp_get,
+			       ma_commit_store,
+			       get_ptw_resp_get,
+			       get_hold_req_get
+Conflicts: ma_curr_priv
+ 
+Method: ma_commit_io
+Ready signal: True
+Conflict-free: send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr
+Sequenced before (restricted): send_core_cache_resp_get,
+			       ma_commit_store,
+			       get_ptw_resp_get,
+			       get_hold_req_get
+Sequenced after (restricted): receive_core_req_put, mv_dmem_available
+Conflicts: ma_commit_io
+ 
+Method: mv_dmem_available
+Ready signal: True
+Conflict-free: send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr
+Sequenced before: deq_mem_wr_req
+Sequenced before (restricted): receive_core_req_put,
+			       send_core_cache_resp_get,
+			       ma_commit_io,
+			       ma_commit_store,
+			       get_ptw_resp_get,
+			       get_hold_req_get
+ 
+Method: send_mem_wr_req
+Ready signal: dcache.RDY_send_mem_wr_req
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+Sequenced before: deq_mem_wr_req
+ 
+Method: receive_mem_wr_resp_put
+Ready signal: dcache.RDY_receive_mem_wr_resp_put
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+Conflicts: receive_mem_wr_resp_put
+ 
+Method: deq_mem_wr_req
+Ready signal: dcache.RDY_deq_mem_wr_req
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       receive_mem_wr_resp_put,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+Sequenced after: mv_dmem_available, send_mem_wr_req
+Conflicts: deq_mem_wr_req
+ 
+Method: send_mem_rd_req_get
+Ready signal: dcache.RDY_send_mem_rd_req_get
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+Conflicts: send_mem_rd_req_get
+ 
+Method: receive_mem_rd_resp_put
+Ready signal: dcache.RDY_receive_mem_rd_resp_put
+Conflict-free: receive_core_req_put,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+Sequenced before (restricted): send_core_cache_resp_get, get_ptw_resp_get
+Conflicts: receive_mem_rd_resp_put
+ 
+Method: ma_commit_store
+Ready signal: True
+Conflict-free: send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       ma_satp_from_csr,
+	       get_hold_req_get
+Sequenced before (restricted): send_core_cache_resp_get, get_ptw_resp_get
+Sequenced after (restricted): receive_core_req_put,
+			      ma_curr_priv,
+			      ma_commit_io,
+			      mv_dmem_available,
+			      ma_cache_enable,
+			      put_resp_from_ptw_put,
+			      ma_mstatus_from_csr
+Conflicts: ma_commit_store
+ 
+Method: ma_cache_enable
+Ready signal: True
+Conflict-free: send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr
+Sequenced before (restricted): receive_core_req_put,
+			       send_core_cache_resp_get,
+			       ma_commit_store,
+			       get_ptw_resp_get,
+			       get_hold_req_get
+Conflicts: ma_cache_enable
+ 
+Method: mv_storebuffer_empty
+Ready signal: True
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+ 
+Method: get_ptw_resp_get
+Ready signal: dcache.RDY_get_ptw_resp_get
+Conflict-free: send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       ma_satp_from_csr,
+	       get_hold_req_get
+Sequenced after (restricted): receive_core_req_put,
+			      ma_curr_priv,
+			      ma_commit_io,
+			      mv_dmem_available,
+			      receive_mem_rd_resp_put,
+			      ma_commit_store,
+			      ma_cache_enable,
+			      put_resp_from_ptw_put,
+			      ma_mstatus_from_csr
+Conflicts: get_ptw_resp_get
+ 
+Method: get_req_to_ptw_get
+Ready signal: dtlb.RDY_get_request_to_ptw_get
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+Conflicts: get_req_to_ptw_get
+ 
+Method: put_resp_from_ptw_put
+Ready signal: dtlb.RDY_put_response_frm_ptw_put
+Conflict-free: send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       ma_mstatus_from_csr
+Sequenced before (restricted): receive_core_req_put,
+			       send_core_cache_resp_get,
+			       ma_commit_store,
+			       get_ptw_resp_get,
+			       get_hold_req_get
+Sequenced after (restricted): ma_satp_from_csr
+Conflicts: put_resp_from_ptw_put
+ 
+Method: ma_satp_from_csr
+Ready signal: True
+Conflict-free: send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       ma_mstatus_from_csr,
+	       get_hold_req_get
+Sequenced before (restricted): receive_core_req_put, put_resp_from_ptw_put
+Conflicts: ma_satp_from_csr
+ 
+Method: ma_mstatus_from_csr
+Ready signal: True
+Conflict-free: send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       ma_curr_priv,
+	       ma_commit_io,
+	       mv_dmem_available,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_cache_enable,
+	       mv_storebuffer_empty,
+	       get_req_to_ptw_get,
+	       put_resp_from_ptw_put,
+	       ma_satp_from_csr
+Sequenced before (restricted): receive_core_req_put,
+			       send_core_cache_resp_get,
+			       ma_commit_store,
+			       get_ptw_resp_get,
+			       get_hold_req_get
+Conflicts: ma_mstatus_from_csr
+ 
+Method: get_hold_req_get
+Ready signal: dcache.RDY_get_hold_req_get
+Conflict-free: receive_core_req_put,
+	       send_core_cache_resp_get,
+	       send_core_io_resp,
+	       send_mem_io_req_get,
+	       receive_mem_io_resp_put,
+	       send_mem_wr_req,
+	       receive_mem_wr_resp_put,
+	       deq_mem_wr_req,
+	       send_mem_rd_req_get,
+	       receive_mem_rd_resp_put,
+	       ma_commit_store,
+	       mv_storebuffer_empty,
+	       get_ptw_resp_get,
+	       get_req_to_ptw_get,
+	       ma_satp_from_csr
+Sequenced after (restricted): ma_curr_priv,
+			      ma_commit_io,
+			      mv_dmem_available,
+			      ma_cache_enable,
+			      put_resp_from_ptw_put,
+			      ma_mstatus_from_csr
+Conflicts: get_hold_req_get
+ 
+Rule schedule
+-------------
+Rule: mkConnectionGetPut
+Predicate: dcache.RDY_put_pa_from_tlb_put && dtlb.RDY_get_core_response_get
+Blocking rules: (none)
+ 
+Logical execution order: send_core_io_resp,
+			 send_mem_io_req_get,
+			 receive_mem_io_resp_put,
+			 ma_curr_priv,
+			 mv_dmem_available,
+			 send_mem_wr_req,
+			 receive_mem_wr_resp_put,
+			 deq_mem_wr_req,
+			 send_mem_rd_req_get,
+			 receive_mem_rd_resp_put,
+			 ma_cache_enable,
+			 mv_storebuffer_empty,
+			 get_req_to_ptw_get,
+			 ma_satp_from_csr,
+			 put_resp_from_ptw_put,
+			 ma_mstatus_from_csr,
+			 receive_core_req_put,
+			 ma_commit_io,
+			 mkConnectionGetPut,
+			 ma_commit_store,
+			 send_core_cache_resp_get,
+			 get_ptw_resp_get,
+			 get_hold_req_get
+
+======================================

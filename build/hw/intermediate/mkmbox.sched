@@ -1,0 +1,65 @@
+=== Generated schedule for mkmbox ===
+
+Method schedule
+---------------
+Method: ma_inputs
+Ready signal: True
+Conflict-free: tx_output_enq_ena, tx_output_enq_data
+Sequenced after: mv_ready
+Sequenced after (restricted): tx_output_notFull, tx_output_enq_rdy
+Conflicts: ma_inputs
+ 
+Method: mv_ready
+Ready signal: True
+Conflict-free: mv_ready, tx_output_enq_ena, tx_output_enq_data
+Sequenced before: ma_inputs
+Sequenced after (restricted): tx_output_notFull, tx_output_enq_rdy
+ 
+Method: tx_output_notFull
+Ready signal: True
+Conflict-free: tx_output_enq_rdy
+Sequenced before (restricted): ma_inputs,
+			       mv_ready,
+			       tx_output_enq_ena,
+			       tx_output_enq_data
+Conflicts: tx_output_notFull
+ 
+Method: tx_output_enq_rdy
+Ready signal: True
+Conflict-free: tx_output_notFull
+Sequenced before (restricted): ma_inputs,
+			       mv_ready,
+			       tx_output_enq_ena,
+			       tx_output_enq_data
+Conflicts: tx_output_enq_rdy
+ 
+Method: tx_output_enq_ena
+Ready signal: True
+Conflict-free: ma_inputs, mv_ready, tx_output_enq_ena, tx_output_enq_data
+Sequenced after (restricted): tx_output_notFull, tx_output_enq_rdy
+ 
+Method: tx_output_enq_data
+Ready signal: True
+Conflict-free: ma_inputs, mv_ready, tx_output_enq_ena, tx_output_enq_data
+Sequenced after (restricted): tx_output_notFull, tx_output_enq_rdy
+ 
+Rule schedule
+-------------
+Rule: rl_fifo_full
+Predicate: ! tx_mbox_out_w_notFull.wget
+Blocking rules: (none)
+ 
+Rule: rl_capture_output
+Predicate: tx_mbox_out_w_rdy.wget && ff_ordering.i_notEmpty
+Blocking rules: (none)
+ 
+Logical execution order: tx_output_notFull,
+			 tx_output_enq_rdy,
+			 rl_fifo_full,
+			 rl_capture_output,
+			 mv_ready,
+			 ma_inputs,
+			 tx_output_enq_ena,
+			 tx_output_enq_data
+
+======================================

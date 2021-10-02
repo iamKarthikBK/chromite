@@ -1,0 +1,11 @@
+=== Generated schedule for module_decode_word32 ===
+
+Method schedule
+---------------
+Method: decode_word32
+Ready signal: True
+Conflict-free: decode_word32
+ 
+Logical execution order: decode_word32
+
+====================================================

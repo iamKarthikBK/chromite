@@ -1,0 +1,73 @@
+=== Generated schedule for mkfa_itlb ===
+
+Method schedule
+---------------
+Method: put_core_request_put
+Ready signal: (! rg_sfence) && (! rg_tlb_miss) &&
+	      wr_satp.whas &&
+	      wr_priv.whas &&
+	      ff_core_respone.i_notFull && ff_request_to_ptw.i_notFull
+Conflict-free: get_core_response_get,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put
+Sequenced after (restricted): ma_satp_from_csr, ma_curr_priv
+Conflicts: put_core_request_put
+ 
+Method: get_core_response_get
+Ready signal: ff_core_respone.i_notEmpty
+Conflict-free: put_core_request_put,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr,
+	       ma_curr_priv
+Conflicts: get_core_response_get
+ 
+Method: get_request_to_ptw_get
+Ready signal: ff_request_to_ptw.i_notEmpty
+Conflict-free: put_core_request_put,
+	       get_core_response_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr,
+	       ma_curr_priv
+Conflicts: get_request_to_ptw_get
+ 
+Method: put_response_frm_ptw_put
+Ready signal: rg_tlb_miss && (! rg_sfence) &&
+	      ff_core_respone.i_notFull && wr_satp.whas
+Conflict-free: put_core_request_put,
+	       get_core_response_get,
+	       get_request_to_ptw_get,
+	       ma_curr_priv
+Sequenced after (restricted): ma_satp_from_csr
+Conflicts: put_response_frm_ptw_put
+ 
+Method: ma_satp_from_csr
+Ready signal: True
+Conflict-free: get_core_response_get, get_request_to_ptw_get, ma_curr_priv
+Sequenced before (restricted): put_core_request_put, put_response_frm_ptw_put
+Conflicts: ma_satp_from_csr
+ 
+Method: ma_curr_priv
+Ready signal: True
+Conflict-free: get_core_response_get,
+	       get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr
+Sequenced before (restricted): put_core_request_put
+Conflicts: ma_curr_priv
+ 
+Rule schedule
+-------------
+Rule: rl_fence
+Predicate: rg_sfence
+Blocking rules: (none)
+ 
+Logical execution order: get_core_response_get,
+			 get_request_to_ptw_get,
+			 ma_satp_from_csr,
+			 put_response_frm_ptw_put,
+			 ma_curr_priv,
+			 put_core_request_put,
+			 rl_fence
+
+=========================================

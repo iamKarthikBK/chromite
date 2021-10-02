@@ -1,0 +1,11 @@
+SizedFIFO
+FIFO2
+RevertReg
+mkbootrom
+mkaxi2apb_bridge
+mkccore_axi4
+mkclint
+mkdebug_loop
+mkbram
+mksign_dump
+mkuart

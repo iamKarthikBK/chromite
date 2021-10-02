@@ -1,0 +1,11 @@
+=== Generated schedule for module_fn_decode_trapcause ===
+
+Method schedule
+---------------
+Method: fn_decode_trapcause
+Ready signal: True
+Conflict-free: fn_decode_trapcause
+ 
+Logical execution order: fn_decode_trapcause
+
+==========================================================

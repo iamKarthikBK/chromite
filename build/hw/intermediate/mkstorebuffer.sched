@@ -1,0 +1,315 @@
+=== Generated schedule for mkstorebuffer ===
+
+Method schedule
+---------------
+Method: ma_allocate_line
+Ready signal: ! rg_sb_busy.read
+Conflict-free: ma_allocate_store,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_perform_atomic
+Sequenced before: ma_commit_store, ma_release
+Sequenced after: mv_lb_tail
+Conflicts: ma_allocate_line
+ 
+Method: ma_allocate_store
+Ready signal: ! rg_sb_busy.read
+Conflict-free: ma_allocate_line,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       ma_perform_atomic
+Sequenced before: ma_commit_store
+Sequenced before (restricted): mv_release_head, ma_release
+Sequenced after: mav_core_lookup, mv_sb_tail
+Conflicts: ma_allocate_store
+ 
+Method: mav_core_lookup
+Ready signal: True
+Conflict-free: ma_allocate_line,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_release,
+	       ma_perform_atomic
+Sequenced before: ma_allocate_store
+Conflicts: mav_core_lookup
+ 
+Method: mv_sb_empty
+Ready signal: True
+Conflict-free: ma_allocate_line,
+	       ma_allocate_store,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_release,
+	       ma_perform_atomic
+ 
+Method: mv_sb_full
+Ready signal: True
+Conflict-free: ma_allocate_line,
+	       ma_allocate_store,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_release,
+	       ma_perform_atomic
+ 
+Method: mv_line_empty
+Ready signal: True
+Conflict-free: ma_allocate_line,
+	       ma_allocate_store,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_release,
+	       ma_perform_atomic
+ 
+Method: mv_line_full
+Ready signal: True
+Conflict-free: ma_allocate_line,
+	       ma_allocate_store,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_release,
+	       ma_perform_atomic
+ 
+Method: mv_sb_busy
+Ready signal: True
+Conflict-free: ma_allocate_line,
+	       ma_allocate_store,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_release,
+	       ma_perform_atomic
+ 
+Method: ma_commit_store
+Ready signal: True
+Conflict-free: mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       ma_perform_atomic
+Sequenced after: ma_allocate_line,
+		 ma_allocate_store,
+		 mv_release_head,
+		 ma_release
+Conflicts: ma_commit_store
+ 
+Method: mv_lb_tail
+Ready signal: True
+Conflict-free: ma_allocate_store,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_release,
+	       ma_perform_atomic
+Sequenced before: ma_allocate_line
+ 
+Method: mv_lb_head
+Ready signal: True
+Conflict-free: ma_allocate_line,
+	       ma_allocate_store,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_perform_atomic
+Sequenced before: ma_release
+ 
+Method: mv_sb_tail
+Ready signal: True
+Conflict-free: ma_allocate_line,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_release,
+	       ma_perform_atomic
+Sequenced before: ma_allocate_store
+ 
+Method: mv_release_head
+Ready signal: True
+Conflict-free: ma_allocate_line,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_perform_atomic
+Sequenced before: ma_commit_store, ma_release
+Sequenced after (restricted): ma_allocate_store
+ 
+Method: ma_release
+Ready signal: True
+Conflict-free: mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       mv_lb_tail,
+	       mv_sb_tail,
+	       ma_perform_atomic
+Sequenced before: ma_commit_store
+Sequenced after: ma_allocate_line, mv_lb_head, mv_release_head
+Sequenced after (restricted): ma_allocate_store
+Conflicts: ma_release
+ 
+Method: ma_perform_atomic
+Ready signal: ! rg_sb_busy.read
+Conflict-free: ma_allocate_line,
+	       ma_allocate_store,
+	       mav_core_lookup,
+	       mv_sb_empty,
+	       mv_sb_full,
+	       mv_line_empty,
+	       mv_line_full,
+	       mv_sb_busy,
+	       ma_commit_store,
+	       mv_lb_tail,
+	       mv_lb_head,
+	       mv_sb_tail,
+	       mv_release_head,
+	       ma_release
+Sequenced before (restricted): ma_perform_atomic
+ 
+Rule schedule
+-------------
+Rule: rl_print_stats
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: rl_perform_atomic
+Predicate: rg_sb_busy.read
+Blocking rules: (none)
+ 
+Rule: rl_commit_from_sb_to_line
+Predicate: (PrimArrayDynSelect (PrimBuildArray v_sb_valid_0.read
+					       v_sb_valid_1.read)
+			       rg_sb_head) &&
+	   (PrimArrayDynSelect (PrimBuildArray v_sb_commit_0.port1__read
+					       v_sb_commit_1.port1__read)
+			       rg_sb_head) &&
+	   (PrimArrayDynSelect (PrimBuildArray v_lb_valid_0.read
+					       v_lb_valid_1.read
+					       v_lb_valid_2.read
+					       v_lb_valid_3.read)
+			       (PrimArrayDynSelect (PrimBuildArray v_sb_meta_0.read[67:66]
+								   v_sb_meta_1.read[67:66])
+						   rg_sb_head)) &&
+	   (! rg_sb_busy.read)
+Blocking rules: (none)
+ 
+Logical execution order: mav_core_lookup,
+			 mv_sb_empty,
+			 mv_sb_full,
+			 mv_line_empty,
+			 mv_line_full,
+			 mv_sb_busy,
+			 mv_lb_tail,
+			 ma_allocate_line,
+			 mv_lb_head,
+			 mv_sb_tail,
+			 ma_allocate_store,
+			 mv_release_head,
+			 ma_release,
+			 ma_commit_store,
+			 ma_perform_atomic,
+			 rl_print_stats,
+			 rl_perform_atomic,
+			 rl_commit_from_sb_to_line
+
+=============================================

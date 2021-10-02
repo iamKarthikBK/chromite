@@ -1,0 +1,216 @@
+=== Generated schedule for mkstage0 ===
+
+Method schedule
+---------------
+Method: common_ma_update_eEpoch
+Ready signal: True
+Conflict-free: common_ma_update_wEpoch,
+	       common_ma_flush,
+	       icache_to_icache_get,
+	       tx_tx_to_stage1_enq_ena,
+	       tx_tx_to_stage1_enq_data,
+	       s0_bpu_ma_train_bpu,
+	       s0_bpu_ma_mispredict
+Sequenced after (restricted): common_ma_reset_done,
+			      tx_tx_to_stage1_notFull,
+			      tx_tx_to_stage1_enq_rdy,
+			      s0_bpu_ma_bpu_enable
+Conflicts: common_ma_update_eEpoch
+ 
+Method: common_ma_update_wEpoch
+Ready signal: True
+Conflict-free: common_ma_update_eEpoch,
+	       common_ma_flush,
+	       icache_to_icache_get,
+	       tx_tx_to_stage1_enq_ena,
+	       tx_tx_to_stage1_enq_data,
+	       s0_bpu_ma_train_bpu,
+	       s0_bpu_ma_mispredict
+Sequenced after (restricted): common_ma_reset_done,
+			      tx_tx_to_stage1_notFull,
+			      tx_tx_to_stage1_enq_rdy,
+			      s0_bpu_ma_bpu_enable
+Conflicts: common_ma_update_wEpoch
+ 
+Method: common_ma_flush
+Ready signal: (! rg_initialize) && wr_reset_sequence_done.wget &&
+	      wr_reset_sequence_done.whas
+Conflict-free: common_ma_update_eEpoch,
+	       common_ma_update_wEpoch,
+	       icache_to_icache_get,
+	       tx_tx_to_stage1_enq_ena,
+	       tx_tx_to_stage1_enq_data,
+	       s0_bpu_ma_train_bpu,
+	       s0_bpu_ma_mispredict
+Sequenced before (restricted): common_ma_flush
+Sequenced after (restricted): common_ma_reset_done,
+			      tx_tx_to_stage1_notFull,
+			      tx_tx_to_stage1_enq_rdy,
+			      s0_bpu_ma_bpu_enable
+ 
+Method: common_ma_reset_done
+Ready signal: True
+Conflict-free: tx_tx_to_stage1_notFull,
+	       tx_tx_to_stage1_enq_rdy,
+	       s0_bpu_ma_bpu_enable
+Sequenced before (restricted): common_ma_update_eEpoch,
+			       common_ma_update_wEpoch,
+			       common_ma_flush,
+			       icache_to_icache_get,
+			       tx_tx_to_stage1_enq_ena,
+			       tx_tx_to_stage1_enq_data,
+			       s0_bpu_ma_train_bpu,
+			       s0_bpu_ma_mispredict
+Conflicts: common_ma_reset_done
+ 
+Method: icache_to_icache_get
+Ready signal: ff_to_cache_rv.port1__read[68]
+Conflict-free: common_ma_update_eEpoch,
+	       common_ma_update_wEpoch,
+	       common_ma_flush,
+	       tx_tx_to_stage1_enq_ena,
+	       tx_tx_to_stage1_enq_data,
+	       s0_bpu_ma_train_bpu,
+	       s0_bpu_ma_mispredict
+Sequenced after (restricted): common_ma_reset_done,
+			      tx_tx_to_stage1_notFull,
+			      tx_tx_to_stage1_enq_rdy,
+			      s0_bpu_ma_bpu_enable
+Conflicts: icache_to_icache_get
+ 
+Method: tx_tx_to_stage1_notFull
+Ready signal: True
+Conflict-free: common_ma_reset_done,
+	       tx_tx_to_stage1_enq_rdy,
+	       s0_bpu_ma_bpu_enable
+Sequenced before (restricted): common_ma_update_eEpoch,
+			       common_ma_update_wEpoch,
+			       common_ma_flush,
+			       icache_to_icache_get,
+			       tx_tx_to_stage1_enq_ena,
+			       tx_tx_to_stage1_enq_data,
+			       s0_bpu_ma_train_bpu,
+			       s0_bpu_ma_mispredict
+Conflicts: tx_tx_to_stage1_notFull
+ 
+Method: tx_tx_to_stage1_enq_rdy
+Ready signal: True
+Conflict-free: common_ma_reset_done,
+	       tx_tx_to_stage1_notFull,
+	       s0_bpu_ma_bpu_enable
+Sequenced before (restricted): common_ma_update_eEpoch,
+			       common_ma_update_wEpoch,
+			       common_ma_flush,
+			       icache_to_icache_get,
+			       tx_tx_to_stage1_enq_ena,
+			       tx_tx_to_stage1_enq_data,
+			       s0_bpu_ma_train_bpu,
+			       s0_bpu_ma_mispredict
+Conflicts: tx_tx_to_stage1_enq_rdy
+ 
+Method: tx_tx_to_stage1_enq_ena
+Ready signal: True
+Conflict-free: common_ma_update_eEpoch,
+	       common_ma_update_wEpoch,
+	       common_ma_flush,
+	       icache_to_icache_get,
+	       tx_tx_to_stage1_enq_ena,
+	       tx_tx_to_stage1_enq_data,
+	       s0_bpu_ma_train_bpu,
+	       s0_bpu_ma_mispredict
+Sequenced after (restricted): common_ma_reset_done,
+			      tx_tx_to_stage1_notFull,
+			      tx_tx_to_stage1_enq_rdy,
+			      s0_bpu_ma_bpu_enable
+ 
+Method: tx_tx_to_stage1_enq_data
+Ready signal: True
+Conflict-free: common_ma_update_eEpoch,
+	       common_ma_update_wEpoch,
+	       common_ma_flush,
+	       icache_to_icache_get,
+	       tx_tx_to_stage1_enq_ena,
+	       tx_tx_to_stage1_enq_data,
+	       s0_bpu_ma_train_bpu,
+	       s0_bpu_ma_mispredict
+Sequenced after (restricted): common_ma_reset_done,
+			      tx_tx_to_stage1_notFull,
+			      tx_tx_to_stage1_enq_rdy,
+			      s0_bpu_ma_bpu_enable
+ 
+Method: s0_bpu_ma_train_bpu
+Ready signal: bpu.RDY_ma_train_bpu
+Conflict-free: common_ma_update_eEpoch,
+	       common_ma_update_wEpoch,
+	       common_ma_flush,
+	       icache_to_icache_get,
+	       tx_tx_to_stage1_enq_ena,
+	       tx_tx_to_stage1_enq_data,
+	       s0_bpu_ma_mispredict
+Sequenced after (restricted): common_ma_reset_done,
+			      tx_tx_to_stage1_notFull,
+			      tx_tx_to_stage1_enq_rdy,
+			      s0_bpu_ma_bpu_enable
+Conflicts: s0_bpu_ma_train_bpu
+ 
+Method: s0_bpu_ma_mispredict
+Ready signal: bpu.RDY_ma_mispredict
+Conflict-free: common_ma_update_eEpoch,
+	       common_ma_update_wEpoch,
+	       common_ma_flush,
+	       icache_to_icache_get,
+	       tx_tx_to_stage1_enq_ena,
+	       tx_tx_to_stage1_enq_data,
+	       s0_bpu_ma_train_bpu
+Sequenced before (restricted): s0_bpu_ma_mispredict
+Sequenced after (restricted): common_ma_reset_done,
+			      tx_tx_to_stage1_notFull,
+			      tx_tx_to_stage1_enq_rdy,
+			      s0_bpu_ma_bpu_enable
+ 
+Method: s0_bpu_ma_bpu_enable
+Ready signal: True
+Conflict-free: common_ma_reset_done,
+	       tx_tx_to_stage1_notFull,
+	       tx_tx_to_stage1_enq_rdy
+Sequenced before (restricted): common_ma_update_eEpoch,
+			       common_ma_update_wEpoch,
+			       common_ma_flush,
+			       icache_to_icache_get,
+			       tx_tx_to_stage1_enq_ena,
+			       tx_tx_to_stage1_enq_data,
+			       s0_bpu_ma_train_bpu,
+			       s0_bpu_ma_mispredict
+Conflicts: s0_bpu_ma_bpu_enable
+ 
+Rule schedule
+-------------
+Rule: rl_initialize
+Predicate: wr_reset_sequence_done.whas &&
+	   rg_initialize && wr_reset_sequence_done.wget
+Blocking rules: (none)
+ 
+Rule: rl_gen_next_pc
+Predicate: (! ff_to_cache_rv.port0__read[68]) &&
+	   wr_reset_sequence_done.whas &&
+	   bpu.RDY_mav_prediction_response && tx_tostage1_w_rdy.wget &&
+	   tx_tostage1_w_notFull.wget && (! rg_initialize) &&
+	   wr_reset_sequence_done.wget
+Blocking rules: (none)
+ 
+Logical execution order: common_ma_reset_done,
+			 tx_tx_to_stage1_notFull,
+			 tx_tx_to_stage1_enq_rdy,
+			 s0_bpu_ma_bpu_enable,
+			 rl_initialize,
+			 rl_gen_next_pc,
+			 common_ma_update_eEpoch,
+			 common_ma_update_wEpoch,
+			 common_ma_flush,
+			 icache_to_icache_get,
+			 tx_tx_to_stage1_enq_ena,
+			 tx_tx_to_stage1_enq_data,
+			 s0_bpu_ma_train_bpu,
+			 s0_bpu_ma_mispredict
+
+========================================

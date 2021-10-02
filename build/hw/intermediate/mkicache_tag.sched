@@ -1,0 +1,39 @@
+=== Generated schedule for mkicache_tag ===
+
+Method schedule
+---------------
+Method: ma_request
+Ready signal: True
+Conflict-free: mv_read_response
+Conflicts: ma_request
+ 
+Method: mv_read_response
+Ready signal: True
+Conflict-free: ma_request, mv_read_response
+ 
+Rule schedule
+-------------
+Rule: v_tags_0_capture_output
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: v_tags_1_capture_output
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: v_tags_2_capture_output
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: v_tags_3_capture_output
+Predicate: True
+Blocking rules: (none)
+ 
+Logical execution order: ma_request,
+			 v_tags_0_capture_output,
+			 v_tags_1_capture_output,
+			 v_tags_2_capture_output,
+			 v_tags_3_capture_output,
+			 mv_read_response
+
+============================================

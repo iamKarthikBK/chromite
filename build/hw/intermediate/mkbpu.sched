@@ -1,0 +1,44 @@
+=== Generated schedule for mkbpu ===
+
+Method schedule
+---------------
+Method: mav_prediction_response
+Ready signal: (! rg_initialize.read) && wr_bpu_enable.whas
+Sequenced before: ma_train_bpu
+Sequenced before (restricted): ma_mispredict
+Sequenced after (restricted): ma_bpu_enable
+Conflicts: mav_prediction_response
+ 
+Method: ma_train_bpu
+Ready signal: wr_bpu_enable.wget && (! rg_initialize.read) &&
+	      wr_bpu_enable.whas
+Conflict-free: ma_mispredict
+Sequenced after: mav_prediction_response
+Sequenced after (restricted): ma_bpu_enable
+Conflicts: ma_train_bpu
+ 
+Method: ma_mispredict
+Ready signal: ! rg_initialize.read
+Conflict-free: ma_train_bpu, ma_bpu_enable
+Sequenced before (restricted): ma_mispredict
+Sequenced after (restricted): mav_prediction_response
+ 
+Method: ma_bpu_enable
+Ready signal: True
+Conflict-free: ma_mispredict
+Sequenced before (restricted): mav_prediction_response, ma_train_bpu
+Conflicts: ma_bpu_enable
+ 
+Rule schedule
+-------------
+Rule: rl_initialize
+Predicate: rg_initialize.read
+Blocking rules: (none)
+ 
+Logical execution order: ma_bpu_enable,
+			 mav_prediction_response,
+			 ma_train_bpu,
+			 ma_mispredict,
+			 rl_initialize
+
+=====================================

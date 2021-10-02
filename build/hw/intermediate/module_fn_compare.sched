@@ -1,0 +1,11 @@
+=== Generated schedule for module_fn_compare ===
+
+Method schedule
+---------------
+Method: fn_compare
+Ready signal: True
+Conflict-free: fn_compare
+ 
+Logical execution order: fn_compare
+
+=================================================

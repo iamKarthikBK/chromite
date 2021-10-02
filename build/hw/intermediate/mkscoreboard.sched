@@ -1,0 +1,24 @@
+=== Generated schedule for mkscoreboard ===
+
+Method schedule
+---------------
+Method: ma_lock_rd
+Ready signal: True
+Sequenced before (restricted): ma_release_rd
+Sequenced after: mv_board
+Conflicts: ma_lock_rd
+ 
+Method: ma_release_rd
+Ready signal: True
+Sequenced after (restricted): ma_lock_rd, mv_board
+Conflicts: ma_release_rd
+ 
+Method: mv_board
+Ready signal: True
+Conflict-free: mv_board
+Sequenced before: ma_lock_rd
+Sequenced before (restricted): ma_release_rd
+ 
+Logical execution order: mv_board, ma_lock_rd, ma_release_rd
+
+============================================

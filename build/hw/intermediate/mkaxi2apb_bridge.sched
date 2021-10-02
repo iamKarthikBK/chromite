@@ -1,0 +1,910 @@
+=== Generated schedule for mkaxi2apb_bridge ===
+
+Method schedule
+---------------
+Method: axi4_side_m_awvalid
+Ready signal: True
+Conflict-free: axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Conflicts: axi4_side_m_awvalid
+ 
+Method: axi4_side_m_awready
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: axi4_side_m_wvalid
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Conflicts: axi4_side_m_wvalid
+ 
+Method: axi4_side_m_wready
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: axi4_side_m_bvalid
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: axi4_side_m_bid
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Sequenced before: axi4_side_m_bready
+ 
+Method: axi4_side_m_bresp
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Sequenced before: axi4_side_m_bready
+ 
+Method: axi4_side_m_buser
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: axi4_side_m_bready
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_buser,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Sequenced after: axi4_side_m_bid, axi4_side_m_bresp
+Conflicts: axi4_side_m_bready
+ 
+Method: axi4_side_m_arvalid
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Conflicts: axi4_side_m_arvalid
+ 
+Method: axi4_side_m_arready
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: axi4_side_m_rvalid
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: axi4_side_m_rid
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Sequenced before: axi4_side_m_rready
+ 
+Method: axi4_side_m_rdata
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Sequenced before: axi4_side_m_rready
+ 
+Method: axi4_side_m_rresp
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Sequenced before: axi4_side_m_rready
+ 
+Method: axi4_side_m_rlast
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Sequenced before: axi4_side_m_rready
+ 
+Method: axi4_side_m_ruser
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: axi4_side_m_rready
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_ruser,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+Sequenced after: axi4_side_m_rid,
+		 axi4_side_m_rdata,
+		 axi4_side_m_rresp,
+		 axi4_side_m_rlast
+Conflicts: axi4_side_m_rready
+ 
+Method: apb_side_m_paddr
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: apb_side_m_prot
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: apb_side_m_penable
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: apb_side_m_pwrite
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: apb_side_m_pwdata
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: apb_side_m_pstrb
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: apb_side_m_psel
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: apb_side_m_puser
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser,
+	       apb_side_m_pready
+ 
+Method: apb_side_m_pready
+Ready signal: True
+Conflict-free: axi4_side_m_awvalid,
+	       axi4_side_m_awready,
+	       axi4_side_m_wvalid,
+	       axi4_side_m_wready,
+	       axi4_side_m_bvalid,
+	       axi4_side_m_bid,
+	       axi4_side_m_bresp,
+	       axi4_side_m_buser,
+	       axi4_side_m_bready,
+	       axi4_side_m_arvalid,
+	       axi4_side_m_arready,
+	       axi4_side_m_rvalid,
+	       axi4_side_m_rid,
+	       axi4_side_m_rdata,
+	       axi4_side_m_rresp,
+	       axi4_side_m_rlast,
+	       axi4_side_m_ruser,
+	       axi4_side_m_rready,
+	       apb_side_m_paddr,
+	       apb_side_m_prot,
+	       apb_side_m_penable,
+	       apb_side_m_pwrite,
+	       apb_side_m_pwdata,
+	       apb_side_m_pstrb,
+	       apb_side_m_psel,
+	       apb_side_m_puser
+Conflicts: apb_side_m_pready
+ 
+Rule schedule
+-------------
+Rule: apb_xactor_rl_idle_to_setup
+Predicate: apb_xactor_ff_request_rv.port1__read[72] &&
+	   (apb_xactor_rg_state == 2'd0)
+Blocking rules: (none)
+ 
+Rule: apb_xactor_rl_setup_state
+Predicate: apb_xactor_rg_state == 2'd1
+Blocking rules: (none)
+ 
+Rule: apb_xactor_rl_access_to_idle
+Predicate: apb_xactor_ff_response.i_notFull &&
+	   (apb_xactor_rg_state == 2'd2) && apb_xactor_wr_pready.wget &&
+	   (! apb_xactor_ff_request_rv.port1__read[72])
+Blocking rules: (none)
+ 
+Rule: apb_xactor_rl_access_to_setup
+Predicate: apb_xactor_ff_request_rv.port1__read[72] &&
+	   apb_xactor_ff_response.i_notFull &&
+	   (apb_xactor_rg_state == 2'd2) && apb_xactor_wr_pready.wget
+Blocking rules: (none)
+ 
+Rule: rl_read_frm_axi
+Predicate: axi_xactor_f_arfifo.i_notEmpty &&
+	   (! apb_xactor_ff_request_rv.port0__read[72]) &&
+	   (rg_state.read == 2'd0)
+Blocking rules: (none)
+ 
+Rule: rl_send_rd_burst_req
+Predicate: (! apb_xactor_ff_request_rv.port0__read[72]) &&
+	   (rg_state.read == 2'd1) && (! (rg_req_beat == 8'd0))
+Blocking rules: (none)
+ 
+Rule: rl_read_response_to_axi
+Predicate: apb_xactor_ff_response.i_notEmpty &&
+	   axi_xactor_f_rfifo.i_notFull &&
+	   (rg_state.read == 2'd1) && (! (rg_resp_beat == 8'd0))
+Blocking rules: (none)
+ 
+Rule: rl_write_frm_axi
+Predicate: (! apb_xactor_ff_request_rv.port0__read[72]) &&
+	   axi_xactor_f_awfifo.i_notEmpty && axi_xactor_f_wfifo.i_notEmpty &&
+	   (rg_state.read == 2'd0)
+Blocking rules: rl_read_frm_axi
+ 
+Rule: rl_send_wr_burst_req
+Predicate: (! apb_xactor_ff_request_rv.port0__read[72]) &&
+	   axi_xactor_f_wfifo.i_notEmpty &&
+	   (rg_state.read == 2'd2) && (! (rg_req_beat == 8'd0))
+Blocking rules: (none)
+ 
+Rule: rl_write_response_to_axi
+Predicate: apb_xactor_ff_response.i_notEmpty &&
+	   axi_xactor_f_bfifo.i_notFull &&
+	   (rg_state.read == 2'd2) && (! (rg_resp_beat == 8'd0))
+Blocking rules: (none)
+ 
+Logical execution order: axi4_side_m_awvalid,
+			 axi4_side_m_awready,
+			 axi4_side_m_wvalid,
+			 axi4_side_m_wready,
+			 axi4_side_m_bvalid,
+			 axi4_side_m_bid,
+			 axi4_side_m_bresp,
+			 axi4_side_m_buser,
+			 axi4_side_m_bready,
+			 axi4_side_m_arvalid,
+			 axi4_side_m_arready,
+			 axi4_side_m_rvalid,
+			 axi4_side_m_rid,
+			 axi4_side_m_rdata,
+			 axi4_side_m_rresp,
+			 axi4_side_m_rlast,
+			 axi4_side_m_ruser,
+			 axi4_side_m_rready,
+			 apb_side_m_paddr,
+			 apb_side_m_prot,
+			 apb_side_m_penable,
+			 apb_side_m_pwrite,
+			 apb_side_m_pwdata,
+			 apb_side_m_pstrb,
+			 apb_side_m_psel,
+			 apb_side_m_puser,
+			 apb_side_m_pready,
+			 rl_read_frm_axi,
+			 rl_read_response_to_axi,
+			 rl_send_rd_burst_req,
+			 rl_write_frm_axi,
+			 rl_write_response_to_axi,
+			 rl_send_wr_burst_req,
+			 apb_xactor_rl_idle_to_setup,
+			 apb_xactor_rl_setup_state,
+			 apb_xactor_rl_access_to_idle,
+			 apb_xactor_rl_access_to_setup
+
+================================================

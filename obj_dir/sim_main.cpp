@@ -1,0 +1,1 @@
+../test_soc/sim_main.cpp

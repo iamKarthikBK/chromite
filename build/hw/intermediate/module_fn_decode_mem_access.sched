@@ -1,0 +1,11 @@
+=== Generated schedule for module_fn_decode_mem_access ===
+
+Method schedule
+---------------
+Method: fn_decode_mem_access
+Ready signal: True
+Conflict-free: fn_decode_mem_access
+ 
+Logical execution order: fn_decode_mem_access
+
+===========================================================

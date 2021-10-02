@@ -1,0 +1,41 @@
+=== Generated schedule for mkcombo_mul ===
+
+Method schedule
+---------------
+Method: ma_inputs
+Ready signal: True
+Sequenced after: mv_ready
+Sequenced after (restricted): mv_output_valid, mv_output
+Conflicts: ma_inputs
+ 
+Method: mv_ready
+Ready signal: True
+Conflict-free: mv_ready
+Sequenced before: ma_inputs
+Sequenced after (restricted): mv_output_valid, mv_output
+ 
+Method: mv_output_valid
+Ready signal: True
+Conflict-free: mv_output_valid
+Sequenced before: mv_output
+Sequenced before (restricted): ma_inputs, mv_ready
+ 
+Method: mv_output
+Ready signal: True
+Sequenced before (restricted): ma_inputs, mv_ready
+Sequenced after: mv_output_valid
+Conflicts: mv_output
+ 
+Rule schedule
+-------------
+Rule: rl_perform_mul_0
+Predicate: rg_valid_in_0.i_notEmpty && rg_valid_out_0.i_notFull
+Blocking rules: (none)
+ 
+Logical execution order: mv_output_valid,
+			 mv_output,
+			 rl_perform_mul_0,
+			 mv_ready,
+			 ma_inputs
+
+===========================================

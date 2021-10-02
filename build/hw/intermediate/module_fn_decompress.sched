@@ -1,0 +1,11 @@
+=== Generated schedule for module_fn_decompress ===
+
+Method schedule
+---------------
+Method: fn_decompress
+Ready signal: True
+Conflict-free: fn_decompress
+ 
+Logical execution order: fn_decompress
+
+====================================================

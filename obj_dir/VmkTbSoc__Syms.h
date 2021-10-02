@@ -1,0 +1,273 @@
+// Verilated -*- C++ -*-
+// DESCRIPTION: Verilator output: Symbol table internal header
+//
+// Internal details; most calling programs do not need this header,
+// unless using verilator public meta comments.
+
+#ifndef _VMKTBSOC__SYMS_H_
+#define _VMKTBSOC__SYMS_H_  // guard
+
+#include "verilated_heavy.h"
+
+// INCLUDE MODULE CLASSES
+#include "VmkTbSoc.h"
+
+// SYMS CLASS
+class VmkTbSoc__Syms : public VerilatedSyms {
+  public:
+    
+    // LOCAL STATE
+    const char* __Vm_namep;
+    bool __Vm_didInit;
+    
+    // SUBCELL STATE
+    VmkTbSoc*                      TOPp;
+    
+    // SCOPE NAMES
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_rd_route_info_0;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_rd_route_info_0__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_rd_route_info_1;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_rd_route_info_1__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_rd_route_info_2;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_rd_route_info_2__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_rd_route_info_4;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_rd_route_info_4__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wd_route_info_0_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wd_route_info_0_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wd_route_info_2_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wd_route_info_2_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wd_route_info_3_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wd_route_info_3_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wd_route_info_4_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wd_route_info_4_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wr_route_info_0;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wr_route_info_0__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wr_route_info_2;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wr_route_info_2__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wr_route_info_3;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wr_route_info_3__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wr_route_info_4;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_m_wr_route_info_4__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_rd_route_info_0;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_rd_route_info_0__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_rd_route_info_1;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_rd_route_info_1__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_rd_route_info_2;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_rd_route_info_2__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wd_route_info_0_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wd_route_info_0_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wd_route_info_1_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wd_route_info_1_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wd_route_info_2_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wd_route_info_2_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wr_route_info_0;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wr_route_info_0__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wr_route_info_1;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wr_route_info_1__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wr_route_info_2;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_f_s_wr_route_info_2__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_arfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_arfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_awfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_awfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_bfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_bfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_rfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_rfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_wfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_0_f_wfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_arfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_arfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_awfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_awfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_bfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_bfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_rfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_rfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_wfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_1_f_wfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_arfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_arfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_awfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_awfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_bfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_bfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_rfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_rfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_wfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_from_masters_2_f_wfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_arfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_arfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_awfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_awfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_bfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_bfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_rfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_rfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_wfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_0_f_wfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_arfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_arfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_awfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_awfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_bfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_bfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_rfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_rfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_wfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_1_f_wfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_arfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_arfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_awfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_awfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_bfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_bfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_rfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_rfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_wfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_2_f_wfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_arfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_arfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_awfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_awfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_bfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_bfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_rfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_rfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_wfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_3_f_wfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_arfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_arfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_awfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_awfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_bfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_bfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_rfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_rfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_wfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__axi4fabric_xactors_to_slaves_4_f_wfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__apb_xactor_ff_response;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__apb_xactor_ff_response__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_arfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_arfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_awfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_awfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_bfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_bfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_rfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_rfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_wfifo;
+    VerilatedScope __Vscope_mkTbSoc__soc__bridge__axi_xactor_f_wfifo__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_core_request;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_core_request__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_core_response_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_core_response_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_mem_io_request;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_mem_io_request__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_mem_io_resp;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_mem_io_resp__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_mem_rd_request;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_mem_rd_request__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_mem_wr_request;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dcache__ff_mem_wr_request__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dtlb__ff_lookup_result;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dtlb__ff_lookup_result__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dtlb__ff_request_to_ptw;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__dmem__dtlb__ff_request_to_ptw__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__icache__ff_core_request;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__icache__ff_core_request__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__icache__ff_pending_req;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__icache__ff_pending_req__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__icache__ff_read_mem_request;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__icache__ff_read_mem_request__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__itlb__ff_core_respone;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__itlb__ff_core_respone__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__itlb__ff_request_to_ptw;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__imem__itlb__ff_request_to_ptw__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_hold_req;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_hold_req__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_memory_req;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_memory_req__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_memory_response;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_memory_response__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_req_queue;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_req_queue__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_response;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__ptwalk_ff_response__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_baseout;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_baseout_1;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_baseout_1__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_baseout__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_commitlog;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_commitlog_1;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_commitlog_1__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_commitlog_2;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_commitlog_2__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_commitlog__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_fuid;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_fuid_1;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_fuid_1__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_fuid__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_mbox_out_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_mbox_out_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_memoryout;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_memoryout__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_pipe1;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_pipe1__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_systemout;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_systemout_1;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_systemout_1__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_systemout__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_trapout;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_trapout_1;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_trapout_1__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_trapout__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_wbmemop;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__ff_wbmemop__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__mbox__ff_ordering;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__mbox__ff_ordering__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__mbox__mul___rg_valid_in_0;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__mbox__mul___rg_valid_in_0__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__mbox__mul___rg_valid_out_0;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__mbox__mul___rg_valid_out_0__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s0s1_notEmpty_ff_pipe0;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s0s1_notEmpty_ff_pipe0__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_commitlog;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_commitlog__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_insttype;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_insttype__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_meta;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_meta__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_mtval;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_mtval__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_opmeta;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__pipe_s2s3_notEmpty_ff_opmeta__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__stage1__ff_memory_response_ff;
+    VerilatedScope __Vscope_mkTbSoc__soc__ccore_0__riscv__stage1__ff_memory_response_ff__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__clint__clint_s_xactor_ff_request;
+    VerilatedScope __Vscope_mkTbSoc__soc__clint__clint_s_xactor_ff_request__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__debug_memory__debug_loop_s_xactor_ff_request;
+    VerilatedScope __Vscope_mkTbSoc__soc__debug_memory__debug_loop_s_xactor_ff_request__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__signature__ff_lower_order_bits;
+    VerilatedScope __Vscope_mkTbSoc__soc__signature__ff_lower_order_bits__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__uart__uart_ifc_uart_fifoRecv;
+    VerilatedScope __Vscope_mkTbSoc__soc__uart__uart_ifc_uart_fifoRecv__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__uart__uart_ifc_uart_fifoXmit;
+    VerilatedScope __Vscope_mkTbSoc__soc__uart__uart_ifc_uart_fifoXmit__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__soc__uart__uart_s_xactor_ff_request;
+    VerilatedScope __Vscope_mkTbSoc__soc__uart__uart_s_xactor_ff_request__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__uart_ifc_uart_fifoRecv;
+    VerilatedScope __Vscope_mkTbSoc__uart_ifc_uart_fifoRecv__error_checks;
+    VerilatedScope __Vscope_mkTbSoc__uart_ifc_uart_fifoXmit;
+    VerilatedScope __Vscope_mkTbSoc__uart_ifc_uart_fifoXmit__error_checks;
+    
+    // CREATORS
+    VmkTbSoc__Syms(VmkTbSoc* topp, const char* namep);
+    ~VmkTbSoc__Syms() = default;
+    
+    // METHODS
+    inline const char* name() { return __Vm_namep; }
+    
+} VL_ATTR_ALIGNED(VL_CACHE_LINE_BYTES);
+
+#endif  // guard

@@ -1,0 +1,11 @@
+=== Generated schedule for module_fn_bru ===
+
+Method schedule
+---------------
+Method: fn_bru
+Ready signal: True
+Conflict-free: fn_bru
+ 
+Logical execution order: fn_bru
+
+=============================================

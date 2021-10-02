@@ -1,0 +1,111 @@
+=== Generated schedule for mkfa_dtlb ===
+
+Method schedule
+---------------
+Method: put_core_request_put
+Ready signal: (! rg_sfence) &&
+	      wr_satp.whas && wr_mstatus.whas && wr_priv.whas &&
+	      ff_lookup_result.i_notFull
+Conflict-free: get_core_response_get, get_request_to_ptw_get
+Sequenced after (restricted): put_response_frm_ptw_put,
+			      ma_satp_from_csr,
+			      ma_curr_priv,
+			      ma_mstatus_from_csr,
+			      mv_tlb_available
+Conflicts: put_core_request_put
+ 
+Method: get_core_response_get
+Ready signal: ff_core_response_rv.port1__read[41]
+Conflict-free: put_core_request_put, get_request_to_ptw_get, ma_satp_from_csr
+Sequenced after (restricted): put_response_frm_ptw_put,
+			      ma_curr_priv,
+			      ma_mstatus_from_csr,
+			      mv_tlb_available
+Conflicts: get_core_response_get
+ 
+Method: get_request_to_ptw_get
+Ready signal: ff_request_to_ptw.i_notEmpty
+Conflict-free: put_core_request_put,
+	       get_core_response_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr,
+	       ma_curr_priv,
+	       ma_mstatus_from_csr,
+	       mv_tlb_available
+Conflicts: get_request_to_ptw_get
+ 
+Method: put_response_frm_ptw_put
+Ready signal: rg_tlb_miss && (! rg_sfence) && wr_satp.whas
+Conflict-free: get_request_to_ptw_get,
+	       ma_curr_priv,
+	       ma_mstatus_from_csr,
+	       mv_tlb_available
+Sequenced before (restricted): put_core_request_put, get_core_response_get
+Sequenced after (restricted): ma_satp_from_csr
+Conflicts: put_response_frm_ptw_put
+ 
+Method: ma_satp_from_csr
+Ready signal: True
+Conflict-free: get_core_response_get,
+	       get_request_to_ptw_get,
+	       ma_curr_priv,
+	       ma_mstatus_from_csr,
+	       mv_tlb_available
+Sequenced before (restricted): put_core_request_put, put_response_frm_ptw_put
+Conflicts: ma_satp_from_csr
+ 
+Method: ma_curr_priv
+Ready signal: True
+Conflict-free: get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr,
+	       ma_mstatus_from_csr,
+	       mv_tlb_available
+Sequenced before (restricted): put_core_request_put, get_core_response_get
+Conflicts: ma_curr_priv
+ 
+Method: ma_mstatus_from_csr
+Ready signal: True
+Conflict-free: get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr,
+	       ma_curr_priv,
+	       mv_tlb_available
+Sequenced before (restricted): put_core_request_put, get_core_response_get
+Conflicts: ma_mstatus_from_csr
+ 
+Method: mv_tlb_available
+Ready signal: True
+Conflict-free: get_request_to_ptw_get,
+	       put_response_frm_ptw_put,
+	       ma_satp_from_csr,
+	       ma_curr_priv,
+	       ma_mstatus_from_csr,
+	       mv_tlb_available
+Sequenced before (restricted): put_core_request_put, get_core_response_get
+ 
+Rule schedule
+-------------
+Rule: rl_fence
+Predicate: rg_sfence && (! rg_tlb_miss) && (! ff_lookup_result.notEmpty)
+Blocking rules: (none)
+ 
+Rule: rl_send_response
+Predicate: ff_lookup_result.i_notEmpty &&
+	   (! ff_core_response_rv.port0__read[41]) &&
+	   ff_request_to_ptw.i_notFull && wr_mstatus.whas && wr_priv.whas &&
+	   (! rg_sfence)
+Blocking rules: (none)
+ 
+Logical execution order: get_request_to_ptw_get,
+			 ma_satp_from_csr,
+			 put_response_frm_ptw_put,
+			 ma_curr_priv,
+			 ma_mstatus_from_csr,
+			 mv_tlb_available,
+			 rl_fence,
+			 rl_send_response,
+			 put_core_request_put,
+			 get_core_response_get
+
+=========================================
